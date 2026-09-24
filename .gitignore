@@ -17,6 +17,7 @@ test-results/
 /CLAUDE.md
 .agents/
 .codex/
+.codex-remote-attachments/
 /skills-lock.json
 
 # Relatórios gerados podem conter dados e capturas do navegador.

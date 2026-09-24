@@ -1,6 +1,7 @@
 # Only application source is needed for deployment. No local context or data.
 /.agents
 /.codex
+/.codex-remote-attachments
 /.git
 /.next
 /.vercel
