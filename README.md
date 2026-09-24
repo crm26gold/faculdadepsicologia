@@ -2,11 +2,11 @@
 
 Um organizador de estudos com matérias, caderno, agenda e blocos de foco. A evolução prevista amplia esse núcleo para vários cursos e outras áreas da vida, mantendo o controle dos dados com cada pessoa.
 
-O código pode ser publicado no GitHub. A demonstração pública usa somente dados sintéticos em um projeto separado. O workspace privado permanece exclusivo do proprietário; publicar o código não libera acesso a ele.
+O código foi preparado para publicação no GitHub. A [demonstração pública](https://faculdadepsicologia-demo.vercel.app) usa somente dados sintéticos em um projeto separado. O workspace privado permanece exclusivo do proprietário; publicar o código não libera acesso a ele.
 
 ## Estado do projeto
 
-“Implementado” significa presente no código local, não serviço remoto verificado. O projeto de demo `faculdadepsicologia-demo` foi criado; ainda não há deployment verificado nesta revisão. Google OAuth e Supabase remotos ainda não foram configurados/verificados.
+“Implementado” significa presente no código, não integração remota ativada. A demo foi publicada e verificada em 24/09/2026, com 12 testes de navegador online aprovados. A infraestrutura Supabase foi inspecionada, mas o esquema do aplicativo e a identidade Google autorizada ainda não foram provisionados. Consulte o [registro de validação](docs/VALIDATION.md).
 
 | Recurso | Estado | Alcance |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ O código pode ser publicado no GitHub. A demonstração pública usa somente da
 | Dados no navegador | Implementado | Persistência local, exportação/importação JSON validada e proteção contra sobrescrita concorrente. |
 | Acesso privado | Preparado localmente | Validação de UUID, e-mail e identidade Google do proprietário no servidor; configuração e verificação externas pendentes. |
 | Armazenamento privado na nuvem | Preparado localmente | API e migração Supabase com RLS e controle de revisão; funcionamento remoto não verificado. |
-| Demo pública isolada | Publicação em preparação | Projeto exclusivo criado; `APP_MODE=demo`, dados sintéticos e isolamento precisam ser verificados no deployment antes de anunciar disponibilidade. |
+| Demo pública isolada | Publicada e testada | Origem separada, exemplos somente em memória, sem importação de backups, login ou API de dados pessoais. |
 | Vários cursos | Roadmap | Ainda não existe entidade de curso nem separação de dados por curso. |
 | Finanças, saúde, rotina, social, inventário e metas | Roadmap | Módulos próprios ainda não implementados; tarefas e foco não equivalem a esses módulos. |
 | IA e WhatsApp Oráculo | Roadmap | Sem bot ativo, envio de mensagens ou análise de notas por IA. Exigirão identidade do workspace e consentimento. |

@@ -1,6 +1,6 @@
 # Ambientes, publicação e implantação
 
-Este guia define o contrato de publicação aprovado e as verificações necessárias. O projeto de demo `faculdadepsicologia-demo` foi criado, mas ainda não há deployment verificado nesta revisão. Google OAuth e Supabase remotos ainda não foram configurados/verificados.
+Este guia define o contrato de publicação aprovado e as verificações necessárias. A [demo pública](https://faculdadepsicologia-demo.vercel.app) foi publicada e verificada em 24/09/2026. A infraestrutura Supabase foi conferida; migração, provisionamento da identidade Google e ativação do espaço privado permanecem pendentes. Veja [VALIDATION.md](VALIDATION.md) para resultados e limitações.
 
 O código público e a demo pública estão autorizados como destinos separados do workspace privado. Essa autorização não permite expor dados pessoais, credenciais, grade real ou acesso do proprietário. A documentação não substitui a implementação e a validação dos controles descritos abaixo.
 

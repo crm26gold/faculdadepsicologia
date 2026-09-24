@@ -19,4 +19,12 @@ A migração local permanece pendente de aplicação e teste remoto. Os testes l
 
 ## Publicação
 
-Projeto independente de demonstração criado, sem credenciais privadas. Publicação e endereço final precisam ser confirmados após o deployment. O aplicativo pessoal existente não deve ser substituído por uma demo, e os dados locais das origens anteriores não devem ser apagados.
+Demo publicada: https://faculdadepsicologia-demo.vercel.app
+
+- Projeto independente, sem credenciais privadas; deployment `dpl_CVYrAgt32X1hYknxCfLeMpuSNEvn`, estado READY, produção da demo, código `ac01935`.
+- 12 testes de navegador no endereço público passaram, em desktop e celular, sem autenticação na Vercel. Incluem verificação de que endpoints pessoais retornam 404 e que a demo não acessa armazenamento pessoal.
+- Consulta de logs com nível error nos 10 minutos após a publicação não retornou registros. Não equivale a monitoramento contínuo ou garantia de disponibilidade.
+- O vínculo local `.vercel/project.json` continua apontando para o projeto privado original; o deploy da demo usou o identificador explícito do projeto separado.
+- O primeiro envio ao GitHub foi recusado por ausência da permissão OAuth `workflow`. O commit foi preservado localmente e a renovação da autorização foi iniciada. Não anunciar o código como publicado até confirmar o push.
+
+O aplicativo pessoal existente não foi substituído por uma demo, e nenhum dado local das origens anteriores foi apagado. A demo não é destinada a armazenar informações reais.

@@ -37,7 +37,7 @@ Na persistência remota preparada, a API usa `personal_workspaces` e a função 
 | Identidade | Visitante da demonstração, sem conta privada | Proprietário explicitamente autorizado |
 | Hospedagem | Projeto exclusivo de demo | Projeto privado separado |
 | Credenciais | Nenhuma de Supabase, proprietário, OAuth ou IA | Somente as necessárias, configuradas fora do Git |
-| Persistência | Espaço de demo separado da chave pessoal | Dados pessoais existentes preservados; nuvem após validação |
+| Persistência | Apenas memória da aba; recarregar restaura exemplos; sem localStorage | Dados pessoais existentes preservados; nuvem após validação |
 | Integrações | Nenhum acesso aos serviços privados | Ativação explícita após verificação externa |
 
 Esse contrato deve ser aplicado e testado no servidor e na persistência. Uma função que gera exemplos, isoladamente, não comprova uma demo segura. A validação da implementação principal e do ambiente publicado é uma etapa distinta desta documentação.
