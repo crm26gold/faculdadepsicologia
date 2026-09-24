@@ -1,0 +1,25 @@
+node_modules/
+.next/
+out/
+.vercel/
+.env*
+!.env.example
+*.tsbuildinfo
+*.log
+test-results/
+.local/
+
+# Contexto local e notas privadas: não publicar no repositório.
+/ATUALIZACAO_AGENDA.md
+/ATUALIZACAO_LOGIN.md
+/ENTREGA_INICIAL.md
+/PLANO_DO_SISTEMA.md
+/CLAUDE.md
+.agents/
+.codex/
+/skills-lock.json
+
+# Relatórios gerados podem conter dados e capturas do navegador.
+playwright-report/
+blob-report/
+coverage/

@@ -1,0 +1,18 @@
+# Only application source is needed for deployment. No local context or data.
+/.agents
+/.codex
+/.git
+/.next
+/.vercel
+/.local
+/node_modules
+.env*
+*.md
+/tests
+/test-results
+/playwright-report
+playwright.config.ts
+/supabase
+skills-lock.json
+*.tsbuildinfo
+*.log

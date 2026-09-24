@@ -1,0 +1,74 @@
+name: Verificações
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Tipos, testes e build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+      APP_MODE: demo
+      APP_ORIGIN: http://127.0.0.1:3000
+      DEMO_VERCEL_PROJECT_ID: ''
+      NEXT_PUBLIC_SUPABASE_URL: ''
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ''
+      APP_OWNER_USER_ID: ''
+      APP_OWNER_EMAIL: ''
+      GOOGLE_AUTH_ENABLED: 'false'
+      FACULDADE_CLOUD_WORKSPACE: 'false'
+      FACULDADE_LOCAL_PREVIEW: 'false'
+    steps:
+      - name: Obter código
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Preparar Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Verificar conteúdo do índice para publicação
+        run: node scripts/check-publication.mjs
+
+      - name: Instalar dependências pelo lockfile
+        run: npm ci
+
+      - name: Gerar build
+        run: npm run build
+
+      - name: Verificar tipos
+        run: npm run typecheck
+
+      - name: Executar testes
+        run: npm test
+
+      - name: Verificar bloqueios de produção
+        run: npm run test:gate
+        env:
+          APP_MODE: private
+
+      - name: Instalar Chromium e dependências
+        run: npx playwright install --with-deps chromium
+
+      - name: Verificar aplicativo no navegador
+        run: npm run test:browser
+
+      # Playwright inicia servidores de produção isolados nas portas 3004–3006.
+      # CI=true seleciona Chromium, sem depender do canal Edge instalado localmente.
+      # Este workflow não usa segredos e não publica o aplicativo.

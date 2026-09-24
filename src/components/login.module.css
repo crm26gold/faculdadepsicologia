@@ -1,0 +1,56 @@
+.page { min-height: 100svh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); background: #fafbf7; }
+.story { background: #294e40; color: #f2f5e8; display: flex; flex-direction: column; padding: 42px clamp(28px, 5vw, 86px) 30px; overflow: hidden; position: relative; }
+.brand { display: flex; gap: 7px; align-items: center; color: #f5f7eb; text-decoration: none; font-size: 21px; width: fit-content; }
+.brand > span { display: grid; place-items: center; width: 43px; height: 43px; margin-right: 5px; background: #456958; border: 1px solid #698776; border-radius: 13px; }
+.brand strong { font-weight: 600; }
+.storyContent { margin-block: auto; padding-block: 55px 15px; position: relative; }
+.eyebrow { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #d2dfbd; }
+.story h2 { font-family: Georgia, serif; font-size: clamp(37px, 4.3vw, 65px); font-weight: 400; letter-spacing: -.055em; line-height: 1.1; margin: 26px 0 25px; }
+.story h2 em { color: #dce3b9; font-style: normal; }
+.storyContent > p { color: #dce7d9; font-size: 14px; line-height: 1.8; max-width: 350px; }
+.storyFooter { color: #d2deca; font-size: 11px; margin: 8px 0 0; }
+.illustration { position: relative; min-height: 240px; margin: 10px 0 20px; display: flex; align-items: center; max-width: 420px; }
+.orbit { width: 300px; height: 300px; border: 1px solid #6d8e614d; border-radius: 50%; position: absolute; top: -26px; right: -40px; }
+.orbit::after { content: ''; position: absolute; inset: 27px; border: 1px solid #6d8e614d; border-radius: 50%; }
+.sun { width: 58px; height: 58px; border-radius: 50%; background: #d9d3a1; position: absolute; right: 5px; top: 12px; }
+.studyCard { position: relative; width: min(325px, 95%); padding: 24px; background: #f3f4e9; border: 1px solid #f5f6e5; border-radius: 17px; color: #335340; box-shadow: 0 20px 50px #102c3426; transform: rotate(-4deg); display: grid; grid-template-columns: 36px minmax(0, 1fr) 21px; gap: 14px 10px; }
+.studyCard > span:nth-child(2) { font-size: 10px; }
+.studyCard strong { display: block; font-size: 13px; margin-top: 5px; font-weight: 500; }
+.cardIcon { width: 35px; height: 35px; border-radius: 9px; background: #e2e8d8; display: grid; place-items: center; }
+.check { align-self: center; width: 21px; height: 21px; display: grid; place-items: center; background: #46694a; color: #fff; border-radius: 50%; }
+.cardLine, .cardLineShort { grid-column: 1 / -1; height: 5px; border-radius: 20px; background: #dce3d4; }
+.cardLineShort { width: 62%; margin-top: -5px; }
+.cardPills { grid-column: 1 / -1; display: flex; gap: 7px; margin-top: 4px; }
+.cardPills span { font-size: 9px; padding: 5px 9px; border-radius: 6px; background: #e4e9d9; }
+.floatingCalendar, .floatingSpark { position: absolute; right: 16px; bottom: 30px; padding: 15px; color: #416045; background: #e8e9d1; border-radius: 15px; transform: rotate(7deg); box-shadow: 0 10px 30px #173b3430; }
+.floatingSpark { right: 52px; top: -8px; bottom: auto; padding: 10px; color: #dbe5bd; background: #3d6451; transform: rotate(12deg); }
+.access { display: flex; align-items: center; flex-direction: column; justify-content: center; padding: 50px 35px 25px; }
+.loginCard { width: min(100%, 405px); margin-block: auto; padding-block: 30px; }
+.lockBadge { display: inline-flex; align-items: center; gap: 8px; color: #4d654e; background: #edf1e7; border: 1px solid #dae2d0; border-radius: 100px; padding: 8px 12px; font-size: 10px; }
+.welcome { display: block; margin-top: 39px; color: #65755d; font-size: 10px; letter-spacing: .13em; }
+.loginCard h1 { margin: 13px 0 16px; color: #294838; font-family: Georgia, serif; font-size: clamp(32px, 3vw, 43px); line-height: 1.15; font-weight: 400; letter-spacing: -.055em; }
+.intro { font-size: 13px; line-height: 1.8; color: #596b59; margin-bottom: 30px; }
+.form { display: grid; gap: 21px; }
+.field { display: grid; gap: 9px; }
+.field label { font-size: 12px; font-weight: 500; color: #344e3d; }
+.inputWrap { display: flex; gap: 11px; align-items: center; border: 1px solid #adbaa6; border-radius: 10px; background: #fff; padding-left: 15px; color: #65775f; }
+.inputWrap:focus-within { outline: 2px solid #477348; outline-offset: 2px; }
+.inputWrap input { flex: 1; width: 0; min-width: 0; min-height: 52px; padding: 12px 10px 12px 0; font-size: 16px; border: 0; outline: none; border-radius: 10px; color: #294838; background: transparent; }
+.inputWrap input::placeholder { color: #677660; font-size: 13px; }
+.showPassword { display: grid; place-items: center; min-width: 46px; min-height: 46px; border-radius: 8px; margin-right: 3px; color: #4d624b; }
+.showPassword:hover { background: #eef2e7; }
+.submit { min-height: 53px; padding: 15px 20px; border-radius: 10px; background: #2e5747; color: #fff; display: flex; align-items: center; justify-content: center; gap: 13px; font-size: 13px; font-weight: 500; box-shadow: 0 5px 12px #2c533419; }
+.submit:hover:not(:disabled) { background: #244435; }
+.submit:disabled { cursor: not-allowed; background: #697866; }
+.help { font-size: 11px; color: #506348; line-height: 1.7; }
+.help summary { cursor: pointer; width: fit-content; padding: 6px 0; }
+.help p { color: #506348; font-size: 12px; margin: 9px 0 0; }
+.privateNote { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid #dce4d3; padding-top: 22px; margin-top: 23px; color: #547048; }
+.privateNote p { font-size: 11px; margin: 0; line-height: 1.8; color: #4e6249; }
+.privateNote span { color: #5c6c54; }
+.accessFooter { text-align: center; font-size: 10px; color: #607056; margin-top: 15px; }
+.accessFooter span { margin-inline: 7px; }
+.error { background: #fff0ee; border: 1px solid #cf9e93; border-radius: 8px; padding: 13px; color: #85352d; font-size: 12px; line-height: 1.65; }
+.setupNotice { font-size: 12px; margin: 0; color: #5d5739; background: #f3efde; padding: 13px; border-radius: 8px; }
+@media (max-width: 800px) { .page { grid-template-columns: 1fr; } .story { padding: 20px 24px; } .brand { font-size: 19px; } .brand > span { width: 35px; height: 35px; border-radius: 10px; } .storyContent, .storyFooter { display: none; } .access { padding: 25px 24px 22px; min-height: calc(100svh - 75px); } .loginCard { padding-block: 10px 25px; } .welcome { margin-top: 28px; } .loginCard h1 { font-size: 37px; } .intro { margin-bottom: 26px; } .desktopBreak { display: none; } }
+@media (max-width: 360px) { .access { padding-inline: 20px; } .loginCard h1 { font-size: 33px; } }
