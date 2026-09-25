@@ -2,11 +2,11 @@
 
 Um organizador de estudos com matérias, caderno, agenda e blocos de foco. A evolução prevista amplia esse núcleo para vários cursos e outras áreas da vida, mantendo o controle dos dados com cada pessoa.
 
-O código foi preparado para publicação no GitHub. A [demonstração pública](https://faculdadepsicologia-demo.vercel.app) usa somente dados sintéticos em um projeto separado. O workspace privado permanece exclusivo do proprietário; publicar o código não libera acesso a ele.
+O código está publicado no GitHub. A [demonstração pública](https://faculdadepsicologia-demo.vercel.app) usa somente dados sintéticos em um projeto separado. O workspace privado permanece exclusivo do proprietário; publicar o código não libera acesso a ele.
 
 ## Estado do projeto
 
-“Implementado” significa presente no código, não integração remota ativada. A demo foi publicada e verificada em 24/09/2026, com 12 testes de navegador online aprovados. A infraestrutura Supabase foi inspecionada, mas o esquema do aplicativo e a identidade Google autorizada ainda não foram provisionados. Consulte o [registro de validação](docs/VALIDATION.md).
+“Implementado” significa presente no código, não integração remota ativada. A demo foi publicada e verificada em 24/09/2026, com 12 testes de navegador online aprovados. O banco privado já tem as tabelas e funções aplicadas, com testes transacionais remotos de gravação e isolamento aprovados. O login Google e a identidade autorizada ainda precisam ser configurados: o fluxo completo pelo aplicativo não está liberado. Consulte o [registro de validação](docs/VALIDATION.md).
 
 | Recurso | Estado | Alcance |
 | --- | --- | --- |
@@ -17,7 +17,7 @@ O código foi preparado para publicação no GitHub. A [demonstração pública]
 | Foco e planejamento | Implementado | Temporizador, registro de sessões e sugestões por regras locais, aceitas manualmente. Não usa IA generativa. |
 | Dados no navegador | Implementado | Persistência local, exportação/importação JSON validada e proteção contra sobrescrita concorrente. |
 | Acesso privado | Preparado localmente | Validação de UUID, e-mail e identidade Google do proprietário no servidor; configuração e verificação externas pendentes. |
-| Armazenamento privado na nuvem | Preparado localmente | API e migração Supabase com RLS e controle de revisão; funcionamento remoto não verificado. |
+| Armazenamento privado na nuvem | Banco aplicado e testado | Tabelas, RLS e RPC remotos verificados; uso pelo aplicativo depende do login Google e provisionamento do proprietário. |
 | Demo pública isolada | Publicada e testada | Origem separada, exemplos somente em memória, sem importação de backups, login ou API de dados pessoais. |
 | Vários cursos | Roadmap | Ainda não existe entidade de curso nem separação de dados por curso. |
 | Finanças, saúde, rotina, social, inventário e metas | Roadmap | Módulos próprios ainda não implementados; tarefas e foco não equivalem a esses módulos. |

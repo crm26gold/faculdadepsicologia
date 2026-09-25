@@ -1,7 +1,11 @@
--- PREPARADA LOCALMENTE. Não aplicada ao projeto remoto.
+-- Aplicada ao destino em 2026-09-24; versão alinhada ao histórico remoto.
 -- Destino exclusivo: uccoaebzmvocqwqljmul. Inspecionar antes de aplicar.
 -- Não executar em banco com tabelas homônimas sem revisão.
 begin;
+
+create schema if not exists private;
+revoke all on schema private from public, anon, authenticated;
+grant usage on schema private to authenticated;
 
 create table public.app_owner (
   singleton boolean primary key default true check (singleton),
@@ -31,7 +35,7 @@ create policy "Owner reads own workspace" on public.personal_workspaces
 
 -- Writes only through this narrowly scoped RPC. No client can provision a master.
 -- Definer privileges are bounded by explicit auth.uid + allowlist checks.
-create function public.save_personal_workspace(next_data jsonb, expected_revision integer)
+create function private.save_personal_workspace(next_data jsonb, expected_revision integer)
 returns integer
 language plpgsql security definer set search_path = ''
 as $$
@@ -70,6 +74,13 @@ begin
   return next_revision;
 end;
 $$;
+revoke all on function private.save_personal_workspace(jsonb, integer) from public, anon;
+grant execute on function private.save_personal_workspace(jsonb, integer) to authenticated;
+
+-- PostgREST exposes only this invoker wrapper, not the privileged implementation.
+create function public.save_personal_workspace(next_data jsonb, expected_revision integer)
+returns integer language sql security invoker set search_path = ''
+as $$ select private.save_personal_workspace(next_data, expected_revision); $$;
 revoke all on function public.save_personal_workspace(jsonb, integer) from public, anon;
 grant execute on function public.save_personal_workspace(jsonb, integer) to authenticated;
 commit;
