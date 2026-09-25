@@ -30,3 +30,11 @@ Demo publicada: https://faculdadepsicologia-demo.vercel.app
 - A autorização GitHub foi concluída e o push realizado. O CI do commit `dc64718` terminou com sucesso (run `36057335005`).
 
 O aplicativo pessoal existente não foi substituído por uma demo, e nenhum dado local das origens anteriores foi apagado. A demo não é destinada a armazenar informações reais.
+
+## Tentativa de atualização da produção privada
+
+- Migrações e relatório enviados ao GitHub no commit `f2ad6b0`; 39 testes unitários, TypeScript e os 13 cenários de bloqueio passaram novamente.
+- Sete variáveis foram configuradas somente em Production do projeto privado. A origem canônica foi conferida como `https://faculdadepsicologia-faculpsi.vercel.app` e corrigida na configuração.
+- O deployment `dpl_Sgow8L8vFgScCgm3y8sXzSM1LzkG` ficou **BLOCKED**, confirmado pela API: a Vercel não reconheceu o autor do commit como autorizado no projeto. A CLI mostrava UNKNOWN e permanecia aguardando; não houve build concluído nem nova versão validada online.
+- GitHub CLI e Vercel CLI identificam a conta `crm26gold`. Conferir a associação GitHub nas conexões da conta Vercel e a autorização dessa identidade no projeto antes de repetir a publicação. Não remover metadados de autoria para contornar a recusa.
+- Após resolver a associação, publicar novamente para incorporar a origem corrigida e verificar HTTP, login Google, gravação e recarregamento entre dispositivos. Variáveis configuradas não significam aplicação já atualizada.
