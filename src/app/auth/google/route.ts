@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { serverSupabase } from '@/lib/supabase/server';
-import { demoRequested, validConfiguration } from '@/lib/config';
+import { demoRequested, oauthConfiguration as validConfiguration } from '@/lib/config';
 import { applicationOrigin } from '@/lib/auth-input';
 
 export async function POST(request: Request) {

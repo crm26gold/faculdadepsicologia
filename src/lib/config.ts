@@ -21,6 +21,20 @@ export function localPreviewAllowed(env: Record<string, string | undefined>) {
   return !demoRequested(env) && !env.VERCEL && (env.NODE_ENV === 'development' || env.FACULDADE_LOCAL_PREVIEW === 'true');
 }
 
+// Bootstrap allows only OAuth exchange, never workspace authorization or owner creation.
+export function oauthConfiguration(env: Environment) {
+  if (validConfiguration(env)) return true;
+  return env.APP_OWNER_BOOTSTRAP === 'true' && !env.APP_OWNER_USER_ID &&
+    validConfiguration({ ...env, APP_OWNER_USER_ID: '00000000-0000-4000-8000-000000000000' });
+}
+
+export function isGoogleOwnerEmail(user: { email?: string; identities?: Array<{ provider: string; identity_data?: Record<string, unknown> }> } | null | undefined, env: Environment) {
+  const email = env.APP_OWNER_EMAIL?.trim().toLowerCase();
+  return !!user && !!email && user.email?.toLowerCase() === email &&
+    !!user.identities?.some(identity => identity.provider === 'google' && identity.identity_data?.email_verified === true &&
+      String(identity.identity_data.email ?? '').toLowerCase() === email);
+}
+
 // Check only the server-verified identity, never client-supplied profile roles.
 export function isGoogleOwner(user: { id: string; email?: string; identities?: Array<{ provider: string; identity_data?: Record<string, unknown> }> } | null | undefined, env: Environment) {
   const email = env.APP_OWNER_EMAIL?.trim().toLowerCase();

@@ -1,7 +1,7 @@
 import { WorkspaceApp } from '@/components/workspace-app';
 import { AccessGate } from '@/components/access-gate';
 import { ownerSession } from '@/lib/supabase/server';
-import { demoAllowed, demoRequested, localPreviewAllowed, validConfiguration } from '@/lib/config';
+import { demoAllowed, demoRequested, localPreviewAllowed, oauthConfiguration as validConfiguration } from '@/lib/config';
 import { applicationOrigin } from '@/lib/auth-input';
 
 export const dynamic = 'force-dynamic';

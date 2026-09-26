@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { applicationOrigin } from '../src/lib/auth-input';
 import { authCookieOptions } from '../src/lib/auth-cookies';
+import { oauthConfiguration, isGoogleOwnerEmail } from '../src/lib/config';
 import { demoAllowed, demoRequested, EXPECTED_SUPABASE_URL, EXPECTED_VERCEL_PROJECT_ID, isGoogleOwner, isOwnerIdentity, localPreviewAllowed, validConfiguration } from '../src/lib/config';
 
 const ownerId = '11111111-1111-4111-8111-111111111111';
@@ -14,6 +15,21 @@ const configured = {
 };
 const googleIdentity = { provider: 'google', identity_data: { email: ownerEmail, email_verified: true } };
 const owner = { id: ownerId, email: ownerEmail, identities: [googleIdentity] };
+
+test('bootstrap permite autenticação explícita, mas nunca concede acesso de proprietário', () => {
+  const bootstrap = { ...configured, APP_OWNER_USER_ID: '', APP_OWNER_BOOTSTRAP: 'true' };
+  assert.equal(oauthConfiguration(bootstrap), true);
+  assert.equal(validConfiguration(bootstrap), false);
+  assert.equal(isGoogleOwner(owner, bootstrap), false);
+  assert.equal(isGoogleOwnerEmail(owner, bootstrap), true);
+  assert.equal(isGoogleOwnerEmail({ ...owner, email: 'other@example.invalid' }, bootstrap), false);
+  assert.equal(isGoogleOwnerEmail({ ...owner, identities: [{ provider: 'email' }] }, bootstrap), false);
+  assert.equal(oauthConfiguration({ ...bootstrap, APP_OWNER_BOOTSTRAP: '' }), false);
+  assert.equal(oauthConfiguration({ ...bootstrap, APP_MODE: 'demo' }), false);
+  assert.equal(oauthConfiguration({ ...bootstrap, GOOGLE_AUTH_ENABLED: 'false' }), false);
+  assert.equal(oauthConfiguration({ ...bootstrap, APP_OWNER_USER_ID: 'invalid' }), false);
+  assert.equal(oauthConfiguration({ ...bootstrap, VERCEL: '1', VERCEL_PROJECT_ID: 'other' }), false);
+});
 
 test('configuração privada exige Google explícito, e-mail, UUID, chave e projeto correto', () => {
   assert.equal(validConfiguration(configured), true);

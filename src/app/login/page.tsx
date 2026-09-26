@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { AccessGate } from '@/components/access-gate';
 import { ownerSession } from '@/lib/supabase/server';
-import { demoRequested, validConfiguration } from '@/lib/config';
+import { demoRequested, oauthConfiguration as validConfiguration } from '@/lib/config';
 import { applicationOrigin } from '@/lib/auth-input';
 
 export const dynamic = 'force-dynamic';
