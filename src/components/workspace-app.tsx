@@ -24,7 +24,7 @@ const navigation = [
 const names: Record<View, string> = { today: 'Meu dia', subjects: 'Minhas matérias', notes: 'Meu caderno', agenda: 'Minha agenda', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-  const link = document.createElement('a'); link.href = url; link.download = `faculdade-psi-${dateKey()}.json`; link.click();
+  const link = document.createElement('a'); link.href = url; link.download = `jornada-plena-${dateKey()}.json`; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -72,7 +72,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     window.addEventListener('pageshow', refresh);
     return () => window.removeEventListener('pageshow', refresh);
   }, [authenticated]);
-  useEffect(() => { document.title = `${names[view]} · Faculdade Psi`; }, [view]);
+  useEffect(() => { document.title = `${names[view]} · Jornada Plena`; }, [view]);
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSearchOpen(true); }
@@ -108,10 +108,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function openSubject(item: Subject) { setSubjectFilter(item.id); setSelectedNote(''); navigate('notes'); }
 
   const navContent = <>
-    <button className="brand" onClick={() => navigate('today')} aria-label="Faculdade Psi — início"><span className="brand-icon"><Sprout aria-hidden="true" size={25} /></span><span>Faculdade<span className="brand-psi">Psi<span className="brand-dot">.</span></span></span></button>
+    <button className="brand" onClick={() => navigate('today')} aria-label="Jornada Plena — início"><span className="brand-icon"><Sprout aria-hidden="true" size={25} /></span><span>Jornada<span className="brand-psi">Plena<span className="brand-dot">.</span></span></span></button>
     <div className="workspace-label"><span className="mini-avatar">P</span><span>Meu espaço pessoal<small>Psicologia · minha jornada</small></span><LockKeyhole aria-hidden="true" size={13} /></div>
     <p className="nav-caption">Seu aprendizado</p>
-    <nav aria-label="Principal">{navigation.map(({ id, label, Icon }) => <button key={id} aria-current={view === id ? 'page' : undefined} className={`nav-item ${view === id ? 'active' : ''}`} onClick={() => navigate(id)}><Icon aria-hidden="true" size={19} /><span>{label}</span>{id === 'assistant' && <span className="nav-chip">IA</span>}</button>)}</nav>
+    <nav aria-label="Principal">{navigation.map(({ id, label, Icon }) => <button key={id} aria-current={view === id ? 'page' : undefined} className={`nav-item ${view === id ? 'active' : ''}`} onClick={() => navigate(id)}><Icon aria-hidden="true" size={19} /><span>{label}</span>{id === 'assistant' && <span className="nav-chip">Regras</span>}</button>)}</nav>
     <div className="sidebar-bottom"><div className="journey-card"><Leaf aria-hidden="true" size={20} /><p>Pequenos passos.<br /><strong>Grandes descobertas.</strong></p><span>Você não precisa fazer tudo hoje.</span></div><button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => navigate('settings')}><Settings2 aria-hidden="true" size={19} />Meu espaço</button><div className="sidebar-profile"><span className="avatar">P</span><span>Minha jornada<small>{demo ? 'Demonstração pública' : mode === 'local' ? previewLabel : 'Conta proprietária'}</small></span><span className="online-dot" /></div></div>
   </>;
 

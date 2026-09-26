@@ -29,7 +29,7 @@ function fold(line: string) {
   return lines.join('\r\n');
 }
 export function calendarIcs(entries: CalendarEntry[], now = new Date()) {
-  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Faculdade Psi//Agenda//PT-BR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Faculdade Psi', 'X-WR-TIMEZONE:America/Sao_Paulo'];
+  const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Jornada Plena//Agenda//PT-BR', 'CALSCALE:GREGORIAN', 'X-WR-CALNAME:Jornada Plena', 'X-WR-TIMEZONE:America/Sao_Paulo'];
   for (const item of entries) {
     lines.push('BEGIN:VEVENT', `UID:${encodeURIComponent(item.id)}@faculdade-psi`, `DTSTAMP:${stamp(now)}`);
     if (item.time) {
@@ -46,6 +46,6 @@ export function calendarIcs(entries: CalendarEntry[], now = new Date()) {
 export function downloadCalendar(entries: CalendarEntry[]) {
   const url = URL.createObjectURL(new Blob([calendarIcs(entries)], { type: 'text/calendar;charset=utf-8' }));
   const link = document.createElement('a');
-  link.href = url; link.download = 'faculdade-psi-agenda.ics'; link.click();
+  link.href = url; link.download = 'jornada-plena-agenda.ics'; link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

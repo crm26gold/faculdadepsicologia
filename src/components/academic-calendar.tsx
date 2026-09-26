@@ -1,14 +1,15 @@
 'use client';
 
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Download, SlidersHorizontal, Plus, Clock3, BookOpen, ArrowUpRight } from 'lucide-react';
-import { addDays, classSchema, dateKey, formatDate, termSchema, type ClassSession, type Task, type Workspace } from '@/lib/workspace';
+import { addDays, dateKey, formatDate, type Task, type Workspace } from '@/lib/workspace';
 import { calendarEntries, monthDays, shiftMonth, weekdays, weekDays, type CalendarEntry } from '@/lib/academic';
 import { downloadCalendar } from '@/lib/calendar-export';
 import { Modal } from './modal';
+import { ScheduleSettings } from './schedule-settings';
 import styles from './academic.module.css';
 
-type Props = { data: Workspace; date: string; onDateChange: (date: string) => void; update: (change: (data: Workspace) => Workspace) => void; blocked: boolean; onNew: (date: string) => void; onEdit: (task: Task) => void };
+type Props = { data: Workspace; date: string; onDateChange: (date: string) => void; update: (change: (data: Workspace) => Workspace) => boolean; blocked: boolean; onNew: (date: string) => void; onEdit: (task: Task) => void };
 
 export default function AcademicCalendar({ data, date, onDateChange, update, blocked, onNew, onEdit }: Props) {
   const [view, setView] = useState<'month' | 'week'>('month');
@@ -67,21 +68,4 @@ export default function AcademicCalendar({ data, date, onDateChange, update, blo
     {exportOpen && <Modal title="Levar sua agenda para outro calendário" onClose={() => setExportOpen(false)}><p>O arquivo .ics contém os {entries.length} eventos do período e filtro exibidos. Pode ser importado no Google Agenda, Outlook ou Apple Calendário.</p><p>É uma cópia manual, não uma sincronização. Não inclui notas. Aulas sem primeira data ficam de fora; horários de término ausentes não são inventados.</p><p>Confira as projeções antes de importar. Importar o mesmo arquivo várias vezes pode duplicar eventos no serviço escolhido.</p><button className="button primary" onClick={() => { downloadCalendar(entries); setExportOpen(false); setNotice('Arquivo da agenda gerado. Importe no calendário de sua escolha.'); }}><Download size={17} aria-hidden="true" />Baixar arquivo .ics</button></Modal>}
     {notice && <p role="status" className={styles.inlineNotice}>{notice}<button className="text-button" onClick={() => setNotice('')}>Dispensar</button></p>}
   </div>;
-}
-
-function ScheduleSettings({ data, update, blocked, onClose }: Pick<Props, 'data' | 'update' | 'blocked'> & { onClose: () => void }) {
-  const [editing, setEditing] = useState<ClassSession | null>(null);
-  const [error, setError] = useState('');
-  const [message, setMessage] = useState('');
-  function saveClass(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!editing) return;
-    const fields = new FormData(event.currentTarget);
-    const parsed = classSchema.safeParse({ ...editing, weekday: Number(fields.get('weekday')), startTime: fields.get('startTime'), endTime: fields.get('endTime') || undefined, intervalWeeks: Number(fields.get('intervalWeeks')), firstDate: fields.get('firstDate') || undefined, location: fields.get('location'), enabled: fields.get('enabled') === 'on' });
-    if (!parsed.success) { setError(parsed.error.issues[0].message); return; }
-    update((previous) => ({ ...previous, classes: previous.classes.map((item) => item.id === parsed.data.id ? parsed.data : item) }));
-    setEditing(null); setError(''); setMessage('Horário atualizado.');
-  }
-  return <Modal title="Minha grade de aulas" onClose={onClose}><p>Transcrita da foto enviada. Nomes, professores e horários podem ser ajustados; não foram adicionadas provas ou datas não informadas.</p>{error && <p role="alert" className="error-banner">{error}</p>}{message && <p role="status">{message}</p>}
-    {editing ? <form onSubmit={saveClass} className="entry-form"><h3>{data.subjects.find((item) => item.id === editing.subjectId)?.name}</h3><label htmlFor="class-weekday">Dia da semana</label><select id="class-weekday" name="weekday" defaultValue={editing.weekday}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select><div className="form-grid"><div><label htmlFor="class-start">Início</label><input id="class-start" name="startTime" type="time" required defaultValue={editing.startTime} /></div><div><label htmlFor="class-end">Término (opcional)</label><input id="class-end" name="endTime" type="time" defaultValue={editing.endTime} /></div></div><label htmlFor="class-frequency">Repetir a cada quantas semanas?</label><input id="class-frequency" name="intervalWeeks" type="number" min={1} max={12} required defaultValue={editing.intervalWeeks} /><label htmlFor="class-first">Primeira aula (necessária para intervalos maiores que 1 semana)</label><input id="class-first" name="firstDate" type="date" defaultValue={editing.firstDate} /><label htmlFor="class-location">Local ou modalidade</label><input id="class-location" name="location" maxLength={160} defaultValue={editing.location} /><label className={styles.checkboxLabel}><input name="enabled" type="checkbox" defaultChecked={editing.enabled} />Mostrar esta aula na agenda</label><div className="button-row"><button type="button" className="button outline" onClick={() => { setEditing(null); setError(''); }}>Voltar à grade</button><button className="button primary" disabled={blocked}>Salvar horário</button></div></form> : <><div className={styles.scheduleList}>{data.classes.map((item) => { const subject = data.subjects.find((entry) => entry.id === item.subjectId); return <button key={item.id} className={styles.scheduleRow} disabled={blocked} onClick={() => { setEditing(item); setMessage(''); }}><span className={`${styles.scheduleTime} ${subject?.color ?? 'sage'}`}><strong>{weekdays[item.weekday].slice(0, 3)}</strong>{item.startTime}</span><span><strong>{subject?.name}</strong><small>{subject?.professor ? `${subject.professor} · ` : ''}{item.intervalWeeks === 1 ? 'Toda semana' : `A cada ${item.intervalWeeks} semanas`}{item.location ? ` · ${item.location}` : ''}{!item.enabled ? ' · Pausada' : ''}{item.intervalWeeks > 1 && !item.firstDate ? ' · Data inicial a confirmar' : ''}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>; })}</div><form className="entry-form" onSubmit={(event) => { event.preventDefault(); const fields = new FormData(event.currentTarget); const term = termSchema.safeParse({ start: fields.get('termStart') || undefined, end: fields.get('termEnd') || undefined }); if (!term.success) { setError(term.error.issues[0].message); return; } update((previous) => ({ ...previous, term: term.data })); setError(''); setMessage('Período letivo atualizado.'); }}><h3>Período letivo</h3><p>Opcional. Ao preencher, as aulas recorrentes ficam limitadas a estas datas. Feriados não são descontados automaticamente.</p><div className="form-grid"><div><label htmlFor="term-start">Início do semestre</label><input id="term-start" name="termStart" type="date" defaultValue={data.term.start} /></div><div><label htmlFor="term-end">Fim do semestre</label><input id="term-end" name="termEnd" type="date" defaultValue={data.term.end} /></div></div><button className="button primary" disabled={blocked}>Salvar período</button></form></>}
-  </Modal>;
 }

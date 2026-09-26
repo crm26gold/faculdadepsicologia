@@ -40,7 +40,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
         }
         if (!active) return;
         current.current = initial; saved.current = initial; setData(initial);
-        setStatus(mode === 'demo' ? 'Exemplos temporários · não salvos' : mode === 'local' ? 'Somente neste navegador' : 'Sincronizado');
+        setStatus(mode === 'demo' ? 'Exemplos temporários · não salvos' : mode === 'local' ? 'Somente neste navegador' : revision.current === 0 ? 'Nenhum registro salvo na nuvem ainda' : 'Sincronizado');
         setReady(true);
       } catch {
         if (!active) return;
@@ -91,14 +91,16 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   }, [mode]);
 
   const update = useCallback((change: (previous: Workspace) => Workspace) => {
-    if (!ready || stop.current) return;
+    if (!ready || stop.current) return false;
     let next: Workspace;
     try { next = parseWorkspace(JSON.stringify(change(current.current))); }
-    catch { setError('Alteração inválida ou limite de dados atingido. A versão anterior foi preservada.'); return; }
+    catch { setError('Alteração inválida ou limite de dados atingido. A versão anterior foi preservada.'); return false; }
     setError('');
     current.current = next; setData(next);
-    if (mode === 'demo') { saved.current = next; return; }
+    // True means accepted locally, not yet confirmed by the remote database.
+    if (mode === 'demo') { saved.current = next; return true; }
     void flush();
+    return true;
   }, [flush, ready, mode]);
 
   function resetDemo() {

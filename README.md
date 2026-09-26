@@ -1,4 +1,4 @@
-# Faculdade
+# Jornada Plena
 
 Um organizador de estudos com matérias, caderno, agenda e blocos de foco. A evolução prevista amplia esse núcleo para vários cursos e outras áreas da vida, mantendo o controle dos dados com cada pessoa.
 
@@ -6,18 +6,20 @@ O código está publicado no GitHub. A [demonstração pública](https://faculda
 
 ## Estado do projeto
 
-“Implementado” significa presente no código, não integração remota ativada. A demo foi publicada e verificada em 24/09/2026, com 12 testes de navegador online aprovados. O banco privado já tem as tabelas e funções aplicadas, com testes transacionais remotos de gravação e isolamento aprovados. O login Google e a identidade autorizada ainda precisam ser configurados: o fluxo completo pelo aplicativo não está liberado. Consulte o [registro de validação](docs/VALIDATION.md).
+“Implementado” significa presente no código, não necessariamente validado com uma sessão real em produção. Na auditoria de 26/09/2026, produção, repositório e banco foram conferidos, e a identidade Google do proprietário estava vinculada. A tabela de espaços pessoais estava vazia: a primeira gravação pelo aplicativo, leitura em outro dispositivo e restauração ainda precisam de comprovação. Não confundir essa pendência com ausência de banco ou autorização para abrir o acesso público.
+
+Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), a [primeira entrega do plano](docs/ENTREGA_GRADE_2026-09-26.md) e o [registro histórico de validação de 24/09](docs/VALIDATION.md). O nome oficial é Jornada Plena; identificadores técnicos antigos são mantidos quando necessários para compatibilidade.
 
 | Recurso | Estado | Alcance |
 | --- | --- | --- |
 | Matérias e tarefas | Implementado | Cadastro e edição, semestre, cores, prazos e conclusão de tarefas. |
 | Caderno | Implementado | Anotações por matéria, busca e edição com títulos, listas, negrito e itálico. |
-| Agenda | Implementado | Visões mensal e semanal, grade recorrente, período letivo e filtro por matéria. Feriados não são descontados automaticamente. |
+| Agenda | Implementado | Visões mensal e semanal; criar, editar e pausar horários desde uma grade vazia; período letivo e filtro por matéria. Feriados não são descontados automaticamente. |
 | Exportação de calendário | Implementado | Arquivo `.ics` do período selecionado; importação manual no destino, sem sincronização de volta. |
 | Foco e planejamento | Implementado | Temporizador, registro de sessões e sugestões por regras locais, aceitas manualmente. Não usa IA generativa. |
 | Dados no navegador | Implementado | Persistência local, exportação/importação JSON validada e proteção contra sobrescrita concorrente. |
-| Acesso privado | Preparado localmente | Validação de UUID, e-mail e identidade Google do proprietário no servidor; configuração e verificação externas pendentes. |
-| Armazenamento privado na nuvem | Banco aplicado e testado | Tabelas, RLS e RPC remotos verificados; uso pelo aplicativo depende do login Google e provisionamento do proprietário. |
+| Acesso privado | Proprietário vinculado | Validação de UUID, e-mail e identidade Google no servidor; ainda requer teste completo de uso na sessão real. |
+| Armazenamento privado na nuvem | Banco aplicado | Tabelas, RLS e RPC remotos verificados; primeira gravação pelo aplicativo e leitura em outro dispositivo ainda precisam ser confirmadas. |
 | Demo pública isolada | Publicada e testada | Origem separada, exemplos somente em memória, sem importação de backups, login ou API de dados pessoais. |
 | Vários cursos | Roadmap | Ainda não existe entidade de curso nem separação de dados por curso. |
 | Finanças, saúde, rotina, social, inventário e metas | Roadmap | Módulos próprios ainda não implementados; tarefas e foco não equivalem a esses módulos. |

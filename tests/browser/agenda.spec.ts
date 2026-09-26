@@ -35,14 +35,47 @@ test('compromisso com horário e arquivo ICS', async ({ page }) => {
   await page.getByRole('button', { name: 'Exportar agenda', exact: true }).click();
   const pending = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Baixar arquivo .ics', exact: true }).click();
-  expect((await pending).suggestedFilename()).toBe('faculdade-psi-agenda.ics');
+  expect((await pending).suggestedFilename()).toBe('jornada-plena-agenda.ics');
 });
 
 test('planejador distingue regras locais de IA generativa', async ({ page }) => {
-  await page.goto('/'); await navigate(page, 'Assistente IA');
+  await page.goto('/'); await navigate(page, 'Assistente Regras');
   await expect(page.getByText('IA generativa ainda não conectada.', { exact: true })).toBeVisible();
   const button = page.getByRole('button', { name: 'Adicionar à minha agenda', exact: false }).first();
   await expect(button).toBeVisible();
   await button.click();
   await expect(page.getByRole('status').filter({ hasText: /adicionad/i })).toBeVisible();
+});
+
+test('criar e editar aula valida datas e mantém uma única ocorrência na grade', async ({ page }, info) => {
+  await page.goto('/'); await navigate(page, 'Agenda');
+  await page.getByRole('button', { name: 'Minha grade', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).not.toContainText('Transcrita da foto');
+  await dialog.getByRole('button', { name: 'Adicionar horário', exact: true }).click();
+  await page.getByLabel('Matéria da aula', { exact: true }).selectOption('intro');
+  await page.getByLabel('Dia da semana', { exact: true }).selectOption('1');
+  await page.getByLabel('Início', { exact: true }).fill('19:10');
+  await page.getByLabel('Término (opcional)', { exact: true }).fill('18:00');
+  await dialog.getByRole('button', { name: 'Salvar horário', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('O término deve ser depois do início.');
+  await expect(page.getByLabel('Início', { exact: true })).toHaveValue('19:10');
+  await page.getByLabel('Término (opcional)', { exact: true }).fill('');
+  await page.getByLabel('Primeira aula (opcional)', { exact: true }).fill('2026-09-22');
+  await dialog.getByRole('button', { name: 'Salvar horário', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('coincidir com o dia');
+  await page.getByLabel('Primeira aula (opcional)', { exact: true }).fill('2026-09-21');
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(audit.violations.map(item => item.id)).toEqual([]);
+  await page.screenshot({ path: `test-results/grade-${info.project.name}.png`, fullPage: true });
+  await dialog.getByRole('button', { name: 'Salvar horário', exact: true }).click();
+  await expect(dialog.getByRole('status')).toContainText('Horário incluído');
+  const row = dialog.getByRole('button', { name: /19:10.*Introdução à Psicologia/ });
+  await expect(row).toHaveCount(1);
+  await row.click();
+  await page.getByLabel('Início', { exact: true }).fill('19:20');
+  await page.getByLabel('Mostrar esta aula na agenda', { exact: true }).uncheck();
+  await dialog.getByRole('button', { name: 'Salvar horário', exact: true }).click();
+  await expect(dialog.getByRole('button', { name: /19:20.*Introdução à Psicologia.*Pausada/ })).toHaveCount(1);
+  await expect(row).toHaveCount(0);
 });

@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Hoje · Faculdade Psi',
+  title: 'Hoje · Jornada Plena',
   description: 'Seu espaço para aprender, organizar e seguir no seu ritmo.',
   robots: { index: false, follow: false },
 };
