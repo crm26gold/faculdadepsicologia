@@ -1,6 +1,31 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('captura rápida persiste e sai da caixa ao organizar, sem perder texto', async ({ page }) => {
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  await nav.getByRole('button', { name: 'Caixa de entrada', exact: true }).click();
+  await page.getByLabel('O que você quer guardar?').fill('Minha ideia capturada\n<script>texto, não código</script>');
+  await page.getByRole('button', { name: 'Guardar ideia', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Abrir e organizar: Minha ideia capturada' })).toBeVisible();
+  const audit = await new AxeBuilder({ page }).include('.capture-inbox').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(audit.violations.map(item => item.id)).toEqual([]);
+  await page.screenshot({ path: 'test-results/inbox-desktop.png', fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.screenshot({ path: 'test-results/inbox-mobile.png', fullPage: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.reload();
+  await nav.getByRole('button', { name: 'Caixa de entrada', exact: true }).click();
+  await page.getByRole('button', { name: 'Abrir e organizar: Minha ideia capturada' }).click();
+  await expect(page.getByRole('textbox', { name: 'Conteúdo da anotação', exact: true })).toContainText('<script>texto, não código</script>');
+  await page.getByLabel('Área da anotação', { exact: true }).selectOption('emotional');
+  await nav.getByRole('button', { name: 'Caixa de entrada', exact: true }).click();
+  await expect(page.getByText('Nenhuma anotação pendente de organização.')).toBeVisible();
+  await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
+  await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Minha ideia capturada');
+});
+
 test('áreas e cadernos pessoais organizam notas e agenda sem exigir matéria', async ({ page }) => {
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));

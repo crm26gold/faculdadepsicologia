@@ -499,3 +499,6 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .organization-list li > span { overflow-wrap: anywhere; }
 .organization-list button { min-height: 44px; min-width: 44px; padding: .5rem .75rem; border: 1px solid #b5c3d2; border-radius: 8px; background: white; color: #123c60; }
 .organization-list button:disabled { opacity: .45; }
+.capture-inbox { max-width: 960px; margin-inline: auto; }
+.capture-inbox textarea { width: 100%; min-height: 140px; resize: vertical; font: inherit; font-size: 1rem; line-height: 1.6; padding: 1rem; border: 1px solid #879bb0; border-radius: 10px; color: var(--ink); background: white; }
+.capture-inbox .organization-list strong { overflow-wrap: anywhere; }

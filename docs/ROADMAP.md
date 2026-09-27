@@ -4,7 +4,9 @@
 
 As seções abaixo conservam critérios de entrega, não representam todas pendências atuais. Google proprietário, banco/RLS e persistência remota já estão ativos. A evolução atual implementa áreas da vida, cadernos independentes, agenda transversal e editor multimídia. Consulte [entrega e ordem de continuidade](AREAS_E_CADERNOS_2026-09-27.md), que complementa a auditoria histórica e tem precedência sobre estados antigos abaixo.
 
-Próximas entregas: validação de mídia real → Inbox/cursos/projetos/metas → foco por atividade e hábitos → calendário/lembretes → módulos financeiros e pessoais → IA autorizada → Oráculo. Espiritualidade, emocional, família, casa, descanso e segurança pessoal fazem parte do escopo, sem impor métricas ou crenças.
+Captura rápida implementada: [escopo e limites da caixa de entrada](CAIXA_DE_ENTRADA_2026-09-27.md). Usuário informou teste da mídia e presença de anexos privados foi confirmada sem leitura de conteúdo. Leitura entre dispositivos permanece pendente.
+
+Próximas entregas: cursos/projetos/metas → foco por atividade e hábitos → calendário/lembretes → módulos financeiros e pessoais → IA autorizada → Oráculo. Espiritualidade, emocional, família, casa, descanso e segurança pessoal fazem parte do escopo, sem impor métricas ou crenças.
 
 
 Este é um plano de evolução, sem datas prometidas. A [matriz do README](../README.md#estado-do-projeto) registra o que existe no código local. Uma tela, variável ou migração preparada não significa integração ativa.

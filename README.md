@@ -6,7 +6,7 @@ O código está publicado no GitHub. A [demonstração pública](https://faculda
 
 ## Estado do projeto
 
-“Implementado” significa presente no código, não necessariamente validado com uma sessão real em produção. Na auditoria de 26/09/2026, produção, repositório e banco foram conferidos, e a identidade Google do proprietário estava vinculada. Em 27/09, registros persistidos no workspace remoto foram confirmados por consulta de contagens, sem ler o conteúdo das notas. Leitura em outro dispositivo, restauração completa e primeiro upload na sessão real ainda precisam de comprovação. Não confundir essa pendência com ausência de banco ou autorização para abrir o acesso público.
+“Implementado” significa presente no código, não necessariamente validado com uma sessão real em produção. Na auditoria de 26/09/2026, produção, repositório e banco foram conferidos, e a identidade Google do proprietário estava vinculada. Em 27/09, registros persistidos e anexos no armazenamento privado foram confirmados por consulta de contagens, sem ler seu conteúdo; o usuário informou ter realizado o teste de mídia. Leitura em outro dispositivo e restauração completa ainda precisam de comprovação. Não confundir essas pendências com ausência de banco ou autorização para abrir o acesso público.
 
 Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), a [primeira entrega do plano](docs/ENTREGA_GRADE_2026-09-26.md) e o [registro histórico de validação de 24/09](docs/VALIDATION.md). O nome oficial é Jornada Plena; identificadores técnicos antigos são mantidos quando necessários para compatibilidade.
 
@@ -14,7 +14,8 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | --- | --- | --- |
 | Matérias e tarefas | Implementado | Cadastro e edição, semestre, cores, prazos e conclusão de tarefas. |
 | Cadernos e áreas | Implementado | Cadernos pessoais editáveis; 11 áreas iniciais personalizáveis, filtros por área/caderno/matéria. |
-| Editor multimídia | Implementado | Formatação, tabelas, links, imagens/câmera, áudio anexado e ortografia local pt-BR. Primeiro upload real ainda a validar. |
+| Caixa de entrada | Implementado | Captura de texto sem classificação obrigatória, organização posterior na mesma anotação e persistência privada existente. |
+| Editor multimídia | Implementado | Formatação, tabelas, links, imagens/câmera, áudio anexado e ortografia local pt-BR. Usuário informou teste realizado; presença de anexos privados confirmada sem abrir seu conteúdo. Leitura entre dispositivos ainda pendente. |
 | Agenda | Implementado | Visões mensal e semanal; criar, editar e pausar horários desde uma grade vazia; período letivo e filtros por área e matéria; compromissos pessoais sem matéria obrigatória. Feriados não são descontados automaticamente. |
 | Exportação de calendário | Implementado | Arquivo `.ics` do período selecionado; importação manual no destino, sem sincronização de volta. |
 | Foco e planejamento | Implementado | Temporizador, registro de sessões e sugestões por regras locais, aceitas manualmente. Não usa IA generativa. |

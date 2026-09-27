@@ -47,7 +47,7 @@ O catálogo organiza a vida sem impor pontuações, religião ou metas de desemp
 ## Ordem de continuidade
 
 1. Validar primeiro envio de imagem/áudio na sessão real e leitura em outro dispositivo.
-2. Inbox de captura, cursos e projetos/metas, vinculados às áreas e à agenda existente.
+2. [Inbox de captura](CAIXA_DE_ENTRADA_2026-09-27.md) implementada como visão das anotações sem organização. Próximos: cursos e projetos/metas, vinculados às áreas e à agenda existente.
 3. Foco por atividade, pausas reais, histórico e hábitos/recorrências pessoais.
 4. Lembretes e Google Agenda com autorização específica, deduplicação e revogação.
 5. Finanças com cálculos determinísticos, saldos, contas e projeções verificáveis.
