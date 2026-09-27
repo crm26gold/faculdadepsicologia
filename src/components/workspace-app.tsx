@@ -114,12 +114,21 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function toggleTask(task: Task) { update((previous) => ({ ...previous, tasks: previous.tasks.map((item) => item.id === task.id ? { ...item, done: !item.done } : item) })); }
   function openSubject(item: Subject) { setBookFilter(''); setAreaFilter(''); setSubjectFilter(item.id); setSelectedNote(''); navigate('notes'); }
 
+  const [energyLevel, setEnergyLevel] = useState<1 | 2 | 3 | 4 | 5>(4);
+
   const navContent = <>
+    <div className="sidebar-user-card">
+      <div className="user-avatar-badge" aria-hidden="true">AB</div>
+      <div className="user-meta-info">
+        <strong>Alexandre Bergara</strong>
+        <span>UNIP Psicologia · 1º Sem.</span>
+      </div>
+    </div>
     <button className="brand" onClick={() => navigate('today')} aria-label="Jornada Plena — início"><span className="brand-icon"><Sprout aria-hidden="true" size={25} /></span><span>Jornada<span className="brand-psi">Plena<span className="brand-dot">.</span></span></span></button>
-    <div className="workspace-label"><span className="mini-avatar">P</span><span>Meu espaço pessoal<small>Minha vida conectada</small></span><LockKeyhole aria-hidden="true" size={13} /></div>
-    <p className="nav-caption">Sua jornada</p>
-    <nav aria-label="Principal">{navigation.map(({ id, label, Icon }) => <button key={id} aria-current={view === id ? 'page' : undefined} className={`nav-item ${view === id ? 'active' : ''}`} onClick={() => navigate(id)}><Icon aria-hidden="true" size={19} /><span>{label}</span>{id === 'assistant' && <span className="nav-chip">Regras</span>}</button>)}</nav>
-    <div className="sidebar-bottom"><div className="journey-card"><Leaf aria-hidden="true" size={20} /><p>Pequenos passos.<br /><strong>Grandes descobertas.</strong></p><span>Você não precisa fazer tudo hoje.</span></div><button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => navigate('settings')}><Settings2 aria-hidden="true" size={19} />Meu espaço</button><div className="sidebar-profile"><span className="avatar">P</span><span>Minha jornada<small>{demo ? 'Demonstração pública' : mode === 'local' ? previewLabel : 'Conta proprietária'}</small></span><span className="online-dot" /></div></div>
+    <div className="workspace-label"><span className="mini-avatar">AB</span><span>Mesa de Trabalho<small>Gestor Acadêmico & Vida</small></span><LockKeyhole aria-hidden="true" size={13} /></div>
+    <p className="nav-caption">Navegação</p>
+    <nav aria-label="Principal">{navigation.map(({ id, label, Icon }) => <button key={id} aria-current={view === id ? 'page' : undefined} className={`nav-item ${view === id ? 'active' : ''}`} onClick={() => navigate(id)}><Icon aria-hidden="true" size={19} /><span>{label}</span>{id === 'inbox' && <span className="nav-badge-count" aria-hidden="true">{data.notes.filter((n) => !n.areaId && !n.subjectId).length}</span>}{id === 'assistant' && <span className="nav-chip">Regras</span>}</button>)}</nav>
+    <div className="sidebar-bottom"><button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => navigate('settings')}><Settings2 aria-hidden="true" size={19} />Meu espaço</button><div className="sidebar-profile"><span className="avatar">AB</span><span>Alexandre Bergara<small>{demo ? 'Demonstração pública' : mode === 'local' ? previewLabel : 'Conta proprietária'}</small></span><span className="online-dot" title="Sistema online" /></div></div>
   </>;
 
   const taskRow = (task: Task) => <li className={`task-row ${task.done ? 'is-done' : ''}`} key={task.id}>
@@ -140,25 +149,108 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     <aside className="sidebar">{navContent}</aside>
     {mobileMenu && <Modal title="Seu espaço" onClose={() => setMobileMenu(false)}><div className="mobile-navigation">{navContent}</div></Modal>}
     <div className="app-body">
-      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu-button" aria-label="Abrir navegação" onClick={() => setMobileMenu(true)}><Menu size={21} aria-hidden="true" /></button><span>Meu espaço</span><ChevronRight aria-hidden="true" size={14} /><strong>{names[view]}</strong></div><div className="topbar-actions"><button className="search-trigger" aria-label="Buscar no meu espaço" onClick={() => setSearchOpen(true)}><Search size={17} aria-hidden="true" /><span>Buscar no meu espaço</span><kbd>Ctrl K</kbd></button><button className="icon-button" aria-label="Ajuda e configurações" onClick={() => navigate('settings')}><CircleHelp size={19} aria-hidden="true" /></button><span className="avatar small">P</span></div></header>
+      <header className="topbar"><div className="breadcrumb"><button className="icon-button mobile-menu-button" aria-label="Abrir navegação" onClick={() => setMobileMenu(true)}><Menu size={21} aria-hidden="true" /></button><span>Meu espaço</span><ChevronRight aria-hidden="true" size={14} /><strong>{names[view]}</strong></div><div className="topbar-actions"><button className="search-trigger" aria-label="Buscar no meu espaço" onClick={() => setSearchOpen(true)}><Search size={17} aria-hidden="true" /><span>Buscar no meu espaço</span><kbd>Ctrl K</kbd></button><button className="icon-button" aria-label="Ajuda e configurações" onClick={() => navigate('settings')}><CircleHelp size={19} aria-hidden="true" /></button><span className="avatar small" aria-label="Perfil Alexandre">AB</span></div></header>
       <main id="main" tabIndex={-1} ref={main} className="main-content">
         <div className={`mode-banner ${demo ? 'demo-banner' : ''}`}><span><CloudOff size={14} aria-hidden="true" />{demo ? 'Demonstração — dados fictícios. Não insira informações pessoais.' : mode === 'local' ? storageNotice : 'Espaço pessoal · acesso restrito à conta proprietária.'}</span>{demo && <button onClick={() => window.location.reload()} disabled={!ready}>Restaurar exemplos <ArrowRight size={13} aria-hidden="true" /></button>}</div>
         {error && <div className="error-banner" role="alert">{error}{ready && <button className="text-button" onClick={() => download(data)}>Exportar esta versão</button>}<button className="text-button" onClick={() => window.location.reload()}>Recarregar</button></div>}
-        <div className="page-heading"><div><span className="eyebrow">{ready && view === 'today' ? formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Sua vida, do seu jeito'}</span><h1>{view === 'today' ? <>Um novo dia, <span>no seu ritmo.</span></> : names[view]}</h1><p>{view === 'today' ? 'Você não precisa dar conta de tudo. Vamos cuidar do próximo passo.' : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'subjects' ? 'Cada matéria, um novo universo para descobrir.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : 'Suas preferências, seus dados e suas conexões.'}</p></div><button className="button outline" aria-pressed={focusMode} onClick={() => { if (view !== 'today') setView('today'); setFocusMode(!focusMode); }}><Target size={17} aria-hidden="true" />{focusMode ? 'Sair do foco' : 'Modo foco'}</button></div>
+        <div className="page-heading"><div><span className="eyebrow">{ready && view === 'today' ? formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Sua vida, do seu jeito'}</span><h1>{view === 'today' ? <>Um novo dia, <span>no seu ritmo.</span></> : names[view]}</h1><p>{view === 'today' ? 'Você não precisa dar conta de tudo. Vamos cuidar do próximo passo.' : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'subjects' ? 'Cada matéria, um novo universo para descobrir.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : 'Suas preferências, seus dados e suas conexões.'}</p></div><div className="heading-actions-row">{view === 'today' && <><button className="button outline" onClick={() => setForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button><button className="button primary" onClick={() => setForm({ kind: 'note' })}><FileText size={16} aria-hidden="true" />Captura rápida</button></>}<button className="button outline" aria-pressed={focusMode} onClick={() => { if (view !== 'today') setView('today'); setFocusMode(!focusMode); }}><Target size={17} aria-hidden="true" />{focusMode ? 'Sair do foco' : 'Modo foco'} </button></div></div>
         {!ready && !error && <div className="loading-panel" role="status">Preparando seu espaço…</div>}
         {ready && <>
-          {view === 'today' && <div className="dashboard-grid"><div className="dashboard-primary">
-            <section className="welcome-card"><div className="welcome-copy"><span className="welcome-kicker"><span /> Seu próximo passo</span><h2>O importante não é correr.<br />É continuar.</h2><p>{priorities.length ? `Que tal começar com “${priorities[0].title}”? Separe ${priorities[0].minutes} minutos, sem pressão.` : 'Adicione uma pequena tarefa para hoje. Um capítulo, uma ideia, uma descoberta.'}</p><button className="button cream" onClick={() => priorities.length ? timerArea.current?.scrollIntoView({ behavior: 'auto', block: 'center' }) : setForm({ kind: 'task' })}>{priorities.length ? 'Encontrar meu foco' : 'Planejar meu primeiro passo'}<ArrowRight size={17} aria-hidden="true" /></button></div><div className="growth-art" aria-hidden="true"><div className="art-orbit orbit-one" /><div className="art-orbit orbit-two" /><div className="art-sun" /><div className="art-stem" /><div className="art-leaf leaf-one" /><div className="art-leaf leaf-two" /><div className="art-leaf leaf-three" /><div className="art-ground" /><span className="art-spark spark-one">+</span><span className="art-spark spark-two">✦</span></div></section>
-            <div className="stats-row"><div><span className="stat-icon sage"><CheckCheck size={20} aria-hidden="true" /></span><span><strong>{doneToday}<small> / {dueToday.length}</small></strong><small>Tarefas de hoje</small></span></div><div><span className="stat-icon lavender"><Clock3 size={20} aria-hidden="true" /></span><span><strong>{studyMinutes}<small> min</small></strong><small>Seu tempo de foco</small></span></div><div><span className="stat-icon sand"><BookOpen size={20} aria-hidden="true" /></span><span><strong>{data.subjects.length}</strong><small>Matérias no seu espaço</small></span></div></div>
-            <section className="panel priorities"><div className="section-heading"><div><h2>Um passo de cada vez</h2><p>Até três prioridades. O resto pode esperar.</p></div><button className="icon-button" aria-label="Adicionar tarefa" disabled={blocked} onClick={() => setForm({ kind: 'task' })}><Plus size={20} aria-hidden="true" /></button></div><ul className="task-list" role="list">{priorities.map(taskRow)}{dueToday.filter((task) => task.done).slice(0, 1).map(taskRow)}</ul>{!priorities.length && !doneToday && <div className="empty-inline"><CheckCheck size={25} aria-hidden="true" /><p>Nenhuma prioridade por aqui.<br /><button className="text-button" onClick={() => setForm({ kind: 'task' })}>Escolher meu próximo passo</button></p></div>}<div className="panel-footer"><span>{pending.length} {pending.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} no seu espaço</span><button className="text-button" onClick={() => navigate('agenda')}>Ver minha agenda <ArrowRight size={14} aria-hidden="true" /></button></div></section>
-            <StudyPlanner data={data} update={update} blocked={blocked} compact onAgenda={() => navigate('agenda')} />
-            <section className="subjects-section"><div className="section-heading"><h2>Meus universos de estudo</h2><button className="text-button" onClick={() => navigate('subjects')}>Ver matérias <ArrowRight size={14} aria-hidden="true" /></button></div><div className="subject-grid">{data.subjects.slice(0, 3).map(subjectCard)}{!data.subjects.length && <button className="add-subject-card" onClick={() => setForm({ kind: 'subject' })}><Plus aria-hidden="true" />Adicionar minha primeira matéria</button>}</div></section>
-            <section className="quick-note"><span className="quick-note-icon"><FileText size={22} aria-hidden="true" /></span><div><h2>Uma ideia que acabou de chegar?</h2><p>Guarde agora. Organize depois.</p></div><button className="button outline" disabled={blocked} onClick={() => setForm({ kind: 'note' })}><Plus size={16} aria-hidden="true" />Anotar</button></section>
-          </div><aside className="dashboard-secondary">
-            <section className="panel week-card"><div className="section-heading"><h2>Sua semana</h2><CalendarDays size={17} aria-hidden="true" /></div><div className="week-strip">{Array.from({ length: 7 }, (_, index) => { const day = addDays(today, index); return <button key={day} className={day === today ? 'today' : ''} aria-label={`Abrir agenda de ${formatDate(day)}`} onClick={() => { setAgendaDate(day); navigate('agenda'); }}><span>{formatDate(day, { weekday: 'short' }).replace('.', '')}</span><strong>{new Date(`${day}T12:00:00`).getDate()}</strong><i className={upcoming.some((entry) => entry.date === day) ? 'has-task' : ''} /></button>; })}</div><h3 className="small-heading">Vem por aí</h3><div className="upcoming-list">{upcoming.slice(0, 3).map((task) => <button key={task.id} className="upcoming-item" onClick={() => { setAgendaDate(task.date); navigate('agenda'); }}><span className={`date-block ${subject(task.subjectId)?.color ?? 'sage'}`}><strong>{new Date(`${task.date}T12:00:00`).getDate()}</strong><small>{formatDate(task.date, { month: 'short' }).replace('.', '')}</small></span><span><strong>{task.title}</strong><small>{task.time ?? 'Sem horário'} · {task.kind}</small></span></button>)}{!upcoming.length && <p className="muted">Sua semana tem espaço para novos planos.</p>}</div><button className="text-button full-width" onClick={() => navigate('agenda')}>Abrir agenda <ArrowRight size={14} aria-hidden="true" /></button></section>
-            <div ref={timerArea}><FocusTimer disabled={blocked} onComplete={(minutes) => update((previous) => ({ ...previous, sessions: [...previous.sessions, { id: crypto.randomUUID(), date: dateKey(), minutes }] }))} /></div>
-            <section className="daily-progress"><span className="progress-ring" style={{ '--progress': `${progress}%` } as React.CSSProperties}><span>{progress}%</span></span><div><h2>Cada passo conta</h2><p>{doneToday ? `${doneToday} ${doneToday === 1 ? 'passo dado' : 'passos dados'} hoje. Reconheça seu esforço.` : 'Seu progresso começa com uma pequena escolha.'}</p></div></section>
-          </aside></div>}
+          {view === 'today' && <>
+            <div className="bento-metric-row">
+              <div className="bento-metric-card">
+                <div className="metric-header">
+                  <span className="metric-icon lavender"><Clock3 size={18} aria-hidden="true" /></span>
+                  <span className="metric-label">Foco Registrado</span>
+                </div>
+                <div className="metric-value">{studyMinutes}<small> min</small></div>
+                <span className="metric-sub">{studyMinutes > 0 ? 'Foco acumulado hoje' : 'Pronto para começar'}</span>
+              </div>
+              <div className="bento-metric-card">
+                <div className="metric-header">
+                  <span className="metric-icon sage"><CheckCheck size={18} aria-hidden="true" /></span>
+                  <span className="metric-label">Tarefas de Hoje</span>
+                </div>
+                <div className="metric-value">{doneToday}<small> / {dueToday.length}</small></div>
+                <span className="metric-sub">{dueToday.length === 0 ? 'Sem prazos para hoje' : `${progress}% concluído`}</span>
+              </div>
+              <div className="bento-metric-card">
+                <div className="metric-header">
+                  <span className="metric-icon blue"><BookOpen size={18} aria-hidden="true" /></span>
+                  <span className="metric-label">Matérias Ativas</span>
+                </div>
+                <div className="metric-value">{data.subjects.length}</div>
+                <span className="metric-sub">1º Semestre Psicologia UNIP</span>
+              </div>
+              <div className="bento-metric-card">
+                <div className="metric-header">
+                  <span className="metric-icon sand"><FileText size={18} aria-hidden="true" /></span>
+                  <span className="metric-label">Caixa de Entrada</span>
+                </div>
+                <div className="metric-value">{data.notes.filter((n) => !n.areaId && !n.subjectId).length}</div>
+                <span className="metric-sub">Ideias para triagem</span>
+              </div>
+            </div>
+
+            <div className="dashboard-grid"><div className="dashboard-primary">
+              <section className="executive-welcome-card">
+                <div className="welcome-copy-deck">
+                  <span className="welcome-kicker"><span aria-hidden="true" /> Seu próximo passo</span>
+                  <h2>O importante não é correr.<br />É continuar.</h2>
+                  <p>{priorities.length ? `Que tal começar com “${priorities[0].title}”? Separe ${priorities[0].minutes} minutos, sem pressão.` : 'Adicione uma pequena tarefa para hoje. Um capítulo, uma ideia, uma descoberta.'}</p>
+                </div>
+                <div className="energy-battery-deck">
+                  <div className="energy-deck-header">
+                    <span>⚡ Bateria Mental & Disposição TDAH Hoje:</span>
+                    <span>
+                      {energyLevel === 5 && '🔥 100% · Energia Máxima'}
+                      {energyLevel === 4 && '⚡ 80% · Foco Ideal'}
+                      {energyLevel === 3 && '⚖️ 60% · Ritmo Normal'}
+                      {energyLevel === 2 && '🪫 40% · Bateria Baixa'}
+                      {energyLevel === 1 && '💤 20% · Sobrecarga'}
+                    </span>
+                  </div>
+                  <div className="energy-pills-row">
+                    {([
+                      { lvl: 1, label: '💤 1 Baixa' },
+                      { lvl: 2, label: '🪫 2 Moderada' },
+                      { lvl: 3, label: '⚖️ 3 Normal' },
+                      { lvl: 4, label: '⚡ 4 Ideal' },
+                      { lvl: 5, label: '🔥 5 Máxima' },
+                    ] as const).map((item) => (
+                      <button
+                        key={item.lvl}
+                        type="button"
+                        className={`energy-pill ${energyLevel === item.lvl ? 'active' : ''}`}
+                        onClick={() => setEnergyLevel(item.lvl)}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="hero-cta-row">
+                  <button className="hero-cta-btn primary" onClick={() => priorities.length ? timerArea.current?.scrollIntoView({ behavior: 'auto', block: 'center' }) : setForm({ kind: 'task' })}>
+                    {priorities.length ? 'Encontrar meu foco' : 'Planejar meu primeiro passo'}
+                    <ArrowRight size={17} aria-hidden="true" />
+                  </button>
+                  <button className="hero-cta-btn secondary" onClick={() => navigate('inbox')}>
+                    <FileText size={16} aria-hidden="true" />
+                    Caixa de entrada ({data.notes.filter((n) => !n.areaId && !n.subjectId).length})
+                  </button>
+                </div>
+              </section>
+
+              <section className="panel priorities"><div className="section-heading"><div><h2>Um passo de cada vez</h2><p>Até três prioridades. O resto pode esperar.</p></div><button className="icon-button" aria-label="Adicionar tarefa" disabled={blocked} onClick={() => setForm({ kind: 'task' })}><Plus size={20} aria-hidden="true" /></button></div><ul className="task-list" role="list">{priorities.map(taskRow)}{dueToday.filter((task) => task.done).slice(0, 1).map(taskRow)}</ul>{!priorities.length && !doneToday && <div className="empty-inline"><CheckCheck size={25} aria-hidden="true" /><p>Nenhuma prioridade por aqui.<br /><button className="text-button" onClick={() => setForm({ kind: 'task' })}>Escolher meu próximo passo</button></p></div>}<div className="panel-footer"><span>{pending.length} {pending.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} no seu espaço</span><button className="text-button" onClick={() => navigate('agenda')}>Ver minha agenda <ArrowRight size={14} aria-hidden="true" /></button></div></section>
+              <StudyPlanner data={data} update={update} blocked={blocked} compact onAgenda={() => navigate('agenda')} />
+              <section className="subjects-section"><div className="section-heading"><h2>Meus universos de estudo</h2><button className="text-button" onClick={() => navigate('subjects')}>Ver matérias <ArrowRight size={14} aria-hidden="true" /></button></div><div className="subject-grid">{data.subjects.slice(0, 3).map(subjectCard)}{!data.subjects.length && <button className="add-subject-card" onClick={() => setForm({ kind: 'subject' })}><Plus aria-hidden="true" />Adicionar minha primeira matéria</button>}</div></section>
+              <section className="quick-note"><span className="quick-note-icon"><FileText size={22} aria-hidden="true" /></span><div><h2>Uma ideia que acabou de chegar?</h2><p>Guarde agora. Organize depois.</p></div><button className="button outline" disabled={blocked} onClick={() => setForm({ kind: 'note' })}><Plus size={16} aria-hidden="true" />Anotar</button></section>
+            </div><aside className="dashboard-secondary">
+              <section className="panel week-card"><div className="section-heading"><h2>Sua semana</h2><CalendarDays size={17} aria-hidden="true" /></div><div className="week-strip">{Array.from({ length: 7 }, (_, index) => { const day = addDays(today, index); return <button key={day} className={day === today ? 'today' : ''} aria-label={`Abrir agenda de ${formatDate(day)}`} onClick={() => { setAgendaDate(day); navigate('agenda'); }}><span>{formatDate(day, { weekday: 'short' }).replace('.', '')}</span><strong>{new Date(`${day}T12:00:00`).getDate()}</strong><i className={upcoming.some((entry) => entry.date === day) ? 'has-task' : ''} /></button>; })}</div><h3 className="small-heading">Vem por aí</h3><div className="upcoming-list">{upcoming.slice(0, 3).map((task) => <button key={task.id} className="upcoming-item" onClick={() => { setAgendaDate(task.date); navigate('agenda'); }}><span className={`date-block ${subject(task.subjectId)?.color ?? 'sage'}`}><strong>{new Date(`${task.date}T12:00:00`).getDate()}</strong><small>{formatDate(task.date, { month: 'short' }).replace('.', '')}</small></span><span><strong>{task.title}</strong><small>{task.time ?? 'Sem horário'} · {task.kind}</small></span></button>)}{!upcoming.length && <p className="muted">Sua semana tem espaço para novos planos.</p>}</div><button className="text-button full-width" onClick={() => navigate('agenda')}>Abrir agenda <ArrowRight size={14} aria-hidden="true" /></button></section>
+              <div ref={timerArea}><FocusTimer disabled={blocked} onComplete={(minutes) => update((previous) => ({ ...previous, sessions: [...previous.sessions, { id: crypto.randomUUID(), date: dateKey(), minutes }] }))} /></div>
+              <section className="daily-progress"><span className="progress-ring" style={{ '--progress': `${progress}%` } as React.CSSProperties}><span>{progress}%</span></span><div><h2>Cada passo conta</h2><p>{doneToday ? `${doneToday} ${doneToday === 1 ? 'passo dado' : 'passos dados'} hoje. Reconheça seu esforço.` : 'Seu progresso começa com uma pequena escolha.'}</p></div></section>
+            </aside></div>
+          </>}
 
           {view === 'inbox' && <CaptureInbox data={data} blocked={blocked} update={update} status={status} onOpen={(id) => { setSelectedNote(id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); }} />}
           {view === 'subjects' && <section><div className="section-heading"><span className="muted">{data.subjects.length} matérias organizadas</span><button className="button primary" disabled={blocked} onClick={() => setForm({ kind: 'subject' })}><Plus size={17} aria-hidden="true" />Nova matéria</button></div><div className="subject-grid expanded">{data.subjects.map(subjectCard)}<button className="add-subject-card" disabled={blocked} onClick={() => setForm({ kind: 'subject' })}><Plus aria-hidden="true" />Um novo universo de estudo</button></div></section>}
