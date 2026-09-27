@@ -1,7 +1,11 @@
 import { z } from 'zod';
+import { defaultAreas } from './life';
 
 export const colors = ['sage', 'lavender', 'sand', 'blue', 'rose'] as const;
 const identifier = z.string().min(1).max(100);
+export const taskKinds = ['Compromisso', 'Tarefa', 'Reunião', 'Consulta', 'Treino', 'Lazer', 'Prática', 'Pagamento', 'Estudo', 'Prova', 'Trabalho', 'Aula'] as const;
+const areaSchema = z.object({ id: identifier, name: z.string().trim().min(1).max(100), color: z.enum(colors), hidden: z.boolean().default(false) });
+const notebookSchema = z.object({ id: identifier, name: z.string().trim().min(1).max(100), areaId: z.string().max(100), color: z.enum(colors) });
 export const daySchema = z.string().refine((value) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T12:00:00Z`);
@@ -16,13 +20,14 @@ export const subjectSchema = z.object({
 });
 export const taskSchema = z.object({
   id: identifier, title: z.string().trim().min(1).max(160), subjectId: z.string().max(100),
-  date: day, kind: z.enum(['Estudo', 'Prova', 'Trabalho', 'Aula']),
+  date: day, kind: z.enum(taskKinds), areaId: z.string().max(100).optional(),
   done: z.boolean(), minutes: z.number().int().min(5).max(240),
   time: timeSchema.optional(),
 });
 export const noteSchema = z.object({
   id: identifier, title: z.string().max(160), subjectId: z.string().max(100),
   content: z.string().max(200_000), updatedAt: z.string().datetime(),
+  areaId: z.string().max(100).optional(), notebookId: z.string().max(100).optional(),
 });
 export const classSchema = z.object({
   id: identifier, subjectId: identifier, weekday: z.number().int().min(0).max(6),
@@ -36,12 +41,29 @@ export const classSchema = z.object({
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
+  editorGeneration: z.literal(2).optional(),
   tasks: z.array(taskSchema).max(2000), notes: z.array(noteSchema).max(300),
   sessions: z.array(z.object({ id: identifier, date: day, minutes: z.number().int().min(1).max(240) })).max(5000),
   classes: z.array(classSchema).max(300).default([]),
   term: termSchema.default({}),
   curriculumVersion: z.literal('photo-2026-09').optional(),
+  areas: z.array(areaSchema).max(100).optional(),
+  notebooks: z.array(notebookSchema).max(300).optional(),
 }).superRefine((data, ctx) => {
+  const areas = new Set((data.areas ?? defaultAreas).map((area) => area.id));
+  const notebooks = new Set((data.notebooks ?? []).map((book) => book.id));
+  for (const collection of ['areas', 'notebooks'] as const) {
+    const items = data[collection] ?? [];
+    if (new Set(items.map((item) => item.id)).size !== items.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });
+  }
+  for (const collection of ['notes', 'tasks', 'notebooks'] as const) {
+    (data[collection] ?? []).forEach((item, index) => {
+      if (item.areaId && !areas.has(item.areaId)) ctx.addIssue({ code: 'custom', path: [collection, index, 'areaId'], message: 'Área inexistente' });
+    });
+  }
+  data.notes.forEach((note, index) => {
+    if (note.notebookId && !notebooks.has(note.notebookId)) ctx.addIssue({ code: 'custom', path: ['notes', index, 'notebookId'], message: 'Caderno inexistente' });
+  });
   for (const collection of ['subjects', 'tasks', 'notes', 'sessions', 'classes'] as const) {
     const ids = data[collection].map((item) => item.id);
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });

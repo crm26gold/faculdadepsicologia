@@ -29,7 +29,7 @@ test('compromisso com horário e arquivo ICS', async ({ page }) => {
   await page.getByLabel('O que você quer fazer?', { exact: true }).fill('Revisão de exemplo');
   await page.getByLabel('Horário · opcional', { exact: true }).fill('15:30');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await page.getByRole('button', { name: '15:30 · Estudo Revisão de exemplo', exact: true }).click();
+  await page.getByRole('button', { name: '15:30 · Compromisso Revisão de exemplo Sem área', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('15:30');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Exportar agenda', exact: true }).click();

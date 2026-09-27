@@ -1,29 +1,32 @@
 # Jornada Plena
 
-Um organizador de estudos com matérias, caderno, agenda e blocos de foco. A evolução prevista amplia esse núcleo para vários cursos e outras áreas da vida, mantendo o controle dos dados com cada pessoa.
+Um organizador pessoal com áreas da vida personalizáveis, cadernos, agenda única, estudos e foco. Módulos especializados de finanças, saúde e metas continuam em desenvolvimento; criar uma área não equivale a implementar um módulo completo.
 
 O código está publicado no GitHub. A [demonstração pública](https://faculdadepsicologia-demo.vercel.app) usa somente dados sintéticos em um projeto separado. O workspace privado permanece exclusivo do proprietário; publicar o código não libera acesso a ele.
 
 ## Estado do projeto
 
-“Implementado” significa presente no código, não necessariamente validado com uma sessão real em produção. Na auditoria de 26/09/2026, produção, repositório e banco foram conferidos, e a identidade Google do proprietário estava vinculada. A tabela de espaços pessoais estava vazia: a primeira gravação pelo aplicativo, leitura em outro dispositivo e restauração ainda precisam de comprovação. Não confundir essa pendência com ausência de banco ou autorização para abrir o acesso público.
+“Implementado” significa presente no código, não necessariamente validado com uma sessão real em produção. Na auditoria de 26/09/2026, produção, repositório e banco foram conferidos, e a identidade Google do proprietário estava vinculada. Em 27/09, registros persistidos no workspace remoto foram confirmados por consulta de contagens, sem ler o conteúdo das notas. Leitura em outro dispositivo, restauração completa e primeiro upload na sessão real ainda precisam de comprovação. Não confundir essa pendência com ausência de banco ou autorização para abrir o acesso público.
 
 Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), a [primeira entrega do plano](docs/ENTREGA_GRADE_2026-09-26.md) e o [registro histórico de validação de 24/09](docs/VALIDATION.md). O nome oficial é Jornada Plena; identificadores técnicos antigos são mantidos quando necessários para compatibilidade.
 
 | Recurso | Estado | Alcance |
 | --- | --- | --- |
 | Matérias e tarefas | Implementado | Cadastro e edição, semestre, cores, prazos e conclusão de tarefas. |
-| Caderno | Implementado | Anotações por matéria, busca e edição com títulos, listas, negrito e itálico. |
-| Agenda | Implementado | Visões mensal e semanal; criar, editar e pausar horários desde uma grade vazia; período letivo e filtro por matéria. Feriados não são descontados automaticamente. |
+| Cadernos e áreas | Implementado | Cadernos pessoais editáveis; 11 áreas iniciais personalizáveis, filtros por área/caderno/matéria. |
+| Editor multimídia | Implementado | Formatação, tabelas, links, imagens/câmera, áudio anexado e ortografia local pt-BR. Primeiro upload real ainda a validar. |
+| Agenda | Implementado | Visões mensal e semanal; criar, editar e pausar horários desde uma grade vazia; período letivo e filtros por área e matéria; compromissos pessoais sem matéria obrigatória. Feriados não são descontados automaticamente. |
 | Exportação de calendário | Implementado | Arquivo `.ics` do período selecionado; importação manual no destino, sem sincronização de volta. |
 | Foco e planejamento | Implementado | Temporizador, registro de sessões e sugestões por regras locais, aceitas manualmente. Não usa IA generativa. |
 | Dados no navegador | Implementado | Persistência local, exportação/importação JSON validada e proteção contra sobrescrita concorrente. |
 | Acesso privado | Proprietário vinculado | Validação de UUID, e-mail e identidade Google no servidor; ainda requer teste completo de uso na sessão real. |
-| Armazenamento privado na nuvem | Banco aplicado | Tabelas, RLS e RPC remotos verificados; primeira gravação pelo aplicativo e leitura em outro dispositivo ainda precisam ser confirmadas. |
+| Armazenamento privado na nuvem | Banco aplicado | Tabelas, RLS e RPC remotos verificados; registros persistidos confirmados em 27/09; leitura em outro dispositivo ainda a validar. |
 | Demo pública isolada | Publicada e testada | Origem separada, exemplos somente em memória, sem importação de backups, login ou API de dados pessoais. |
 | Vários cursos | Roadmap | Ainda não existe entidade de curso nem separação de dados por curso. |
 | Finanças, saúde, rotina, social, inventário e metas | Roadmap | Módulos próprios ainda não implementados; tarefas e foco não equivalem a esses módulos. |
 | IA e WhatsApp Oráculo | Roadmap | Sem bot ativo, envio de mensagens ou análise de notas por IA. Exigirão identidade do workspace e consentimento. |
+
+Detalhes desta evolução: [áreas e cadernos](docs/AREAS_E_CADERNOS_2026-09-27.md) e [editor multimídia](docs/CADERNO_MULTIMIDIA_2026-09-27.md).
 
 ## Desenvolvimento local
 
@@ -51,7 +54,7 @@ O servidor usa `http://127.0.0.1:3000`. Use um perfil de navegador separado e ap
 - Dados existentes na chave local devem ser preservados. Separar ambientes não autoriza apagar, migrar ou substituir esses dados automaticamente.
 - Dados locais pertencem ao navegador e à origem usada. Sair da conta não os apaga nem acrescenta criptografia; limpar o navegador pode removê-los.
 - Um backup JSON pode conter conteúdo pessoal. Guarde-o fora do repositório e nunca o importe na demo pública.
-- `GOOGLE_AUTH_ENABLED` e `FACULDADE_CLOUD_WORKSPACE` permanecem desligadas até a verificação externa correspondente. Login validado não comprova persistência remota.
+- Em instalações novas, `GOOGLE_AUTH_ENABLED` e `FACULDADE_CLOUD_WORKSPACE` só devem ser ativadas após verificação. A instância privada existente já usa a nuvem; não copiar suas credenciais para a demo.
 
 ## Documentação
 

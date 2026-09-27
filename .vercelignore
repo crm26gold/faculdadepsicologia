@@ -7,6 +7,7 @@
 /.vercel
 /.local
 /node_modules
+/public/spelling
 .env*
 *.md
 /tests

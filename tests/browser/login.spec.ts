@@ -16,6 +16,9 @@ test('espaço privado fechado e login Google sem campos de senha', async ({ page
 
 test('API privada recusa anônimos e login antigo está desativado', async ({ request }) => {
   expect((await request.get('/api/workspace')).status()).toBe(401);
+  expect((await request.get('/api/note-media/11111111-1111-4111-8111-111111111111.png')).status()).toBe(401);
+  expect((await request.post('/api/note-media', { headers: { origin: 'http://127.0.0.1:3005' }, data: {} })).status()).toBe(401);
+  expect((await request.post('/api/note-media', { headers: { origin: 'https://other.example' }, data: {} })).status()).toBe(403);
   expect((await request.post('/auth/login')).status()).toBe(410);
   expect((await request.post('/auth/google', { headers: { origin: 'https://other.example' } })).status()).toBe(403);
   expect((await request.get('/auth/callback?code=fake')).status()).toBe(503);

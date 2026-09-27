@@ -1,6 +1,6 @@
 # Arquitetura
 
-O aplicativo usa Next.js com App Router, React e TypeScript. A interface mantém a navegação do workspace no cliente; as rotas de autenticação e dados executam no servidor. TipTap fornece a edição de notas, Zod valida os dados e Supabase está previsto para autenticação e persistência privada. Integrações externas ainda não foram verificadas.
+O aplicativo usa Next.js com App Router, React e TypeScript. A interface mantém a navegação do workspace no cliente; as rotas de autenticação e dados executam no servidor. TipTap fornece a edição de notas, Zod valida os dados e Supabase fornece autenticação e persistência privada na instância existente. IA generativa e sincronização externa de calendário não estão conectadas.
 
 ## Camadas
 
@@ -15,18 +15,18 @@ O aplicativo usa Next.js com App Router, React e TypeScript. A interface mantém
 | `src/lib/academic.ts` e `src/lib/calendar-export.ts` | Recorrências, sugestões por regras e exportação `.ics`. |
 | `src/components/use-workspace.ts` | Carregamento, persistência e tratamento de conflitos. |
 | `src/components/` | Painel, matérias, caderno, agenda, planejamento e foco. |
-| `supabase/migrations/` | SQL preparado para o workspace privado; aplicação remota não confirmada. |
+| `supabase/migrations/` | Migrações do workspace, Storage privado e proteção contra editores antigos, aplicadas no projeto privado. |
 | `tests/` | Testes de domínio, autenticação, restrições de produção e navegador. |
 
 ## Modelo e persistência
 
-O documento `Workspace`, na versão 1, contém matérias (`subjects`), tarefas (`tasks`), notas (`notes`), sessões de foco (`sessions`), aulas recorrentes (`classes`) e período letivo (`term`). As relações por matéria e os identificadores são validados. Ainda não existem entidades para cursos, finanças, saúde, hábitos, contatos, inventário ou metas.
+O documento `Workspace`, na versão 1, contém matérias (`subjects`), tarefas (`tasks`), notas (`notes`), sessões de foco (`sessions`), aulas recorrentes (`classes`) e período letivo (`term`), com coleções opcionais de áreas (`areas`) e cadernos (`notebooks`) e vínculos por `areaId`/`notebookId`. As relações por matéria e os identificadores são validados. Ainda não existem entidades para cursos, finanças, saúde, hábitos, contatos, inventário ou metas.
 
 A persistência local compara o estado salvo antes de gravar e observa alterações de outras abas. Ao detectar conflito ou falha de leitura, bloqueia novas gravações e orienta exportação/recuperação. O conteúdo não recebe criptografia própria. A chave pessoal existente, identificada por `LOCAL_KEY`, deve ser preservada, mesmo quando a inicialização ou os modos forem alterados.
 
 A importação JSON exige dados válidos e limite de 2 MB, apresenta confirmação e substitui o workspace selecionado. Não é uma mesclagem. Exportar a versão atual antes de confirmar continua necessário.
 
-Na persistência remota preparada, a API usa `personal_workspaces` e a função `save_personal_workspace`. A revisão esperada evita sobrescrever uma alteração concorrente; o conflito retorna HTTP 409. A API exige sessão autorizada, verifica origem nas gravações e valida formato e tamanho. A migração inclui RLS e uma tabela `app_owner` para autorização explícita. Isso descreve o código e o SQL, não comprova políticas aplicadas ao banco remoto.
+Na persistência remota, a API usa `personal_workspaces` e a função `save_personal_workspace`. A revisão esperada evita sobrescrever uma alteração concorrente; o conflito retorna HTTP 409. A API exige sessão autorizada, verifica origem nas gravações e valida formato e tamanho. A migração inclui RLS e uma tabela `app_owner` para autorização explícita. As políticas remotas e registros persistidos foram confirmados; teste completo de upload na sessão real e recuperação de mídia continuam pendentes.
 
 ## Contrato de separação dos ambientes
 
@@ -48,7 +48,7 @@ A demo não pode ler nem gravar a chave pessoal. A remoção de uma grade real d
 
 ## Autenticação e origem
 
-O contrato privado usa Google OAuth com UUID (`APP_OWNER_USER_ID`) e e-mail (`APP_OWNER_EMAIL`) autorizados e verificados no servidor. A identidade deve ser provisionada explicitamente; o primeiro usuário a entrar nunca recebe acesso automaticamente. Nenhum e-mail real deve constar em exemplos públicos. A configuração remota desse fluxo ainda está pendente.
+O contrato privado usa Google OAuth com UUID (`APP_OWNER_USER_ID`) e e-mail (`APP_OWNER_EMAIL`) autorizados e verificados no servidor. A identidade deve ser provisionada explicitamente; o primeiro usuário a entrar nunca recebe acesso automaticamente. Nenhum e-mail real deve constar em exemplos públicos. O proprietário já está vinculado na instância privada; credenciais não pertencem ao repositório.
 
 `APP_ORIGIN` identifica a origem canônica: protocolo, host e porta, sem caminho, parâmetros ou fragmento. A autorização de origem não deve depender do `Host` enviado pelo solicitante. Um preview do projeto privado continua privado, mesmo quando o código estiver disponível publicamente.
 
@@ -59,3 +59,7 @@ O contrato privado usa Google OAuth com UUID (`APP_OWNER_USER_ID`) e e-mail (`AP
 O planejador calcula sugestões a partir de prazos e aulas e só adiciona um bloco quando a pessoa aceita. Não há chamada a modelo de IA. O arquivo `.ics` é uma exportação manual; o aplicativo não recebe alterações feitas no calendário externo.
 
 O futuro Oráculo por WhatsApp depende de uma identidade de tenant (o workspace ao qual a pessoa pertence) resolvida pelo servidor, vinculação verificada do remetente e consentimento específico. O texto de uma mensagem não poderá escolher o tenant nem autorizar acesso a notas. Isolamento entre tenants, revogação e confirmação de ações precisam existir antes dessa integração. O modelo atual de proprietário único não oferece multi-tenancy pronto. Consulte o [roadmap](ROADMAP.md).
+
+## Evolução de 27/09
+
+Consulte [áreas e cadernos](AREAS_E_CADERNOS_2026-09-27.md) e [editor multimídia](CADERNO_MULTIMIDIA_2026-09-27.md). `editorGeneration: 2` identifica gravações do novo editor; um trigger bloqueia downgrade após a primeira gravação. Fotos/áudios ficam no Storage privado, não no JSON. O documento JSON monolítico continua limitado a 2 MB; módulos futuros exigirão migrações incrementais para tabelas próprias com relações verificáveis, não um depósito genérico de JSON sem validação.

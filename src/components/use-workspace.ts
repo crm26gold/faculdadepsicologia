@@ -93,7 +93,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const update = useCallback((change: (previous: Workspace) => Workspace) => {
     if (!ready || stop.current) return false;
     let next: Workspace;
-    try { next = parseWorkspace(JSON.stringify(change(current.current))); }
+    try { next = parseWorkspace(JSON.stringify({ ...change(current.current), editorGeneration: 2 })); }
     catch { setError('Alteração inválida ou limite de dados atingido. A versão anterior foi preservada.'); return false; }
     setError('');
     current.current = next; setData(next);

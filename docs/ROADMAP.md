@@ -1,5 +1,12 @@
 # Roadmap
 
+## Atualização de 27/09/2026
+
+As seções abaixo conservam critérios de entrega, não representam todas pendências atuais. Google proprietário, banco/RLS e persistência remota já estão ativos. A evolução atual implementa áreas da vida, cadernos independentes, agenda transversal e editor multimídia. Consulte [entrega e ordem de continuidade](AREAS_E_CADERNOS_2026-09-27.md), que complementa a auditoria histórica e tem precedência sobre estados antigos abaixo.
+
+Próximas entregas: validação de mídia real → Inbox/cursos/projetos/metas → foco por atividade e hábitos → calendário/lembretes → módulos financeiros e pessoais → IA autorizada → Oráculo. Espiritualidade, emocional, família, casa, descanso e segurança pessoal fazem parte do escopo, sem impor métricas ou crenças.
+
+
 Este é um plano de evolução, sem datas prometidas. A [matriz do README](../README.md#estado-do-projeto) registra o que existe no código local. Uma tela, variável ou migração preparada não significa integração ativa.
 
 ## 1. Concluir a publicação e separar os ambientes
@@ -21,7 +28,7 @@ Concluir Google OAuth exclusivo do proprietário, conferir UUID e e-mail no serv
 
 A migração Supabase deve ser revisada e aplicada somente no projeto privado correto. Verificar leitura/gravação do proprietário, recusa de outros usuários e anônimos, RLS e conflitos de revisão. Só então ativar as flags correspondentes. A instalação nova permanece vazia, sem copiar exemplos da demo ou dados locais automaticamente.
 
-Critério de conclusão: evidência externa de autenticação, autorização e persistência; backup e recuperação verificados. No estado documental atual, Google/Supabase remotos não foram configurados/verificados.
+Critério de conclusão: evidência externa de autenticação, autorização e persistência; backup e recuperação verificados. Atualização: identidade proprietária, RLS e persistência remota foram confirmadas; validação entre dispositivos e recuperação ainda pendentes.
 
 ## 3. Ampliar o modelo acadêmico e pessoal
 
