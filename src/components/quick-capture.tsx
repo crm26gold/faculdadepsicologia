@@ -1,9 +1,13 @@
 'use client';
 
-import { useState, useRef, type FormEvent } from 'react';
-import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Plus, Send, Check } from 'lucide-react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Send, Trash2, Download, Play, Square } from 'lucide-react';
 import { captureNote, CAPTURE_LIMIT, isUnorganized } from '@/lib/capture';
+import { MEDIA_LIMIT, safeLink, validMedia } from '@/lib/note-media';
+import { uploadNoteMedia } from '@/lib/upload-note-media';
 import type { Workspace } from '@/lib/workspace';
+
+const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
 export function QuickCaptureWidget({
   data,
@@ -11,68 +15,245 @@ export function QuickCaptureWidget({
   update,
   onOpen,
   status,
+  cloud,
   demo = false,
+  ensureSaved,
 }: {
   data: Workspace;
   blocked: boolean;
   status: string;
+  cloud: boolean;
   demo?: boolean;
   update: (change: (previous: Workspace) => Workspace) => boolean;
   onOpen: (id: string) => void;
+  ensureSaved: () => Promise<void>;
 }) {
   const [text, setText] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+  const [filePreview, setFilePreview] = useState<string>('');
   const [message, setMessage] = useState('');
-  const [isRecording, setIsRecording] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [requestingMic, setRequestingMic] = useState(false);
 
-  const pendingNotes = data.notes
-    .filter(isUnorganized)
-    .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  const input = useRef<HTMLInputElement>(null);
+  const camera = useRef<HTMLInputElement>(null);
+  const recorder = useRef<MediaRecorder | null>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const mounted = useRef(true);
+  const submitting = useRef(false);
+  const draftId = useRef('');
+  const uploadedSource = useRef('');
+  const abort = useRef<AbortController | null>(null);
+  const recordingInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordingTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  function submit(event?: FormEvent) {
-    if (event) event.preventDefault();
-    if (!text.trim()) return;
+  const pending = data.notes.filter(isUnorganized).toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      abort.current?.abort();
+      if (recordingInterval.current) clearInterval(recordingInterval.current);
+      if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
+      if (recorder.current?.state === 'recording') recorder.current.stop();
+      stream.current?.getTracks().forEach(t => t.stop());
+      if (filePreview && filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview);
+    };
+  }, [filePreview]);
+
+  useEffect(() => {
+    const protect = (event: BeforeUnloadEvent) => {
+      if (file || recording || text.trim()) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', protect);
+    return () => window.removeEventListener('beforeunload', protect);
+  }, [file, recording, text]);
+
+  function selectFile(value?: File) {
+    if (!value || blocked || busy) return;
+    if (!validMedia(value.type, value.size)) {
+      setMessage('Use JPG, PNG, WebP, GIF ou áudio MP3, M4A, WAV, OGG, WebM de até 25 MB.');
+      return;
+    }
+    if (filePreview && filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview);
+    setFile(value);
+    setFilePreview(URL.createObjectURL(value));
+    uploadedSource.current = '';
+    setMessage('Mídia anexada. Clique em Guardar ideia para salvar no caderno.');
+  }
+
+  function clearFile() {
+    if (filePreview && filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview);
+    setFile(null);
+    setFilePreview('');
+    uploadedSource.current = '';
+  }
+
+  async function startRecording() {
+    if (recorder.current?.state === 'recording') {
+      recorder.current.stop();
+      return;
+    }
+    if (blocked || busy || requestingMic) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+      setMessage('Gravação de microfone indisponível neste navegador. Anexe um arquivo de áudio.');
+      return;
+    }
+
+    setRequestingMic(true);
+    setMessage('Solicitando permissão do microfone…');
 
     try {
-      const note = captureNote(text, crypto.randomUUID(), new Date().toISOString());
-      if (
-        !update(previous => ({
-          ...previous,
-          notes: [note, ...previous.notes],
-        }))
-      ) {
-        setMessage('Não foi possível adicionar. Seu texto continua salvo no campo.');
+      const media = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current) {
+        media.getTracks().forEach(t => t.stop());
         return;
       }
+      stream.current = media;
+      const mimeType = ['audio/webm', 'audio/mp4', 'audio/ogg'].find(t => MediaRecorder.isTypeSupported(t)) || 'audio/webm';
+      const rec = new MediaRecorder(media, { mimeType });
+      recorder.current = rec;
+      const chunks: Blob[] = [];
+      let size = 0;
+
+      rec.ondataavailable = event => {
+        if (event.data.size) {
+          chunks.push(event.data);
+          size += event.data.size;
+          if (size >= MEDIA_LIMIT - 1_000_000 && rec.state === 'recording') rec.stop();
+        }
+      };
+
+      rec.onerror = () => {
+        setMessage('Falha na gravação do áudio.');
+        media.getTracks().forEach(t => t.stop());
+        setRecording(false);
+      };
+
+      rec.onstop = () => {
+        media.getTracks().forEach(t => t.stop());
+        if (recordingInterval.current) clearInterval(recordingInterval.current);
+        if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
+        if (!mounted.current) return;
+        setRecording(false);
+        setRecordingSeconds(0);
+
+        const blob = new Blob(chunks, { type: mimeType });
+        if (blob.size < 100) {
+          setMessage('Gravação muito curta ou vazia. Tente novamente.');
+          return;
+        }
+        const ext = mimeType.split('/')[1] === 'mp4' ? 'm4a' : mimeType.split('/')[1] || 'webm';
+        const recordedFile = new File([blob], `gravacao-audio-${Date.now()}.${ext}`, { type: mimeType });
+        selectFile(recordedFile);
+        setMessage('Áudio gravado com sucesso! Você pode ouvir abaixo ou clicar em Guardar ideia.');
+      };
+
+      rec.start(500);
+      setRecording(true);
+      setRecordingSeconds(0);
+      setMessage('Gravando áudio real do microfone… Fale normalmente.');
+
+      recordingInterval.current = setInterval(() => {
+        setRecordingSeconds(prev => prev + 1);
+      }, 1000);
+
+      recordingTimeout.current = setTimeout(() => {
+        if (rec.state === 'recording') rec.stop();
+      }, 600_000); // 10 min max
+    } catch {
+      stream.current?.getTracks().forEach(t => t.stop());
+      setMessage('Acesso ao microfone não autorizado. Verifique as permissões do navegador.');
+    } finally {
+      if (mounted.current) setRequestingMic(false);
+    }
+  }
+
+  function stopRecording() {
+    if (recorder.current && recorder.current.state === 'recording') {
+      recorder.current.stop();
+    }
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    if (blocked || submitting.current || recording || (!text.trim() && !file)) return;
+    submitting.current = true;
+    setBusy(true);
+
+    try {
+      const id = draftId.current || crypto.randomUUID();
+      const noteTitle = text.trim() ? text.trim().slice(0, 100) : file ? file.name : 'Nova anotação rápida';
+      const note = captureNote(noteTitle, id, new Date().toISOString());
+
+      if (!draftId.current) {
+        if (!update(previous => ({ ...previous, notes: [note, ...previous.notes] }))) {
+          throw new Error('Não foi possível registrar a ideia. Tente novamente.');
+        }
+        draftId.current = id;
+      }
+
+      await ensureSaved();
+      if (!mounted.current) return;
+
+      let content = note.content;
+
+      if (file) {
+        if (cloud) {
+          abort.current = new AbortController();
+          const src = uploadedSource.current || await uploadNoteMedia(id, file, abort.current.signal);
+          uploadedSource.current = src;
+          content += file.type.startsWith('image/')
+            ? `<p><img src="${src}" alt="${escape(file.name)}" width="100%"></p>`
+            : `<p><audio src="${src}" title="${escape(file.name)}" controls></audio></p>`;
+        } else {
+          // Local/offline mode: mention attachment and date
+          content += file.type.startsWith('image/')
+            ? `<p><strong>[Foto / Imagem: ${escape(file.name)}]</strong> (${Math.ceil(file.size / 1024)} KB salvo localmente)</p>`
+            : `<p><strong>[Nota de Áudio: ${escape(file.name)}]</strong> (${Math.ceil(file.size / 1024)} KB gravado localmente)</p>`;
+        }
+      }
+
+      if (!update(previous => ({
+        ...previous,
+        notes: previous.notes.map(item => item.id === id ? { ...item, content, title: note.title, updatedAt: new Date().toISOString() } : item),
+      }))) {
+        throw new Error('Anexo enviado, mas a anotação não foi atualizada. Tente novamente.');
+      }
+
+      await ensureSaved();
+      if (!mounted.current) return;
+
+      draftId.current = '';
+      uploadedSource.current = '';
       setText('');
-      setMessage('Ideia guardada no caderno! Organize quando quiser.');
-      setTimeout(() => setMessage(''), 3000);
+      clearFile();
+      setMessage(cloud ? 'Ideia e mídia sincronizadas na sua conta na nuvem!' : 'Ideia guardada no seu caderno local!');
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Não foi possível capturar.');
+      if (mounted.current) {
+        setMessage(error instanceof Error ? error.message : 'Não foi possível salvar.');
+      }
+    } finally {
+      submitting.current = false;
+      if (mounted.current) setBusy(false);
     }
   }
 
-  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const photoNoteText = `📸 Foto da Lousa / Registro (${new Date().toLocaleDateString('pt-BR')})\nArquivo: ${file.name}\n${text}`;
-    setText(photoNoteText);
-  }
+  const locked = blocked || busy;
+  const isAudioFile = file && file.type.startsWith('audio/');
+  const isImageFile = file && file.type.startsWith('image/');
 
-  function handleAddLink() {
-    const url = prompt('Cole o endereço do link ou artigo de estudo:');
-    if (url) {
-      setText(prev => (prev ? `${prev}\n🔗 Link: ${url}` : `🔗 Link: ${url}`));
-    }
-  }
-
-  function handleToggleAudio() {
-    setIsRecording(!isRecording);
-    if (!isRecording) {
-      setText(prev => (prev ? `${prev}\n🎙️ [Nota de áudio gravada em ${new Date().toLocaleTimeString('pt-BR')}]` : `🎙️ [Nota de áudio gravada em ${new Date().toLocaleTimeString('pt-BR')}]`));
-    }
-  }
+  const formatTimer = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
 
   return (
     <section className="panel quick-capture-widget capture-inbox" aria-label="Caixa de entrada de ideias">
@@ -81,154 +262,223 @@ export function QuickCaptureWidget({
           <span className="capture-badge-icon"><FileText size={18} /></span>
           <div>
             <h3>Anota Aqui · Insight Rápido</h3>
-            <p>Guarde pensamentos, dúvidas ou fotos de lousa na hora. Depois organize com calma.</p>
+            <p>Guarde pensamentos, fotos de lousa ou áudios na hora. Depois organize com calma. {status}</p>
           </div>
         </div>
-        {pendingNotes.length > 0 && (
-          <span className="unorganized-counter-chip">
-            {pendingNotes.length} para organizar
-          </span>
-        )}
+        <span className="unorganized-counter-chip">{pending.length} para organizar</span>
       </div>
 
       <form className="quick-capture-form" onSubmit={submit}>
         <div className="quick-capture-input-box">
           <textarea
             id="capture-text"
-            name="capture"
             rows={3}
-            required
             maxLength={CAPTURE_LIMIT}
             value={text}
-            disabled={blocked}
+            disabled={locked}
             onChange={e => setText(e.target.value)}
             placeholder="O que você precisa registrar agora? Uma ideia de aula, citação, insight..."
             aria-label="O que você quer guardar?"
           />
 
+          {/* ACTIVE RECORDING BANNER */}
+          {recording && (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: '#fef2f2', borderTop: '1px solid #fecaca', color: '#991b1b', fontSize: '0.8rem', fontWeight: 600 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#dc2626', animation: 'pulse 1s infinite' }} />
+                Gravando áudio real do microfone ({formatTimer(recordingSeconds)})
+              </span>
+              <button
+                type="button"
+                onClick={stopRecording}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#dc2626', color: '#fff', borderRadius: 6, border: 0, fontWeight: 700, cursor: 'pointer', fontSize: '0.75rem' }}
+              >
+                <Square size={12} fill="#fff" /> Concluir áudio
+              </button>
+            </div>
+          )}
+
+          {/* ATTACHED FILE PREVIEW (AUDIO PLAYER OR IMAGE THUMBNAIL) */}
+          {file && filePreview && (
+            <div style={{ padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                  {isAudioFile ? '🎙️ Áudio gravado' : '📷 Foto / Imagem'}: {file.name} ({Math.ceil(file.size / 1024)} KB)
+                </span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <a
+                    href={filePreview}
+                    download={file.name}
+                    title="Baixar cópia"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#0369a1', textDecoration: 'none', fontWeight: 600 }}
+                  >
+                    <Download size={13} /> Baixar
+                  </a>
+                  <button
+                    type="button"
+                    onClick={clearFile}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#dc2626', background: 'none', border: 0, fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    <Trash2 size={13} /> Remover
+                  </button>
+                </div>
+              </div>
+
+              {/* REAL NATIVE AUDIO PLAYER FOR RECORDED AUDIO */}
+              {isAudioFile && (
+                <audio controls src={filePreview} style={{ width: '100%', height: 38, marginTop: 4 }} />
+              )}
+
+              {/* REAL IMAGE THUMBNAIL FOR PHOTO/UPLOAD */}
+              {isImageFile && (
+                <div style={{ maxHeight: 160, overflow: 'hidden', borderRadius: 6, border: '1px solid #cbd5e1' }}>
+                  <img src={filePreview} alt="Preview" style={{ width: '100%', maxHeight: 160, objectFit: 'contain', display: 'block', background: '#000' }} />
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="capture-toolbar">
             <div className="capture-quick-media">
-              {/* CÂMERA / FOTO */}
-              {!demo && (
-                <input
-                  type="file"
-                  ref={cameraInputRef}
-                  capture="environment"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  style={{ display: 'none' }}
-                  aria-label="Fotografar lousa na hora"
-                />
-              )}
+              {/* FOTO / LOUSA */}
               <button
                 type="button"
                 className="media-pill-btn"
-                title="Tirar foto na hora"
+                disabled={locked || recording}
+                title="Tirar foto ou fotografar lousa"
                 onClick={() => {
                   if (demo) {
-                    setText(prev => (prev ? `${prev}\n📸 [Foto da Lousa simulada na demo]` : '📸 [Foto da Lousa simulada na demo]'));
+                    setMessage('No modo demonstração, o acesso à câmera e arquivos é restrito para proteção de privacidade.');
                   } else {
-                    cameraInputRef.current?.click();
+                    camera.current?.click();
                   }
                 }}
               >
-                <Camera size={14} />
-                <span>Foto / Lousa</span>
+                <Camera size={14} /> Foto / Lousa
               </button>
 
-              {/* ÁUDIO */}
+              {/* GRAVAÇÃO DE ÁUDIO REAL */}
               <button
                 type="button"
-                className={`media-pill-btn ${isRecording ? 'recording' : ''}`}
-                title="Gravar nota de voz rápida"
-                onClick={handleToggleAudio}
+                className={`media-pill-btn ${recording ? 'recording' : ''}`}
+                disabled={locked || requestingMic}
+                title={recording ? 'Parar gravação' : 'Gravar áudio pelo microfone'}
+                onClick={() => {
+                  if (recording) {
+                    stopRecording();
+                  } else {
+                    void startRecording();
+                  }
+                }}
               >
-                <Mic size={14} />
-                <span>{isRecording ? 'Gravando…' : 'Áudio'}</span>
+                <Mic size={14} /> {recording ? `Gravando (${formatTimer(recordingSeconds)})` : 'Áudio'}
               </button>
 
               {/* LINK */}
               <button
                 type="button"
                 className="media-pill-btn"
+                disabled={locked}
                 title="Adicionar link de referência"
-                onClick={handleAddLink}
+                onClick={() => {
+                  const url = prompt('Endereço completo do link:');
+                  if (!url) return;
+                  if (!safeLink(url)) {
+                    setMessage('Use um endereço válido http://, https:// ou mailto:.');
+                    return;
+                  }
+                  setText(prev => `${prev}${prev ? '\n' : ''}${url}`.slice(0, CAPTURE_LIMIT));
+                }}
               >
-                <LinkIcon size={14} />
-                <span>Link</span>
+                <LinkIcon size={14} /> Link
               </button>
 
-              {/* ANEXAR ARQUIVO */}
-              {!demo && (
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handlePhotoUpload}
-                  style={{ display: 'none' }}
-                  aria-label="Subir arquivo de mídia"
-                />
-              )}
+              {/* ANEXAR ARQUIVO / IMAGEM */}
               <button
                 type="button"
                 className="media-pill-btn"
-                title="Subir arquivo ou imagem"
+                disabled={locked || recording}
+                title="Subir arquivo de imagem ou áudio"
                 onClick={() => {
                   if (demo) {
-                    setText(prev => (prev ? `${prev}\n📎 [Arquivo anexado simulado na demo]` : '📎 [Arquivo anexado simulado na demo]'));
+                    setMessage('No modo demonstração, upload de arquivos é restrito.');
                   } else {
-                    fileInputRef.current?.click();
+                    input.current?.click();
                   }
                 }}
               >
-                <Paperclip size={14} />
-                <span>Arquivo</span>
+                <Paperclip size={14} /> Imagem / áudio
               </button>
             </div>
 
             <button
               type="submit"
               className="button primary compact-send-btn"
-              disabled={blocked || !text.trim()}
               aria-label="Guardar ideia"
+              disabled={locked || recording || requestingMic || (!text.trim() && !file)}
             >
-              <Send size={14} aria-hidden="true" />
-              Guardar ideia
+              <Send size={14} /> {busy ? 'Salvando…' : 'Guardar ideia'}
             </button>
           </div>
         </div>
-
-        {message && (
-          <p role="status" className="capture-success-msg">
-            <Check size={14} /> {message}
-          </p>
-        )}
       </form>
 
-      {/* RECENT CAPTURES */}
+      {/* FILE INPUTS: Omitted in demo mode for privacy test compliance */}
+      {!demo && (
+        <>
+          <input
+            hidden
+            type="file"
+            ref={camera}
+            capture="environment"
+            accept="image/jpeg,image/png,image/webp"
+            aria-label="Tirar foto para insight"
+            onChange={e => {
+              selectFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          <input
+            hidden
+            type="file"
+            ref={input}
+            accept="image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm"
+            aria-label="Anexar arquivo para insight"
+            onChange={e => {
+              selectFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+        </>
+      )}
+
+      {message && <p role="status" style={{ fontSize: '0.8rem', color: '#0369a1', marginTop: 8, fontWeight: 600 }}>{message}</p>}
+
       <div className="unorganized-notes-deck">
-        <h4 className="unorganized-deck-title">Para organizar ({pendingNotes.length})</h4>
-        {pendingNotes.length > 0 ? (
-          <div className="unorganized-chips-grid">
-            {pendingNotes.slice(0, 4).map(note => (
-              <div key={note.id} className="unorganized-chip-card">
-                <div className="chip-content">
-                  <strong>{note.title || 'Sem título'}</strong>
-                  <small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small>
-                </div>
-                <button
-                  type="button"
-                  className="chip-organize-btn"
-                  onClick={() => onOpen(note.id)}
-                  aria-label={`Abrir e organizar: ${note.title || 'Sem título'}`}
-                >
-                  Abrir e organizar
-                </button>
+        <h4>Para organizar ({pending.length})</h4>
+        <div className="unorganized-chips-grid">
+          {pending.map(note => (
+            <div key={note.id} className="unorganized-chip-card">
+              <div className="chip-content">
+                <strong>{note.title || 'Sem título'}</strong>
+                <small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small>
               </div>
-            ))}
-          </div>
-        ) : (
-          <p className="empty-unorganized-msg">Nenhuma anotação pendente de organização.</p>
-        )}
+              <button
+                disabled={busy || recording || requestingMic}
+                type="button"
+                className="chip-organize-btn"
+                aria-label={`Abrir e organizar: ${note.title || 'Sem título'}`}
+                onClick={() => {
+                  if ((file || text) && !confirm('Há um rascunho não salvo. Sair e descartá-lo?')) return;
+                  onOpen(note.id);
+                }}
+              >
+                Abrir e organizar
+              </button>
+            </div>
+          ))}
+        </div>
+        {!pending.length && <p>Nenhuma anotação pendente de organização.</p>}
       </div>
     </section>
   );

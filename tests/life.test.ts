@@ -28,3 +28,44 @@ test('invalid references and duplicate life areas are rejected', () => {
   assert.equal(workspaceSchema.safeParse({ ...emptyWorkspace(), notebooks: [{ id: 'n', name: 'Diário', color: 'blue', areaId: 'absent' }] }).success, false);
   assert.equal(workspaceSchema.safeParse({ ...emptyWorkspace(), notes: [{ id: 'n', title: 'Reflexão', subjectId: '', notebookId: 'absent', content: '', updatedAt: '2026-09-27T12:00:00Z' }] }).success, false);
 });
+
+test('finances, daily routine and user profile survive serialization and validate correctly', () => {
+  const data = workspaceSchema.parse({
+    ...emptyWorkspace(),
+    editorGeneration: 3,
+    transactions: [
+      { id: 'tx-1', description: 'Mensalidade', amountCents: 45000, type: 'expense', category: 'Faculdade', date: '2026-09-27', areaId: 'studies' },
+      { id: 'tx-2', description: 'Bolsa estágio', amountCents: 120000, type: 'income', category: 'Remuneração', date: '2026-09-27', areaId: 'work' },
+    ],
+    habits: [
+      { id: 'hb-1', period: 'morning', time: '07:30', title: 'Meditação e leitura', areaId: 'emotional', completedDates: ['2026-09-26', '2026-09-27'] },
+    ],
+    profile: {
+      name: 'Estudante Real',
+      course: 'Psicologia',
+      semester: '1º Semestre',
+      institution: 'UNIP',
+      campus: 'Campus Central',
+      registration: 'PSI2026',
+      email: '',
+      phone: '',
+      photoUrl: '',
+    },
+    sessions: [
+      { id: 'sess-1', date: '2026-09-27', minutes: 25, subjectId: '' },
+    ],
+  });
+
+  const parsed = parseWorkspace(JSON.stringify(data));
+  assert.deepEqual(parsed, data);
+  assert.equal(parsed.transactions?.length, 2);
+  assert.equal(parsed.habits?.[0].completedDates.length, 2);
+  assert.equal(parsed.profile?.name, 'Estudante Real');
+
+  // Duplicate transaction or habit IDs are rejected
+  assert.equal(workspaceSchema.safeParse({ ...data, transactions: [data.transactions![0], data.transactions![0]] }).success, false);
+  assert.equal(workspaceSchema.safeParse({ ...data, habits: [data.habits![0], data.habits![0]] }).success, false);
+  // Invalid areaId in habit is rejected
+  assert.equal(workspaceSchema.safeParse({ ...data, habits: [{ ...data.habits![0], areaId: 'non-existent-area' }] }).success, false);
+});
+

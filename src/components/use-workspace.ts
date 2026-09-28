@@ -93,7 +93,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const update = useCallback((change: (previous: Workspace) => Workspace) => {
     if (!ready || stop.current) return false;
     let next: Workspace;
-    try { next = parseWorkspace(JSON.stringify({ ...change(current.current), editorGeneration: 2 })); }
+    try { next = parseWorkspace(JSON.stringify({ ...change(current.current), editorGeneration: 3 })); }
     catch { setError('Alteração inválida ou limite de dados atingido. A versão anterior foi preservada.'); return false; }
     setError('');
     current.current = next; setData(next);
@@ -109,5 +109,13 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
     current.current = next; saved.current = next; setData(next); setError('');
   }
 
-  return { data, ready, demo, status, error, blocked, update, resetDemo };
+  async function ensureSaved() {
+    const deadline = Date.now() + 30_000;
+    while (saved.current !== current.current) {
+      if (stop.current) throw new Error('Salvamento interrompido. Exporte seus dados antes de sair.');
+      if (Date.now() > deadline) throw new Error('A sincronização está demorando. Aguarde e tente novamente.');
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  return { data, ready, demo, status, error, blocked, update, resetDemo, ensureSaved };
 }

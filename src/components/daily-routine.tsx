@@ -1,285 +1,60 @@
 'use client';
+import { useEffect, useState, type FormEvent } from 'react';
+import { Check, Clock, Plus, Sunrise, Sun, Sunset, Trash2 } from 'lucide-react';
+import { dateKey, type Workspace } from '@/lib/workspace';
+import { toggleHabitDate, type RoutineHabit } from '@/lib/life-data';
+import { lifeAreas } from '@/lib/life';
+import { AreaSelect } from './life-organization';
 
-import { useState, useEffect } from 'react';
-import { Check, Clock, Plus, Sun, Sunrise, Sunset, Trash2 } from 'lucide-react';
-
-export interface RoutineHabit {
-  id: string;
-  period: 'morning' | 'afternoon' | 'night';
-  time: string;
-  title: string;
-  area: string;
-  done: boolean;
-}
-
-const defaultHabits: RoutineHabit[] = [
-  // Manhã
-  { id: 'h-1', period: 'morning', time: '07:00', title: 'Despertar, hidratação & café revigorante', area: 'Saúde', done: true },
-  { id: 'h-2', period: 'morning', time: '07:30', title: 'Revisão rápida de notas e conceitos-chave', area: 'Estudos', done: true },
-  { id: 'h-3', period: 'morning', time: '08:30', title: 'Planejamento das 3 prioridades essenciais do dia', area: 'Organização', done: false },
-
-  // Tarde
-  { id: 'h-4', period: 'afternoon', time: '13:30', title: 'Bloco de foco profundo: Leitura obrigatória UNIP', area: 'Estudos', done: false },
-  { id: 'h-5', period: 'afternoon', time: '15:30', title: 'Pausa para caminhada, respiração ou café', area: 'Saúde', done: false },
-  { id: 'h-6', period: 'afternoon', time: '16:30', title: 'Fichamento e resumos no caderno digital', area: 'Estudos', done: false },
-
-  // Noite
-  { id: 'h-7', period: 'night', time: '19:10', title: 'Aula Presencial UNIP Psicologia', area: 'Acadêmico', done: false },
-  { id: 'h-8', period: 'night', time: '22:30', title: 'Organizar mochila e compromissos de amanhã', area: 'Organização', done: false },
-  { id: 'h-9', period: 'night', time: '23:00', title: 'Desconexão de telas & higiene do sono', area: 'Saúde', done: false },
-];
-
-export function DailyRoutine({ demo }: { demo: boolean }) {
-  const [habits, setHabits] = useState<RoutineHabit[]>(() => {
-    if (demo) return defaultHabits;
-    try {
-      const saved = localStorage.getItem('faculdade-psi:routine:v1');
-      return saved ? JSON.parse(saved) : defaultHabits;
-    } catch {
-      return defaultHabits;
-    }
-  });
-
+export function DailyRoutine({ data, blocked, update }: { data: Workspace; blocked: boolean; update: (recipe: (previous: Workspace) => Workspace) => boolean }) {
+  const habits = data.habits ?? [];
+  const [today, setToday] = useState(dateKey);
+  const [selectedDate, setSelectedDate] = useState('');
+  const date = selectedDate || today;
+  useEffect(() => { const timer = setInterval(() => setToday(dateKey()), 30_000); return () => clearInterval(timer); }, []);
   const [showAdd, setShowAdd] = useState(false);
-  const [period, setPeriod] = useState<'morning' | 'afternoon' | 'night'>('morning');
+  const [editingId, setEditingId] = useState('');
+  const [period, setPeriod] = useState<RoutineHabit['period']>('morning');
   const [time, setTime] = useState('08:00');
   const [title, setTitle] = useState('');
-  const [area, setArea] = useState('Estudos');
+  const [areaId, setAreaId] = useState('');
+  const [message, setMessage] = useState('');
+  const completed = habits.filter(h => h.completedDates.includes(date)).length;
+  const progress = habits.length ? Math.round(completed / habits.length * 100) : 0;
 
-  useEffect(() => {
-    if (demo) return;
-    try {
-      localStorage.setItem('faculdade-psi:routine:v1', JSON.stringify(habits));
-    } catch {
-      // Safely ignore storage errors
-    }
-  }, [habits, demo]);
-
-  const completedCount = habits.filter(h => h.done).length;
-  const progressPercent = habits.length ? Math.round((completedCount / habits.length) * 100) : 0;
-
-  function toggleHabit(id: string) {
-    setHabits(habits.map(h => (h.id === id ? { ...h, done: !h.done } : h)));
+  function save(event: FormEvent) {
+    event.preventDefault();
+    if (blocked) return;
+    const id = editingId || crypto.randomUUID();
+    const accepted = update(previous => {
+      const list = previous.habits ?? [];
+      const habit: RoutineHabit = { id, period, time, title: title.trim(), areaId, completedDates: list.find(h => h.id === id)?.completedDates ?? [] };
+      return { ...previous, habits: editingId ? list.map(h => h.id === id ? habit : h) : [...list, habit] };
+    });
+    if (accepted) { setShowAdd(false); setEditingId(''); setTitle(''); setMessage('Rotina atualizada. Confira o indicador de salvamento.'); }
   }
-
-  function handleAdd(e: React.FormEvent) {
-    e.preventDefault();
-    if (!title.trim()) return;
-
-    const newHabit: RoutineHabit = {
-      id: crypto.randomUUID(),
-      period,
-      time,
-      title: title.trim(),
-      area,
-      done: false,
-    };
-
-    setHabits([...habits, newHabit]);
-    setTitle('');
-    setShowAdd(false);
+  function schedule(habit: RoutineHabit) {
+    const id = `routine:${habit.id}:${date}`;
+    const accepted = update(previous => ({ ...previous, tasks: previous.tasks.some(t => t.id === id) ? previous.tasks : [...previous.tasks, { id, title: habit.title, date, time: habit.time, subjectId: '', areaId: habit.areaId, kind: 'Compromisso', minutes: 25, done: false }] }));
+    if (accepted) setMessage('Compromisso disponível na agenda única (25 minutos estimados; você pode editar na agenda).');
   }
-
-  function handleDelete(id: string) {
-    setHabits(habits.filter(h => h.id !== id));
-  }
-
-  const morningHabits = habits.filter(h => h.period === 'morning');
-  const afternoonHabits = habits.filter(h => h.period === 'afternoon');
-  const nightHabits = habits.filter(h => h.period === 'night');
-
-  return (
-    <div className="routine-container">
-      <div className="finances-header-row">
-        <div>
-          <h2>Minha Rotina Diária</h2>
-          <p>Estruture seu ritmo matinal, vespertino e noturno com clareza e previsibilidade.</p>
-        </div>
-        <button className="button primary" onClick={() => setShowAdd(!showAdd)}>
-          <Plus size={16} aria-hidden="true" />
-          {showAdd ? 'Fechar formulário' : 'Novo hábito / bloco'}
-        </button>
-      </div>
-
-      {/* PROGRESS TRACKER */}
-      <div className="panel routine-progress-deck">
-        <div className="routine-stats-header">
-          <div>
-            <h3>Ritmo de Hoje: {progressPercent}% Concluído</h3>
-            <p>{completedCount} de {habits.length} etapas cumpridas com sucesso</p>
-          </div>
-          <span className="routine-score-badge">{completedCount}/{habits.length}</span>
-        </div>
-        <div className="routine-bar-track">
-          <div className="routine-bar-fill" style={{ width: `${progressPercent}%` }} />
-        </div>
-      </div>
-
-      {/* ADD HABIT MODAL/PANEL */}
-      {showAdd && (
-        <form onSubmit={handleAdd} className="panel finance-form">
-          <h3>Adicionar Bloco à Rotina</h3>
-          <div className="finance-form-grid">
-            <div>
-              <label htmlFor="r-period">Período</label>
-              <select id="r-period" value={period} onChange={e => setPeriod(e.target.value as any)}>
-                <option value="morning">Manhã (06h - 12h)</option>
-                <option value="afternoon">Tarde (12h - 18h)</option>
-                <option value="night">Noite (18h - 23h)</option>
-              </select>
-            </div>
-            <div>
-              <label htmlFor="r-time">Horário habitual</label>
-              <input id="r-time" type="time" value={time} onChange={e => setTime(e.target.value)} required />
-            </div>
-            <div style={{ gridColumn: 'span 2' }}>
-              <label htmlFor="r-title">Atividade ou Hábito</label>
-              <input
-                id="r-title"
-                type="text"
-                placeholder="Ex.: Revisar fichamentos de psicologia..."
-                value={title}
-                onChange={e => setTitle(e.target.value)}
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="r-area">Área</label>
-              <select id="r-area" value={area} onChange={e => setArea(e.target.value)}>
-                <option value="Estudos">Estudos</option>
-                <option value="Saúde">Saúde & Bem-estar</option>
-                <option value="Acadêmico">Acadêmico / UNIP</option>
-                <option value="Organização">Organização</option>
-                <option value="Lazer">Lazer & Pausa</option>
-              </select>
-            </div>
-          </div>
-          <div className="form-footer" style={{ marginTop: '14px' }}>
-            <button type="button" className="button outline" onClick={() => setShowAdd(false)}>Cancelar</button>
-            <button type="submit" className="button primary">Salvar na rotina</button>
-          </div>
-        </form>
-      )}
-
-      {/* ROUTINE PERIODS */}
-      <div className="routine-columns">
-        {/* MANHÃ */}
-        <section className="panel routine-column">
-          <div className="routine-col-header morning">
-            <Sunrise size={18} />
-            <div>
-              <h4>Manhã</h4>
-              <small>Despertar & Ativação (06h - 12h)</small>
-            </div>
-          </div>
-          <ul className="routine-list">
-            {morningHabits.map(h => (
-              <li key={h.id} className={`routine-item ${h.done ? 'done' : ''}`}>
-                <button
-                  type="button"
-                  className="routine-check-btn"
-                  onClick={() => toggleHabit(h.id)}
-                  aria-label={`Concluir hábito: ${h.title}`}
-                >
-                  {h.done ? <Check size={14} /> : null}
-                </button>
-                <div className="routine-item-info">
-                  <span className="routine-item-time"><Clock size={11} /> {h.time}</span>
-                  <strong>{h.title}</strong>
-                  <span className="routine-area-tag">{h.area}</span>
-                </div>
-                <button
-                  className="icon-button danger"
-                  onClick={() => handleDelete(h.id)}
-                  aria-label={`Excluir: ${h.title}`}
-                  title="Excluir hábito"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </li>
-            ))}
-            {!morningHabits.length && <li className="routine-empty">Nenhum bloco matinal cadastrado.</li>}
-          </ul>
-        </section>
-
-        {/* TARDE */}
-        <section className="panel routine-column">
-          <div className="routine-col-header afternoon">
-            <Sun size={18} />
-            <div>
-              <h4>Tarde</h4>
-              <small>Foco & Aprofundamento (12h - 18h)</small>
-            </div>
-          </div>
-          <ul className="routine-list">
-            {afternoonHabits.map(h => (
-              <li key={h.id} className={`routine-item ${h.done ? 'done' : ''}`}>
-                <button
-                  type="button"
-                  className="routine-check-btn"
-                  onClick={() => toggleHabit(h.id)}
-                  aria-label={`Concluir hábito: ${h.title}`}
-                >
-                  {h.done ? <Check size={14} /> : null}
-                </button>
-                <div className="routine-item-info">
-                  <span className="routine-item-time"><Clock size={11} /> {h.time}</span>
-                  <strong>{h.title}</strong>
-                  <span className="routine-area-tag">{h.area}</span>
-                </div>
-                <button
-                  className="icon-button danger"
-                  onClick={() => handleDelete(h.id)}
-                  aria-label={`Excluir: ${h.title}`}
-                  title="Excluir hábito"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </li>
-            ))}
-            {!afternoonHabits.length && <li className="routine-empty">Nenhum bloco vespertino cadastrado.</li>}
-          </ul>
-        </section>
-
-        {/* NOITE */}
-        <section className="panel routine-column">
-          <div className="routine-col-header night">
-            <Sunset size={18} />
-            <div>
-              <h4>Noite</h4>
-              <small>Aulas & Desaceleração (18h - 23h)</small>
-            </div>
-          </div>
-          <ul className="routine-list">
-            {nightHabits.map(h => (
-              <li key={h.id} className={`routine-item ${h.done ? 'done' : ''}`}>
-                <button
-                  type="button"
-                  className="routine-check-btn"
-                  onClick={() => toggleHabit(h.id)}
-                  aria-label={`Concluir hábito: ${h.title}`}
-                >
-                  {h.done ? <Check size={14} /> : null}
-                </button>
-                <div className="routine-item-info">
-                  <span className="routine-item-time"><Clock size={11} /> {h.time}</span>
-                  <strong>{h.title}</strong>
-                  <span className="routine-area-tag">{h.area}</span>
-                </div>
-                <button
-                  className="icon-button danger"
-                  onClick={() => handleDelete(h.id)}
-                  aria-label={`Excluir: ${h.title}`}
-                  title="Excluir hábito"
-                >
-                  <Trash2 size={13} />
-                </button>
-              </li>
-            ))}
-            {!nightHabits.length && <li className="routine-empty">Nenhum bloco noturno cadastrado.</li>}
-          </ul>
-        </section>
-      </div>
-    </div>
-  );
+  return <fieldset className="routine-container" disabled={blocked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+    <div className="finances-header-row"><div><h2>Minha Rotina Diária</h2><p>Hábitos por dia, conectados às suas áreas da vida.</p></div><button className="button primary" onClick={() => { setEditingId(''); setTitle(''); setShowAdd(!showAdd); }}><Plus size={16} />Novo hábito / bloco</button></div>
+    <label htmlFor="routine-date">Dia da rotina</label><input id="routine-date" type="date" value={date} onChange={e => setSelectedDate(e.target.value)} /><button type="button" onClick={() => setSelectedDate('')}>Hoje</button>
+    <div className="panel routine-progress-deck"><div className="routine-stats-header"><div><h3>Ritmo de {date === today ? 'Hoje' : date}: {progress}% Concluído</h3><p>{completed} de {habits.length} etapas cumpridas</p></div><span className="routine-score-badge">{completed}/{habits.length}</span></div><progress value={completed} max={Math.max(1, habits.length)} aria-label="Progresso diário" /></div>
+    {message && <p role="status">{message}</p>}
+    {showAdd && <form onSubmit={save} className="panel finance-form"><h3>{editingId ? 'Editar' : 'Adicionar'} hábito</h3><div className="finance-form-grid">
+      <div><label htmlFor="r-period">Período</label><select id="r-period" value={period} onChange={e => setPeriod(e.target.value as RoutineHabit['period'])}><option value="morning">Manhã</option><option value="afternoon">Tarde</option><option value="night">Noite</option></select></div>
+      <div><label htmlFor="r-time">Horário habitual</label><input id="r-time" type="time" required value={time} onChange={e => setTime(e.target.value)} /></div>
+      <div><label htmlFor="r-title">Atividade ou Hábito</label><input id="r-title" required maxLength={160} value={title} onChange={e => setTitle(e.target.value)} /></div>
+      <div><label htmlFor="r-area">Área</label><AreaSelect id="r-area" data={data} value={areaId} onChange={setAreaId} /></div>
+    </div><div className="form-footer"><button type="button" className="button outline" onClick={() => setShowAdd(false)}>Cancelar</button><button className="button primary">Salvar na rotina</button></div></form>}
+    <div className="routine-columns">{([{ id: 'morning', title: 'Manhã', Icon: Sunrise }, { id: 'afternoon', title: 'Tarde', Icon: Sun }, { id: 'night', title: 'Noite', Icon: Sunset }] as const).map(section => <section key={section.id} className="panel routine-column"><div className={`routine-col-header ${section.id}`}><section.Icon size={18} /><h4>{section.title}</h4></div><ul className="routine-list">
+      {habits.filter(h => h.period === section.id).toSorted((a,b) => a.time.localeCompare(b.time)).map(h => {
+        const done = h.completedDates.includes(date);
+        return <li key={h.id} className={`routine-item ${done ? 'done' : ''}`}><button type="button" className="routine-check-btn" aria-pressed={done} aria-label={`Concluir hábito: ${h.title}`} onClick={() => update(previous => ({ ...previous, habits: (previous.habits ?? []).map(item => item.id === h.id ? toggleHabitDate(item, date) : item) }))}>{done && <Check size={14} />}</button><div className="routine-item-info"><span className="routine-item-time"><Clock size={11} />{h.time}</span><strong>{h.title}</strong><span className="routine-area-tag">{lifeAreas(data).find(a => a.id === h.areaId)?.name ?? 'Sem área'}</span><button type="button" onClick={() => schedule(h)}>Adicionar à agenda</button><button type="button" aria-label={`Editar hábito: ${h.title}`} onClick={() => { setEditingId(h.id); setTitle(h.title); setPeriod(h.period); setTime(h.time); setAreaId(h.areaId); setShowAdd(true); }}>Editar</button></div><button className="icon-button danger" aria-label={`Excluir: ${h.title}`} onClick={() => { if (window.confirm('Excluir este hábito e seu histórico?')) update(previous => ({ ...previous, habits: (previous.habits ?? []).filter(item => item.id !== h.id) })); }}><Trash2 size={13} /></button></li>;
+      })}
+      {!habits.some(h => h.period === section.id) && <li className="routine-empty">Nenhum hábito cadastrado.</li>}
+    </ul></section>)}</div>
+  </fieldset>;
 }

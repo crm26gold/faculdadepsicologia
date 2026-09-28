@@ -4,30 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import { Camera, Check, Download, GraduationCap, Mail, MapPin, Phone, ShieldCheck, Upload, User, Sparkles } from 'lucide-react';
 import { OrganizationPanel } from './life-organization';
 import type { Workspace } from '@/lib/workspace';
-
-export interface UserProfileData {
-  name: string;
-  course: string;
-  semester: string;
-  institution: string;
-  campus: string;
-  registration: string;
-  email: string;
-  phone: string;
-  photoUrl: string;
-}
-
-export const defaultUserProfile: UserProfileData = {
-  name: 'Alexandre Bergara',
-  course: 'Psicologia',
-  semester: '1º Semestre',
-  institution: 'Universidade Paulista (UNIP)',
-  campus: 'Sorocaba',
-  registration: 'PSI-2026.1',
-  email: 'alexandrebergara@gmail.com',
-  phone: '15 99800-8591',
-  photoUrl: '',
-};
+import { emptyProfile, type UserProfileData } from '@/lib/life-data';
+export { emptyProfile as defaultUserProfile } from '@/lib/life-data';
+export type { UserProfileData } from '@/lib/life-data';
 
 export function ProfileSettings({
   data,
@@ -50,36 +29,25 @@ export function ProfileSettings({
   onImportClick: () => void;
   authenticated: boolean;
 }) {
-  const [profile, setProfile] = useState<UserProfileData>(() => {
-    if (demo) return defaultUserProfile;
-    try {
-      const saved = localStorage.getItem('faculdade-psi:user-profile:v1');
-      return saved ? JSON.parse(saved) : defaultUserProfile;
-    } catch {
-      return defaultUserProfile;
-    }
-  });
+  const [profile, setProfile] = useState<UserProfileData>(data.profile ?? emptyProfile);
+  const [photoError, setPhotoError] = useState('');
 
   const [savedNotice, setSavedNotice] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (demo) return;
-    try {
-      localStorage.setItem('faculdade-psi:user-profile:v1', JSON.stringify(profile));
-    } catch {
-      // ignore
-    }
-  }, [profile, demo]);
+  useEffect(() => { setProfile(data.profile ?? emptyProfile); }, [data.profile]);
 
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2_000_000) {
-      alert('A imagem deve ter até 2 MB.');
+    if (blocked) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 250_000) {
+      setPhotoError('Use JPG, PNG ou WebP de até 250 KB para o perfil.');
       return;
     }
+    setPhotoError('');
     const reader = new FileReader();
+    reader.onerror = () => setPhotoError('Não foi possível ler a foto. Tente novamente.');
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         setProfile(prev => ({ ...prev, photoUrl: reader.result as string }));
@@ -90,6 +58,7 @@ export function ProfileSettings({
 
   function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (blocked || !update(previous => ({ ...previous, profile }))) return;
     setSavedNotice(true);
     setTimeout(() => setSavedNotice(false), 3000);
   }
@@ -99,6 +68,7 @@ export function ProfileSettings({
       {/* LEFT COLUMN: EDIT FORM */}
       <div className="profile-form-column">
         <form onSubmit={handleSave} className="panel profile-editor-panel">
+          <fieldset disabled={blocked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="section-heading">
             <div>
               <h2>Foto e Identificação</h2>
@@ -106,7 +76,7 @@ export function ProfileSettings({
             </div>
             {savedNotice && (
               <span className="tiny-tag positive" style={{ background: '#ecfdf5', color: '#047857' }}>
-                <Check size={12} /> Salvo com sucesso
+                <Check size={12} /> Alteração enviada · confira o indicador de salvamento
               </span>
             )}
           </div>
@@ -116,7 +86,7 @@ export function ProfileSettings({
               {profile.photoUrl ? (
                 <img src={profile.photoUrl} alt="Foto de perfil" />
               ) : (
-                <span className="avatar-initials">AB</span>
+                <span className="avatar-initials">{profile.name.slice(0, 1) || 'P'}</span>
               )}
             </div>
             <div className="photo-actions">
@@ -153,13 +123,14 @@ export function ProfileSettings({
                   Usar iniciais originais
                 </button>
               )}
-              <small className="muted">JPG, PNG ou WebP · até 2 MB</small>
+              <small className="muted">JPG, PNG ou WebP · até 250 KB · incluída no backup</small>
+              {photoError && <p role="alert">{photoError}</p>}
             </div>
           </div>
 
           <div className="form-grid" style={{ marginTop: '16px' }}>
             <div>
-              <label htmlFor="p-name">Nome acadêmico completo</label>
+              <label htmlFor="p-name">Seu nome</label>
               <input
                 id="p-name"
                 value={profile.name}
@@ -168,12 +139,11 @@ export function ProfileSettings({
               />
             </div>
             <div>
-              <label htmlFor="p-course">Curso de Graduação</label>
+              <label htmlFor="p-course">Curso ou atividade · opcional</label>
               <input
                 id="p-course"
                 value={profile.course}
                 onChange={e => setProfile(prev => ({ ...prev, course: e.target.value }))}
-                required
               />
             </div>
             <div>
@@ -236,6 +206,7 @@ export function ProfileSettings({
               Salvar dados do perfil
             </button>
           </div>
+          </fieldset>
         </form>
 
         {/* ORGANIZAÇÃO: ÁREAS E CADERNOS */}
@@ -254,7 +225,7 @@ export function ProfileSettings({
               {profile.photoUrl ? (
                 <img src={profile.photoUrl} alt={profile.name} />
               ) : (
-                <span className="avatar-initials">AB</span>
+                <span className="avatar-initials">{profile.name.slice(0, 1) || 'P'}</span>
               )}
             </div>
             <h3>{profile.name}</h3>
@@ -265,7 +236,7 @@ export function ProfileSettings({
             <div className="student-meta-list">
               <div className="meta-line">
                 <MapPin size={14} />
-                <span>{profile.campus} · Presencial Noturno</span>
+                <span>{profile.campus}</span>
               </div>
               <div className="meta-line">
                 <Mail size={14} />
@@ -281,7 +252,7 @@ export function ProfileSettings({
 
             <div className="student-status-row">
               <span className="status-indicator-dot" />
-              <span>Matrícula Ativa: {profile.registration}</span>
+              <span>Identificação pessoal: {profile.registration || 'não informada'} · sem validade de carteirinha oficial</span>
             </div>
           </div>
         </div>
@@ -299,7 +270,7 @@ export function ProfileSettings({
 
           <div className="notice" style={{ margin: '14px 0' }}>
             <ShieldCheck size={18} aria-hidden="true" />
-            <span>Sem cadastro público. Sem envio das suas anotações para fora do seu dispositivo.</span>
+            <span>{mode === 'cloud' ? 'Dados sincronizados na sua conta privada. Não enviados a uma IA.' : 'Dados locais ou temporários, sem sincronização na nuvem.'} O JSON inclui perfil, finanças e hábitos; anexos do caderno são referências, não cópias dos arquivos.</span>
           </div>
 
           {!demo && (
@@ -327,8 +298,8 @@ export function ProfileSettings({
           <h3>Conexões & Serviços</h3>
           {[
             { name: 'Supabase Database', detail: 'Sincronização e autenticação', state: demo ? 'Desativado na demo' : mode === 'cloud' ? 'Ativo' : 'Aguardando config' },
-            { name: 'Google Agenda', detail: 'Exportação manual .ics e sincronização', state: 'Exportação pronta' },
-            { name: 'Inteligência Artificial (Codex/Antigravity)', detail: 'Assistente de regras & suporte metodológico', state: 'Modo local ativo' },
+            { name: 'Google Agenda', detail: 'Exportação manual .ics · sem sincronização automática', state: 'Exportação pronta' },
+            { name: 'Planejador por regras', detail: 'Sugestões determinísticas, sem IA generativa conectada', state: 'Disponível' },
           ].map(item => (
             <div className="integration-row" key={item.name}>
               <div>

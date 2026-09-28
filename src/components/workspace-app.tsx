@@ -15,6 +15,7 @@ import { FinancialController } from './financial-controller';
 import { DailyRoutine } from './daily-routine';
 import { ProfileSettings, defaultUserProfile, type UserProfileData } from './profile-settings';
 import { QuickCaptureWidget } from './quick-capture';
+import { LegacyImport } from './legacy-import';
 
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 const AcademicCalendar = dynamic(() => import('./academic-calendar'), { loading: () => <p role="status">Abrindo sua agenda…</p> });
@@ -38,7 +39,7 @@ function download(data: Workspace) {
 }
 
 export function WorkspaceApp({ mode, hostedPreview = false, authenticated = false }: { mode: 'local' | 'cloud' | 'demo'; hostedPreview?: boolean; authenticated?: boolean }) {
-  const { data, ready, demo, status, error, blocked, update } = useWorkspace(mode);
+  const { data, ready, demo, status, error, blocked, update, ensureSaved } = useWorkspace(mode);
   const [view, setView] = useState<View>('today');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [form, setForm] = useState<{ kind: FormKind; task?: Task; subject?: Subject } | null>(null);
@@ -51,15 +52,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [agendaDate, setAgendaDate] = useState(dateKey);
   const [imported, setImported] = useState<Workspace | null>(null);
   const [notice, setNotice] = useState('');
-  const [userProfile] = useState<UserProfileData>(() => {
-    if (demo) return defaultUserProfile;
-    try {
-      const saved = localStorage.getItem('faculdade-psi:user-profile:v1');
-      return saved ? JSON.parse(saved) : defaultUserProfile;
-    } catch {
-      return defaultUserProfile;
-    }
-  });
+  const userProfile = data.profile ?? defaultUserProfile;
+  const [focusRequest, setFocusRequest] = useState<{ id: string; subjectId: string } | null>(null);
   const today = dateKey();
   const main = useRef<HTMLElement>(null);
   const timerArea = useRef<HTMLDivElement>(null);
@@ -135,10 +129,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       </button>
       <div className="sidebar-user-card" onClick={() => navigate('settings')} role="button" tabIndex={0} title="Meu perfil e configurações">
         <div className="user-avatar-badge" aria-hidden="true">
-          {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : 'AB'}
+          {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : userProfile.name.slice(0,1) || 'P'}
         </div>
         <div className="user-meta-info">
-          <strong>{userProfile.name}</strong>
+          <strong>{userProfile.name || 'Meu espaço'}</strong>
           <span>{userProfile.course} · {userProfile.semester}</span>
         </div>
       </div>
@@ -200,7 +194,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           title="Focar 25 min nesta matéria"
           onClick={(e) => {
             e.stopPropagation();
-            timerArea.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setFocusRequest({ id: crypto.randomUUID(), subjectId: item.id });
+            navigate('today');
           }}
         >
           <Clock3 size={12} /> Foco 25m
@@ -236,7 +231,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             <CircleHelp size={18} aria-hidden="true" />
           </button>
           <button className="avatar small" onClick={() => navigate('settings')} aria-label="Perfil Alexandre">
-            {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : 'AB'}
+            {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : userProfile.name.slice(0,1) || 'P'}
           </button>
         </div>
       </header>
@@ -308,7 +303,9 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               blocked={blocked}
               update={update}
               status={status}
+              cloud={mode === 'cloud'}
               demo={demo}
+              ensureSaved={ensureSaved}
               onOpen={(id) => {
                 setSelectedNote(id);
                 setSubjectFilter('');
@@ -360,7 +357,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
                 {/* SLEEK FOCUS TIMER */}
                 <div ref={timerArea}>
-                  <FocusTimer disabled={blocked} onComplete={(minutes) => update((previous) => ({ ...previous, sessions: [...previous.sessions, { id: crypto.randomUUID(), date: dateKey(), minutes }] }))} />
+                  <FocusTimer disabled={blocked} request={focusRequest} subjects={data.subjects} onComplete={(minutes, subjectId) => update((previous) => ({ ...previous, sessions: [...previous.sessions, { id: crypto.randomUUID(), date: dateKey(), minutes, subjectId }] }))} />
                 </div>
 
                 {/* PROGRESS RING */}
@@ -393,13 +390,14 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'agenda' && <AcademicCalendar data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); setForm({ kind: 'task' }); }} onEdit={(task) => setForm({ kind: 'task', task })} />}
 
-          {view === 'finances' && <FinancialController demo={demo} />}
+          {view === 'finances' && <FinancialController data={data} update={update} blocked={blocked} />}
 
-          {view === 'routine' && <DailyRoutine demo={demo} />}
+          {view === 'routine' && <DailyRoutine data={data} update={update} blocked={blocked} />}
 
           {view === 'assistant' && <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />}
 
-          {view === 'settings' && (
+          {view === 'settings' && <>
+            {!demo && <LegacyImport data={data} update={update} blocked={blocked} />}
             <ProfileSettings
               data={data}
               update={update}
@@ -411,7 +409,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               onImportClick={() => fileInput.current?.click()}
               authenticated={authenticated}
             />
-          )}
+          </>}
         </>}
         <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status} · v0.2</span></footer>
       </main>

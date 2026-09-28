@@ -1,37 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import { dateKey, type Workspace } from '@/lib/workspace';
+import { moneyToCents, type Transaction } from '@/lib/life-data';
+import { AreaSelect } from './life-organization';
 import { ArrowDownRight, ArrowUpRight, DollarSign, Filter, Plus, Trash2, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
-
-export interface Transaction {
-  id: string;
-  description: string;
-  amount: number;
-  type: 'income' | 'expense';
-  category: string;
-  date: string;
-}
-
-const defaultTransactions: Transaction[] = [
-  { id: 'tx-1', description: 'Remuneração / Bolsa de Estudos', amount: 1500, type: 'income', category: 'Remuneração', date: '2026-09-05' },
-  { id: 'tx-2', description: 'Mensalidade UNIP Psicologia', amount: 890, type: 'expense', category: 'Faculdade', date: '2026-09-10' },
-  { id: 'tx-3', description: 'Manual de Neurociências (Lent)', amount: 160, type: 'expense', category: 'Livros e Material', date: '2026-09-12' },
-  { id: 'tx-4', description: 'Transporte / Combustível Faculdade', amount: 180, type: 'expense', category: 'Transporte', date: '2026-09-18' },
-  { id: 'tx-5', description: 'Alimentação Campus', amount: 125, type: 'expense', category: 'Alimentação', date: '2026-09-22' },
-];
 
 const categories = ['Faculdade', 'Livros e Material', 'Transporte', 'Alimentação', 'Remuneração', 'Lazer', 'Saúde', 'Outros'];
 
-export function FinancialController({ demo }: { demo: boolean }) {
-  const [transactions, setTransactions] = useState<Transaction[]>(() => {
-    if (demo) return defaultTransactions;
-    try {
-      const saved = localStorage.getItem('faculdade-psi:finances:v1');
-      return saved ? JSON.parse(saved) : defaultTransactions;
-    } catch {
-      return defaultTransactions;
-    }
-  });
+export function FinancialController({ data, update, blocked }: { data: Workspace; blocked: boolean; update: (recipe: (previous: Workspace) => Workspace) => boolean }) {
+  const transactions = data.transactions ?? [];
+  const [date, setDate] = useState(dateKey);
+  const [areaId, setAreaId] = useState('finance');
+  const [message, setMessage] = useState('');
+  const [editingId, setEditingId] = useState('');
 
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
@@ -40,50 +22,45 @@ export function FinancialController({ demo }: { demo: boolean }) {
   const [filterCategory, setFilterCategory] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
 
-  useEffect(() => {
-    if (demo) return;
-    try {
-      localStorage.setItem('faculdade-psi:finances:v1', JSON.stringify(transactions));
-    } catch {
-      // Safely ignore storage errors
-    }
-  }, [transactions, demo]);
-
-  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+  const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amountCents, 0) / 100;
+  const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amountCents, 0) / 100;
   const balance = totalIncome - totalExpense;
-  const collegeExpense = transactions.filter(t => t.category === 'Faculdade' || t.category === 'Livros e Material').reduce((sum, t) => sum + t.amount, 0);
+  const collegeExpense = transactions.filter(t => t.type === 'expense' && (t.category === 'Faculdade' || t.category === 'Livros e Material')).reduce((sum, t) => sum + t.amountCents, 0) / 100;
 
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
-    const val = parseFloat(amount.replace(',', '.'));
-    if (!description.trim() || isNaN(val) || val <= 0) return;
+    if (blocked) return;
+    let amountCents: number;
+    try { amountCents = moneyToCents(amount); } catch (error) { setMessage((error as Error).message); return; }
+    if (!description.trim()) return;
 
     const newTx: Transaction = {
-      id: crypto.randomUUID(),
+      id: editingId || crypto.randomUUID(),
       description: description.trim(),
-      amount: val,
+      amountCents,
       type,
       category,
-      date: new Date().toISOString().slice(0, 10),
+      date, areaId,
     };
 
-    setTransactions([newTx, ...transactions]);
+    if (!update(previous => ({ ...previous, transactions: editingId ? (previous.transactions ?? []).map(tx => tx.id === editingId ? newTx : tx) : [newTx, ...(previous.transactions ?? [])] }))) { setMessage('Alteração não aceita. Confira o aviso de salvamento.'); return; }
+    setEditingId(''); setMessage('Alteração enviada. Confira o indicador de salvamento.');
     setDescription('');
     setAmount('');
     setShowAddForm(false);
   }
 
   function handleDelete(id: string) {
-    setTransactions(transactions.filter(t => t.id !== id));
+    if (!blocked && window.confirm('Excluir este lançamento?')) update(previous => ({ ...previous, transactions: (previous.transactions ?? []).filter(t => t.id !== id) }));
   }
 
   const filtered = filterCategory
-    ? transactions.filter(t => t.category === filterCategory)
-    : transactions;
+    ? transactions.filter(t => t.category === filterCategory).toSorted((a,b) => b.date.localeCompare(a.date))
+    : transactions.toSorted((a,b) => b.date.localeCompare(a.date));
 
   return (
-    <div className="finances-container">
+    <fieldset className="finances-container" disabled={blocked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
+      {message && <p role="status">{message}</p>}
       <div className="finances-header-row">
         <div>
           <h2>Controlador Financeiro</h2>
@@ -91,7 +68,7 @@ export function FinancialController({ demo }: { demo: boolean }) {
         </div>
         <button
           className="button primary"
-          onClick={() => setShowAddForm(!showAddForm)}
+          onClick={() => { setEditingId(''); setDescription(''); setAmount(''); setShowAddForm(!showAddForm); }}
         >
           <Plus size={16} aria-hidden="true" />
           {showAddForm ? 'Fechar formulário' : 'Nova transação'}
@@ -108,7 +85,7 @@ export function FinancialController({ demo }: { demo: boolean }) {
           <div className={`kpi-val ${balance >= 0 ? 'positive' : 'negative'}`}>
             R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <span className="kpi-sub">Orçamento disponível</span>
+          <span className="kpi-sub">Saldo dos lançamentos cadastrados · não é saldo bancário</span>
         </div>
 
         <div className="finance-kpi-card income">
@@ -150,11 +127,14 @@ export function FinancialController({ demo }: { demo: boolean }) {
         <form onSubmit={handleAdd} className="panel finance-form">
           <h3>Adicionar Transação</h3>
           <div className="finance-form-grid">
+            <div><label htmlFor="tx-date">Data do lançamento</label><input id="tx-date" type="date" required value={date} onChange={e => setDate(e.target.value)} /></div>
+            <div><label htmlFor="tx-area">Área da vida</label><AreaSelect id="tx-area" data={data} value={areaId} onChange={setAreaId} /></div>
             <div>
               <label htmlFor="tx-desc">Descrição</label>
               <input
                 id="tx-desc"
                 type="text"
+                maxLength={160}
                 placeholder="Ex.: Mensalidade UNIP, Livro..."
                 value={description}
                 onChange={e => setDescription(e.target.value)}
@@ -165,8 +145,8 @@ export function FinancialController({ demo }: { demo: boolean }) {
               <label htmlFor="tx-amount">Valor (R$)</label>
               <input
                 id="tx-amount"
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 placeholder="0,00"
                 value={amount}
                 onChange={e => setAmount(e.target.value)}
@@ -256,9 +236,10 @@ export function FinancialController({ demo }: { demo: boolean }) {
                     </span>
                   </td>
                   <td className={`tx-amount ${tx.type}`} style={{ textAlign: 'right' }}>
-                    {tx.type === 'income' ? '+' : '-'} R$ {tx.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {tx.type === 'income' ? '+' : '-'} R$ {(tx.amountCents / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </td>
                   <td style={{ textAlign: 'center' }}>
+                    <button type="button" aria-label={`Editar: ${tx.description}`} onClick={() => { setEditingId(tx.id); setDescription(tx.description); setAmount((tx.amountCents / 100).toFixed(2)); setType(tx.type); setCategory(tx.category); setDate(tx.date); setAreaId(tx.areaId ?? ''); setShowAddForm(true); }}>Editar</button>
                     <button
                       className="icon-button danger"
                       onClick={() => handleDelete(tx.id)}
@@ -281,6 +262,6 @@ export function FinancialController({ demo }: { demo: boolean }) {
           </table>
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }

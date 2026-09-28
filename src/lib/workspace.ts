@@ -13,6 +13,23 @@ export const daySchema = z.string().refine((value) => {
 }, 'Data inválida');
 const day = daySchema;
 export const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido');
+export const transactionSchema = z.object({
+  id: identifier, description: z.string().trim().min(1).max(160),
+  amountCents: z.number().int().positive().max(100_000_000_000),
+  type: z.enum(['income', 'expense']), category: z.string().trim().min(1).max(100),
+  date: day, areaId: z.string().max(100).optional(),
+});
+export const habitSchema = z.object({
+  id: identifier, period: z.enum(['morning', 'afternoon', 'night']), time: timeSchema,
+  title: z.string().trim().min(1).max(160), areaId: z.string().max(100),
+  completedDates: z.array(day).max(3660).refine(values => new Set(values).size === values.length),
+});
+export const profileSchema = z.object({
+  name: z.string().max(100), course: z.string().max(100), semester: z.string().max(60),
+  institution: z.string().max(160), campus: z.string().max(100), registration: z.string().max(100),
+  email: z.union([z.literal(''), z.email().max(254)]), phone: z.string().max(40),
+  photoUrl: z.string().max(400_000).refine(value => !value || /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value), 'Foto inválida'),
+});
 export const subjectSchema = z.object({
   id: identifier, name: z.string().trim().min(1).max(100),
   semester: z.number().int().min(1).max(20), color: z.enum(colors),
@@ -41,9 +58,13 @@ export const classSchema = z.object({
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
-  editorGeneration: z.literal(2).optional(),
+  editorGeneration: z.union([z.literal(2), z.literal(3)]).optional(),
+  transactions: z.array(transactionSchema).max(5000).optional(),
+  habits: z.array(habitSchema).max(300).optional(),
+  profile: profileSchema.optional(),
+  legacyImportId: z.string().max(100).optional(),
   tasks: z.array(taskSchema).max(2000), notes: z.array(noteSchema).max(300),
-  sessions: z.array(z.object({ id: identifier, date: day, minutes: z.number().int().min(1).max(240) })).max(5000),
+  sessions: z.array(z.object({ id: identifier, date: day, minutes: z.number().int().min(1).max(240), subjectId: z.string().max(100).optional() })).max(5000),
   classes: z.array(classSchema).max(300).default([]),
   term: termSchema.default({}),
   curriculumVersion: z.literal('photo-2026-09').optional(),
@@ -52,11 +73,11 @@ export const workspaceSchema = z.object({
 }).superRefine((data, ctx) => {
   const areas = new Set((data.areas ?? defaultAreas).map((area) => area.id));
   const notebooks = new Set((data.notebooks ?? []).map((book) => book.id));
-  for (const collection of ['areas', 'notebooks'] as const) {
+  for (const collection of ['areas', 'notebooks', 'transactions', 'habits'] as const) {
     const items = data[collection] ?? [];
     if (new Set(items.map((item) => item.id)).size !== items.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });
   }
-  for (const collection of ['notes', 'tasks', 'notebooks'] as const) {
+  for (const collection of ['notes', 'tasks', 'notebooks', 'transactions', 'habits'] as const) {
     (data[collection] ?? []).forEach((item, index) => {
       if (item.areaId && !areas.has(item.areaId)) ctx.addIssue({ code: 'custom', path: [collection, index, 'areaId'], message: 'Área inexistente' });
     });
@@ -69,7 +90,7 @@ export const workspaceSchema = z.object({
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });
   }
   const subjects = new Set(data.subjects.map((subject) => subject.id));
-  for (const collection of ['notes', 'tasks', 'classes'] as const) {
+  for (const collection of ['notes', 'tasks', 'classes', 'sessions'] as const) {
     data[collection].forEach((item, index) => {
       if (item.subjectId && !subjects.has(item.subjectId)) ctx.addIssue({ code: 'custom', path: [collection, index], message: 'Matéria inexistente' });
     });
