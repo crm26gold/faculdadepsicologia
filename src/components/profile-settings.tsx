@@ -39,21 +39,27 @@ export function ProfileSettings({
   useEffect(() => { setProfile(data.profile ?? emptyProfile); }, [data.profile]);
 
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = (localStorage.getItem('jornada-theme') as 'light' | 'dark' | 'system') || 'light';
-      setTheme(savedTheme);
-      if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
+    if (!demo && typeof window !== 'undefined') {
+      try {
+        const savedTheme = (localStorage.getItem('jornada-theme') as 'light' | 'dark' | 'system') || 'light';
+        setTheme(savedTheme);
+        if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        } else {
+          document.documentElement.removeAttribute('data-theme');
+        }
+      } catch {}
     }
-  }, []);
+  }, [demo]);
 
   function applyTheme(newTheme: 'light' | 'dark' | 'system') {
     setTheme(newTheme);
+    if (!demo && typeof window !== 'undefined') {
+      try {
+        localStorage.setItem('jornada-theme', newTheme);
+      } catch {}
+    }
     if (typeof window !== 'undefined') {
-      localStorage.setItem('jornada-theme', newTheme);
       if (newTheme === 'dark' || (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         document.documentElement.setAttribute('data-theme', 'dark');
       } else {

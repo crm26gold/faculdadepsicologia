@@ -11,7 +11,8 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Modal } from './modal';
 import { NoteSpelling } from './note-spelling';
 import { NoteImage, NoteAudio, SpellingMarks } from './note-extensions';
-import { safeLink, safeMediaSource, validMedia } from '@/lib/note-media';
+import { mediaTypes, safeLink, safeMediaSource, validMedia } from '@/lib/note-media';
+import { attachLocalMediaFallback, saveLocalMedia } from '@/lib/local-media-db';
 
 export default function NoteEditor({ content, onChange, disabled, noteId, cloud = false }: {
   content: string; onChange: (html: string) => void; disabled: boolean; noteId: string; cloud?: boolean;
@@ -28,8 +29,14 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
   const [message, setMessage] = useState('');
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkError, setLinkError] = useState('');
+  const canvasRef = useRef<HTMLDivElement>(null);
   useEffect(() => { change.current = onChange; }, [onChange]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; controller.current?.abort(); }; }, []);
+  useEffect(() => {
+    if (canvasRef.current) {
+      return attachLocalMediaFallback(canvasRef.current);
+    }
+  }, [content]);
   const editor = useEditor({
     extensions: [StarterKit.configure({ link: { openOnClick: false, autolink: true, isAllowedUri: safeLink, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } } }),
       TextStyleKit, TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true }),
@@ -69,8 +76,23 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
   useEffect(() => {
     insertFile.current = async file => {
       if (!editor || disabled || controller.current) return;
-      if (!cloud) { setMessage('Anexos ficam disponíveis no espaço autenticado com armazenamento na nuvem.'); return; }
       if (!validMedia(file.type, file.size)) { setMessage('Use JPG, PNG, WebP, GIF, MP3, M4A, WAV, OGG ou WebM de áudio, até 25 MB.'); return; }
+      if (!cloud) {
+        bookmark.current ??= editor.state.selection.getBookmark();
+        const fileId = crypto.randomUUID();
+        const ext = mediaTypes[file.type] || (file.type.startsWith('image/') ? 'png' : 'webm');
+        const localSrc = `/api/note-media/${fileId}.${ext}`;
+        await saveLocalMedia(localSrc, file);
+        if (!mounted.current || editor.isDestroyed) return;
+        const position = bookmark.current?.resolve(editor.state.doc).from ?? editor.state.selection.from;
+        editor.chain().focus().insertContentAt(position, {
+          type: file.type.startsWith('image/') ? 'noteImage' : 'noteAudio',
+          attrs: { src: localSrc, alt: file.name, title: file.name },
+        }).run();
+        bookmark.current = null;
+        setMessage('Anexo guardado localmente no caderno.');
+        return;
+      }
       bookmark.current ??= editor.state.selection.getBookmark();
       const abort = new AbortController(); controller.current = abort;
       setBusy(true); setMessage('Enviando anexo privado… aguarde antes de sair desta anotação.');
@@ -146,7 +168,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
     {(state.image || state.audio) && <button className="text-button" disabled={locked} onClick={() => editor.chain().focus().deleteSelection().run()}>Remover bloco do documento</button>}
     {message && <p className="editor-message" role="status">{message}</p>}
     <NoteSpelling editor={editor} disabled={locked} />
-    <div className="document-canvas"><EditorContent editor={editor} /></div>
+    <div className="document-canvas" ref={canvasRef}><EditorContent editor={editor} /></div>
     <footer className="editor-footer"><span>{state.words} palavras</span><span>Imagens: cole, arraste ou use o botão · anexos até 25 MB</span></footer>
     {linkOpen && <Modal title="Inserir ou editar link" onClose={() => { setLinkOpen(false); bookmark.current = null; }}><form onSubmit={saveLink}><label htmlFor="note-link">Endereço do link</label><input id="note-link" name="url" type="text" required defaultValue={editor.getAttributes('link').href || 'https://'} autoFocus />{linkError && <p role="alert">{linkError}</p>}<div className="button-row"><button className="button primary" type="submit">Salvar link</button><button className="button outline" type="button" onClick={() => { editor.chain().focus().extendMarkRange('link').unsetLink().run(); setLinkOpen(false); bookmark.current = null; }}>Remover link</button></div></form></Modal>}
   </div>;

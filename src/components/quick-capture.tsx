@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Send, Trash2, Download, Play, Square } from 'lucide-react';
 import { captureNote, CAPTURE_LIMIT, isUnorganized } from '@/lib/capture';
-import { MEDIA_LIMIT, safeLink, validMedia } from '@/lib/note-media';
+import { MEDIA_LIMIT, mediaTypes, safeLink, validMedia } from '@/lib/note-media';
+import { saveLocalMedia } from '@/lib/local-media-db';
 import { uploadNoteMedia } from '@/lib/upload-note-media';
 import type { Workspace } from '@/lib/workspace';
 
@@ -37,12 +38,14 @@ export function QuickCaptureWidget({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [requestingMic, setRequestingMic] = useState(false);
   const [permError, setPermError] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
 
   const input = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
   const nativeAudioInput = useRef<HTMLInputElement>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
+  const speechRecognizer = useRef<{ stop: () => void } | null>(null);
   const mounted = useRef(true);
   const submitting = useRef(false);
   const draftId = useRef('');
@@ -61,6 +64,10 @@ export function QuickCaptureWidget({
       if (recordingInterval.current) clearInterval(recordingInterval.current);
       if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
       if (recorder.current?.state === 'recording') recorder.current.stop();
+      if (speechRecognizer.current) {
+        try { speechRecognizer.current.stop(); } catch {}
+        speechRecognizer.current = null;
+      }
       stream.current?.getTracks().forEach(t => t.stop());
       if (filePreview && filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview);
     };
@@ -144,6 +151,11 @@ export function QuickCaptureWidget({
         media.getTracks().forEach(t => t.stop());
         if (recordingInterval.current) clearInterval(recordingInterval.current);
         if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
+        if (speechRecognizer.current) {
+          try { speechRecognizer.current.stop(); } catch {}
+          speechRecognizer.current = null;
+        }
+        setTranscribing(false);
         if (!mounted.current) return;
         setRecording(false);
         setRecordingSeconds(0);
@@ -164,6 +176,38 @@ export function QuickCaptureWidget({
       setRecordingSeconds(0);
       setMessage('Gravando áudio real do microfone… Fale normalmente.');
 
+      // Speech Recognition for live Portuguese audio transcription
+      if (typeof window !== 'undefined') {
+        const SpeechRec = (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
+                          (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
+        if (SpeechRec) {
+          try {
+            const recognition = new SpeechRec();
+            recognition.lang = 'pt-BR';
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.onresult = (event: any) => {
+              let transcript = '';
+              for (let i = event.resultIndex; i < event.results.length; ++i) {
+                transcript += event.results[i][0].transcript;
+              }
+              if (transcript.trim()) {
+                setText(prev => {
+                  const base = prev.trim();
+                  return `${base ? base + ' ' : ''}${transcript.trim()}`.slice(0, CAPTURE_LIMIT);
+                });
+              }
+            };
+            recognition.onerror = () => {};
+            recognition.start();
+            speechRecognizer.current = recognition;
+            setTranscribing(true);
+          } catch {
+            // Speech recognition not permitted or supported
+          }
+        }
+      }
+
       recordingInterval.current = setInterval(() => {
         setRecordingSeconds(prev => prev + 1);
       }, 1000);
@@ -181,6 +225,11 @@ export function QuickCaptureWidget({
   }
 
   function stopRecording() {
+    if (speechRecognizer.current) {
+      try { speechRecognizer.current.stop(); } catch {}
+      speechRecognizer.current = null;
+    }
+    setTranscribing(false);
     if (recorder.current && recorder.current.state === 'recording') {
       recorder.current.stop();
     }
@@ -214,14 +263,19 @@ export function QuickCaptureWidget({
           abort.current = new AbortController();
           const src = uploadedSource.current || await uploadNoteMedia(id, file, abort.current.signal);
           uploadedSource.current = src;
+          await saveLocalMedia(src, file);
           content += file.type.startsWith('image/')
             ? `<p><img src="${src}" alt="${escape(file.name)}" width="100%"></p>`
             : `<p><audio src="${src}" title="${escape(file.name)}" controls></audio></p>`;
         } else {
-          // Local/offline mode: mention attachment and date
+          // Local/offline mode: store real media in IndexedDB and link via safe /api/note-media source
+          const fileId = crypto.randomUUID();
+          const ext = mediaTypes[file.type] || (file.type.startsWith('image/') ? 'png' : 'webm');
+          const localSrc = `/api/note-media/${fileId}.${ext}`;
+          await saveLocalMedia(localSrc, file);
           content += file.type.startsWith('image/')
-            ? `<p><strong>[Foto / Imagem: ${escape(file.name)}]</strong> (${Math.ceil(file.size / 1024)} KB salvo localmente)</p>`
-            : `<p><strong>[Nota de Áudio: ${escape(file.name)}]</strong> (${Math.ceil(file.size / 1024)} KB gravado localmente)</p>`;
+            ? `<p><img src="${localSrc}" alt="${escape(file.name)}" width="100%"></p>`
+            : `<p><audio src="${localSrc}" title="${escape(file.name)}" controls></audio></p>`;
         }
       }
 
@@ -292,6 +346,7 @@ export function QuickCaptureWidget({
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#dc2626', animation: 'pulse 1s infinite' }} />
                 Gravando áudio real do microfone ({formatTimer(recordingSeconds)})
+                {transcribing && <span style={{ marginLeft: 6, color: '#0284c7', fontWeight: 600 }}>· 🎙️ Transcrevendo fala ao vivo...</span>}
               </span>
               <button
                 type="button"
