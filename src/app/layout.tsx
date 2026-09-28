@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import './focus-responsive.css';
 
 export const metadata: Metadata = {
   title: 'Jornada Plena · Gestor para a Vida',

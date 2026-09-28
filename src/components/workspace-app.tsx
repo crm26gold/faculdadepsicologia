@@ -58,7 +58,6 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [focusRequest, setFocusRequest] = useState<{ id: string; subjectId: string } | null>(null);
   const today = dateKey();
   const main = useRef<HTMLElement>(null);
-  const timerArea = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const visibleNotes = data.notes.filter((note) => (!subjectFilter || (subjectFilter === '__personal' ? !note.subjectId : note.subjectId === subjectFilter)) && (!bookFilter || (bookFilter === '__none' ? !note.notebookId : note.notebookId === bookFilter)) && (!areaFilter || (areaFilter === '__none' ? !itemArea(note) : itemArea(note) === areaFilter)));
   const activeNote = visibleNotes.find((note) => note.id === selectedNote) ?? visibleNotes[0];
@@ -67,7 +66,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const priorities = priorityTasks(data, today);
   const upcoming = calendarEntries(data, today, addDays(today, 7)).filter((entry) => !entry.done);
   const doneToday = dueToday.filter((task) => task.done).length;
-  const studyMinutes = data.sessions.filter((session) => session.date === today).reduce((sum, session) => sum + session.minutes, 0);
+  const studyMinutes = Math.floor(data.sessions.filter((session) => session.date === today).reduce((sum, session) => sum + session.minutes, 0));
   const progress = dueToday.length ? Math.round(doneToday / dueToday.length * 100) : 0;
   const subject = (id: string) => data.subjects.find((item) => item.id === id);
   const previewLabel = authenticated ? 'Administrador · conectado' : hostedPreview ? 'Prévia online' : 'Prévia local';
@@ -357,6 +356,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         {!ready && !error && <div className="loading-panel" role="status">Preparando seu espaço…</div>}
 
         {ready && <>
+          <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />
           {view === 'today' && <>
             {/* 4 BENTO METRIC CARDS (BROKER SAAS STYLE) */}
             <div className="bento-metric-row">
@@ -452,10 +452,6 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                   <button className="text-button full-width" onClick={() => navigate('agenda')}>Abrir agenda <ArrowRight size={13} aria-hidden="true" /></button>
                 </section>
 
-                {/* SLEEK FOCUS TIMER */}
-                <div ref={timerArea}>
-                  <FocusTimer disabled={blocked} request={focusRequest} subjects={data.subjects} onComplete={(minutes, subjectId) => update((previous) => ({ ...previous, sessions: [...previous.sessions, { id: crypto.randomUUID(), date: dateKey(), minutes, subjectId }] }))} />
-                </div>
 
                 {/* PROGRESS RING */}
                 <section className="panel daily-progress">

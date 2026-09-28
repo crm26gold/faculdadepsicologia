@@ -58,6 +58,7 @@ small { font-size: .72rem; }
 .full-width { inline-size: 100%; }
 .button-row { display: flex; flex-wrap: wrap; gap: .7rem; }
 .app-shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-block-size: 100dvh; }
+.app-body, .main-content { min-inline-size: 0; }
 .sidebar { background: #fff; border-inline-end: 1px solid var(--line); padding: 18px 14px 14px; display: flex; flex-direction: column; position: sticky; inset-block-start: 0; block-size: 100dvh; overflow-y: auto; }
 .sidebar-header { margin-block-end: 14px; display: flex; flex-direction: column; gap: 10px; }
 .brand { display: flex; align-items: center; gap: 8px; text-align: start; font-size: 0.95rem; font-weight: 700; letter-spacing: -.03em; padding: 2px 4px; color: var(--ink); }
