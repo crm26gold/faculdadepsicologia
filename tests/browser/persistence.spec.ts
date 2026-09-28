@@ -1,6 +1,17 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('captura preserva o texto inteiro além do título de 100 caracteres', async ({ page }) => {
+  await page.goto('/');
+  const text = 'Ideia longa para regressão\n' + 'conteúdo completo importante '.repeat(20) + 'FIM PRESERVADO';
+  await page.getByLabel('O que você quer guardar?').fill(text);
+  await page.getByRole('button', { name: 'Guardar ideia', exact: true }).click();
+  await expect(page.getByText('Ideia guardada no seu caderno local!', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Abrir e organizar: Ideia longa para regressão', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Conteúdo da anotação', exact: true })).toContainText('FIM PRESERVADO');
+});
+
 test('captura rápida persiste e sai da caixa ao organizar, sem perder texto', async ({ page }) => {
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Principal', exact: true });

@@ -22,18 +22,14 @@ function openMediaDB(): Promise<IDBDatabase> {
 }
 
 export async function saveLocalMedia(src: string, blob: Blob | File): Promise<void> {
-  try {
     const db = await openMediaDB();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.put(blob, src);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      tx.oncomplete = () => { db.close(); resolve(); };
+      tx.onabort = tx.onerror = () => { db.close(); reject(new Error('Não foi possível guardar a mídia no navegador. Baixe uma cópia antes de sair.')); };
+      store.put(blob, src);
     });
-  } catch (error) {
-    console.warn('Falha ao persistir mídia local no IndexedDB:', error);
-  }
 }
 
 export async function getLocalMedia(src: string): Promise<Blob | null> {
