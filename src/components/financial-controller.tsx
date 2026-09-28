@@ -27,6 +27,15 @@ export function FinancialController({ data, update, blocked }: { data: Workspace
   const balance = totalIncome - totalExpense;
   const collegeExpense = transactions.filter(t => t.type === 'expense' && (t.category === 'Faculdade' || t.category === 'Livros e Material')).reduce((sum, t) => sum + t.amountCents, 0) / 100;
 
+  const expenseByCategory = categories.map(cat => {
+    const totalCents = transactions
+      .filter(t => t.type === 'expense' && t.category === cat)
+      .reduce((sum, t) => sum + t.amountCents, 0);
+    const totalReais = totalCents / 100;
+    const percentage = totalExpense > 0 ? Math.round((totalReais / totalExpense) * 100) : 0;
+    return { category: cat, totalReais, percentage };
+  }).filter(item => item.totalReais > 0).toSorted((a, b) => b.totalReais - a.totalReais);
+
   function handleAdd(e: React.FormEvent) {
     e.preventDefault();
     if (blocked) return;
@@ -121,6 +130,42 @@ export function FinancialController({ data, update, blocked }: { data: Workspace
           <span className="kpi-sub">Mensalidades & livros</span>
         </div>
       </div>
+
+      {totalExpense > 0 && (
+        <div className="panel finance-breakdown-card">
+          <div className="section-heading">
+            <div>
+              <h3>Distribuição de Despesas</h3>
+              <p>Onde seu orçamento está concentrado</p>
+            </div>
+            <span className="breakdown-total-badge">
+              Total gasto: R$ {totalExpense.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div className="breakdown-bars-grid">
+            {expenseByCategory.map(item => (
+              <div key={item.category} className="breakdown-bar-item">
+                <div className="breakdown-bar-label">
+                  <strong>{item.category}</strong>
+                  <span>R$ {item.totalReais.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({item.percentage}%)</span>
+                </div>
+                <div className="breakdown-progress-track">
+                  <div
+                    className="breakdown-progress-fill"
+                    style={{ width: `${Math.min(100, Math.max(item.percentage, 3))}%` }}
+                    role="progressbar"
+                    aria-valuenow={item.percentage}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-label={`${item.category}: ${item.percentage}%`}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ADD TRANSACTION FORM */}
       {showAddForm && (

@@ -33,9 +33,34 @@ export function ProfileSettings({
   const [photoError, setPhotoError] = useState('');
 
   const [savedNotice, setSavedNotice] = useState(false);
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setProfile(data.profile ?? emptyProfile); }, [data.profile]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = (localStorage.getItem('jornada-theme') as 'light' | 'dark' | 'system') || 'light';
+      setTheme(savedTheme);
+      if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+    }
+  }, []);
+
+  function applyTheme(newTheme: 'light' | 'dark' | 'system') {
+    setTheme(newTheme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('jornada-theme', newTheme);
+      if (newTheme === 'dark' || (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+    }
+  }
 
   function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -291,6 +316,72 @@ export function ProfileSettings({
               <button className="button outline">Sair da conta</button>
             </form>
           )}
+        </div>
+
+        {/* TEMA & MODO NOTURNO */}
+        <div className="panel" style={{ padding: 18, background: '#fff', borderRadius: 12, border: '1px solid var(--line)' }}>
+          <h3>Aparência & Modo Noturno</h3>
+          <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '4px 0 12px' }}>
+            Adapte a interface para estudar à noite sem cansar a visão.
+          </p>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              className={`button ${theme === 'light' ? 'primary' : 'outline'}`}
+              onClick={() => applyTheme('light')}
+              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+            >
+              ☀️ Modo Claro
+            </button>
+            <button
+              type="button"
+              className={`button ${theme === 'dark' ? 'primary' : 'outline'}`}
+              onClick={() => applyTheme('dark')}
+              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+            >
+              🌙 Modo Escuro
+            </button>
+            <button
+              type="button"
+              className={`button ${theme === 'system' ? 'primary' : 'outline'}`}
+              onClick={() => applyTheme('system')}
+              style={{ fontSize: '0.78rem', padding: '6px 12px' }}
+            >
+              ⚙️ Automático
+            </button>
+          </div>
+        </div>
+
+        {/* ASSISTENTE WHATSAPP COM NÚMERO PRÓPRIO */}
+        <div className="panel" style={{ padding: 18, background: '#fff', borderRadius: 12, border: '1px solid var(--line)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3>Assistente WhatsApp (Número Próprio)</h3>
+            <span className="tiny-tag positive" style={{ background: '#ecfdf5', color: '#047857' }}>
+              Ativo
+            </span>
+          </div>
+          <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '4px 0 12px' }}>
+            Intermediação 100% direta de mensagens, áudios, finanças e tarefas enviadas para o seu número exclusivo.
+          </p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.78rem' }}>
+            <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
+              <strong>Webhook do Sistema para o Gateway:</strong>
+              <code style={{ display: 'block', fontSize: '0.72rem', color: '#0369a1', marginTop: 4, wordBreak: 'break-all' }}>
+                https://faculdadepsicologia.vercel.app/api/assistant/webhook
+              </code>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              <strong>Comandos aceitos pelo Assistente no WhatsApp:</strong>
+              <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--muted)', lineHeight: 1.5 }}>
+                <li>"Gastei 45 no almoço" ➔ Registra despesa automática em Finanças</li>
+                <li>"Recebi 1200 de estágio" ➔ Adiciona receita no Saldo</li>
+                <li>"Anota aí: resumo da aula de Neuro" ➔ Salva nota no Anota Aqui</li>
+                <li>"Lembrar de entregar trabalho dia 15" ➔ Adiciona tarefa na Agenda</li>
+                <li>"Concluí o hábito de meditação" ➔ Aumenta seu Streak da Rotina</li>
+                <li>"O que tenho pra hoje?" ➔ Retorna suas aulas, tarefas e rotinas</li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         {/* CONEXÕES */}

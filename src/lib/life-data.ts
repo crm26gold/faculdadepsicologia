@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { dateKey, habitSchema, profileSchema, transactionSchema, type Workspace } from './workspace';
+import { addDays, dateKey, habitSchema, profileSchema, transactionSchema, type Workspace } from './workspace';
 import { lifeAreas } from './life';
 
 export type Transaction = z.infer<typeof transactionSchema>;
@@ -18,6 +18,28 @@ export function moneyToCents(raw: string): number {
 
 export function toggleHabitDate(habit: RoutineHabit, date: string): RoutineHabit {
   return { ...habit, completedDates: habit.completedDates.includes(date) ? habit.completedDates.filter(item => item !== date) : [...habit.completedDates, date] };
+}
+
+export function calculateHabitStreak(completedDates: string[], referenceDate = dateKey()): number {
+  if (!completedDates.length) return 0;
+  const set = new Set(completedDates);
+  let streak = 0;
+  let current = referenceDate;
+
+  if (set.has(current)) {
+    streak++;
+    current = addDays(current, -1);
+  } else {
+    current = addDays(current, -1);
+    if (!set.has(current)) return 0;
+  }
+
+  while (set.has(current)) {
+    streak++;
+    current = addDays(current, -1);
+  }
+
+  return streak;
 }
 
 // Explicit, user-reviewed import. Never silently associate browser data with an account.

@@ -55,6 +55,17 @@ export const classSchema = z.object({
   if (item.endTime && item.endTime <= item.startTime) ctx.addIssue({ code: 'custom', path: ['endTime'], message: 'O término deve ser depois do início.' });
   if (item.firstDate && new Date(`${item.firstDate}T12:00:00`).getDay() !== item.weekday) ctx.addIssue({ code: 'custom', path: ['firstDate'], message: 'A primeira data deve coincidir com o dia da semana.' });
 });
+export const flashcardSchema = z.object({
+  id: identifier,
+  subjectId: z.string().max(100),
+  front: z.string().trim().min(1).max(500),
+  back: z.string().trim().min(1).max(1000),
+  lastReviewed: day.optional(),
+  intervalDays: z.number().int().min(0).max(365).default(1),
+  repetitionCount: z.number().int().min(0).default(0),
+});
+export type Flashcard = z.infer<typeof flashcardSchema>;
+
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
@@ -70,10 +81,11 @@ export const workspaceSchema = z.object({
   curriculumVersion: z.literal('photo-2026-09').optional(),
   areas: z.array(areaSchema).max(100).optional(),
   notebooks: z.array(notebookSchema).max(300).optional(),
+  flashcards: z.array(flashcardSchema).max(1000).optional(),
 }).superRefine((data, ctx) => {
   const areas = new Set((data.areas ?? defaultAreas).map((area) => area.id));
   const notebooks = new Set((data.notebooks ?? []).map((book) => book.id));
-  for (const collection of ['areas', 'notebooks', 'transactions', 'habits'] as const) {
+  for (const collection of ['areas', 'notebooks', 'transactions', 'habits', 'flashcards'] as const) {
     const items = data[collection] ?? [];
     if (new Set(items.map((item) => item.id)).size !== items.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });
   }
@@ -90,8 +102,8 @@ export const workspaceSchema = z.object({
     if (new Set(ids).size !== ids.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });
   }
   const subjects = new Set(data.subjects.map((subject) => subject.id));
-  for (const collection of ['notes', 'tasks', 'classes', 'sessions'] as const) {
-    data[collection].forEach((item, index) => {
+  for (const collection of ['notes', 'tasks', 'classes', 'sessions', 'flashcards'] as const) {
+    (data[collection] ?? []).forEach((item, index) => {
       if (item.subjectId && !subjects.has(item.subjectId)) ctx.addIssue({ code: 'custom', path: [collection, index], message: 'Matéria inexistente' });
     });
   }

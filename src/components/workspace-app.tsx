@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, FileText, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Upload, Wallet, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, FileText, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Upload, Wallet, X } from 'lucide-react';
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { calendarEntries, weekdays } from '@/lib/academic';
 import { useWorkspace } from './use-workspace';
@@ -16,11 +16,12 @@ import { DailyRoutine } from './daily-routine';
 import { ProfileSettings, defaultUserProfile, type UserProfileData } from './profile-settings';
 import { QuickCaptureWidget } from './quick-capture';
 import { LegacyImport } from './legacy-import';
+import { FlashcardsDeck } from './flashcards-deck';
 
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 const AcademicCalendar = dynamic(() => import('./academic-calendar'), { loading: () => <p role="status">Abrindo sua agenda…</p> });
 const StudyPlanner = dynamic(() => import('./study-planner'), { loading: () => <p role="status">Organizando sugestões…</p> });
-type View = 'today' | 'subjects' | 'notes' | 'agenda' | 'finances' | 'routine' | 'assistant' | 'settings';
+type View = 'today' | 'subjects' | 'notes' | 'agenda' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'settings';
 type FormKind = 'subject' | 'task' | 'note';
 const navigation = [
   { id: 'today', label: 'Meu dia', Icon: LayoutDashboard },
@@ -29,9 +30,10 @@ const navigation = [
   { id: 'agenda', label: 'Agenda', Icon: CalendarDays },
   { id: 'finances', label: 'Finanças', Icon: Wallet },
   { id: 'routine', label: 'Minha rotina', Icon: Compass },
+  { id: 'flashcards', label: 'Flashcards', Icon: Layers },
   { id: 'assistant', label: 'Assistente', Icon: Sparkles },
 ] as const;
-const names: Record<View, string> = { today: 'Meu dia', subjects: 'Minhas matérias', notes: 'Meu caderno', agenda: 'Minha agenda', finances: 'Finanças', routine: 'Minha rotina', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
+const names: Record<View, string> = { today: 'Meu dia', subjects: 'Minhas matérias', notes: 'Meu caderno', agenda: 'Minha agenda', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = `jornada-plena-${dateKey()}.json`; link.click();
@@ -488,6 +490,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'finances' && <FinancialController data={data} update={update} blocked={blocked} />}
 
           {view === 'routine' && <DailyRoutine data={data} update={update} blocked={blocked} />}
+
+          {view === 'flashcards' && <FlashcardsDeck data={data} blocked={blocked} update={update} />}
 
           {view === 'assistant' && <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />}
 

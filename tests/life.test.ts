@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { emptyWorkspace, parseWorkspace, workspaceSchema } from '../src/lib/workspace';
 import { defaultAreas, lifeAreas, itemArea } from '../src/lib/life';
 import { calendarEntries, studySuggestions } from '../src/lib/academic';
+import { calculateHabitStreak } from '../src/lib/life-data';
 
 test('old workspaces remain readable without seeding or classifying personal notes', () => {
   const before = emptyWorkspace();
@@ -68,4 +69,42 @@ test('finances, daily routine and user profile survive serialization and validat
   // Invalid areaId in habit is rejected
   assert.equal(workspaceSchema.safeParse({ ...data, habits: [{ ...data.habits![0], areaId: 'non-existent-area' }] }).success, false);
 });
+
+test('calculateHabitStreak counts consecutive days correctly', () => {
+  assert.equal(calculateHabitStreak([], '2026-09-28'), 0);
+  assert.equal(calculateHabitStreak(['2026-09-28'], '2026-09-28'), 1);
+  assert.equal(calculateHabitStreak(['2026-09-27'], '2026-09-28'), 1);
+  assert.equal(calculateHabitStreak(['2026-09-27', '2026-09-28'], '2026-09-28'), 2);
+  assert.equal(calculateHabitStreak(['2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28'], '2026-09-28'), 4);
+  assert.equal(calculateHabitStreak(['2026-09-25', '2026-09-27', '2026-09-28'], '2026-09-28'), 2);
+  assert.equal(calculateHabitStreak(['2026-09-25'], '2026-09-28'), 0);
+});
+
+test('flashcards survive serialization, reject duplicates and non-existent subjects', () => {
+  const base = emptyWorkspace();
+  const valid = workspaceSchema.parse({
+    ...base,
+    subjects: [{ id: 'sub-psi', name: 'Psicologia Geral', color: 'sage', semester: 1, professor: '' }],
+    flashcards: [
+      { id: 'fc-1', subjectId: 'sub-psi', front: 'Conceito de Id', back: 'Princípio do prazer', intervalDays: 3, repetitionCount: 2, lastStudied: '2026-09-27' },
+      { id: 'fc-2', subjectId: '', front: 'Conceito Geral', back: 'Resposta geral', intervalDays: 1, repetitionCount: 0 },
+    ],
+  });
+  const parsed = parseWorkspace(JSON.stringify(valid));
+  assert.equal(parsed.flashcards?.length, 2);
+  assert.equal(parsed.flashcards?.[0].front, 'Conceito de Id');
+
+  // Duplicate ID rejected
+  assert.equal(workspaceSchema.safeParse({
+    ...valid,
+    flashcards: [valid.flashcards![0], valid.flashcards![0]],
+  }).success, false);
+
+  // Non-existent subjectId rejected
+  assert.equal(workspaceSchema.safeParse({
+    ...valid,
+    flashcards: [{ id: 'fc-bad', subjectId: 'non-existent', front: 'F', back: 'B', intervalDays: 1, repetitionCount: 0 }],
+  }).success, false);
+});
+
 
