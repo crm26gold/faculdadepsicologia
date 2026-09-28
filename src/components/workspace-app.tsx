@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowDownToLine, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, FileText, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Upload, Wallet, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, FileText, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Upload, Wallet, X } from 'lucide-react';
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { calendarEntries, weekdays } from '@/lib/academic';
 import { useWorkspace } from './use-workspace';
@@ -88,13 +88,97 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   }, [authenticated]);
   useEffect(() => { document.title = `${names[view]} · Jornada Plena`; }, [view]);
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.history.state || window.history.state.app !== 'jornada-plena') {
+      window.history.replaceState({ app: 'jornada-plena', view: 'today' }, '', window.location.hash || window.location.pathname);
+    }
+
+    const onPopState = (event: PopStateEvent) => {
+      if (form) {
+        setForm(null);
+        return;
+      }
+      if (mobileMenu) {
+        setMobileMenu(false);
+        return;
+      }
+      if (searchOpen) {
+        setSearchOpen(false);
+        return;
+      }
+      if (imported) {
+        setImported(null);
+        return;
+      }
+
+      const targetView = (event.state?.view as View) || 'today';
+      if (names[targetView]) {
+        setView(targetView);
+      } else {
+        setView('today');
+        window.history.pushState({ app: 'jornada-plena', view: 'today' }, '', window.location.pathname);
+      }
+    };
+
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [form, mobileMenu, searchOpen, imported]);
+
+  useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); setSearchOpen(true); }
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') { event.preventDefault(); openSearch(); }
     };
     document.addEventListener('keydown', shortcut);
     return () => document.removeEventListener('keydown', shortcut);
   }, []);
-  function navigate(next: View) { setView(next); setMobileMenu(false); requestAnimationFrame(() => main.current?.focus()); }
+
+  function navigate(next: View) {
+    if (typeof window !== 'undefined' && next !== view) {
+      window.history.pushState({ app: 'jornada-plena', view: next }, '', `#${next}`);
+    }
+    setView(next);
+    setMobileMenu(false);
+    requestAnimationFrame(() => main.current?.focus());
+  }
+
+  function handleGoBack() {
+    if (form) {
+      setForm(null);
+      return;
+    }
+    if (mobileMenu) {
+      setMobileMenu(false);
+      return;
+    }
+    if (searchOpen) {
+      setSearchOpen(false);
+      return;
+    }
+    if (view !== 'today') {
+      navigate('today');
+    }
+  }
+
+  function openMobileMenu() {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ app: 'jornada-plena', view, modal: 'menu' }, '', window.location.hash || `#${view}`);
+    }
+    setMobileMenu(true);
+  }
+
+  function openForm(value: { kind: FormKind; task?: Task; subject?: Subject } | null) {
+    if (value && typeof window !== 'undefined') {
+      window.history.pushState({ app: 'jornada-plena', view, modal: 'form' }, '', window.location.hash || `#${view}`);
+    }
+    setForm(value);
+  }
+
+  function openSearch() {
+    if (typeof window !== 'undefined') {
+      window.history.pushState({ app: 'jornada-plena', view, modal: 'search' }, '', window.location.hash || `#${view}`);
+    }
+    setSearchOpen(true);
+  }
   function editNote(patch: Partial<Note>) {
     if (!activeNote) return;
     update((previous) => ({ ...previous, notes: previous.notes.map((note) => note.id === activeNote.id ? { ...note, ...patch, updatedAt: new Date().toISOString() } : note) }));
@@ -165,7 +249,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
   const taskRow = (task: Task) => <li className={`task-row ${task.done ? 'is-done' : ''}`} key={task.id}>
     <label className="task-checkbox"><input type="checkbox" checked={task.done} disabled={blocked} onChange={() => toggleTask(task)} aria-label={`Concluir: ${task.title}`} /><span className="check-visual"><Check size={13} aria-hidden="true" /></span></label>
-    <button className="task-description" onClick={() => setForm({ kind: 'task', task })}><strong>{task.title}</strong><span><i className={`color-dot ${subject(task.subjectId)?.color ?? 'sage'}`} />{areaName(data, task)}{subject(task.subjectId) ? ` · ${subject(task.subjectId)?.name}` : ''}{task.date < today && !task.done && <em>Em atraso</em>}</span></button>
+    <button className="task-description" onClick={() => openForm({ kind: 'task', task })}><strong>{task.title}</strong><span><i className={`color-dot ${subject(task.subjectId)?.color ?? 'sage'}`} />{areaName(data, task)}{subject(task.subjectId) ? ` · ${subject(task.subjectId)?.name}` : ''}{task.date < today && !task.done && <em>Em atraso</em>}</span></button>
     <span className="task-duration"><Clock3 size={12} aria-hidden="true" />{task.minutes} min</span>
   </li>;
 
@@ -173,7 +257,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     <div className="subject-card-top">
       <span className={`subject-symbol ${item.color}`}><BookOpen size={18} aria-hidden="true" /></span>
       <span className={`subject-sem-tag ${item.color}`}>{item.semester}º sem.</span>
-      <button className="icon-button" aria-label={`Editar matéria: ${item.name}`} onClick={() => setForm({ kind: 'subject', subject: item })}>
+      <button className="icon-button" aria-label={`Editar matéria: ${item.name}`} onClick={() => openForm({ kind: 'subject', subject: item })}>
         <MoreHorizontal size={17} aria-hidden="true" />
       </button>
     </div>
@@ -214,15 +298,26 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     <div className="app-body">
       <header className="topbar">
         <div className="breadcrumb">
-          <button className="icon-button mobile-menu-button" aria-label="Abrir navegação" onClick={() => setMobileMenu(true)}>
+          <button className="icon-button mobile-menu-button" aria-label="Abrir navegação" onClick={openMobileMenu}>
             <Menu size={20} aria-hidden="true" />
           </button>
+          {view !== 'today' && (
+            <button
+              type="button"
+              className="topbar-back-button"
+              aria-label="Voltar para início"
+              onClick={handleGoBack}
+            >
+              <ArrowLeft size={16} aria-hidden="true" />
+              <span>Voltar</span>
+            </button>
+          )}
           <span>Meu espaço</span>
           <ChevronRight aria-hidden="true" size={14} />
           <strong>{names[view]}</strong>
         </div>
         <div className="topbar-actions">
-          <button className="search-trigger" aria-label="Buscar no meu espaço" onClick={() => setSearchOpen(true)}>
+          <button className="search-trigger" aria-label="Buscar no meu espaço" onClick={openSearch}>
             <Search size={16} aria-hidden="true" />
             <span>Buscar no meu espaço</span>
             <kbd>Ctrl K</kbd>
@@ -251,8 +346,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           </div>
           <div className="heading-actions-row">
             {view === 'today' && <>
-              <button className="button outline" onClick={() => setForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
-              <button className="button primary" onClick={() => setForm({ kind: 'note' })}><FileText size={16} aria-hidden="true" />Nova anotação</button>
+              <button className="button outline" onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
+              <button className="button primary" onClick={() => openForm({ kind: 'note' })}><FileText size={16} aria-hidden="true" />Nova anotação</button>
             </>}
           </div>
         </div>
@@ -322,10 +417,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 <section className="panel priorities">
                   <div className="section-heading">
                     <div><h2>Um passo de cada vez</h2><p>Até três prioridades. O resto pode esperar.</p></div>
-                    <button className="icon-button" aria-label="Adicionar tarefa" disabled={blocked} onClick={() => setForm({ kind: 'task' })}><Plus size={18} aria-hidden="true" /></button>
+                    <button className="icon-button" aria-label="Adicionar tarefa" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={18} aria-hidden="true" /></button>
                   </div>
                   <ul className="task-list" role="list">{priorities.map(taskRow)}{dueToday.filter((task) => task.done).slice(0, 1).map(taskRow)}</ul>
-                  {!priorities.length && !doneToday && <div className="empty-inline"><CheckCheck size={22} aria-hidden="true" /><p>Nenhuma prioridade pendente por aqui.<br /><button className="text-button" onClick={() => setForm({ kind: 'task' })}>Escolher meu próximo passo</button></p></div>}
+                  {!priorities.length && !doneToday && <div className="empty-inline"><CheckCheck size={22} aria-hidden="true" /><p>Nenhuma prioridade pendente por aqui.<br /><button className="text-button" onClick={() => openForm({ kind: 'task' })}>Escolher meu próximo passo</button></p></div>}
                   <div className="panel-footer"><span>{pending.length} {pending.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} no seu espaço</span><button className="text-button" onClick={() => navigate('agenda')}>Ver minha agenda <ArrowRight size={13} aria-hidden="true" /></button></div>
                 </section>
 
@@ -340,7 +435,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                   </div>
                   <div className="subject-grid">
                     {data.subjects.slice(0, 3).map(subjectCard)}
-                    {!data.subjects.length && <button className="add-subject-card" onClick={() => setForm({ kind: 'subject' })}><Plus aria-hidden="true" />Adicionar minha primeira matéria</button>}
+                    {!data.subjects.length && <button className="add-subject-card" onClick={() => openForm({ kind: 'subject' })}><Plus aria-hidden="true" />Adicionar minha primeira matéria</button>}
                   </div>
                 </section>
               </div>
@@ -373,22 +468,22 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             <section>
               <div className="section-heading">
                 <span className="muted">{data.subjects.length} matérias organizadas</span>
-                <button className="button primary" disabled={blocked} onClick={() => setForm({ kind: 'subject' })}>
+                <button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'subject' })}>
                   <Plus size={16} aria-hidden="true" /> Nova matéria
                 </button>
               </div>
               <div className="subject-grid expanded">
                 {data.subjects.map(subjectCard)}
-                <button className="add-subject-card" disabled={blocked} onClick={() => setForm({ kind: 'subject' })}>
+                <button className="add-subject-card" disabled={blocked} onClick={() => openForm({ kind: 'subject' })}>
                   <Plus aria-hidden="true" /> Um novo universo de estudo
                 </button>
               </div>
             </section>
           )}
 
-          {view === 'notes' && <section className="notebook-layout"><aside className="note-index"><div className="section-heading"><h2>Anotações</h2><button className="icon-button" disabled={blocked} aria-label="Nova anotação" onClick={() => setForm({ kind: 'note' })}><Plus size={19} aria-hidden="true" /></button></div><label className="sr-only" htmlFor="note-filter">Filtrar anotações por matéria</label><select id="note-filter" value={subjectFilter} onChange={(event) => { setSubjectFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as matérias e pessoais</option><option value="__personal">Pessoais · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><div className="life-fields"><label htmlFor="note-area-filter">Filtrar área</label><select id="note-area-filter" value={areaFilter} onChange={(event) => { setAreaFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as áreas</option><option value="__none">Sem área</option>{lifeAreas(data).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select><label htmlFor="notebook-filter">Filtrar caderno</label><select id="notebook-filter" value={bookFilter} onChange={(event) => { setBookFilter(event.target.value); setSelectedNote(''); }}><option value="">Todos os cadernos</option><option value="__none">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select><button className="text-button" onClick={() => navigate('settings')}>Gerenciar áreas e cadernos</button></div><div className="note-list">{visibleNotes.map((note) => <button key={note.id} className={`note-list-item ${activeNote?.id === note.id ? 'selected' : ''}`} onClick={() => setSelectedNote(note.id)}><FileText size={16} aria-hidden="true" /><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></span></button>)}</div></aside><div className="note-paper">{activeNote ? <><div className="note-meta"><span><LockKeyhole size={13} aria-hidden="true" />{demo ? 'Exemplo temporário' : mode === 'local' ? 'Armazenamento local' : 'Anotação pessoal'}</span><span role="status">{status}</span></div><label htmlFor="note-title" className="sr-only">Título da anotação</label><input id="note-title" className="note-title-input" value={activeNote.title} maxLength={160} disabled={blocked} onChange={(event) => editNote({ title: event.target.value })} placeholder="Sem título" /><label className="sr-only" htmlFor="note-subject">Matéria da anotação</label><select id="note-subject" className="note-subject-select" value={activeNote.subjectId} disabled={blocked} onChange={(event) => editNote({ subjectId: event.target.value })}><option value="">Pessoal · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><NoteOrganization data={data} note={activeNote} blocked={blocked} onChange={editNote} /><NoteEditor noteId={activeNote.id} cloud={mode === 'cloud'} key={activeNote.id} content={activeNote.content} disabled={blocked} onChange={(content) => editNote({ content })} /></> : <div className="empty-state"><FileText size={40} aria-hidden="true" /><h2>Sua próxima ideia mora aqui.</h2><p>Crie uma anotação para começar a escrever.</p><button className="button primary" disabled={blocked} onClick={() => setForm({ kind: 'note' })}>Criar anotação <Plus size={16} aria-hidden="true" /></button></div>}</div></section>}
+          {view === 'notes' && <section className="notebook-layout"><aside className="note-index"><div className="section-heading"><h2>Anotações</h2><button className="icon-button" disabled={blocked} aria-label="Nova anotação" onClick={() => openForm({ kind: 'note' })}><Plus size={19} aria-hidden="true" /></button></div><label className="sr-only" htmlFor="note-filter">Filtrar anotações por matéria</label><select id="note-filter" value={subjectFilter} onChange={(event) => { setSubjectFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as matérias e pessoais</option><option value="__personal">Pessoais · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><div className="life-fields"><label htmlFor="note-area-filter">Filtrar área</label><select id="note-area-filter" value={areaFilter} onChange={(event) => { setAreaFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as áreas</option><option value="__none">Sem área</option>{lifeAreas(data).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select><label htmlFor="notebook-filter">Filtrar caderno</label><select id="notebook-filter" value={bookFilter} onChange={(event) => { setBookFilter(event.target.value); setSelectedNote(''); }}><option value="">Todos os cadernos</option><option value="__none">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select><button className="text-button" onClick={() => navigate('settings')}>Gerenciar áreas e cadernos</button></div><div className="note-list">{visibleNotes.map((note) => <button key={note.id} className={`note-list-item ${activeNote?.id === note.id ? 'selected' : ''}`} onClick={() => setSelectedNote(note.id)}><FileText size={16} aria-hidden="true" /><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></span></button>)}</div></aside><div className="note-paper">{activeNote ? <><div className="note-meta"><button type="button" className="note-return-btn" onClick={handleGoBack} aria-label="Voltar para início"><ArrowLeft size={13} aria-hidden="true" /> Voltar</button><span><LockKeyhole size={13} aria-hidden="true" />{demo ? 'Exemplo temporário' : mode === 'local' ? 'Armazenamento local' : 'Anotação pessoal'}</span><span role="status">{status}</span></div><label htmlFor="note-title" className="sr-only">Título da anotação</label><input id="note-title" className="note-title-input" value={activeNote.title} maxLength={160} disabled={blocked} onChange={(event) => editNote({ title: event.target.value })} placeholder="Sem título" /><label className="sr-only" htmlFor="note-subject">Matéria da anotação</label><select id="note-subject" className="note-subject-select" value={activeNote.subjectId} disabled={blocked} onChange={(event) => editNote({ subjectId: event.target.value })}><option value="">Pessoal · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><NoteOrganization data={data} note={activeNote} blocked={blocked} onChange={editNote} /><NoteEditor noteId={activeNote.id} cloud={mode === 'cloud'} key={activeNote.id} content={activeNote.content} disabled={blocked} onChange={(content) => editNote({ content })} /></> : <div className="empty-state"><FileText size={40} aria-hidden="true" /><h2>Sua próxima ideia mora aqui.</h2><p>Crie uma anotação para começar a escrever.</p><button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'note' })}>Criar anotação <Plus size={16} aria-hidden="true" /></button></div>}</div></section>}
 
-          {view === 'agenda' && <AcademicCalendar data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); setForm({ kind: 'task' }); }} onEdit={(task) => setForm({ kind: 'task', task })} />}
+          {view === 'agenda' && <AcademicCalendar data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); openForm({ kind: 'task' }); }} onEdit={(task) => openForm({ kind: 'task', task })} />}
 
           {view === 'finances' && <FinancialController data={data} update={update} blocked={blocked} />}
 

@@ -582,6 +582,52 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .guide-action-btn.secondary { background: #ffffff; color: #1e3a8a; border: 1px solid #93c5fd; }
 .guide-action-btn.secondary:hover { background: #f1f5f9; }
 
+/* TOPBAR BACK BUTTON & NAVIGATION */
+.topbar-back-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+.topbar-back-button:hover {
+  background: #e2e8f0;
+  border-color: #94a3b8;
+  color: #020617;
+}
+.note-return-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #0f172a;
+  cursor: pointer;
+  text-decoration: none;
+}
+.note-return-btn:hover {
+  background: #e2e8f0;
+}
+@media (max-width: 760px) {
+  .topbar-back-button {
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    min-height: 38px;
+  }
+}
+
 /* FINANCIAL CONTROLLER */
 .finances-container { display: flex; flex-direction: column; gap: 20px; }
 .finances-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
