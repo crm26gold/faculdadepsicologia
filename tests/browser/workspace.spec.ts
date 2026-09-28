@@ -7,6 +7,33 @@ async function navigate(page: Page, name: string) {
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name, exact: true }).click();
 }
 
+test('atalhos mobile têm área de toque e indicadores em duas colunas', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile');
+  await page.goto('/');
+  const shortcuts = page.getByRole('navigation', { name: 'Atalhos mobile' });
+  await expect(shortcuts).toBeVisible();
+  for (const button of await shortcuts.getByRole('button').all()) {
+    const box = await button.boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+  }
+  const cards = page.locator('.bento-metric-card');
+  await expect(cards).toHaveCount(4);
+  const first = await cards.nth(0).boundingBox();
+  const second = await cards.nth(1).boundingBox();
+  expect(first!.y).toBe(second!.y);
+  await page.screenshot({ path: 'test-results/mobile-home-viewport.png', scale: 'css' });
+  await shortcuts.getByRole('button', { name: 'Ir para Caderno', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Meu caderno', exact: true })).toBeVisible();
+  await expect(shortcuts.getByRole('button', { name: 'Ir para Caderno', exact: true })).toHaveAttribute('aria-current', 'page');
+  await page.screenshot({ path: 'test-results/mobile-notes-viewport.png', scale: 'css' });
+  await shortcuts.getByRole('button', { name: 'Ver todas as áreas' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Finanças', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Finanças', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
+
 test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ page }, info) => {
   const errors: string[] = [], requests: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
