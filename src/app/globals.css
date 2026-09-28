@@ -553,6 +553,35 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .chip-organize-btn:hover { background: #0369a1; color: #ffffff; }
 .empty-unorganized-msg { font-size: 0.78rem; color: #334155; margin: 0; }
 
+/* QUICK CAPTURE MOBILE RESPONSIVENESS */
+@media (max-width: 600px) {
+  .quick-capture-widget { padding: 14px 12px; }
+  .capture-title-group h3 { font-size: 0.9rem; }
+  .capture-title-group p { font-size: 0.72rem; }
+  .capture-toolbar { display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+  .capture-quick-media { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
+  .media-pill-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 4px; font-size: 0.65rem; gap: 4px; text-align: center; border-radius: 8px; min-height: 46px; }
+  .media-pill-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.65rem; }
+  .compact-send-btn { width: 100%; justify-content: center; padding: 10px 16px; font-size: 0.85rem; border-radius: 8px; min-height: 42px; }
+  .unorganized-chips-grid { grid-template-columns: 1fr; }
+  .unorganized-chip-card { padding: 10px 12px; flex-direction: column; align-items: stretch; gap: 8px; }
+  .chip-organize-btn { width: 100%; text-align: center; padding: 8px 12px; min-height: 38px; }
+}
+
+/* PERMISSION HELPER BOX */
+.permission-guide-box { margin-top: 10px; padding: 12px 14px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 10px; color: #1e3a8a; font-size: 0.78rem; }
+.permission-guide-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+.permission-guide-title { font-weight: 700; display: flex; align-items: center; gap: 6px; color: #1d4ed8; }
+.close-guide-btn { background: none; border: 0; color: #64748b; font-size: 0.9rem; cursor: pointer; padding: 2px 6px; }
+.permission-guide-text { margin: 0 0 8px; color: #1e293b; line-height: 1.4; }
+.permission-guide-steps { display: flex; flex-direction: column; gap: 4px; background: #ffffff; padding: 8px 10px; border-radius: 6px; border: 1px solid #dbeafe; font-size: 0.72rem; color: #334155; margin-bottom: 10px; }
+.permission-guide-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.guide-action-btn { padding: 8px 14px; border-radius: 6px; font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+.guide-action-btn.primary { background: #1d4ed8; color: #ffffff; border: 0; }
+.guide-action-btn.primary:hover { background: #1e40af; }
+.guide-action-btn.secondary { background: #ffffff; color: #1e3a8a; border: 1px solid #93c5fd; }
+.guide-action-btn.secondary:hover { background: #f1f5f9; }
+
 /* FINANCIAL CONTROLLER */
 .finances-container { display: flex; flex-direction: column; gap: 20px; }
 .finances-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }

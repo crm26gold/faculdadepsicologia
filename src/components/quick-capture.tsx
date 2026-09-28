@@ -36,9 +36,11 @@ export function QuickCaptureWidget({
   const [recording, setRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [requestingMic, setRequestingMic] = useState(false);
+  const [permError, setPermError] = useState(false);
 
   const input = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
+  const nativeAudioInput = useRef<HTMLInputElement>(null);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const mounted = useRef(true);
@@ -102,11 +104,13 @@ export function QuickCaptureWidget({
     }
     if (blocked || busy || requestingMic) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
-      setMessage('Gravação de microfone indisponível neste navegador. Anexe um arquivo de áudio.');
+      setPermError(true);
+      setMessage('Gravação direta de microfone indisponível neste navegador. Use a opção de gravar pelo aplicativo nativo.');
       return;
     }
 
     setRequestingMic(true);
+    setPermError(false);
     setMessage('Solicitando permissão do microfone…');
 
     try {
@@ -169,7 +173,8 @@ export function QuickCaptureWidget({
       }, 600_000); // 10 min max
     } catch {
       stream.current?.getTracks().forEach(t => t.stop());
-      setMessage('Acesso ao microfone não autorizado. Verifique as permissões do navegador.');
+      setPermError(true);
+      setMessage('Acesso ao microfone não autorizado. Toque nas instruções abaixo para liberar ou usar o gravador do aparelho.');
     } finally {
       if (mounted.current) setRequestingMic(false);
     }
@@ -338,6 +343,56 @@ export function QuickCaptureWidget({
             </div>
           )}
 
+          {/* PERMISSION HELPER BOX */}
+          {permError && (
+            <div className="permission-guide-box" role="alert" aria-live="polite">
+              <div className="permission-guide-header">
+                <span className="permission-guide-title">
+                  <Mic size={15} /> Microfone bloqueado ou não autorizado
+                </span>
+                <button
+                  type="button"
+                  className="close-guide-btn"
+                  onClick={() => setPermError(false)}
+                  aria-label="Fechar aviso de permissão"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="permission-guide-text">
+                O navegador não pôde acessar seu microfone diretamente. Você pode tentar autorizar ou gravar direto com o aplicativo de voz do seu aparelho:
+              </p>
+              <div className="permission-guide-steps">
+                <span>1. Toque no ícone de cadeado 🔒 ou de ajustes na barra de endereços acima.</span>
+                <span>2. Acesse <strong>Permissões &gt; Microfone</strong> e marque <strong>Permitir</strong>.</span>
+                <span>3. Ou use o atalho abaixo para abrir o gravador nativo do seu celular.</span>
+              </div>
+              <div className="permission-guide-buttons">
+                <button
+                  type="button"
+                  className="guide-action-btn primary"
+                  onClick={() => {
+                    setPermError(false);
+                    void startRecording();
+                  }}
+                >
+                  🔄 Tentar novamente
+                </button>
+                {!demo && (
+                  <button
+                    type="button"
+                    className="guide-action-btn secondary"
+                    onClick={() => {
+                      nativeAudioInput.current?.click();
+                    }}
+                  >
+                    🎙️ Gravar com app do celular
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="capture-toolbar">
             <div className="capture-quick-media">
               {/* FOTO / LOUSA */}
@@ -354,7 +409,7 @@ export function QuickCaptureWidget({
                   }
                 }}
               >
-                <Camera size={14} /> Foto / Lousa
+                <Camera size={14} /> <span>Foto</span>
               </button>
 
               {/* GRAVAÇÃO DE ÁUDIO REAL */}
@@ -371,7 +426,24 @@ export function QuickCaptureWidget({
                   }
                 }}
               >
-                <Mic size={14} /> {recording ? `Gravando (${formatTimer(recordingSeconds)})` : 'Áudio'}
+                <Mic size={14} /> <span>{recording ? `Gravando (${formatTimer(recordingSeconds)})` : 'Áudio'}</span>
+              </button>
+
+              {/* ANEXAR ARQUIVO / IMAGEM */}
+              <button
+                type="button"
+                className="media-pill-btn"
+                disabled={locked || recording}
+                title="Subir arquivo de imagem ou áudio"
+                onClick={() => {
+                  if (demo) {
+                    setMessage('No modo demonstração, upload de arquivos é restrito.');
+                  } else {
+                    input.current?.click();
+                  }
+                }}
+              >
+                <Paperclip size={14} /> <span>Anexo</span>
               </button>
 
               {/* LINK */}
@@ -390,24 +462,7 @@ export function QuickCaptureWidget({
                   setText(prev => `${prev}${prev ? '\n' : ''}${url}`.slice(0, CAPTURE_LIMIT));
                 }}
               >
-                <LinkIcon size={14} /> Link
-              </button>
-
-              {/* ANEXAR ARQUIVO / IMAGEM */}
-              <button
-                type="button"
-                className="media-pill-btn"
-                disabled={locked || recording}
-                title="Subir arquivo de imagem ou áudio"
-                onClick={() => {
-                  if (demo) {
-                    setMessage('No modo demonstração, upload de arquivos é restrito.');
-                  } else {
-                    input.current?.click();
-                  }
-                }}
-              >
-                <Paperclip size={14} /> Imagem / áudio
+                <LinkIcon size={14} /> <span>Link</span>
               </button>
             </div>
 
@@ -444,6 +499,17 @@ export function QuickCaptureWidget({
             ref={input}
             accept="image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm"
             aria-label="Anexar arquivo para insight"
+            onChange={e => {
+              selectFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
+          <input
+            hidden
+            type="file"
+            ref={nativeAudioInput}
+            accept="audio/*"
+            aria-label="Gravar áudio com app nativo"
             onChange={e => {
               selectFile(e.target.files?.[0]);
               e.target.value = '';
