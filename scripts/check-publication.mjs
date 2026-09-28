@@ -1,5 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+
+// Brand images visually reviewed on 2026-09-28. Any changed bytes require a new review.
+const reviewedAssets = new Map([
+  ['public/jornalogoplena369.png', '306000dfba0ac562fd77e167f863cbc3824f2477fa4f06a191d8c9eeba992189'],
+  ['public/logopleno9.png', '2ef299c5d80f0432cbb753528b8b4f01b124e9f0601f25f38bf4fd8849b56c70'],
+]);
 
 // Audit the exact Git index, not ignored local files or environment values.
 const paths = execFileSync('git', ['ls-files', '--cached', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
@@ -13,6 +20,12 @@ const signatures = [
 ];
 const problems = [];
 for (const path of paths) {
+  if (reviewedAssets.has(path)) {
+    const bytes = execFileSync('git', ['show', `:${path}`], { maxBuffer: 5_000_000 });
+    if (createHash('sha256').update(bytes).digest('hex') !== reviewedAssets.get(path)) problems.push(`${path}: imagem alterada; requer nova revisão manual`);
+    if (!readFileSync(path).equals(bytes)) problems.push(`${path}: difere do índice; prepare novamente antes de publicar`);
+    continue;
+  }
   if (!allowedRoot.has(path) && !/^(?:src|tests|supabase|scripts|docs|\.github)\//.test(path)) problems.push(`${path}: fora da lista de publicação`);
   if (/\.(?:zip|png|jpg|jpeg|pdf|pem|key|p12|db|sqlite|csv)$/i.test(path)) problems.push(`${path}: arquivo requer revisão manual antes de publicar`);
   const content = execFileSync('git', ['show', `:${path}`], { encoding: 'utf8', maxBuffer: 5_000_000 });

@@ -1,6 +1,58 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('cronômetro global preserva sessão ao reabrir página, pausa e registra tempo parcial', async ({ page, context }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Tempo e foco' }).click();
+  await page.getByLabel('O que você vai fazer?').fill('Treino de teste');
+  await page.getByLabel('Área do tempo').selectOption('health');
+  await page.getByRole('button', { name: 'Começar foco', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await page.waitForTimeout(1200);
+  const another = await context.newPage();
+  await page.close();
+  await another.goto('/');
+  await expect(another.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await another.getByRole('button', { name: 'Pausar', exact: true }).click();
+  const time = await another.getByRole('timer').textContent();
+  await another.reload();
+  await expect(another.getByRole('timer')).toHaveText(time!);
+  await another.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Finanças', exact: true }).click();
+  await expect(another.getByRole('button', { name: 'Continuar', exact: true })).toBeVisible();
+  await another.getByRole('button', { name: 'Encerrar e registrar', exact: true }).click();
+  await another.getByRole('button', { name: 'Tempo e foco' }).click();
+  await expect(another.locator('.focus-history')).toContainText('Treino de teste');
+  await another.reload();
+  await another.getByRole('button', { name: 'Tempo e foco' }).click();
+  await expect(another.locator('.focus-history li')).toHaveCount(1);
+});
+
+test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/');
+  for (const width of [320, 390, 768]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const label of ['Meu dia', 'Matérias', 'Caderno', 'Agenda', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
+      if (width <= 760) await page.getByRole('button', { name: 'Abrir navegação', exact: true }).click();
+      const nav = width <= 760 ? page.getByRole('dialog') : page.locator('.sidebar');
+      await nav.getByRole('button', { name: label, exact: true }).click();
+      await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    }
+  }
+  await page.screenshot({ path: 'test-results/mobile-responsive.png', fullPage: true });
+});
+
+test('captura preserva o texto inteiro além do título de 100 caracteres', async ({ page }) => {
+  await page.goto('/');
+  const text = 'Ideia longa para regressão\n' + 'conteúdo completo importante '.repeat(20) + 'FIM PRESERVADO';
+  await page.getByLabel('O que você quer guardar?').fill(text);
+  await page.getByRole('button', { name: 'Guardar ideia', exact: true }).click();
+  await expect(page.getByText('Ideia guardada no seu caderno local!', { exact: true })).toBeVisible();
+  await page.reload();
+  await page.getByRole('button', { name: 'Abrir e organizar: Ideia longa para regressão', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Conteúdo da anotação', exact: true })).toContainText('FIM PRESERVADO');
+});
+
 test('captura rápida persiste e sai da caixa ao organizar, sem perder texto', async ({ page }) => {
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Principal', exact: true });

@@ -69,13 +69,23 @@ export type Flashcard = z.infer<typeof flashcardSchema>;
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
-  editorGeneration: z.union([z.literal(2), z.literal(3)]).optional(),
+  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  activeFocus: z.object({
+    id: identifier, activity: z.string().trim().min(1).max(160), subjectId: z.string().max(100), areaId: z.string().max(100),
+    targetSeconds: z.number().int().min(0).max(14400),
+    segments: z.array(z.object({ start: z.number().int().nonnegative(), end: z.number().int().nonnegative().nullable() })).min(1).max(1000),
+  }).superRefine((focus, ctx) => {
+    focus.segments.forEach((part, index) => {
+      const previous = focus.segments[index - 1];
+      if ((part.end !== null && part.end < part.start) || (part.end === null && index !== focus.segments.length - 1) || (previous && (previous.end === null || part.start < previous.end))) ctx.addIssue({ code: 'custom', message: 'Intervalos de foco inválidos' });
+    });
+  }).nullable().optional(),
   transactions: z.array(transactionSchema).max(5000).optional(),
   habits: z.array(habitSchema).max(300).optional(),
   profile: profileSchema.optional(),
   legacyImportId: z.string().max(100).optional(),
   tasks: z.array(taskSchema).max(2000), notes: z.array(noteSchema).max(300),
-  sessions: z.array(z.object({ id: identifier, date: day, minutes: z.number().int().min(1).max(240), subjectId: z.string().max(100).optional() })).max(5000),
+  sessions: z.array(z.object({ id: identifier, date: day, minutes: z.number().min(0).max(1500), subjectId: z.string().max(100).optional(), seconds: z.number().min(0).max(90000).optional(), activity: z.string().max(160).optional(), areaId: z.string().max(100).optional(), focusId: identifier.optional() })).max(5000),
   classes: z.array(classSchema).max(300).default([]),
   term: termSchema.default({}),
   curriculumVersion: z.literal('photo-2026-09').optional(),
@@ -109,6 +119,7 @@ export const workspaceSchema = z.object({
   }
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
+export type ActiveFocus = NonNullable<Workspace['activeFocus']>;
 export type Subject = z.infer<typeof subjectSchema>;
 export type Task = z.infer<typeof taskSchema>;
 export type Note = z.infer<typeof noteSchema>;

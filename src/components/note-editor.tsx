@@ -14,8 +14,8 @@ import { NoteImage, NoteAudio, SpellingMarks } from './note-extensions';
 import { mediaTypes, safeLink, safeMediaSource, validMedia } from '@/lib/note-media';
 import { attachLocalMediaFallback, saveLocalMedia } from '@/lib/local-media-db';
 
-export default function NoteEditor({ content, onChange, disabled, noteId, cloud = false }: {
-  content: string; onChange: (html: string) => void; disabled: boolean; noteId: string; cloud?: boolean;
+export default function NoteEditor({ content, onChange, disabled, noteId, cloud = false, demo = false }: {
+  content: string; onChange: (html: string) => void; disabled: boolean; noteId: string; cloud?: boolean; demo?: boolean;
 }) {
   const change = useRef(onChange);
   const insertFile = useRef<(file: File) => void>(() => {});
@@ -33,10 +33,10 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
   useEffect(() => { change.current = onChange; }, [onChange]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; controller.current?.abort(); }; }, []);
   useEffect(() => {
-    if (canvasRef.current) {
+    if (!demo && !cloud && canvasRef.current) {
       return attachLocalMediaFallback(canvasRef.current);
     }
-  }, [content]);
+  }, [content, cloud, demo]);
   const editor = useEditor({
     extensions: [StarterKit.configure({ link: { openOnClick: false, autolink: true, isAllowedUri: safeLink, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } } }),
       TextStyleKit, TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true }),
@@ -76,13 +76,15 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
   useEffect(() => {
     insertFile.current = async file => {
       if (!editor || disabled || controller.current) return;
+      if (demo) { setMessage('Anexos indisponíveis na demonstração.'); return; }
       if (!validMedia(file.type, file.size)) { setMessage('Use JPG, PNG, WebP, GIF, MP3, M4A, WAV, OGG ou WebM de áudio, até 25 MB.'); return; }
       if (!cloud) {
         bookmark.current ??= editor.state.selection.getBookmark();
         const fileId = crypto.randomUUID();
         const ext = mediaTypes[file.type] || (file.type.startsWith('image/') ? 'png' : 'webm');
         const localSrc = `/api/note-media/${fileId}.${ext}`;
-        await saveLocalMedia(localSrc, file);
+        try { await saveLocalMedia(localSrc, file); }
+        catch { bookmark.current = null; setMessage('Falha ao guardar mídia local. Nada foi anexado; preserve seu arquivo e tente novamente.'); return; }
         if (!mounted.current || editor.isDestroyed) return;
         const position = bookmark.current?.resolve(editor.state.doc).from ?? editor.state.selection.from;
         editor.chain().focus().insertContentAt(position, {
@@ -115,7 +117,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
         if (mounted.current) setBusy(false);
       }
     };
-  }, [editor, cloud, disabled, noteId]);
+  }, [editor, cloud, disabled, noteId, demo]);
   if (!editor || !state) return <div className="editor-loading">Abrindo caderno…</div>;
   const locked = disabled || busy;
   const tools = [
@@ -160,9 +162,9 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
       <button disabled={locked} onClick={() => pick(audioInput.current)}><AudioLines size={18} />Áudio</button>
       <button disabled={locked} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table2 size={18} />Tabela</button>
     </div>
-    <input hidden ref={imageInput} aria-label="Selecionar imagem" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />
-    <input hidden ref={cameraInput} aria-label="Fotografar lousa" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />
-    <input hidden ref={audioInput} aria-label="Selecionar áudio" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/ogg,audio/webm" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />
+    {!demo && <input hidden ref={imageInput} aria-label="Selecionar imagem" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />}
+    {!demo && <input hidden ref={cameraInput} aria-label="Fotografar lousa" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />}
+    {!demo && <input hidden ref={audioInput} aria-label="Selecionar áudio" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/ogg,audio/webm" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />}
     {state.table && <div className="editor-insert"><button disabled={locked} onClick={() => editor.chain().focus().addRowAfter().run()}>Adicionar linha</button><button disabled={locked} onClick={() => editor.chain().focus().addColumnAfter().run()}>Adicionar coluna</button><button disabled={locked} onClick={() => editor.chain().focus().deleteRow().run()}>Excluir linha</button><button disabled={locked} onClick={() => editor.chain().focus().deleteColumn().run()}>Excluir coluna</button><button disabled={locked} onClick={() => editor.chain().focus().deleteTable().run()}>Excluir tabela</button></div>}
     {state.image && <div className="editor-insert"><label>Descrição da imagem<input aria-label="Descrição da imagem" value={editor.getAttributes('noteImage').alt} disabled={locked} onChange={event => editor.commands.updateAttributes('noteImage', { alt: event.target.value })} /></label>{['50%', '75%', '100%'].map(width => <button key={width} disabled={locked} onClick={() => editor.commands.updateAttributes('noteImage', { width })}>{width}</button>)}</div>}
     {(state.image || state.audio) && <button className="text-button" disabled={locked} onClick={() => editor.chain().focus().deleteSelection().run()}>Remover bloco do documento</button>}

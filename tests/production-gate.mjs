@@ -92,6 +92,9 @@ for (const scenario of cases) {
     }
 
     const demoRequested = env.APP_MODE === 'demo';
+    const webhook = await request('/api/assistant/webhook', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"text":"gastei 45 almoço"}' });
+    assert.ok(demoRequested ? webhook.status === 404 : [401, 503].includes(webhook.status), 'Webhook não pode aceitar mensagens sem autorização');
+    assert.match(webhook.headers.get('cache-control') ?? '', /no-store/);
     const api = await request('/api/workspace');
     assert.equal(api.status, demoRequested ? 404 : 401);
     assert.match(api.headers.get('cache-control') ?? '', /no-store/);

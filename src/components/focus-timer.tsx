@@ -1,47 +1,78 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { Pause, Play, RotateCcw, Check } from 'lucide-react';
-import type { Subject } from '@/lib/workspace';
+import { Clock3, Pause, Play, Square } from 'lucide-react';
+import type { Workspace } from '@/lib/workspace';
+import { lifeAreas } from '@/lib/life';
+import { finishFocus, focusMilliseconds, formatFocusTime, pauseFocus, resumeFocus } from '@/lib/focus';
 
-export function FocusTimer({ onComplete, disabled, request, subjects }: { onComplete: (minutes: number, subjectId: string) => boolean; disabled: boolean; request?: { id: string; subjectId: string } | null; subjects: Subject[] }) {
+type Props = {
+  data: Workspace; disabled: boolean; status: string; demo: boolean;
+  update: (change: (previous: Workspace) => Workspace) => boolean;
+  request?: { id: string; subjectId: string } | null;
+};
+export function FocusTimer({ data, disabled, status, demo, update, request }: Props) {
+  const [expanded, setExpanded] = useState(false);
+  const [activity, setActivity] = useState('');
   const [subjectId, setSubjectId] = useState('');
-  const [saveError, setSaveError] = useState('');
+  const [areaId, setAreaId] = useState('');
+  const [target, setTarget] = useState(0);
+  const [now, setNow] = useState(0);
   const handled = useRef('');
-  const [duration, setDuration] = useState(25);
-  const [remaining, setRemaining] = useState(25 * 60);
-  const [running, setRunning] = useState(false);
-  const [complete, setComplete] = useState(false);
-  const end = useRef(0);
-  const callback = useRef(onComplete);
+  const focus = data.activeFocus;
+  const running = focus?.segments.at(-1)?.end === null;
   useEffect(() => {
-    if (!request || handled.current === request.id || disabled) return;
-    handled.current = request.id;
-    if (running && !window.confirm('Substituir o foco em andamento? O tempo parcial não será registrado.')) return;
-    setSubjectId(request.subjectId); setDuration(25); setRemaining(25 * 60); setComplete(false); setSaveError('');
-    end.current = Date.now() + 25 * 60 * 1000; setRunning(true);
-  }, [request, disabled, running]);
-  useEffect(() => { callback.current = onComplete; }, [onComplete]);
-  useEffect(() => {
+    setNow(Date.now());
     if (!running) return;
-    const interval = window.setInterval(() => {
-      const seconds = Math.max(0, Math.ceil((end.current - Date.now()) / 1000));
-      setRemaining(seconds);
-      if (!seconds) { setRunning(false); if (callback.current(duration, subjectId)) setComplete(true); else setSaveError('Não foi possível registrar. Tente registrar novamente.'); }
-    }, 250);
-    return () => clearInterval(interval);
-  }, [running, duration, subjectId]);
-  function toggle() {
-    if (running) { setRemaining(Math.max(0, Math.ceil((end.current - Date.now()) / 1000))); setRunning(false); }
-    else { end.current = Date.now() + remaining * 1000; setRunning(true); }
+    const tick = () => setNow(Date.now());
+    const interval = window.setInterval(tick, 1000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', tick); };
+  }, [running, focus]);
+  useEffect(() => {
+    if (!request || handled.current === request.id) return;
+    handled.current = request.id; setExpanded(true);
+    if (focus) return; // Never discard an existing activity's partial time.
+    setSubjectId(request.subjectId); setAreaId('studies'); setTarget(25);
+    setActivity(data.subjects.find(s => s.id === request.subjectId)?.name ?? 'Estudo');
+  }, [request, focus, data.subjects]);
+  const seconds = focus ? focusMilliseconds(focus, now || focus.segments[0].start) / 1000 : 0;
+  const recent = data.sessions.slice(-20).toReversed();
+  function start() {
+    const timestamp = Date.now();
+    const id = crypto.randomUUID();
+    update(previous => previous.activeFocus ? previous : { ...previous, activeFocus: {
+      id, activity: activity.trim() || 'Atividade pessoal', areaId, subjectId, targetSeconds: target * 60,
+      segments: [{ start: timestamp, end: null }],
+    } });
+    setNow(timestamp);
   }
-  return <div className="focus-card">
-    <div className="section-heading"><h2>Um momento de foco</h2><span className="tiny-tag">No seu ritmo</span></div>
-    <p>Uma coisa de cada vez já é um começo.</p>
-    <label htmlFor="focus-subject">Matéria do foco · opcional</label><select id="focus-subject" value={subjectId} disabled={running || disabled} onChange={e => setSubjectId(e.target.value)}><option value="">Foco pessoal</option>{subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select>
-    {saveError && <p role="alert">{saveError}<button disabled={disabled} onClick={() => { if (onComplete(duration, subjectId)) { setSaveError(''); setComplete(true); } }}>Registrar sessão</button></p>}
-    <div className="duration-options" aria-label="Duração do foco">{[10, 25, 45].map((minutes) => <button key={minutes} disabled={running} aria-pressed={duration === minutes} onClick={() => { setDuration(minutes); setRemaining(minutes * 60); setComplete(false); }}>{minutes} min</button>)}</div>
-    <div className="timer-digits" role="timer" aria-label={`${Math.floor(remaining / 60)} minutos e ${remaining % 60} segundos`}>{String(Math.floor(remaining / 60)).padStart(2, '0')}<span>:</span>{String(remaining % 60).padStart(2, '0')}</div>
-    <div className="timer-actions"><button className="button primary" disabled={disabled || complete} onClick={toggle}>{complete ? <Check size={17} /> : running ? <Pause size={17} /> : <Play size={17} />}{complete ? 'Sessão concluída' : running ? 'Pausar' : remaining < duration * 60 ? 'Continuar' : 'Começar foco'}</button><button className="icon-button" aria-label="Reiniciar temporizador" onClick={() => { setRunning(false); setRemaining(duration * 60); setComplete(false); }}><RotateCcw size={17} aria-hidden="true" /></button></div>
-    <small role="status">{complete ? 'Sessão enviada. Confira o indicador de salvamento.' : 'Pode pausar. Seu ritmo importa mais que a velocidade.'}</small>
-  </div>;
+  return <section className="focus-tracker" aria-label="Registro de tempo e foco">
+    <div className="focus-strip">
+      <button className="focus-summary" aria-expanded={expanded} aria-controls="focus-details" onClick={() => setExpanded(!expanded)}>
+        <Clock3 size={20} aria-hidden="true" /><span><strong>{focus?.activity ?? 'Tempo e foco'}</strong><small>{focus ? running ? 'Em andamento' : 'Pausado' : 'Meça qualquer atividade'}</small></span>
+      </button>
+      <output className="focus-clock" role="timer" aria-label="Tempo registrado">{formatFocusTime(seconds)}</output>
+      <div className="focus-controls">
+        <button className="button primary" disabled={disabled} onClick={() => {
+          if (!focus) { start(); return; }
+          const timestamp = Date.now(); setNow(timestamp);
+          update(previous => !previous.activeFocus ? previous : { ...previous, activeFocus: running ? pauseFocus(previous.activeFocus, timestamp) : resumeFocus(previous.activeFocus, timestamp) });
+        }}>{running ? <Pause size={16} /> : <Play size={16} />}{running ? 'Pausar' : focus ? 'Continuar' : 'Começar foco'}</button>
+        {focus && <button className="button outline" disabled={disabled || seconds <= 0} onClick={() => update(previous => finishFocus(previous, Date.now()))}><Square size={16} />Encerrar e registrar</button>}
+      </div>
+    </div>
+    {focus && focus.targetSeconds > 0 && <p className="focus-status">{seconds >= focus.targetSeconds ? 'Meta alcançada. Encerre quando terminar sua atividade.' : `Meta: ${focus.targetSeconds / 60} min · o tempo continua até você encerrar.`}</p>}
+    <div className="focus-status">{demo ? 'Demonstração: o tempo não será salvo.' : status}{focus ? ' · Aguarde a confirmação de salvamento antes de fechar.' : ''}</div>
+    <div id="focus-details" className="focus-details" hidden={!expanded}>
+      {!focus && <div className="focus-fields">
+        <label>O que você vai fazer?<input value={activity} maxLength={160} onChange={e => setActivity(e.target.value)} placeholder="Aula, trabalho, treino, leitura…" /></label>
+        <label>Área do tempo<select value={areaId} onChange={e => setAreaId(e.target.value)}><option value="">Sem área</option>{lifeAreas(data).filter(a => !a.hidden).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
+        <label>Matéria do foco · opcional<select value={subjectId} onChange={e => setSubjectId(e.target.value)}><option value="">Sem matéria</option>{data.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+        <label>Meta de tempo<select value={target} onChange={e => setTarget(Number(e.target.value))}><option value={0}>Cronômetro livre</option>{[10,25,45].map(n => <option key={n} value={n}>{n} minutos</option>)}</select></label>
+      </div>}
+      <p className="focus-help">O cronômetro conta também com o navegador fechado. Pause nas interrupções e encerre ao terminar. Ele mede tempo registrado, não detecta sua atenção automaticamente.</p>
+      <h2>Últimos registros de tempo</h2>
+      {!recent.length ? <p>Nenhuma sessão encerrada ainda.</p> : <ul className="focus-history">{recent.map(s => <li key={s.id}><span><strong>{s.activity ?? 'Foco de estudo'}</strong><small>{s.date.split('-').reverse().join('/')} · {lifeAreas(data).find(a => a.id === s.areaId)?.name ?? 'Sem área'}</small></span><span>{formatFocusTime(s.seconds ?? s.minutes * 60)}</span></li>)}</ul>}
+    </div>
+  </section>;
 }

@@ -39,6 +39,7 @@ export function QuickCaptureWidget({
   const [requestingMic, setRequestingMic] = useState(false);
   const [permError, setPermError] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [speechConsent, setSpeechConsent] = useState(false);
 
   const input = useRef<HTMLInputElement>(null);
   const camera = useRef<HTMLInputElement>(null);
@@ -69,9 +70,9 @@ export function QuickCaptureWidget({
         speechRecognizer.current = null;
       }
       stream.current?.getTracks().forEach(t => t.stop());
-      if (filePreview && filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview);
     };
-  }, [filePreview]);
+  }, []);
+  useEffect(() => () => { if (filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview); }, [filePreview]);
 
   useEffect(() => {
     const protect = (event: BeforeUnloadEvent) => {
@@ -109,7 +110,7 @@ export function QuickCaptureWidget({
       recorder.current.stop();
       return;
     }
-    if (blocked || busy || requestingMic) return;
+    if (demo || blocked || busy || requestingMic) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
       setPermError(true);
       setMessage('Gravação direta de microfone indisponível neste navegador. Use a opção de gravar pelo aplicativo nativo.');
@@ -177,7 +178,7 @@ export function QuickCaptureWidget({
       setMessage('Gravando áudio real do microfone… Fale normalmente.');
 
       // Speech Recognition for live Portuguese audio transcription
-      if (typeof window !== 'undefined') {
+      if (speechConsent && typeof window !== 'undefined') {
         const SpeechRec = (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).SpeechRecognition ||
                           (window as unknown as { SpeechRecognition?: any; webkitSpeechRecognition?: any }).webkitSpeechRecognition;
         if (SpeechRec) {
@@ -189,7 +190,7 @@ export function QuickCaptureWidget({
             recognition.onresult = (event: any) => {
               let transcript = '';
               for (let i = event.resultIndex; i < event.results.length; ++i) {
-                transcript += event.results[i][0].transcript;
+                if (event.results[i].isFinal) transcript += event.results[i][0].transcript;
               }
               if (transcript.trim()) {
                 setText(prev => {
@@ -243,8 +244,7 @@ export function QuickCaptureWidget({
 
     try {
       const id = draftId.current || crypto.randomUUID();
-      const noteTitle = text.trim() ? text.trim().slice(0, 100) : file ? file.name : 'Nova anotação rápida';
-      const note = captureNote(noteTitle, id, new Date().toISOString());
+      const note = captureNote(text.trim() || file?.name || 'Nova anotação rápida', id, new Date().toISOString());
 
       if (!draftId.current) {
         if (!update(previous => ({ ...previous, notes: [note, ...previous.notes] }))) {
@@ -263,7 +263,6 @@ export function QuickCaptureWidget({
           abort.current = new AbortController();
           const src = uploadedSource.current || await uploadNoteMedia(id, file, abort.current.signal);
           uploadedSource.current = src;
-          await saveLocalMedia(src, file);
           content += file.type.startsWith('image/')
             ? `<p><img src="${src}" alt="${escape(file.name)}" width="100%"></p>`
             : `<p><audio src="${src}" title="${escape(file.name)}" controls></audio></p>`;
@@ -327,6 +326,7 @@ export function QuickCaptureWidget({
         <span className="unorganized-counter-chip">{pending.length} para organizar</span>
       </div>
 
+      {!demo && <label><input type="checkbox" checked={speechConsent} disabled={recording || requestingMic} onChange={e => setSpeechConsent(e.target.checked)} />Transcrever com o serviço de fala do navegador (pode enviar áudio a um serviço externo). Opcional; gravar não exige transcrição.</label>}
       <form className="quick-capture-form" onSubmit={submit}>
         <div className="quick-capture-input-box">
           <textarea
