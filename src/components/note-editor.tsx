@@ -1,4 +1,5 @@
 'use client';
+import { MobileDisclosure } from './mobile-disclosure';
 import { useEditor, useEditorState, EditorContent } from '@tiptap/react';
 import type { SelectionBookmark } from '@tiptap/pm/state';
 import StarterKit from '@tiptap/starter-kit';
@@ -146,6 +147,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
     bookmark.current = null; setLinkOpen(false);
   }
   return <div className="rich-notebook">
+    <MobileDisclosure label="Formatação do texto">
     <div className="editor-toolbar" role="group" aria-label="Formatação">
       <select aria-label="Estilo do parágrafo" value={state.heading} disabled={locked} onChange={event => { const level = Number(event.target.value); if (level) editor.chain().focus().setHeading({ level: level as 1 | 2 | 3 }).run(); else editor.chain().focus().setParagraph().run(); }}><option value="0">Texto normal</option><option value="1">Título 1</option><option value="2">Subtítulo</option><option value="3">Título 3</option></select>
       <select aria-label="Fonte" value={state.fontFamily} disabled={locked} onChange={event => editor.chain().focus().setFontFamily(event.target.value).run()}><option value="inherit">DM Sans</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="monospace">Monoespaçada</option></select>
@@ -155,6 +157,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
       <button className="icon-button" aria-label="Desfazer" disabled={locked || !state.undo} onClick={() => editor.chain().focus().undo().run()}><Undo2 size={19} /></button>
       <button className="icon-button" aria-label="Refazer" disabled={locked || !state.redo} onClick={() => editor.chain().focus().redo().run()}><Redo2 size={19} /></button>
     </div>
+    </MobileDisclosure>
     <div className="editor-insert" role="group" aria-label="Inserir no documento">
       <button disabled={locked} onClick={() => { bookmark.current = editor.state.selection.getBookmark(); setLinkError(''); setLinkOpen(true); }}><Link2 size={18} />Link</button>
       <button disabled={locked} onClick={() => pick(imageInput.current)}><ImagePlus size={18} />Imagem</button>

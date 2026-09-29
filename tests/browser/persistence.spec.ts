@@ -1,6 +1,31 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('capturas longas não alargam a página nem cortam o menu Android', async ({ page }) => {
+  const notes = Array.from({ length: 7 }, (_, index) => ({ id: `capture-${index}`, title: `${index} Aula de revisão - ${'conteúdo importante '.repeat(6)}`, subjectId: '', content: '<p>Teste sintético</p>', updatedAt: '2026-09-29T12:00:00Z' }));
+  await page.addInitScript(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify({ version: 1, subjects: [], tasks: [], sessions: [], notes }));
+  for (const width of [360, 393]) {
+    await page.setViewportSize({ width, height: 740 });
+    await page.goto('/');
+    await expect(page.locator('.unorganized-chip-card')).toHaveCount(7);
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    for (const card of await page.locator('.unorganized-chip-card').all()) {
+      const box = await card.boundingBox();
+      expect(box!.x).toBeGreaterThanOrEqual(0);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    }
+    await page.locator('.unorganized-notes-deck').scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `test-results/android-captures-${width}.png`, scale: 'css' });
+    await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
+    const dialog = page.getByRole('dialog');
+    const box = await dialog.boundingBox();
+    expect(box!.x).toBeGreaterThanOrEqual(0);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+    await page.screenshot({ path: `test-results/android-menu-${width}.png`, scale: 'css' });
+    await page.getByRole('button', { name: 'Fechar janela' }).click();
+  }
+});
+
 test('cronômetro global preserva sessão ao reabrir página, pausa e registra tempo parcial', async ({ page, context }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Tempo e foco' }).click();
