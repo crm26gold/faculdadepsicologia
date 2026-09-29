@@ -31,6 +31,9 @@ test('capturas longas não alargam a página nem cortam o menu Android', async (
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(width);
     }
+    const organizeBtn = page.locator('.chip-organize-btn').first();
+    const btnBox = await organizeBtn.boundingBox();
+    expect(btnBox!.height).toBeGreaterThanOrEqual(44);
     await page.locator('.unorganized-notes-deck').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `test-results/android-captures-${width}.png`, scale: 'css' });
     await page.getByRole('button', { name: 'Ver todas as áreas' }).click();

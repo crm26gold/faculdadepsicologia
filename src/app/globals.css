@@ -550,7 +550,7 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .chip-content { min-width: 0; display: flex; flex-direction: column; }
 .chip-content strong { font-size: 0.78rem; font-weight: 700; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chip-content small { font-size: 0.72rem; color: #334155; }
-.chip-organize-btn { font-size: 0.75rem; font-weight: 700; color: #082f49; background: #e0f2fe; border: 1px solid #7dd3fc; padding: 5px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; }
+.chip-organize-btn { font-size: 0.75rem; font-weight: 700; color: #082f49; background: #e0f2fe; border: 1px solid #7dd3fc; padding: 10px 14px; border-radius: 6px; cursor: pointer; white-space: nowrap; min-height: 44px; min-block-size: 44px; display: inline-flex; align-items: center; justify-content: center; }
 .chip-organize-btn:hover { background: #0369a1; color: #ffffff; }
 .empty-unorganized-msg { font-size: 0.78rem; color: #334155; margin: 0; }
 
@@ -563,11 +563,11 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
   .capture-quick-media { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; width: 100%; }
   .media-pill-btn { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 4px; font-size: 0.65rem; gap: 4px; text-align: center; border-radius: 8px; min-height: 46px; }
   .media-pill-btn span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.65rem; }
-  .compact-send-btn { width: 100%; justify-content: center; padding: 10px 16px; font-size: 0.85rem; border-radius: 8px; min-height: 42px; }
+  .compact-send-btn { width: 100%; justify-content: center; padding: 10px 16px; font-size: 0.85rem; border-radius: 8px; min-height: 44px; }
   .unorganized-chips-grid { grid-template-columns: minmax(0, 1fr); }
   .chip-content strong { white-space: normal; overflow-wrap: anywhere; }
   .unorganized-chip-card { padding: 10px 12px; flex-direction: column; align-items: stretch; gap: 8px; }
-  .chip-organize-btn { width: 100%; text-align: center; padding: 8px 12px; min-height: 38px; }
+  .chip-organize-btn { width: 100%; text-align: center; padding: 10px 12px; min-height: 44px; min-block-size: 44px; }
 }
 
 /* PERMISSION HELPER BOX */
