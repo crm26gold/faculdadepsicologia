@@ -414,25 +414,145 @@ test('planejamento: arquivamento de projeto preserva tarefas e desvinculação �
     notes: [],
     goals: [{ id: 'g1', title: 'Meta Base', status: 'active' }],
     projects: [{ id: 'p1', title: 'Projeto Alpha', goalId: 'g1', status: 'active' }],
-    tasks: [{ id: 't1', title: 'Tarefa do Projeto Alpha', projectId: 'p1', subjectId: '', date: '2026-09-29', done: false, kind: 'Tarefa', minutes: 25 }],
+    tasks: [
+      { id: 't1', title: 'Tarefa do Projeto Alpha', projectId: 'p1', subjectId: '', date: '2026-09-29', done: false, kind: 'Tarefa', minutes: 25 },
+      { id: 't2', title: 'Segunda Tarefa Alpha', projectId: 'p1', subjectId: '', date: '2026-09-29', done: true, kind: 'Tarefa', minutes: 30 },
+    ],
   };
-  await page.addInitScript(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify(data));
+  // Seed only once before the first goto — do NOT re-seed on reload
+  await page.addInitScript(raw => {
+    if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw);
+  }, JSON.stringify(data));
   await page.goto('/');
 
   const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
   await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
   await page.getByRole('tab', { name: 'Projetos' }).click();
 
-  // Desvincular tarefa pelo botão na lista de tarefas do projeto
-  await page.getByRole('button', { name: '1 tarefa no projeto' }).click();
-  await page.getByRole('button', { name: 'Desvincular tarefa: Tarefa do Projeto Alpha' }).click();
-  await expect(page.locator('.project-card .metric-deck-value')).toHaveText('Sem tarefas');
+  // ─── 1. Archive via form: CANCEL — modal stays open, data preserved ───
+  const projectCard = page.locator('.project-card').filter({ hasText: 'Projeto Alpha' });
+  await projectCard.getByRole('button', { name: 'Editar' }).click();
 
-  // A tarefa continua existindo no espaço
+  // Change status to Arquivado
+  await page.locator('#project-status').selectOption('archived');
+  // Fill title to something we can verify is preserved on cancel
+  await page.getByLabel('Título do projeto').fill('Projeto Alpha Renomeado');
+
+  // Dismiss the confirm dialog (user cancels archiving)
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: 'Salvar projeto' }).click();
+
+  // Modal should stay open with form data preserved
+  await expect(page.getByLabel('Título do projeto')).toHaveValue('Projeto Alpha Renomeado');
+  // Project status on the card should still be active (not archived)
+  await expect(projectCard.locator('.status-pill')).toHaveText('Ativo');
+
+  // ─── 2. Archive via form: CONFIRM — project archives ───
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Salvar projeto' }).click();
+
+  // Modal closes, project is now archived with the new title
+  await expect(projectCard.locator('.status-pill')).toHaveText('Arquivado');
+  await expect(projectCard).toContainText('Projeto Alpha Renomeado');
+
+  // ─── 3. Verify tasks still exist after archiving project ───
   await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
-  await expect(page.locator('.task-row')).toContainText('Tarefa do Projeto Alpha');
-  // E agora sem o nome do projeto
-  await expect(page.locator('.task-row')).not.toContainText('Projeto: Projeto Alpha');
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.task-row').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
+
+  // ─── 4. Reload and verify persistence (no re-seeding) ───
+  await page.reload();
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+
+  // Project is still archived with the renamed title
+  const reloadedCard = page.locator('.project-card').filter({ hasText: 'Projeto Alpha Renomeado' });
+  await expect(reloadedCard.locator('.status-pill')).toHaveText('Arquivado');
+
+  // Tasks are preserved and still linked
+  await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.task-row').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
+
+  // ─── 5. Restore project and verify data ───
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  await reloadedCard.getByRole('button', { name: 'Restaurar projeto' }).click();
+  await expect(reloadedCard.locator('.status-pill')).toHaveText('Ativo');
+
+  // Open tasks accordion — both tasks should still be linked
+  await reloadedCard.getByRole('button', { name: '2 tarefas no projeto' }).click();
+  await expect(reloadedCard.locator('.project-task-item')).toHaveCount(2);
+
+  // Goal link is preserved
+  await expect(reloadedCard.locator('.card-parent-link')).toContainText('Meta Base');
+
+  // ─── 6. Unlink a task, reload, and confirm task persists independently ───
+  await reloadedCard.getByRole('button', { name: 'Desvincular tarefa: Tarefa do Projeto Alpha' }).click();
+  await expect(reloadedCard.locator('.project-task-item')).toHaveCount(1);
+  await expect(reloadedCard).toContainText('Segunda Tarefa Alpha');
+
+  // The unlinked task still exists in Meu dia
+  await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  // No longer shows project name
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).not.toContainText('Projeto:');
+
+  // Reload and confirm persistence
+  await page.reload();
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+
+  // The second task is still linked to the project after reload
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  const finalCard = page.locator('.project-card').filter({ hasText: 'Projeto Alpha Renomeado' });
+  await finalCard.getByRole('button', { name: '1 tarefa no projeto' }).click();
+  await expect(finalCard.locator('.project-task-item')).toHaveCount(1);
+  await expect(finalCard).toContainText('Segunda Tarefa Alpha');
+
+  await page.screenshot({ path: 'test-results/planning-archive-persistence.png', fullPage: true });
+});
+
+test('planejamento: arquivamento de meta pelo formulário exige confirmação', async ({ page }) => {
+  const data = {
+    version: 1,
+    editorGeneration: 5,
+    subjects: [],
+    sessions: [],
+    notes: [],
+    goals: [{ id: 'g1', title: 'Meta para Arquivar', status: 'active' }],
+    projects: [],
+    tasks: [],
+  };
+  await page.addInitScript(raw => {
+    if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw);
+  }, JSON.stringify(data));
+  await page.goto('/');
+
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+
+  const goalCard = page.locator('.goal-card').filter({ hasText: 'Meta para Arquivar' });
+
+  // Open edit modal and select archived status
+  await goalCard.getByRole('button', { name: 'Editar' }).click();
+  await page.locator('#goal-status').selectOption('archived');
+
+  // Cancel the confirm — form stays open with data
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: 'Salvar meta' }).click();
+  await expect(page.getByLabel('Título da meta')).toHaveValue('Meta para Arquivar');
+  await expect(goalCard.locator('.status-pill')).toHaveText('Ativa');
+
+  // Accept the confirm — goal is archived
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Salvar meta' }).click();
+  await expect(goalCard.locator('.status-pill')).toHaveText('Arquivada');
+
+  // Reload and confirm persistence
+  await page.reload();
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await expect(page.locator('.goal-card').filter({ hasText: 'Meta para Arquivar' }).locator('.status-pill')).toHaveText('Arquivada');
 });
 
 test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pequenas', async ({ page }) => {
@@ -444,7 +564,10 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     notes: [],
     goals: [{ id: 'g1', title: 'Meta Sintética para Teste Mobile', status: 'active' }],
     projects: [{ id: 'p1', title: 'Projeto Sintético com Título Bastante Longo Para Testar Quebra de Linha em Telas Estreitas', goalId: 'g1', status: 'active' }],
-    tasks: [],
+    tasks: [
+      { id: 't1', title: 'Tarefa Vinculada ao Projeto', projectId: 'p1', subjectId: '', date: '2026-09-29', done: false, kind: 'Tarefa', minutes: 25 },
+      { id: 't2', title: 'Segunda Tarefa do Projeto', projectId: 'p1', subjectId: '', date: '2026-09-29', done: true, kind: 'Tarefa', minutes: 30 },
+    ],
   };
   await page.addInitScript(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify(data));
 
@@ -459,25 +582,106 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
       await page.getByRole('navigation', { name: 'Principal' }).getByRole('button', { name: 'Metas e projetos' }).click();
     }
 
-    // Sem rolagem horizontal
+    // ─── No horizontal overflow ───
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-    // Conferir alvos de toque mínimos de 44px
+    // ─── Tab touch targets: height ≥ 44px ───
     for (const tab of await page.locator('.planning-tab').all()) {
       const box = await tab.boundingBox();
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
+
+    // ─── Status button touch targets: height ≥ 44px ───
     for (const btn of await page.locator('.status-btn').all()) {
       const box = await btn.boundingBox();
       expect(box!.height).toBeGreaterThanOrEqual(44);
     }
 
-    // Alternar para projetos
+    // ─── Filter dropdowns: check they don't overflow ───
+    const filters = page.locator('.planning-filters select');
+    for (const filter of await filters.all()) {
+      const fBox = await filter.boundingBox();
+      if (fBox) {
+        expect(fBox.x).toBeGreaterThanOrEqual(0);
+        expect(fBox.x + fBox.width).toBeLessThanOrEqual(width + 1);
+      }
+    }
+
+    // ─── Switch to Projects tab ───
     await page.getByRole('tab', { name: 'Projetos' }).click();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-    // Tirar screenshot para evidência
+    // ─── Expand task list and check Desvincular button size ───
+    const projectCard = page.locator('.project-card').first();
+    await projectCard.getByRole('button', { name: /tarefas no projeto/ }).click();
+    await expect(projectCard.locator('.project-task-item')).toHaveCount(2);
+
+    for (const unlinkBtn of await projectCard.locator('.unlink-btn').all()) {
+      const uBox = await unlinkBtn.boundingBox();
+      expect(uBox!.height).toBeGreaterThanOrEqual(44);
+      expect(uBox!.width).toBeGreaterThanOrEqual(44);
+    }
+
+    // ─── Edit button size check ───
+    const editBtn = projectCard.getByRole('button', { name: /Editar/ });
+    const editBox = await editBtn.boundingBox();
+    expect(editBox!.height).toBeGreaterThanOrEqual(44);
+
+    // ─── Open edit modal and verify form doesn't overflow ───
+    await editBtn.click();
+    const modal = page.getByRole('dialog');
+    const modalBox = await modal.boundingBox();
+    expect(modalBox!.x).toBeGreaterThanOrEqual(0);
+    expect(modalBox!.x + modalBox!.width).toBeLessThanOrEqual(width + 1);
+
+    // Save button should be visible (scroll to it if needed)
+    const saveBtn = modal.getByRole('button', { name: 'Salvar projeto' });
+    await saveBtn.scrollIntoViewIfNeeded();
+    await expect(saveBtn).toBeVisible();
+    const saveBox = await saveBtn.boundingBox();
+    expect(saveBox!.height).toBeGreaterThanOrEqual(44);
+
+    // Cancel button also accessible
+    const cancelBtn = modal.getByRole('button', { name: 'Cancelar' });
+    await cancelBtn.scrollIntoViewIfNeeded();
+    await expect(cancelBtn).toBeVisible();
+
+    // Close modal without saving
+    await cancelBtn.click();
+
+    // Screenshot for evidence
     await page.screenshot({ path: `test-results/planning-mobile-${width}.png`, scale: 'css' });
   }
-});
 
+  // ─── Short viewport (500px height) — verify save buttons accessible ───
+  await page.setViewportSize({ width: 360, height: 500 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Abrir navegação' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Metas e projetos' }).click();
+
+  // No horizontal overflow in short viewport
+  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  // Open goal creation modal in short viewport
+  await page.getByRole('button', { name: 'Nova meta', exact: true }).click();
+  const goalModal = page.getByRole('dialog');
+  const goalSaveBtn = goalModal.getByRole('button', { name: 'Salvar meta' });
+  await goalSaveBtn.scrollIntoViewIfNeeded();
+  await expect(goalSaveBtn).toBeVisible();
+  const goalSaveBox = await goalSaveBtn.boundingBox();
+  expect(goalSaveBox!.height).toBeGreaterThanOrEqual(44);
+  // Close
+  await goalModal.getByRole('button', { name: 'Cancelar' }).click();
+
+  // Open project creation modal in short viewport
+  await page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
+  const projModal = page.getByRole('dialog');
+  const projSaveBtn = projModal.getByRole('button', { name: 'Salvar projeto' });
+  await projSaveBtn.scrollIntoViewIfNeeded();
+  await expect(projSaveBtn).toBeVisible();
+  const projSaveBox = await projSaveBtn.boundingBox();
+  expect(projSaveBox!.height).toBeGreaterThanOrEqual(44);
+  await projModal.getByRole('button', { name: 'Cancelar' }).click();
+
+  await page.screenshot({ path: 'test-results/planning-mobile-short-viewport.png', scale: 'css' });
+});

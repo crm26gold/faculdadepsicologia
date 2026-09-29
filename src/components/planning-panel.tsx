@@ -130,8 +130,12 @@ export function PlanningPanel({ data, blocked, update }: PlanningProps) {
   }
 
   function unlinkTask(task: Task) {
-    update((prev) => linkTaskToProject(prev, task.id, undefined));
-    showNotice('Tarefa desvinculada do projeto.');
+    const success = update((prev) => linkTaskToProject(prev, task.id, undefined));
+    if (success) {
+      showNotice('Tarefa desvinculada do projeto.');
+    } else {
+      showNotice('Não foi possível desvincular a tarefa. Tente novamente.');
+    }
   }
 
   return (
@@ -909,6 +913,14 @@ function GoalModal({
       ...(metricObj ? { metric: metricObj } : {}),
     };
 
+    // Require confirmation when transitioning to archived via form
+    if (status === 'archived' && goal?.status !== 'archived') {
+      const confirmed = window.confirm(
+        'Arquivar esta meta? Seus projetos e tarefas vinculados serão preservados.',
+      );
+      if (!confirmed) return;
+    }
+
     const res = onSave(payload);
     if (!res.success && res.error) {
       setFormError(res.error);
@@ -1101,6 +1113,14 @@ function ProjectModal({
       ...(goalId ? { goalId } : {}),
       ...(deadline ? { deadline } : {}),
     };
+
+    // Require confirmation when transitioning to archived via form
+    if (status === 'archived' && project?.status !== 'archived') {
+      const confirmed = window.confirm(
+        'Arquivar este projeto? Suas tarefas e anotações vinculadas serão preservadas.',
+      );
+      if (!confirmed) return;
+    }
 
     const res = onSave(payload);
     if (!res.success && res.error) {
