@@ -53,12 +53,12 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
       </button>
       <output className="focus-clock" role="timer" aria-label="Tempo registrado">{formatFocusTime(seconds)}</output>
       <div className="focus-controls">
-        <button className="button primary" disabled={disabled} onClick={() => {
+        <button className="button primary" aria-label={running ? 'Pausar' : focus ? 'Continuar' : 'Começar foco'} disabled={disabled} onClick={() => {
           if (!focus) { start(); return; }
           const timestamp = Date.now(); setNow(timestamp);
           update(previous => !previous.activeFocus ? previous : { ...previous, activeFocus: running ? pauseFocus(previous.activeFocus, timestamp) : resumeFocus(previous.activeFocus, timestamp) });
-        }}>{running ? <Pause size={16} /> : <Play size={16} />}{running ? 'Pausar' : focus ? 'Continuar' : 'Começar foco'}</button>
-        {focus && <button className="button outline" disabled={disabled || seconds <= 0} onClick={() => update(previous => finishFocus(previous, Date.now()))}><Square size={16} />Encerrar e registrar</button>}
+        }}>{running ? <Pause size={16} aria-hidden="true" /> : <Play size={16} aria-hidden="true" />}<span className="focus-control-label">{running ? 'Pausar' : focus ? 'Continuar' : 'Começar foco'}</span></button>
+        {focus && <button className="button outline" aria-label="Encerrar e registrar" disabled={disabled || seconds <= 0} onClick={() => update(previous => finishFocus(previous, Date.now()))}><Square size={16} aria-hidden="true" /><span className="focus-control-label">Encerrar e registrar</span></button>}
       </div>
     </div>
     {focus && focus.targetSeconds > 0 && <p className="focus-status">{seconds >= focus.targetSeconds ? 'Meta alcançada. Encerre quando terminar sua atividade.' : `Meta: ${focus.targetSeconds / 60} min · o tempo continua até você encerrar.`}</p>}

@@ -25,6 +25,16 @@ test('atalhos mobile têm área de toque e indicadores em duas colunas', async (
   await page.screenshot({ path: 'test-results/mobile-home-viewport.png', scale: 'css' });
   await shortcuts.getByRole('button', { name: 'Ir para Caderno', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Meu caderno', exact: true })).toBeVisible();
+  const indexToggle = page.getByRole('button', { name: 'Cadernos, filtros e anotações', exact: true });
+  await expect(indexToggle).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByLabel('Filtrar anotações por matéria')).not.toBeVisible();
+  await indexToggle.click();
+  await expect(page.getByLabel('Filtrar anotações por matéria')).toBeVisible();
+  await indexToggle.click();
+  const organizationToggle = page.getByRole('button', { name: 'Organizar esta anotação', exact: true });
+  await organizationToggle.click();
+  await expect(page.getByLabel('Matéria da anotação', { exact: true })).toBeVisible();
+  await organizationToggle.click();
   await expect(shortcuts.getByRole('button', { name: 'Ir para Caderno', exact: true })).toHaveAttribute('aria-current', 'page');
   await page.screenshot({ path: 'test-results/mobile-notes-viewport.png', scale: 'css' });
   await shortcuts.getByRole('button', { name: 'Ver todas as áreas' }).click();
