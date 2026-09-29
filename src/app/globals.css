@@ -237,16 +237,17 @@ kbd { font-family: inherit; font-size: .6rem; border: 1px solid #cbd5e1; border-
 .progress-ring > span { display: grid; place-items: center; inline-size: 100%; block-size: 100%; border-radius: 50%; background: #fff; font-size: .75rem; font-weight: 700; color: #0f2b48; }
 .page-footer { margin-block-start: 38px; border-block-start: 1px solid var(--line); padding-block: 19px; display: flex; justify-content: space-between; gap: 15px; font-size: .63rem; color: #52634c; }
 .page-footer > span:first-child { display: flex; align-items: center; gap: 6px; }
-.modal { inline-size: min(550px, calc(100% - 32px)); max-block-size: calc(100dvh - 40px); border: 1px solid var(--line); border-radius: 16px; padding: 25px; color: var(--ink); background: white; box-shadow: 0 25px 100px #17322733; }
+.modal { inline-size: min(550px, calc(100% - 32px)); max-block-size: calc(100dvh - 40px); overflow-y: auto; border: 1px solid var(--line); border-radius: 16px; padding: 25px; color: var(--ink); background: white; box-shadow: 0 25px 100px #17322733; }
 .modal::backdrop { background: #172b2466; }
 .modal-heading { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-block-end: 20px; }
 .modal-heading h2 { font-size: 1.2rem; margin: 0; }
+.modal-heading .icon-button { min-inline-size: 44px; min-block-size: 44px; }
 .entry-form { display: flex; flex-direction: column; }
-input:not([type=radio], [type=checkbox], [type=file]), select, textarea { inline-size: 100%; padding: 11px 12px; border: 1px solid #8d9c8e; border-radius: 7px; color: var(--ink); background: white; font-size: 1rem; min-inline-size: 0; }
+input:not([type=radio], [type=checkbox], [type=file]), select, textarea { inline-size: 100%; padding: 11px 12px; border: 1px solid #8d9c8e; border-radius: 7px; color: var(--ink); background: white; font-size: 1rem; min-inline-size: 0; min-height: 44px; }
 .entry-form label, .form-grid label { font-size: .78rem; margin-block: 13px 7px; display: block; }
 .entry-form > label:first-child { margin-block-start: 0; }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.form-footer { display: flex; gap: 10px; justify-content: flex-end; margin-block-start: 25px; }
+.form-footer { display: flex; gap: 10px; justify-content: flex-end; align-items: center; flex-wrap: wrap; margin-block-start: 25px; }
 .color-options { padding: 0; border: 0; margin: 18px 0 0; display: flex; gap: 8px; flex-wrap: wrap; }
 .color-options legend { font-size: .78rem; padding: 0; }
 .color-options label { display: flex; align-items: center; gap: 5px; border-radius: 6px; padding: 6px 8px; font-size: .65rem; }
@@ -858,9 +859,13 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .project-tasks-toggle { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 0.78rem; font-weight: 600; color: var(--muted); padding: 8px 0; cursor: pointer; min-height: 44px; }
 .project-tasks-list { list-style: none; padding: 0; margin: 4px 0 0; display: flex; flex-direction: column; gap: 6px; }
 .project-task-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; background: #f8fafc; font-size: 0.78rem; }
+.project-task-item .task-checkbox { inline-size: 44px; block-size: 44px; min-inline-size: 44px; min-block-size: 44px; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; position: relative; flex-shrink: 0; }
+.project-task-item .task-checkbox input { inline-size: 44px; block-size: 44px; width: 44px; height: 44px; position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
 .project-task-item.is-done .task-name { text-decoration: line-through; opacity: 0.6; }
 .unlink-btn { margin-left: auto; font-size: 0.72rem; color: #dc2626; cursor: pointer; padding: 8px 10px; min-height: 44px; min-width: 44px; display: inline-flex; align-items: center; }
 .small-btn { padding: 6px 12px; font-size: 0.75rem; min-height: 44px; min-width: 44px; }
+.checkbox-label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; min-width: 44px; cursor: pointer; }
+.checkbox-label input[type="checkbox"] { inline-size: 20px; block-size: 20px; cursor: pointer; }
 .metric-fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-top: 12px; }
 .metric-inputs-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 10px; }
 .metric-inputs-grid .full-width { grid-column: 1 / -1; }

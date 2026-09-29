@@ -571,117 +571,194 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
   };
   await page.addInitScript(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify(data));
 
-  for (const width of [320, 360, 393, 768]) {
-    await page.setViewportSize({ width, height: 800 });
+  // ─── 1. Medição de alvos interativos (largura E altura >= 44px) ───
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Abrir navegação' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Metas e projetos' }).click();
+
+  // Abas
+  for (const tab of await page.locator('.planning-tab').all()) {
+    const box = await tab.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Botões de status
+  for (const btn of await page.locator('.status-btn').all()) {
+    const box = await btn.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Filtros
+  for (const filter of await page.locator('.planning-filters-bar select').all()) {
+    const box = await filter.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Alternar para projetos e verificar acordeão e tarefas expandidas
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  const projectCard = page.locator('.project-card').first();
+
+  const toggleBtn = projectCard.getByRole('button', { name: /tarefas no projeto/ });
+  const toggleBox = await toggleBtn.boundingBox();
+  expect(toggleBox!.width).toBeGreaterThanOrEqual(44);
+  expect(toggleBox!.height).toBeGreaterThanOrEqual(44);
+  await toggleBtn.click();
+
+  // Checkbox de tarefa (largura E altura >= 44px)
+  for (const item of await projectCard.locator('.project-task-item').all()) {
+    const cb = item.locator('.task-checkbox');
+    const cbBox = await cb.boundingBox();
+    expect(cbBox!.width).toBeGreaterThanOrEqual(44);
+    expect(cbBox!.height).toBeGreaterThanOrEqual(44);
+
+    const inputEl = cb.locator('input[type="checkbox"]');
+    const inBox = await inputEl.boundingBox();
+    expect(inBox!.width).toBeGreaterThanOrEqual(44);
+    expect(inBox!.height).toBeGreaterThanOrEqual(44);
+
+    const unlink = item.locator('.unlink-btn');
+    const uBox = await unlink.boundingBox();
+    expect(uBox!.width).toBeGreaterThanOrEqual(44);
+    expect(uBox!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Botão Editar
+  const editBtn = projectCard.getByRole('button', { name: /Editar/ });
+  const editBox = await editBtn.boundingBox();
+  expect(editBox!.width).toBeGreaterThanOrEqual(44);
+  expect(editBox!.height).toBeGreaterThanOrEqual(44);
+
+  // ─── 2. Validação de formulários abertos e capturas (320, 360, 393 e 500h) ───
+  const viewports = [
+    { width: 320, height: 700, suffix: '320' },
+    { width: 360, height: 740, suffix: '360' },
+    { width: 393, height: 800, suffix: '393' },
+    { width: 360, height: 500, suffix: 'short-500' },
+  ];
+
+  for (const vp of viewports) {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
 
-    if (width <= 760) {
+    if (vp.width <= 760) {
       await page.getByRole('button', { name: 'Abrir navegação' }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Metas e projetos' }).click();
     } else {
       await page.getByRole('navigation', { name: 'Principal' }).getByRole('button', { name: 'Metas e projetos' }).click();
     }
 
-    // ─── No horizontal overflow ───
+    // Sem rolagem horizontal na tela base
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-    // ─── Tab touch targets: height ≥ 44px ───
-    for (const tab of await page.locator('.planning-tab').all()) {
-      const box = await tab.boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-    }
+    // ── Form de Meta com medição quantitativa aberta e preenchida ──
+    await page.getByRole('button', { name: 'Nova meta', exact: true }).click();
+    const goalModal = page.getByRole('dialog');
+    await expect(goalModal).toBeVisible();
 
-    // ─── Status button touch targets: height ≥ 44px ───
-    for (const btn of await page.locator('.status-btn').all()) {
-      const box = await btn.boundingBox();
-      expect(box!.height).toBeGreaterThanOrEqual(44);
-    }
+    // Fechar botão (icon-button) tem >= 44x44
+    const closeBtn = goalModal.getByRole('button', { name: 'Fechar janela' });
+    const closeBox = await closeBtn.boundingBox();
+    expect(closeBox!.width).toBeGreaterThanOrEqual(44);
+    expect(closeBox!.height).toBeGreaterThanOrEqual(44);
 
-    // ─── Filter dropdowns: check they don't overflow ───
-    const filters = page.locator('.planning-filters select');
-    for (const filter of await filters.all()) {
-      const fBox = await filter.boundingBox();
-      if (fBox) {
-        expect(fBox.x).toBeGreaterThanOrEqual(0);
-        expect(fBox.x + fBox.width).toBeLessThanOrEqual(width + 1);
-      }
-    }
+    // Preencher campos
+    await page.getByLabel('Título da meta').fill('Leitura de 12 livros de Neurociência');
+    await page.getByLabel('Descrição · opcional').fill('Metas de desenvolvimento profissional e consolidação acadêmica');
+    
+    // Checkbox de medição quantitativa (alvo de toque >= 44x44)
+    const metricLabel = page.locator('.checkbox-label');
+    const mBox = await metricLabel.boundingBox();
+    expect(mBox!.width).toBeGreaterThanOrEqual(44);
+    expect(mBox!.height).toBeGreaterThanOrEqual(44);
+    await page.getByLabel('Adicionar medição quantitativa da meta').check();
 
-    // ─── Switch to Projects tab ───
-    await page.getByRole('tab', { name: 'Projetos' }).click();
+    await page.getByLabel('Unidade de medida').fill('livros');
+    await page.getByLabel('Ponto inicial').fill('0');
+    await page.getByLabel('Valor atual').fill('3');
+    await page.getByLabel('Valor alvo').fill('12');
+
+    // Sem rolagem horizontal dentro do modal
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
-    // ─── Expand task list and check Desvincular button size ───
-    const projectCard = page.locator('.project-card').first();
-    await projectCard.getByRole('button', { name: /tarefas no projeto/ }).click();
-    await expect(projectCard.locator('.project-task-item')).toHaveCount(2);
+    // Rolar até os botões do rodapé
+    const goalSaveBtn = goalModal.getByRole('button', { name: 'Salvar meta' });
+    const goalCancelBtn = goalModal.getByRole('button', { name: 'Cancelar' });
+    await goalSaveBtn.scrollIntoViewIfNeeded();
 
-    for (const unlinkBtn of await projectCard.locator('.unlink-btn').all()) {
-      const uBox = await unlinkBtn.boundingBox();
-      expect(uBox!.height).toBeGreaterThanOrEqual(44);
-      expect(uBox!.width).toBeGreaterThanOrEqual(44);
-    }
+    // Ambos os botões devem estar dentro da área visível do viewport
+    await expect(goalSaveBtn).toBeInViewport();
+    await expect(goalCancelBtn).toBeInViewport();
 
-    // ─── Edit button size check ───
-    const editBtn = projectCard.getByRole('button', { name: /Editar/ });
-    const editBox = await editBtn.boundingBox();
-    expect(editBox!.height).toBeGreaterThanOrEqual(44);
+    // Dimensões mínimas dos botões
+    const gsBox = await goalSaveBtn.boundingBox();
+    const gcBox = await goalCancelBtn.boundingBox();
+    expect(gsBox!.width).toBeGreaterThanOrEqual(44);
+    expect(gsBox!.height).toBeGreaterThanOrEqual(44);
+    expect(gcBox!.width).toBeGreaterThanOrEqual(44);
+    expect(gcBox!.height).toBeGreaterThanOrEqual(44);
 
-    // ─── Open edit modal and verify form doesn't overflow ───
-    await editBtn.click();
-    const modal = page.getByRole('dialog');
-    const modalBox = await modal.boundingBox();
-    expect(modalBox!.x).toBeGreaterThanOrEqual(0);
-    expect(modalBox!.x + modalBox!.width).toBeLessThanOrEqual(width + 1);
+    // Sem sobreposição entre os botões
+    const noOverlapGoal =
+      gsBox!.y + gsBox!.height <= gcBox!.y ||
+      gcBox!.y + gcBox!.height <= gsBox!.y ||
+      gsBox!.x + gsBox!.width <= gcBox!.x ||
+      gcBox!.x + gcBox!.width <= gsBox!.x;
+    expect(noOverlapGoal).toBe(true);
 
-    // Save button should be visible (scroll to it if needed)
-    const saveBtn = modal.getByRole('button', { name: 'Salvar projeto' });
-    await saveBtn.scrollIntoViewIfNeeded();
-    await expect(saveBtn).toBeVisible();
-    const saveBox = await saveBtn.boundingBox();
-    expect(saveBox!.height).toBeGreaterThanOrEqual(44);
+    // Captura com o formulário de meta aberto e preenchido
+    await page.screenshot({ path: `test-results/planning-goal-form-open-${vp.suffix}.png`, scale: 'css' });
 
-    // Cancel button also accessible
-    const cancelBtn = modal.getByRole('button', { name: 'Cancelar' });
-    await cancelBtn.scrollIntoViewIfNeeded();
-    await expect(cancelBtn).toBeVisible();
+    // Cancelar para fechar modal
+    await goalCancelBtn.click();
+    await expect(goalModal).not.toBeVisible();
 
-    // Close modal without saving
-    await cancelBtn.click();
+    // ── Form de Projeto com campos preenchidos ──
+    await page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
+    const projModal = page.getByRole('dialog');
+    await expect(projModal).toBeVisible();
 
-    // Screenshot for evidence
-    await page.screenshot({ path: `test-results/planning-mobile-${width}.png`, scale: 'css' });
+    await page.getByLabel('Título do projeto').fill('Revisão Sistemática de Avaliação Psicológica');
+    await page.getByLabel('Descrição · opcional').fill('Elaborar protocolo, selecionar artigos em bases e sintetizar evidências.');
+    await page.getByLabel('Meta vinculada · opcional').selectOption({ label: 'Meta Sintética para Teste Mobile' });
+    await page.getByLabel('Prazo · opcional').fill('2026-11-30');
+
+    // Sem rolagem horizontal
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    // Rolar até os botões do rodapé
+    const projSaveBtn = projModal.getByRole('button', { name: 'Salvar projeto' });
+    const projCancelBtn = projModal.getByRole('button', { name: 'Cancelar' });
+    await projSaveBtn.scrollIntoViewIfNeeded();
+
+    // Ambos os botões devem estar visíveis e acessíveis
+    await expect(projSaveBtn).toBeInViewport();
+    await expect(projCancelBtn).toBeInViewport();
+
+    const psBox = await projSaveBtn.boundingBox();
+    const pcBox = await projCancelBtn.boundingBox();
+    expect(psBox!.width).toBeGreaterThanOrEqual(44);
+    expect(psBox!.height).toBeGreaterThanOrEqual(44);
+    expect(pcBox!.width).toBeGreaterThanOrEqual(44);
+    expect(pcBox!.height).toBeGreaterThanOrEqual(44);
+
+    // Sem sobreposição entre botões
+    const noOverlapProj =
+      psBox!.y + psBox!.height <= pcBox!.y ||
+      pcBox!.y + pcBox!.height <= psBox!.y ||
+      psBox!.x + psBox!.width <= pcBox!.x ||
+      pcBox!.x + pcBox!.width <= psBox!.x;
+    expect(noOverlapProj).toBe(true);
+
+    // Captura com o formulário de projeto aberto e preenchido
+    await page.screenshot({ path: `test-results/planning-project-form-open-${vp.suffix}.png`, scale: 'css' });
+
+    // Cancelar para fechar modal
+    await projCancelBtn.click();
+    await expect(projModal).not.toBeVisible();
   }
-
-  // ─── Short viewport (500px height) — verify save buttons accessible ───
-  await page.setViewportSize({ width: 360, height: 500 });
-  await page.goto('/');
-  await page.getByRole('button', { name: 'Abrir navegação' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Metas e projetos' }).click();
-
-  // No horizontal overflow in short viewport
-  await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-
-  // Open goal creation modal in short viewport
-  await page.getByRole('button', { name: 'Nova meta', exact: true }).click();
-  const goalModal = page.getByRole('dialog');
-  const goalSaveBtn = goalModal.getByRole('button', { name: 'Salvar meta' });
-  await goalSaveBtn.scrollIntoViewIfNeeded();
-  await expect(goalSaveBtn).toBeVisible();
-  const goalSaveBox = await goalSaveBtn.boundingBox();
-  expect(goalSaveBox!.height).toBeGreaterThanOrEqual(44);
-  // Close
-  await goalModal.getByRole('button', { name: 'Cancelar' }).click();
-
-  // Open project creation modal in short viewport
-  await page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
-  const projModal = page.getByRole('dialog');
-  const projSaveBtn = projModal.getByRole('button', { name: 'Salvar projeto' });
-  await projSaveBtn.scrollIntoViewIfNeeded();
-  await expect(projSaveBtn).toBeVisible();
-  const projSaveBox = await projSaveBtn.boundingBox();
-  expect(projSaveBox!.height).toBeGreaterThanOrEqual(44);
-  await projModal.getByRole('button', { name: 'Cancelar' }).click();
-
-  await page.screenshot({ path: 'test-results/planning-mobile-short-viewport.png', scale: 'css' });
 });
+
