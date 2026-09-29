@@ -1,5 +1,11 @@
 # Roadmap
 
+## Continuidade após as correções mobile de 29/09/2026
+
+Leia primeiro [estado confirmado e roteiro de continuidade](CONTINUIDADE_2026-09-29.md). Os registros abaixo são históricos; não use suas contagens de testes ou declarações de ausência de funcionalidades como inventário atual.
+
+O commit `176f426` foi publicado em produção. Corrige o overflow provocado por capturas longas, compacta o timer e torna filtros e formatação do caderno expansíveis no celular. A confirmação visual do proprietário no aparelho real ainda está pendente. Não anunciar responsividade universal com base em emulação.
+
 ## Atualização de 27/09/2026
 
 As seções abaixo conservam critérios de entrega, não representam todas pendências atuais. Google proprietário, banco/RLS e persistência remota já estão ativos. A evolução atual implementa áreas da vida, cadernos independentes, agenda transversal e editor multimídia. Consulte [entrega e ordem de continuidade](AREAS_E_CADERNOS_2026-09-27.md), que complementa a auditoria histórica e tem precedência sobre estados antigos abaixo.

@@ -1,6 +1,23 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('edição do workspace preserva metas e projetos após recarregar', async ({ page }) => {
+  const data = { version: 1, editorGeneration: 5, subjects: [], tasks: [], sessions: [],
+    goals: [{ id: 'goal', title: 'Meta sintética', status: 'active' }],
+    projects: [{ id: 'project', title: 'Projeto sintético', goalId: 'goal', status: 'active' }],
+    notes: [{ id: 'note', title: 'Nota sintética', subjectId: '', content: '<p>Teste</p>', updatedAt: '2026-09-29T12:00:00Z' }] };
+  await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(data));
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByLabel('Título da anotação', { exact: true }).fill('Nota editada');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Nota editada');
+  await page.reload();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
+  expect(saved.goals).toEqual(data.goals);
+  expect(saved.projects).toEqual(data.projects);
+  expect(saved.editorGeneration).toBe(5);
+});
+
 test('capturas longas não alargam a página nem cortam o menu Android', async ({ page }) => {
   const notes = Array.from({ length: 7 }, (_, index) => ({ id: `capture-${index}`, title: `${index} Aula de revisão - ${'conteúdo importante '.repeat(6)}`, subjectId: '', content: '<p>Teste sintético</p>', updatedAt: '2026-09-29T12:00:00Z' }));
   await page.addInitScript(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify({ version: 1, subjects: [], tasks: [], sessions: [], notes }));
