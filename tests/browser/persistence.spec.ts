@@ -31,6 +31,9 @@ test('capturas longas não alargam a página nem cortam o menu Android', async (
       expect(box!.x).toBeGreaterThanOrEqual(0);
       expect(box!.x + box!.width).toBeLessThanOrEqual(width);
     }
+    const organizeBtn = page.locator('.chip-organize-btn').first();
+    const btnBox = await organizeBtn.boundingBox();
+    expect(btnBox!.height).toBeGreaterThanOrEqual(44);
     await page.locator('.unorganized-notes-deck').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `test-results/android-captures-${width}.png`, scale: 'css' });
     await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
@@ -74,7 +77,7 @@ test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ 
   await page.goto('/');
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const label of ['Meu dia', 'Matérias', 'Caderno', 'Agenda', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
+    for (const label of ['Meu dia', 'Matérias', 'Caderno', 'Agenda', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
       if (width <= 760) await page.getByRole('button', { name: 'Abrir navegação', exact: true }).click();
       const nav = width <= 760 ? page.getByRole('dialog') : page.locator('.sidebar');
       await nav.getByRole('button', { name: label, exact: true }).click();
@@ -276,3 +279,486 @@ test('espaço vazio cadastra a primeira matéria e aula e preserva após recarre
   await expect(page.getByLabel('Término (opcional)', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('Primeira aula (opcional)', { exact: true })).toHaveValue('');
 });
+
+test('planejamento: fluxo completo de meta, projeto ligado, tarefas, 50% operacional e separação conceitual', async ({ page }) => {
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Metas e Projetos', exact: true })).toBeVisible();
+
+  // 1. Criar meta com medição
+  await page.getByRole('button', { name: 'Nova meta', exact: true }).click();
+  await page.getByLabel('Título da meta').fill('Aprender Psicometria');
+  await page.getByLabel('Descrição · opcional').fill('Dominar testes e escalas validadas');
+  await page.getByLabel('Adicionar medição quantitativa da meta').check();
+  await page.getByLabel('Unidade de medida').fill('capítulos');
+  await page.getByLabel('Ponto inicial').fill('0');
+  await page.getByLabel('Valor atual').fill('4');
+  await page.getByLabel('Valor alvo').fill('10');
+  await page.getByRole('button', { name: 'Salvar meta' }).click();
+
+  await expect(page.locator('.goal-card')).toContainText('Aprender Psicometria');
+  await expect(page.locator('.goal-card .metric-deck-label')).toHaveText('Medição da meta');
+  await expect(page.locator('.goal-card .metric-deck-value')).toContainText('4 de 10 capítulos (40%)');
+
+  // 2. Criar projeto ligado a essa meta
+  await page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
+  await page.getByLabel('Título do projeto').fill('Elaboração do Instrumento');
+  await page.getByLabel('Meta vinculada · opcional').selectOption({ label: 'Aprender Psicometria' });
+  await page.getByRole('button', { name: 'Salvar projeto' }).click();
+
+  // Mudar para aba Projetos
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  await expect(page.locator('.project-card')).toContainText('Elaboração do Instrumento');
+  await expect(page.locator('.project-card .card-parent-link')).toContainText('Aprender Psicometria');
+  // Projeto sem tarefas mostra 'Sem tarefas'
+  await expect(page.locator('.project-card .metric-deck-label')).toHaveText('Tarefas concluídas');
+  await expect(page.locator('.project-card .metric-deck-value')).toHaveText('Sem tarefas');
+
+  // 3. Criar duas tarefas vinculadas ao projeto
+  await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
+  await page.getByRole('button', { name: 'Novo compromisso' }).click();
+  await page.getByLabel('O que você quer fazer?').fill('Revisar literatura de escalas');
+  await page.getByLabel('Projeto · opcional').selectOption({ label: 'Elaboração do Instrumento' });
+  await page.getByRole('button', { name: 'Salvar' }).click();
+
+  await page.getByRole('button', { name: 'Novo compromisso' }).click();
+  await page.getByLabel('O que você quer fazer?').fill('Construir itens preliminares');
+  await page.getByLabel('Projeto · opcional').selectOption({ label: 'Elaboração do Instrumento' });
+  await page.getByRole('button', { name: 'Salvar' }).click();
+
+  // Conferir que na lista de tarefas aparece o nome do projeto
+  await expect(page.locator('.task-row').first()).toContainText('Projeto: Elaboração do Instrumento');
+
+  // 4. Voltar para Metas e Projetos, abrir tarefas do projeto e concluir uma
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  await page.getByRole('button', { name: '2 tarefas no projeto' }).click();
+  await expect(page.locator('.project-task-item')).toHaveCount(2);
+
+  // Concluir a primeira tarefa
+  await page.locator('.project-task-item').first().getByRole('checkbox').check();
+
+  // 5. Verificar progresso operacional: 50% concluídas (1 de 2)
+  await expect(page.locator('.project-card .metric-deck-value')).toContainText('1/2 concluídas (50%)');
+
+  // 6. Verificar que a meta NÃO mudou seu resultado ou status
+  await page.getByRole('tab', { name: 'Metas' }).click();
+  await expect(page.locator('.goal-card .status-pill')).toHaveText('Ativa');
+  await expect(page.locator('.goal-card .metric-deck-value')).toContainText('4 de 10 capítulos (40%)');
+
+  // 7. Persistência após reload
+  await page.screenshot({ path: 'test-results/planning-desktop.png', fullPage: true });
+  await page.reload();
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  await expect(page.locator('.project-card .metric-deck-value')).toContainText('1/2 concluídas (50%)');
+});
+
+test('planejamento: métrica decrescente, ausência de métrica e ações de status', async ({ page }) => {
+  const data = {
+    version: 1,
+    editorGeneration: 5,
+    subjects: [],
+    tasks: [],
+    sessions: [],
+    notes: [],
+    goals: [
+      { id: 'g-dec', title: 'Reduzir Tempo de Tela', status: 'active', metric: { unit: 'horas/sem', baseline: 40, target: 20, current: 30 } },
+      { id: 'g-nomet', title: 'Aprender Mindfulness', status: 'active' },
+    ],
+    projects: [
+      { id: 'p-long', title: 'Projeto com Título Extenso '.repeat(5), goalId: 'g-dec', status: 'active' },
+    ],
+  };
+  await page.addInitScript(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify(data));
+  await page.goto('/');
+
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+
+  // Métrica decrescente (baseline 40, target 20, current 30 -> 50%)
+  const decCard = page.locator('.goal-card').filter({ hasText: 'Reduzir Tempo de Tela' });
+  await expect(decCard.locator('.metric-deck-value')).toContainText('30 de 20 horas/sem (50%)');
+
+  // Ausência de métrica -> Sem medição
+  const noMetCard = page.locator('.goal-card').filter({ hasText: 'Aprender Mindfulness' });
+  await expect(noMetCard.locator('.metric-deck-value')).toHaveText('Sem medição');
+
+  // Ações de status na meta: Pausar -> Concluir -> Reabrir
+  await noMetCard.getByRole('button', { name: 'Pausar' }).click();
+  await expect(noMetCard.locator('.status-pill')).toHaveText('Pausada');
+
+  await noMetCard.getByRole('button', { name: 'Concluir' }).click();
+  await expect(noMetCard.locator('.status-pill')).toHaveText('Concluída');
+
+  await noMetCard.getByRole('button', { name: 'Reabrir' }).click();
+  await expect(noMetCard.locator('.status-pill')).toHaveText('Ativa');
+
+  // Arquivamento com confirmação
+  page.on('dialog', dialog => dialog.accept());
+  await noMetCard.getByRole('button', { name: 'Arquivar' }).click();
+  await expect(noMetCard.locator('.status-pill')).toHaveText('Arquivada');
+
+  // Restaurar meta arquivada
+  await noMetCard.getByRole('button', { name: 'Restaurar meta' }).click();
+  await expect(noMetCard.locator('.status-pill')).toHaveText('Ativa');
+});
+
+test('planejamento: arquivamento de projeto preserva tarefas e desvinculação é imutável', async ({ page }) => {
+  const data = {
+    version: 1,
+    editorGeneration: 5,
+    subjects: [],
+    sessions: [],
+    notes: [],
+    goals: [{ id: 'g1', title: 'Meta Base', status: 'active' }],
+    projects: [{ id: 'p1', title: 'Projeto Alpha', goalId: 'g1', status: 'active' }],
+    tasks: [
+      { id: 't1', title: 'Tarefa do Projeto Alpha', projectId: 'p1', subjectId: '', date: '2026-09-29', done: false, kind: 'Tarefa', minutes: 25 },
+      { id: 't2', title: 'Segunda Tarefa Alpha', projectId: 'p1', subjectId: '', date: '2026-09-29', done: true, kind: 'Tarefa', minutes: 30 },
+    ],
+  };
+  // Seed only once before the first goto — do NOT re-seed on reload
+  await page.addInitScript(raw => {
+    if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw);
+  }, JSON.stringify(data));
+  await page.goto('/');
+
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+
+  // ─── 1. Archive via form: CANCEL — modal stays open, data preserved ───
+  const projectCard = page.locator('.project-card').filter({ hasText: 'Projeto Alpha' });
+  await projectCard.getByRole('button', { name: 'Editar' }).click();
+
+  // Change status to Arquivado
+  await page.locator('#project-status').selectOption('archived');
+  // Fill title to something we can verify is preserved on cancel
+  await page.getByLabel('Título do projeto').fill('Projeto Alpha Renomeado');
+
+  // Dismiss the confirm dialog (user cancels archiving)
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: 'Salvar projeto' }).click();
+
+  // Modal should stay open with form data preserved
+  await expect(page.getByLabel('Título do projeto')).toHaveValue('Projeto Alpha Renomeado');
+  // Project status on the card should still be active (not archived)
+  await expect(projectCard.locator('.status-pill')).toHaveText('Ativo');
+
+  // ─── 2. Archive via form: CONFIRM — project archives ───
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Salvar projeto' }).click();
+
+  // Modal closes, project is now archived with the new title
+  await expect(projectCard.locator('.status-pill')).toHaveText('Arquivado');
+  await expect(projectCard).toContainText('Projeto Alpha Renomeado');
+
+  // ─── 3. Verify tasks still exist after archiving project ───
+  await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.task-row').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
+
+  // ─── 4. Reload and verify persistence (no re-seeding) ───
+  await page.reload();
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+
+  // Project is still archived with the renamed title
+  const reloadedCard = page.locator('.project-card').filter({ hasText: 'Projeto Alpha Renomeado' });
+  await expect(reloadedCard.locator('.status-pill')).toHaveText('Arquivado');
+
+  // Tasks are preserved and still linked
+  await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.task-row').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
+
+  // ─── 5. Restore project and verify data ───
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  await reloadedCard.getByRole('button', { name: 'Restaurar projeto' }).click();
+  await expect(reloadedCard.locator('.status-pill')).toHaveText('Ativo');
+
+  // Open tasks accordion — both tasks should still be linked
+  await reloadedCard.getByRole('button', { name: '2 tarefas no projeto' }).click();
+  await expect(reloadedCard.locator('.project-task-item')).toHaveCount(2);
+
+  // Goal link is preserved
+  await expect(reloadedCard.locator('.card-parent-link')).toContainText('Meta Base');
+
+  // ─── 6. Unlink a task, reload, and confirm task persists independently ───
+  await reloadedCard.getByRole('button', { name: 'Desvincular tarefa: Tarefa do Projeto Alpha' }).click();
+  await expect(reloadedCard.locator('.project-task-item')).toHaveCount(1);
+  await expect(reloadedCard).toContainText('Segunda Tarefa Alpha');
+
+  // The unlinked task still exists in Meu dia
+  await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  // No longer shows project name
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).not.toContainText('Projeto:');
+
+  // Reload and confirm persistence
+  await page.reload();
+  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+
+  // The second task is still linked to the project after reload
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  const finalCard = page.locator('.project-card').filter({ hasText: 'Projeto Alpha Renomeado' });
+  await finalCard.getByRole('button', { name: '1 tarefa no projeto' }).click();
+  await expect(finalCard.locator('.project-task-item')).toHaveCount(1);
+  await expect(finalCard).toContainText('Segunda Tarefa Alpha');
+
+  await page.screenshot({ path: 'test-results/planning-archive-persistence.png', fullPage: true });
+});
+
+test('planejamento: arquivamento de meta pelo formulário exige confirmação', async ({ page }) => {
+  const data = {
+    version: 1,
+    editorGeneration: 5,
+    subjects: [],
+    sessions: [],
+    notes: [],
+    goals: [{ id: 'g1', title: 'Meta para Arquivar', status: 'active' }],
+    projects: [],
+    tasks: [],
+  };
+  await page.addInitScript(raw => {
+    if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw);
+  }, JSON.stringify(data));
+  await page.goto('/');
+
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+
+  const goalCard = page.locator('.goal-card').filter({ hasText: 'Meta para Arquivar' });
+
+  // Open edit modal and select archived status
+  await goalCard.getByRole('button', { name: 'Editar' }).click();
+  await page.locator('#goal-status').selectOption('archived');
+
+  // Cancel the confirm — form stays open with data
+  page.once('dialog', dialog => dialog.dismiss());
+  await page.getByRole('button', { name: 'Salvar meta' }).click();
+  await expect(page.getByLabel('Título da meta')).toHaveValue('Meta para Arquivar');
+  await expect(goalCard.locator('.status-pill')).toHaveText('Ativa');
+
+  // Accept the confirm — goal is archived
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Salvar meta' }).click();
+  await expect(goalCard.locator('.status-pill')).toHaveText('Arquivada');
+
+  // Reload and confirm persistence
+  await page.reload();
+  await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
+  await expect(page.locator('.goal-card').filter({ hasText: 'Meta para Arquivar' }).locator('.status-pill')).toHaveText('Arquivada');
+});
+
+test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pequenas', async ({ page }) => {
+  const data = {
+    version: 1,
+    editorGeneration: 5,
+    subjects: [],
+    sessions: [],
+    notes: [],
+    goals: [{ id: 'g1', title: 'Meta Sintética para Teste Mobile', status: 'active' }],
+    projects: [{ id: 'p1', title: 'Projeto Sintético com Título Bastante Longo Para Testar Quebra de Linha em Telas Estreitas', goalId: 'g1', status: 'active' }],
+    tasks: [
+      { id: 't1', title: 'Tarefa Vinculada ao Projeto', projectId: 'p1', subjectId: '', date: '2026-09-29', done: false, kind: 'Tarefa', minutes: 25 },
+      { id: 't2', title: 'Segunda Tarefa do Projeto', projectId: 'p1', subjectId: '', date: '2026-09-29', done: true, kind: 'Tarefa', minutes: 30 },
+    ],
+  };
+  await page.addInitScript(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify(data));
+
+  // ─── 1. Medição de alvos interativos (largura E altura >= 44px) ───
+  await page.setViewportSize({ width: 360, height: 740 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Abrir navegação' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Metas e projetos' }).click();
+
+  // Abas
+  for (const tab of await page.locator('.planning-tab').all()) {
+    const box = await tab.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Botões de status
+  for (const btn of await page.locator('.status-btn').all()) {
+    const box = await btn.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Filtros
+  for (const filter of await page.locator('.planning-filters-bar select').all()) {
+    const box = await filter.boundingBox();
+    expect(box!.width).toBeGreaterThanOrEqual(44);
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Alternar para projetos e verificar acordeão e tarefas expandidas
+  await page.getByRole('tab', { name: 'Projetos' }).click();
+  const projectCard = page.locator('.project-card').first();
+
+  const toggleBtn = projectCard.getByRole('button', { name: /tarefas no projeto/ });
+  const toggleBox = await toggleBtn.boundingBox();
+  expect(toggleBox!.width).toBeGreaterThanOrEqual(44);
+  expect(toggleBox!.height).toBeGreaterThanOrEqual(44);
+  await toggleBtn.click();
+
+  // Checkbox de tarefa (largura E altura >= 44px)
+  for (const item of await projectCard.locator('.project-task-item').all()) {
+    const cb = item.locator('.task-checkbox');
+    const cbBox = await cb.boundingBox();
+    expect(cbBox!.width).toBeGreaterThanOrEqual(44);
+    expect(cbBox!.height).toBeGreaterThanOrEqual(44);
+
+    const inputEl = cb.locator('input[type="checkbox"]');
+    const inBox = await inputEl.boundingBox();
+    expect(inBox!.width).toBeGreaterThanOrEqual(44);
+    expect(inBox!.height).toBeGreaterThanOrEqual(44);
+
+    const unlink = item.locator('.unlink-btn');
+    const uBox = await unlink.boundingBox();
+    expect(uBox!.width).toBeGreaterThanOrEqual(44);
+    expect(uBox!.height).toBeGreaterThanOrEqual(44);
+  }
+
+  // Botão Editar
+  const editBtn = projectCard.getByRole('button', { name: /Editar/ });
+  const editBox = await editBtn.boundingBox();
+  expect(editBox!.width).toBeGreaterThanOrEqual(44);
+  expect(editBox!.height).toBeGreaterThanOrEqual(44);
+
+  // ─── 2. Validação de formulários abertos e capturas (320, 360, 393 e 500h) ───
+  const viewports = [
+    { width: 320, height: 700, suffix: '320' },
+    { width: 360, height: 740, suffix: '360' },
+    { width: 393, height: 800, suffix: '393' },
+    { width: 360, height: 500, suffix: 'short-500' },
+  ];
+
+  for (const vp of viewports) {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto('/');
+
+    if (vp.width <= 760) {
+      await page.getByRole('button', { name: 'Abrir navegação' }).click();
+      await page.getByRole('dialog').getByRole('button', { name: 'Metas e projetos' }).click();
+    } else {
+      await page.getByRole('navigation', { name: 'Principal' }).getByRole('button', { name: 'Metas e projetos' }).click();
+    }
+
+    // Sem rolagem horizontal na tela base
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    // ── Form de Meta com medição quantitativa aberta e preenchida ──
+    await page.getByRole('button', { name: 'Nova meta', exact: true }).click();
+    const goalModal = page.getByRole('dialog');
+    await expect(goalModal).toBeVisible();
+
+    // Fechar botão (icon-button) tem >= 44x44
+    const closeBtn = goalModal.getByRole('button', { name: 'Fechar janela' });
+    const closeBox = await closeBtn.boundingBox();
+    expect(closeBox!.width).toBeGreaterThanOrEqual(44);
+    expect(closeBox!.height).toBeGreaterThanOrEqual(44);
+
+    // Preencher campos
+    await page.getByLabel('Título da meta').fill('Leitura de 12 livros de Neurociência');
+    await page.getByLabel('Descrição · opcional').fill('Metas de desenvolvimento profissional e consolidação acadêmica');
+    
+    // Checkbox de medição quantitativa (alvo de toque >= 44x44)
+    const metricLabel = page.locator('.checkbox-label');
+    const mBox = await metricLabel.boundingBox();
+    expect(mBox!.width).toBeGreaterThanOrEqual(44);
+    expect(mBox!.height).toBeGreaterThanOrEqual(44);
+    await page.getByLabel('Adicionar medição quantitativa da meta').check();
+
+    await page.getByLabel('Unidade de medida').fill('livros');
+    await page.getByLabel('Ponto inicial').fill('0');
+    await page.getByLabel('Valor atual').fill('3');
+    await page.getByLabel('Valor alvo').fill('12');
+
+    // Sem rolagem horizontal dentro do modal
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    // Rolar até os botões do rodapé
+    const goalSaveBtn = goalModal.getByRole('button', { name: 'Salvar meta' });
+    const goalCancelBtn = goalModal.getByRole('button', { name: 'Cancelar' });
+    await goalSaveBtn.scrollIntoViewIfNeeded();
+
+    // Ambos os botões devem estar dentro da área visível do viewport
+    await expect(goalSaveBtn).toBeInViewport();
+    await expect(goalCancelBtn).toBeInViewport();
+
+    // Dimensões mínimas dos botões
+    const gsBox = await goalSaveBtn.boundingBox();
+    const gcBox = await goalCancelBtn.boundingBox();
+    expect(gsBox!.width).toBeGreaterThanOrEqual(44);
+    expect(gsBox!.height).toBeGreaterThanOrEqual(44);
+    expect(gcBox!.width).toBeGreaterThanOrEqual(44);
+    expect(gcBox!.height).toBeGreaterThanOrEqual(44);
+
+    // Sem sobreposição entre os botões
+    const noOverlapGoal =
+      gsBox!.y + gsBox!.height <= gcBox!.y ||
+      gcBox!.y + gcBox!.height <= gsBox!.y ||
+      gsBox!.x + gsBox!.width <= gcBox!.x ||
+      gcBox!.x + gcBox!.width <= gsBox!.x;
+    expect(noOverlapGoal).toBe(true);
+
+    // Captura com o formulário de meta aberto e preenchido
+    await page.screenshot({ path: `test-results/planning-goal-form-open-${vp.suffix}.png`, scale: 'css' });
+
+    // Cancelar para fechar modal
+    await goalCancelBtn.click();
+    await expect(goalModal).not.toBeVisible();
+
+    // ── Form de Projeto com campos preenchidos ──
+    await page.getByRole('button', { name: 'Novo projeto', exact: true }).click();
+    const projModal = page.getByRole('dialog');
+    await expect(projModal).toBeVisible();
+
+    await page.getByLabel('Título do projeto').fill('Revisão Sistemática de Avaliação Psicológica');
+    await page.getByLabel('Descrição · opcional').fill('Elaborar protocolo, selecionar artigos em bases e sintetizar evidências.');
+    await page.getByLabel('Meta vinculada · opcional').selectOption({ label: 'Meta Sintética para Teste Mobile' });
+    await page.getByLabel('Prazo · opcional').fill('2026-11-30');
+
+    // Sem rolagem horizontal
+    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    // Rolar até os botões do rodapé
+    const projSaveBtn = projModal.getByRole('button', { name: 'Salvar projeto' });
+    const projCancelBtn = projModal.getByRole('button', { name: 'Cancelar' });
+    await projSaveBtn.scrollIntoViewIfNeeded();
+
+    // Ambos os botões devem estar visíveis e acessíveis
+    await expect(projSaveBtn).toBeInViewport();
+    await expect(projCancelBtn).toBeInViewport();
+
+    const psBox = await projSaveBtn.boundingBox();
+    const pcBox = await projCancelBtn.boundingBox();
+    expect(psBox!.width).toBeGreaterThanOrEqual(44);
+    expect(psBox!.height).toBeGreaterThanOrEqual(44);
+    expect(pcBox!.width).toBeGreaterThanOrEqual(44);
+    expect(pcBox!.height).toBeGreaterThanOrEqual(44);
+
+    // Sem sobreposição entre botões
+    const noOverlapProj =
+      psBox!.y + psBox!.height <= pcBox!.y ||
+      pcBox!.y + pcBox!.height <= psBox!.y ||
+      psBox!.x + psBox!.width <= pcBox!.x ||
+      pcBox!.x + pcBox!.width <= psBox!.x;
+    expect(noOverlapProj).toBe(true);
+
+    // Captura com o formulário de projeto aberto e preenchido
+    await page.screenshot({ path: `test-results/planning-project-form-open-${vp.suffix}.png`, scale: 'css' });
+
+    // Cancelar para fechar modal
+    await projCancelBtn.click();
+    await expect(projModal).not.toBeVisible();
+  }
+});
+
