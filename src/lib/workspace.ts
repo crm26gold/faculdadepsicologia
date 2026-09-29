@@ -12,6 +12,20 @@ export const daySchema = z.string().refine((value) => {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }, 'Data inválida');
 const day = daySchema;
+export const CURRENT_EDITOR_GENERATION = 5;
+const planningStatus = z.enum(['active', 'paused', 'completed', 'archived']);
+export const goalSchema = z.object({
+  id: identifier, title: z.string().trim().min(1).max(160),
+  description: z.string().max(2000).optional(), areaId: z.string().max(100).optional(),
+  deadline: day.optional(), status: planningStatus,
+  metric: z.object({ unit: z.string().trim().min(1).max(40), baseline: z.number().finite(), target: z.number().finite(), current: z.number().finite() })
+    .refine(metric => metric.baseline !== metric.target, 'O alvo deve ser diferente do ponto inicial.').optional(),
+});
+export const projectSchema = z.object({
+  id: identifier, title: z.string().trim().min(1).max(160),
+  description: z.string().max(2000).optional(), areaId: z.string().max(100).optional(),
+  goalId: identifier.optional(), deadline: day.optional(), status: planningStatus,
+});
 export const timeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Horário inválido');
 export const transactionSchema = z.object({
   id: identifier, description: z.string().trim().min(1).max(160),
@@ -40,6 +54,7 @@ export const taskSchema = z.object({
   date: day, kind: z.enum(taskKinds), areaId: z.string().max(100).optional(),
   done: z.boolean(), minutes: z.number().int().min(5).max(240),
   time: timeSchema.optional(),
+  projectId: identifier.optional(),
 });
 export const noteSchema = z.object({
   id: identifier, title: z.string().max(160), subjectId: z.string().max(100),
@@ -69,7 +84,9 @@ export type Flashcard = z.infer<typeof flashcardSchema>;
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
-  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4)]).optional(),
+  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
+  goals: z.array(goalSchema).max(200).optional(),
+  projects: z.array(projectSchema).max(500).optional(),
   activeFocus: z.object({
     id: identifier, activity: z.string().trim().min(1).max(160), subjectId: z.string().max(100), areaId: z.string().max(100),
     targetSeconds: z.number().int().min(0).max(14400),
@@ -95,17 +112,28 @@ export const workspaceSchema = z.object({
 }).superRefine((data, ctx) => {
   const areas = new Set((data.areas ?? defaultAreas).map((area) => area.id));
   const notebooks = new Set((data.notebooks ?? []).map((book) => book.id));
-  for (const collection of ['areas', 'notebooks', 'transactions', 'habits', 'flashcards'] as const) {
+  for (const collection of ['areas', 'notebooks', 'transactions', 'habits', 'flashcards', 'goals', 'projects'] as const) {
     const items = data[collection] ?? [];
     if (new Set(items.map((item) => item.id)).size !== items.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });
   }
-  for (const collection of ['notes', 'tasks', 'notebooks', 'transactions', 'habits'] as const) {
+  for (const collection of ['notes', 'tasks', 'notebooks', 'transactions', 'habits', 'goals', 'projects'] as const) {
     (data[collection] ?? []).forEach((item, index) => {
       if (item.areaId && !areas.has(item.areaId)) ctx.addIssue({ code: 'custom', path: [collection, index, 'areaId'], message: 'Área inexistente' });
     });
   }
   data.notes.forEach((note, index) => {
     if (note.notebookId && !notebooks.has(note.notebookId)) ctx.addIssue({ code: 'custom', path: ['notes', index, 'notebookId'], message: 'Caderno inexistente' });
+  });
+  const goals = new Set((data.goals ?? []).map(goal => goal.id));
+  const projects = new Set((data.projects ?? []).map(project => project.id));
+  if ((data.goals !== undefined || data.projects !== undefined || data.tasks.some(task => task.projectId)) && data.editorGeneration !== CURRENT_EDITOR_GENERATION) {
+    ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Planejamento exige editor atualizado.' });
+  }
+  data.projects?.forEach((project, index) => {
+    if (project.goalId && !goals.has(project.goalId)) ctx.addIssue({ code: 'custom', path: ['projects', index, 'goalId'], message: 'Meta inexistente' });
+  });
+  data.tasks.forEach((task, index) => {
+    if (task.projectId && !projects.has(task.projectId)) ctx.addIssue({ code: 'custom', path: ['tasks', index, 'projectId'], message: 'Projeto inexistente' });
   });
   for (const collection of ['subjects', 'tasks', 'notes', 'sessions', 'classes'] as const) {
     const ids = data[collection].map((item) => item.id);
@@ -119,6 +147,8 @@ export const workspaceSchema = z.object({
   }
 });
 export type Workspace = z.infer<typeof workspaceSchema>;
+export type Goal = z.infer<typeof goalSchema>;
+export type Project = z.infer<typeof projectSchema>;
 export type ActiveFocus = NonNullable<Workspace['activeFocus']>;
 export type Subject = z.infer<typeof subjectSchema>;
 export type Task = z.infer<typeof taskSchema>;

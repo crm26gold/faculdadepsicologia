@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { dateKey, demoWorkspace, emptyWorkspace, LOCAL_KEY, parseWorkspace, type Workspace } from '@/lib/workspace';
+import { CURRENT_EDITOR_GENERATION, dateKey, demoWorkspace, emptyWorkspace, LOCAL_KEY, parseWorkspace, type Workspace } from '@/lib/workspace';
 
 export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const [data, setData] = useState<Workspace>(emptyWorkspace);
@@ -93,7 +93,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const update = useCallback((change: (previous: Workspace) => Workspace) => {
     if (!ready || stop.current) return false;
     let next: Workspace;
-    try { next = parseWorkspace(JSON.stringify({ ...change(current.current), editorGeneration: 4 })); }
+    try { next = parseWorkspace(JSON.stringify({ ...change(current.current), editorGeneration: CURRENT_EDITOR_GENERATION })); }
     catch { setError('Alteração inválida ou limite de dados atingido. A versão anterior foi preservada.'); return false; }
     setError('');
     current.current = next; setData(next);
