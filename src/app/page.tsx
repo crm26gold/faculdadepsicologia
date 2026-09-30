@@ -12,7 +12,8 @@ export default async function Home() {
     if (session) return <WorkspaceApp mode={process.env.FACULDADE_CLOUD_WORKSPACE === 'true' ? 'cloud' : 'local'} authenticated hostedPreview={process.env.VERCEL_ENV === 'preview'} />;
     return <AccessGate configured={!!applicationOrigin(process.env)} />;
   }
-  if (localPreviewAllowed(process.env)) return <WorkspaceApp mode="local" />;
+  // Prévia local das telas conectadas, só fora da Vercel e com opt-in (testes usam dados fictícios).
+  if (localPreviewAllowed(process.env)) return <WorkspaceApp mode={process.env.FACULDADE_CLOUD_PREVIEW === 'true' ? 'cloud' : 'local'} />;
   // Hosted deployments always require the owner session, including previews.
   return <AccessGate configured={false} />;
 }

@@ -58,6 +58,16 @@ jobs:
       - name: Executar testes
         run: npm test
 
+      - name: Testar permissões e isolamento do banco (Postgres local)
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -q -c "create role \"$USER\" superuser login"
+          for test in supabase/tests/multiusuario_isolamento.sql supabase/tests/multiusuario_api.sql; do
+            db="t_$(basename "$test" .sql)"
+            createdb "$db"
+            psql -d "$db" -v ON_ERROR_STOP=1 -q -f "$test"
+          done
+
       - name: Verificar bloqueios de produção
         run: npm run test:gate
         env:

@@ -1,8 +1,8 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, FileText, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Wallet, X } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, Contact, FileText, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Users, Wallet, X } from 'lucide-react';
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { calendarEntries, weekdays } from '@/lib/academic';
 import { useWorkspace } from './use-workspace';
@@ -19,14 +19,22 @@ import { QuickCaptureWidget } from './quick-capture';
 import { LegacyImport } from './legacy-import';
 import { FlashcardsDeck } from './flashcards-deck';
 import { PlanningPanel } from './planning-panel';
+import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
+import { AdminPanel } from './community/admin-panel';
+import { ContactsPanel } from './community/contacts-panel';
+import { AccountSettings } from './community/account-settings';
+import { ConsentGate } from './community/consent-gate';
+import { api, formatDay as formatShortDay } from './community/client';
+import { acceptedTerms, hasPro, statusLabels, upcomingBirthdays, type Contact as ContactRow, type Home } from '@/lib/community';
 
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 const AcademicCalendar = dynamic(() => import('./academic-calendar'), { loading: () => <p role="status">Abrindo sua agenda…</p> });
 const StudyPlanner = dynamic(() => import('./study-planner'), { loading: () => <p role="status">Organizando sugestões…</p> });
-type View = 'today' | 'subjects' | 'notes' | 'agenda' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'settings';
+type View = 'today' | 'community' | 'subjects' | 'notes' | 'agenda' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
 type FormKind = 'subject' | 'task' | 'note';
 const navigation = [
   { id: 'today', label: 'Meu dia', Icon: LayoutDashboard },
+  { id: 'community', label: 'Salas e grupos', Icon: Users },
   { id: 'subjects', label: 'Matérias', Icon: BookOpen },
   { id: 'notes', label: 'Caderno', Icon: FileText },
   { id: 'agenda', label: 'Agenda', Icon: CalendarDays },
@@ -35,8 +43,12 @@ const navigation = [
   { id: 'routine', label: 'Minha rotina', Icon: Compass },
   { id: 'flashcards', label: 'Flashcards', Icon: Layers },
   { id: 'assistant', label: 'Assistente', Icon: Sparkles },
+  { id: 'contacts', label: 'Contatos', Icon: Contact },
+  { id: 'admin', label: 'Administração', Icon: ShieldCheck },
 ] as const;
-const names: Record<View, string> = { today: 'Meu dia', subjects: 'Minhas matérias', notes: 'Meu caderno', agenda: 'Minha agenda', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
+const proViews = new Set<View>(['planning', 'finances', 'routine']);
+const serverViews = new Set<View>(['community', 'contacts', 'admin']);
+const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', subjects: 'Minhas matérias', notes: 'Meu caderno', agenda: 'Minha agenda', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = `jornada-plena-${dateKey()}.json`; link.click();
@@ -59,6 +71,23 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [notice, setNotice] = useState('');
   const userProfile = data.profile ?? defaultUserProfile;
   const [focusRequest, setFocusRequest] = useState<{ id: string; subjectId: string } | null>(null);
+  const cloud = mode === 'cloud';
+  const [home, setHome] = useState<Home | null>(null);
+  const [homeError, setHomeError] = useState('');
+  const [contacts, setContacts] = useState<ContactRow[]>([]);
+  const [communityRoute, setCommunityRoute] = useState<CommunityRoute>({ kind: 'list' });
+  const refreshHome = useCallback(() => {
+    if (!cloud) return;
+    api<Home>('/api/me').then(value => { setHome(value); setHomeError(''); }).catch(reason => setHomeError(reason instanceof Error ? reason.message : 'Não foi possível carregar sua conta.'));
+  }, [cloud]);
+  useEffect(() => { refreshHome(); }, [refreshHome]);
+  useEffect(() => { if (cloud && home && acceptedTerms(home)) api<ContactRow[]>('/api/contacts').then(setContacts).catch(() => setContacts([])); }, [cloud, home]);
+  usePendingInvite(cloud && !!home && acceptedTerms(home), (spaceId, message) => {
+    if (spaceId) { setCommunityRoute({ kind: 'space', id: spaceId }); setView('community'); setNotice('Convite aceito. Bem-vindo(a) à sala!'); refreshHome(); }
+    else if (message) setNotice(message);
+  });
+  const pro = !cloud || !home || hasPro(home);
+  const visibleNavigation = navigation.filter(item => item.id !== 'admin' || !!home?.account.is_master);
   const today = dateKey();
   const main = useRef<HTMLElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -92,6 +121,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   }, [authenticated]);
   useEffect(() => { document.title = `${names[view]} · Jornada Plena`; }, [view]);
   useEffect(() => {
+    const initial = window.location.hash.slice(1) as View;
+    if (initial && initial !== 'today' && names[initial]) setView(initial);
+  }, []);
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!window.history.state || window.history.state.app !== 'jornada-plena') {
       window.history.replaceState({ app: 'jornada-plena', view: 'today' }, '', window.location.hash || window.location.pathname);
@@ -115,7 +148,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         return;
       }
 
-      const targetView = (event.state?.view as View) || 'today';
+      const targetView = (event.state?.view as View) || (window.location.hash.slice(1) as View) || 'today';
       if (names[targetView]) {
         setView(targetView);
       } else {
@@ -206,6 +239,9 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     }
     setForm(null); setNotice('');
   }
+  function addToAgenda(title: string, date: string) {
+    return update((previous) => ({ ...previous, tasks: [...previous.tasks, { id: crypto.randomUUID(), title: title.slice(0, 160), subjectId: '', date, kind: 'Trabalho', done: false, minutes: 30 }] }));
+  }
   function toggleTask(task: Task) { update((previous) => ({ ...previous, tasks: previous.tasks.map((item) => item.id === task.id ? { ...item, done: !item.done } : item) })); }
   function openSubject(item: Subject) { setBookFilter(''); setAreaFilter(''); setSubjectFilter(item.id); setSelectedNote(''); navigate('notes'); }
 
@@ -220,13 +256,13 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : userProfile.name.slice(0,1) || 'P'}
         </div>
         <div className="user-meta-info">
-          <strong>{userProfile.name || 'Meu espaço'}</strong>
-          <span>{userProfile.course} · {userProfile.semester}</span>
+          <strong>{userProfile.name || home?.account.display_name || 'Meu espaço'}</strong>
+          <span>{[userProfile.course, userProfile.semester].filter(Boolean).join(' · ') || (home?.account.is_master ? 'Administração' : 'Meu espaço pessoal')}</span>
         </div>
       </div>
     </div>
     <nav aria-label="Principal">
-      {navigation.map(({ id, label, Icon }) => (
+      {visibleNavigation.map(({ id, label, Icon }) => (
         <button
           key={id}
           aria-current={view === id ? 'page' : undefined}
@@ -236,6 +272,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           <Icon aria-hidden="true" size={18} />
           <span>{label}</span>
           {id === 'assistant' && <span className="nav-chip">Regras</span>}
+          {proViews.has(id) && !pro && <span className="nav-chip">Pro</span>}
+          {id === 'community' && !!home?.to_review.length && <span className="nav-chip">{home.to_review.length}</span>}
         </button>
       ))}
     </nav>
@@ -332,7 +370,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           <button className="icon-button" aria-label="Ajuda e configurações" onClick={() => navigate('settings')}>
             <CircleHelp size={18} aria-hidden="true" />
           </button>
-          <button className="avatar small" onClick={() => navigate('settings')} aria-label="Perfil Alexandre">
+          <button className="avatar small" onClick={() => navigate('settings')} aria-label="Meu perfil e configurações">
             {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : userProfile.name.slice(0,1) || 'P'}
           </button>
         </div>
@@ -340,7 +378,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
       <main id="main" tabIndex={-1} ref={main} className="main-content">
         <div className={`mode-banner ${demo ? 'demo-banner' : ''}`}>
-          <span><CloudOff size={14} aria-hidden="true" />{demo ? 'Demonstração — dados fictícios. Não insira informações pessoais.' : mode === 'local' ? storageNotice : 'Espaço pessoal · acesso restrito à conta proprietária.'}</span>
+          <span><CloudOff size={14} aria-hidden="true" />{demo ? 'Demonstração — dados fictícios. Não insira informações pessoais.' : mode === 'local' ? storageNotice : 'Espaço pessoal · privado, visível só para você.'}</span>
           {demo && <button onClick={() => window.location.reload()} disabled={!ready}>Restaurar exemplos <ArrowRight size={13} aria-hidden="true" /></button>}
         </div>
         {error && <div className="error-banner" role="alert">{error}{ready && <button className="text-button" onClick={() => download(data)}>Exportar esta versão</button>}<button className="text-button" onClick={() => window.location.reload()}>Recarregar</button></div>}
@@ -349,7 +387,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           <div>
             <span className="eyebrow">{ready && view === 'today' ? formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Sua vida, do seu jeito'}</span>
             <h1>{view === 'today' ? <>Um novo dia, <span>no seu ritmo.</span></> : names[view]}</h1>
-            <p>{view === 'today' ? 'Você não precisa dar conta de tudo. Vamos cuidar do próximo passo.' : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'subjects' ? 'Cada matéria, um novo universo para descobrir.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'planning' ? 'Metas apontam a direção e projetos organizam os passos práticos.' : view === 'finances' ? 'Controle seu orçamento, mensalidades e despesas com clareza.' : view === 'routine' ? 'Defina seus blocos do dia e mantenha hábitos consistentes.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : 'Suas preferências, seus dados e suas conexões.'}</p>
+            <p>{view === 'today' ? 'Você não precisa dar conta de tudo. Vamos cuidar do próximo passo.' : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'subjects' ? 'Cada matéria, um novo universo para descobrir.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'planning' ? 'Metas apontam a direção e projetos organizam os passos práticos.' : view === 'finances' ? 'Controle seu orçamento, mensalidades e despesas com clareza.' : view === 'routine' ? 'Defina seus blocos do dia e mantenha hábitos consistentes.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : view === 'community' ? 'Conectividade com segurança: cada grupo vê só o que é seu.' : view === 'contacts' ? 'Sua agenda privada. Ninguém mais vê.' : view === 'admin' ? 'Pessoas, papéis, planos e estrutura, com histórico de tudo.' : 'Suas preferências, seus dados e suas conexões.'}</p>
           </div>
           <div className="heading-actions-row">
             {view === 'today' && <>
@@ -362,7 +400,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         {!ready && !error && <div className="loading-panel" role="status">Preparando seu espaço…</div>}
 
         {ready && <>
-          <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />
+          {!serverViews.has(view) && <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />}
           {view === 'today' && <>
             {/* 4 BENTO METRIC CARDS (BROKER SAAS STYLE) */}
             <div className="bento-metric-row">
@@ -388,7 +426,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                   <span className="metric-label">Matérias Ativas</span>
                 </div>
                 <div className="metric-value">{data.subjects.length}</div>
-                <span className="metric-sub">1º Semestre Psicologia UNIP</span>
+                <span className="metric-sub">{[userProfile.course, userProfile.semester].filter(Boolean).join(' · ') || 'Organize suas matérias'}</span>
               </div>
               <div className="bento-metric-card">
                 <div className="metric-header">
@@ -449,6 +487,17 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               </div>
 
               <aside className="dashboard-secondary">
+                {cloud && home && (home.my_parts.length > 0 || home.to_review.length > 0) && <section className="panel cm-today">
+                  <div className="section-heading"><h2><PenLine size={16} aria-hidden="true" /> Trabalhos em grupo</h2><button className="text-button" onClick={() => { setCommunityRoute({ kind: 'list' }); navigate('community'); }}>Abrir <ArrowRight size={13} aria-hidden="true" /></button></div>
+                  <ul className="cm-todo">
+                    {home.my_parts.slice(0, 3).map(part => <li key={part.id}><button onClick={() => { setCommunityRoute({ kind: 'work', id: part.assignment_id }); navigate('community'); }}><span className={`cm-status ${part.status}`}>{statusLabels[part.status]}</span><strong>{part.title}</strong><small>{part.assignment_title}{part.due_date ? ` · ${formatShortDay(part.due_date)}` : ''}</small></button></li>)}
+                    {home.to_review.slice(0, 3).map(part => <li key={part.id}><button onClick={() => { setCommunityRoute({ kind: 'work', id: part.assignment_id }); navigate('community'); }}><span className="cm-status submitted">Revisar</span><strong>{part.title}</strong><small>{part.assignment_title}</small></button></li>)}
+                  </ul>
+                </section>}
+                {cloud && upcomingBirthdays(contacts, today, 7).length > 0 && <section className="panel cm-today">
+                  <div className="section-heading"><h2><Cake size={16} aria-hidden="true" /> Aniversários da semana</h2></div>
+                  <ul className="cm-todo">{upcomingBirthdays(contacts, today, 7).map(({ contact, inDays }) => <li key={contact.id}><button onClick={() => navigate('contacts')}><span className="cm-status approved">{inDays === 0 ? 'Hoje!' : inDays === 1 ? 'Amanhã' : `em ${inDays} dias`}</span><strong>{contact.name}</strong><small>Mande um parabéns 🎉</small></button></li>)}</ul>
+                </section>}
                 {/* SEMANA */}
                 <section className="panel week-card">
                   <div className="section-heading"><h2>Sua semana</h2><CalendarDays size={16} aria-hidden="true" /></div>
@@ -487,19 +536,24 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'notes' && <section className="notebook-layout"><aside className="note-index"><MobileDisclosure label="Cadernos, filtros e anotações"><div className="section-heading"><h2>Anotações</h2><button className="icon-button" disabled={blocked} aria-label="Nova anotação" onClick={() => openForm({ kind: 'note' })}><Plus size={19} aria-hidden="true" /></button></div><label className="sr-only" htmlFor="note-filter">Filtrar anotações por matéria</label><select id="note-filter" value={subjectFilter} onChange={(event) => { setSubjectFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as matérias e pessoais</option><option value="__personal">Pessoais · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><div className="life-fields"><label htmlFor="note-area-filter">Filtrar área</label><select id="note-area-filter" value={areaFilter} onChange={(event) => { setAreaFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as áreas</option><option value="__none">Sem área</option>{lifeAreas(data).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select><label htmlFor="notebook-filter">Filtrar caderno</label><select id="notebook-filter" value={bookFilter} onChange={(event) => { setBookFilter(event.target.value); setSelectedNote(''); }}><option value="">Todos os cadernos</option><option value="__none">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select><button className="text-button" onClick={() => navigate('settings')}>Gerenciar áreas e cadernos</button></div><div className="note-list">{visibleNotes.map((note) => <button key={note.id} className={`note-list-item ${activeNote?.id === note.id ? 'selected' : ''}`} onClick={() => setSelectedNote(note.id)}><FileText size={16} aria-hidden="true" /><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></span></button>)}</div></MobileDisclosure></aside><div className="note-paper">{activeNote ? <><div className="note-meta"><button type="button" className="note-return-btn" onClick={handleGoBack} aria-label="Voltar para início"><ArrowLeft size={13} aria-hidden="true" /> Voltar</button><span><LockKeyhole size={13} aria-hidden="true" />{demo ? 'Exemplo temporário' : mode === 'local' ? 'Armazenamento local' : 'Anotação pessoal'}</span><span role="status">{status}</span></div><label htmlFor="note-title" className="sr-only">Título da anotação</label><input id="note-title" className="note-title-input" value={activeNote.title} maxLength={160} disabled={blocked} onChange={(event) => editNote({ title: event.target.value })} placeholder="Sem título" /><MobileDisclosure label="Organizar esta anotação"><label className="sr-only" htmlFor="note-subject">Matéria da anotação</label><select id="note-subject" className="note-subject-select" value={activeNote.subjectId} disabled={blocked} onChange={(event) => editNote({ subjectId: event.target.value })}><option value="">Pessoal · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><NoteOrganization data={data} note={activeNote} blocked={blocked} onChange={editNote} /></MobileDisclosure><NoteEditor demo={demo} noteId={activeNote.id} cloud={mode === 'cloud'} key={activeNote.id} content={activeNote.content} disabled={blocked} onChange={(content) => editNote({ content })} /></> : <div className="empty-state"><FileText size={40} aria-hidden="true" /><h2>Sua próxima ideia mora aqui.</h2><p>Crie uma anotação para começar a escrever.</p><button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'note' })}>Criar anotação <Plus size={16} aria-hidden="true" /></button></div>}</div></section>}
 
+          {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
+          {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
+          {view === 'admin' && (cloud && home?.account.is_master ? <AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
+
           {view === 'agenda' && <AcademicCalendar data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); openForm({ kind: 'task' }); }} onEdit={(task) => openForm({ kind: 'task', task })} />}
 
-          {view === 'planning' && <PlanningPanel data={data} blocked={blocked} update={update} />}
+          {view === 'planning' && (pro ? <PlanningPanel data={data} blocked={blocked} update={update} /> : <ProOnly />)}
 
-          {view === 'finances' && <FinancialController data={data} update={update} blocked={blocked} />}
+          {view === 'finances' && (pro ? <FinancialController data={data} update={update} blocked={blocked} /> : <ProOnly />)}
 
-          {view === 'routine' && <DailyRoutine data={data} update={update} blocked={blocked} />}
+          {view === 'routine' && (pro ? <DailyRoutine data={data} update={update} blocked={blocked} /> : <ProOnly />)}
 
           {view === 'flashcards' && <FlashcardsDeck data={data} blocked={blocked} update={update} />}
 
           {view === 'assistant' && <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />}
 
           {view === 'settings' && <>
+            {cloud && home && <AccountSettings home={home} refreshHome={refreshHome} />}
             {!demo && <LegacyImport data={data} update={update} blocked={blocked} />}
             <ProfileSettings
               data={data}
@@ -517,7 +571,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status} · v0.2</span></footer>
       </main>
       <nav className="mobile-tabbar" aria-label="Atalhos mobile">
-        {navigation.filter((item) => ['today', 'notes', 'agenda'].includes(item.id)).map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{id === 'today' ? 'Hoje' : label}</span></button>)}
+        {navigation.filter((item) => ['today', ...(cloud ? ['community'] : []), 'notes', 'agenda'].includes(item.id)).map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : label}</span></button>)}
         <button type="button" aria-label="Ver todas as áreas" aria-expanded={mobileMenu} onClick={() => setMobileMenu(true)}><Menu size={21} aria-hidden="true" /><span>Mais</span></button>
       </nav>
     </div>
@@ -526,6 +580,21 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
     {searchOpen && <Modal title="Encontre no seu espaço" onClose={() => { setSearchOpen(false); setQuery(''); }}><label className="sr-only" htmlFor="workspace-search">Buscar matérias, anotações e tarefas</label><input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Uma matéria, uma ideia, um compromisso…" /><div className="search-results">{!query.trim() ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>{data.subjects.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>Matéria</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.notes.filter((item) => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setSelectedNote(item.id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.tasks.filter((item) => item.title.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}<p className="search-end">Fim dos resultados para “{query}”.</p></>}</div></Modal>}
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => imported); setImported(null); setSelectedNote(''); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
+    {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
     {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
   </div>;
+}
+
+function ServerOnly({ view, cloud, error }: { view: 'community' | 'contacts' | 'admin'; cloud: boolean; error: string }) {
+  if (cloud) return error ? <div className="error-banner" role="alert">{error}</div> : <p role="status" className="loading-panel">Carregando sua conta…</p>;
+  const text = view === 'community'
+    ? 'Salas, grupos e trabalhos em grupo funcionam com a conta conectada: cada pessoa entrega a sua parte e o sistema monta o documento final padronizado.'
+    : view === 'contacts' ? 'Sua agenda privada de contatos, com lembrete de aniversários, fica disponível ao entrar com sua conta.'
+    : 'O painel de administração é exclusivo da conta master.';
+  return <div className="empty-state"><Users size={40} aria-hidden="true" /><h2>{names[view]}</h2><p>{text}</p></div>;
+}
+
+function ProOnly() {
+  return <div className="empty-state"><Sparkles size={40} aria-hidden="true" /><h2>Este bloco faz parte do Pro</h2>
+    <p>No plano Acadêmico você usa tudo da faculdade: matérias, caderno, agenda, foco, flashcards, salas e trabalhos em grupo.<br />Finanças, rotina e metas completam a sua Jornada Plena no Pro.</p></div>;
 }

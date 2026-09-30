@@ -145,3 +145,16 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
 3. **IA consolidando** — padronização e exportação PDF/Docs.
 4. **Pro e pagamento** — Asaas, gating de planos, Vercel Pro.
 5. **Jornada personalizável e blocos da vida**, um de cada vez.
+
+## O que foi entregue em 30/09 (fundação + piloto)
+
+- Banco: migrações `20260930094408_multiusuario_fundacao` e `20260930094700_multiusuario_funcoes_app`, aplicadas com cópia de segurança em `private.personal_workspaces_backup_20260930`. Testes em `supabase/tests` (também no CI).
+- Login aberto a contas Google verificadas; o proprietário virou o primeiro master.
+- Telas: Salas e grupos (mural, enquetes, trabalhos, grupos, pessoas, convites), trabalho em grupo (partes, entrega, entrega em nome, revisão, documento final), Administração, Contatos, Minha conta (exportar/excluir), aceite de termos, `/termos`, `/privacidade`, `/convite/[token]`.
+- Fase de lançamento: `platform_settings.open_access = true` (tudo liberado). O master desliga no painel quando abrir as vendas.
+
+### Pendente
+- IA de revisão (precisa da chave do provedor escolhido).
+- Pagamento (Asaas) e Vercel Pro no dia da abertura do carrinho.
+- Integrações Teams, Google Drive (backup), Google Agenda.
+- Tela do Google: a tela de consentimento OAuth precisa estar em "Produção" no Google Cloud para que outras pessoas consigam entrar.
