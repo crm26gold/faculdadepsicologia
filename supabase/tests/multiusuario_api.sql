@@ -1,0 +1,151 @@
+-- Teste das funções usadas pela aplicação (formato das telas e ações), em Postgres local descartável.
+-- Uso: psql -d <banco vazio> -v ON_ERROR_STOP=1 -f supabase/tests/multiusuario_api.sql
+-- NUNCA executar no projeto remoto.
+\set ON_ERROR_STOP 1
+\set QUIET 1
+\ir lib/supabase_stub.sql
+
+insert into auth.users(id, email, raw_user_meta_data) values
+  ('00000000-0000-4000-8000-000000000001', 'prof@example.invalid', '{"name": "Professora Ana"}'),
+  ('00000000-0000-4000-8000-000000000003', 'lider@example.invalid', '{"full_name": "Líder Bia"}'),
+  ('00000000-0000-4000-8000-000000000004', 'aluno@example.invalid', '{"full_name": "Aluno Caio"}'),
+  ('00000000-0000-4000-8000-000000000005', 'grupo3@example.invalid', '{"full_name": "Duda"}');
+create function public.part(part_title text) returns uuid language sql stable
+as $$ select id from public.assignment_parts where assignment_id = current_setting('test.a1')::uuid and title = part_title $$;
+grant execute on function public.expect(boolean, text), public.act_as(text), public.part(text) to authenticated;
+set role authenticated;
+
+-- Tela inicial de quem acabou de entrar: conta acadêmica, sem salas, termos pendentes.
+select act_as('00000000-0000-4000-8000-000000000004');
+select expect((app_home()->'account'->>'plan') = 'academic', 'home traz o plano');
+select expect(jsonb_array_length(app_home()->'spaces') = 0, 'conta nova sem salas');
+select expect(jsonb_array_length(app_home()->'consents') = 0, 'termos ainda não aceitos');
+select expect((app_home()->'settings'->>'open_access')::boolean, 'piloto começa liberado');
+select accept_terms('2026-09-30');
+select accept_terms('2026-09-30');
+select expect(jsonb_array_length(app_home()->'consents') = 2, 'aceite registra termos e privacidade uma vez');
+select update_my_name('  Caio Souza  ');
+select expect((app_home()->'account'->>'display_name') = 'Caio Souza', 'nome exibido editável');
+do $$ begin perform admin_overview(); raise exception 'FALHA: aluno abriu painel master';
+exception when insufficient_privilege then null; end $$;
+
+-- Master monta a estrutura e nomeia a professora.
+select act_as('00000000-0000-4000-8000-00000000000a');
+select set_config('test.unip', create_space('institution', 'UNIP', null, 'Campus', 'blue')::text, false);
+select set_config('test.c1', create_space('class', 'Psicologia 1º semestre', current_setting('test.unip')::uuid, '', 'sage')::text, false);
+select add_member_by_email(current_setting('test.c1')::uuid, 'prof@example.invalid', 'teacher');
+select expect(jsonb_array_length(admin_overview()->'accounts') = 6, 'master vê todas as contas');
+select expect(jsonb_array_length(admin_overview()->'audit') = 2, 'histórico com instituição e professora');
+select expect(jsonb_array_length(app_home()->'spaces') = 0, 'master não é membro: home sem salas');
+
+-- Professora cria grupos, convite e publica no mural.
+select act_as('00000000-0000-4000-8000-000000000001');
+select expect(jsonb_array_length(app_home()->'spaces') = 1, 'professora vê a sala na home');
+select set_config('test.g1', create_space('group', 'Grupo 1', current_setting('test.c1')::uuid, '', 'lavender')::text, false);
+select set_config('test.g3', create_space('group', 'Grupo 3', current_setting('test.c1')::uuid, '', 'sand')::text, false);
+select add_member_by_email(current_setting('test.g1')::uuid, 'lider@example.invalid', 'leader');
+select add_member_by_email(current_setting('test.g1')::uuid, 'aluno@example.invalid', 'student');
+select add_member_by_email(current_setting('test.g3')::uuid, 'grupo3@example.invalid', 'student');
+select create_invitation(current_setting('test.c1')::uuid, 'student', encode(extensions.digest('token-de-convite-da-sala-01', 'sha256'), 'hex'), 7, 60);
+do $$ begin perform create_invitation(current_setting('test.c1')::uuid, 'student', repeat('b', 64), 90, 60); raise exception 'FALHA: validade longa';
+exception when invalid_parameter_value then null; end $$;
+select create_post(current_setting('test.c1')::uuid, 'announcement', 'Prova dia 10', 'Capítulos 1 a 3', null, '2026-10-10', true);
+select create_poll(current_setting('test.c1')::uuid, 'Revisão extra?', array['Sim', 'Não'], null);
+select set_config('test.works', array_to_string(create_assignments(
+  array[current_setting('test.g1')::uuid, current_setting('test.g3')::uuid], 'Direitos Humanos', 'Ética',
+  'Use o modelo enviado.', 'ABNT', '{"font": "Arial", "size": 12, "spacing": 1.5, "align": "justify"}', '2026-10-20',
+  array['Introdução', 'Desenvolvimento', 'Conclusão']), ','), false);
+select expect((select count(*) from assignments) = 2, 'um trabalho por grupo');
+select expect((select count(distinct batch_id) from assignments) = 1, 'trabalhos do mesmo lote ligados');
+select expect((select count(*) from assignment_parts) = 6, 'partes criadas com o trabalho');
+select expect(jsonb_array_length(space_overview(current_setting('test.c1')::uuid)->'groups') = 2, 'professora vê os dois grupos');
+select expect(jsonb_array_length(space_overview(current_setting('test.c1')::uuid)->'assignments') = 2, 'professora vê os dois trabalhos');
+select expect(jsonb_array_length(space_overview(current_setting('test.c1')::uuid)->'invitations') = 1, 'professora vê o convite');
+select expect(jsonb_array_length(space_overview(current_setting('test.c1')::uuid)->'people') >= 5, 'pessoas da sala');
+
+-- Aluno do grupo 1: vê a sala, o próprio grupo e só o próprio trabalho.
+select act_as('00000000-0000-4000-8000-000000000004');
+select expect(jsonb_array_length(app_home()->'spaces') = 2, 'aluno vê sala e grupo');
+select expect(jsonb_array_length(space_overview(current_setting('test.c1')::uuid)->'groups') = 1, 'aluno vê só o próprio grupo');
+select expect(jsonb_array_length(space_overview(current_setting('test.c1')::uuid)->'assignments') = 1, 'aluno vê só o trabalho do grupo');
+select expect(jsonb_array_length(space_overview(current_setting('test.c1')::uuid)->'invitations') = 0, 'aluno não vê convites');
+select expect((space_overview(current_setting('test.c1')::uuid)->'access'->>'can_lead')::boolean = false, 'aluno não conduz a sala');
+select expect((space_overview(current_setting('test.c1')::uuid)->'path'->0->>'name') = 'UNIP', 'caminho começa na instituição');
+select vote((select id from polls), 0);
+select expect((space_overview(current_setting('test.c1')::uuid)->'polls'->0->>'my_vote')::int = 0, 'enquete mostra o voto da pessoa');
+select expect((space_overview(current_setting('test.c1')::uuid)->'polls'->0->'results'->0->>'votes')::int = 1, 'enquete mostra totais');
+select set_config('test.a1', (select id::text from assignments), false);
+do $$ begin perform assignment_detail((string_to_array(current_setting('test.works'), ','))[2]::uuid); raise exception 'FALHA: trabalho de outro grupo';
+exception when no_data_found then null; end $$;
+
+-- Líder distribui as partes; aluno escreve e entrega; professora pede revisão.
+select act_as('00000000-0000-4000-8000-000000000003');
+select expect((assignment_detail(current_setting('test.a1')::uuid)->'access'->>'can_lead')::boolean, 'líder conduz o trabalho do grupo');
+select update_part_meta(part('Introdução'), 'Introdução', '00000000-0000-4000-8000-000000000003', '', 0);
+select update_part_meta(part('Desenvolvimento'), 'Desenvolvimento', '00000000-0000-4000-8000-000000000004', '', 1);
+select update_part_meta(part('Conclusão'), 'Conclusão', null, 'Colega sem conta', 2);
+select add_part(current_setting('test.a1')::uuid, 'Referências', null, '');
+select expect((select position from assignment_parts where id = part('Referências')) = 3, 'nova parte vai para o fim');
+select delete_part(part('Referências'));
+select save_part(part('Conclusão'),
+  '{"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Texto enviado pela colega."}]}]}', 'submitted');
+
+select act_as('00000000-0000-4000-8000-000000000004');
+select expect(jsonb_array_length(app_home()->'my_parts') = 1, 'aluno vê a parte pendente dele');
+select save_part(part('Desenvolvimento'),
+  '{"type": "doc", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Rascunho."}]}]}', null);
+select expect((select status from assignment_parts where id = part('Desenvolvimento')) = 'pending', 'salvar sem entregar mantém rascunho');
+select save_part(part('Desenvolvimento'), null, 'submitted');
+do $$ begin perform save_part(part('Introdução'), '{"type": "doc", "content": []}', null); raise exception 'FALHA: editou parte alheia';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform update_part_meta(part('Desenvolvimento'), 'Outro', '00000000-0000-4000-8000-000000000004', '', 1); raise exception 'FALHA';
+exception when insufficient_privilege then null; end $$;
+select add_comment(part('Desenvolvimento'), 'comment', 'Terminei!');
+do $$ begin perform add_comment(part('Desenvolvimento'), 'revision_request', 'x'); raise exception 'FALHA';
+exception when insufficient_privilege then null; end $$;
+
+select act_as('00000000-0000-4000-8000-000000000001');
+select expect(jsonb_array_length(app_home()->'to_review') = 2, 'professora vê entregas para revisar');
+select add_comment(part('Desenvolvimento'), 'revision_request', 'Cite a fonte.');
+select expect(jsonb_array_length(assignment_detail(current_setting('test.a1')::uuid)->'comments') = 2, 'comentários no detalhe');
+select resolve_comment((select id from part_comments where kind = 'comment'));
+select save_part(part('Conclusão'), null, 'approved');
+select expect((assignment_detail(current_setting('test.a1')::uuid)->'parts'->2->>'status') = 'approved', 'partes em ordem com estado');
+select update_assignment(current_setting('test.a1')::uuid, 'Direitos Humanos', 'Ética', 'Use o modelo enviado.', 'ABNT',
+  '{"font": "Times New Roman", "size": 12, "spacing": 2}', '2026-10-21', 'open');
+
+select act_as('00000000-0000-4000-8000-000000000004');
+select expect((select status from assignment_parts where id = part('Desenvolvimento')) = 'needs_revision', 'revisão pedida');
+select expect(jsonb_array_length(app_home()->'my_parts') = 1, 'parte em revisão continua na lista');
+do $$ begin perform update_assignment(current_setting('test.a1')::uuid, 'X', '', '', '', '{}', null, 'delivered'); raise exception 'FALHA: aluno alterou o trabalho';
+exception when insufficient_privilege then null; end $$;
+
+-- Contatos e portabilidade.
+select save_contact(null, 'Colega sem conta', 'colega@example.invalid', '', '2000-05-01', 'Grupo de estudos');
+select expect(jsonb_array_length(list_contacts()) = 1, 'contato salvo');
+select save_contact((list_contacts()->0->>'id')::uuid, 'Colega renomeada', '', '', null, '');
+select expect((list_contacts()->0->>'name') = 'Colega renomeada', 'contato editado');
+select expect((export_my_data()->'account'->>'email') = 'aluno@example.invalid', 'exportação traz a conta');
+select expect(jsonb_array_length(export_my_data()->'parts') = 1, 'exportação traz a parte do trabalho');
+select expect(jsonb_array_length(export_my_data()->'votes') = 1, 'exportação traz o voto');
+select expect(jsonb_array_length(export_my_data()->'memberships') = 2, 'exportação traz as salas');
+
+select act_as('00000000-0000-4000-8000-000000000005');
+select expect(jsonb_array_length(list_contacts()) = 0, 'contatos alheios invisíveis');
+do $$ begin perform delete_contact((select id from contacts limit 1)); raise exception 'FALHA';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform update_space(current_setting('test.c1')::uuid, 'Sala hackeada', '', 'rose'); raise exception 'FALHA: aluna renomeou a sala';
+exception when insufficient_privilege then null; end $$;
+
+-- Sair da sala tira a pessoa também dos grupos.
+select remove_member(current_setting('test.c1')::uuid, auth.uid());
+select expect(jsonb_array_length(app_home()->'spaces') = 0, 'saiu da sala e do grupo');
+
+-- Master arquiva e reabre; professora exclui o trabalho do grupo 3.
+select act_as('00000000-0000-4000-8000-000000000001');
+select archive_space(current_setting('test.g3')::uuid, true);
+select archive_space(current_setting('test.g3')::uuid, false);
+select delete_assignment((string_to_array(current_setting('test.works'), ','))[2]::uuid);
+select expect((select count(*) from assignments) = 1, 'trabalho excluído');
+reset role;
+\echo 'OK: funções da aplicação passaram.'

@@ -14,11 +14,13 @@ export default defineConfig({
     ...(!process.env.PLAYWRIGHT_BASE_URL ? [
       { name: 'private', testMatch: /login\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3005' } },
       { name: 'local-data', testMatch: /persistence\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3006' } },
+      { name: 'community', testMatch: /community\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3007' } },
     ] : []),
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : [
     { command: 'node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3004', url: 'http://127.0.0.1:3004', env: { APP_MODE: 'demo', VERCEL: '', NEXT_PUBLIC_SUPABASE_URL: '', NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: '', APP_OWNER_USER_ID: '', APP_OWNER_EMAIL: '', SUPABASE_ACCESS_TOKEN: '', SUPABASE_SERVICE_ROLE_KEY: '', OPENAI_API_KEY: '', ANTHROPIC_API_KEY: '', GOOGLE_CLIENT_SECRET: '' } },
     { command: 'node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3005', url: 'http://127.0.0.1:3005', env: { APP_MODE: 'private', VERCEL: '', GOOGLE_AUTH_ENABLED: 'false', FACULDADE_LOCAL_PREVIEW: 'false', APP_ORIGIN: 'http://127.0.0.1:3005' } },
     { command: 'node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3006', url: 'http://127.0.0.1:3006', env: { APP_MODE: 'private', VERCEL: '', GOOGLE_AUTH_ENABLED: 'false', FACULDADE_LOCAL_PREVIEW: 'true' } },
+    { command: 'node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3007', url: 'http://127.0.0.1:3007', env: { APP_MODE: 'private', VERCEL: '', GOOGLE_AUTH_ENABLED: 'false', FACULDADE_LOCAL_PREVIEW: 'true', FACULDADE_CLOUD_PREVIEW: 'true' } },
   ],
 });

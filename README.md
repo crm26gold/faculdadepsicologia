@@ -20,12 +20,15 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | Exportação de calendário | Implementado | Arquivo `.ics` do período selecionado; importação manual no destino, sem sincronização de volta. |
 | Foco e planejamento | Implementado | Temporizador, registro de sessões e sugestões por regras locais, aceitas manualmente. Não usa IA generativa. |
 | Dados no navegador | Implementado | Persistência local, exportação/importação JSON validada e proteção contra sobrescrita concorrente. |
-| Acesso privado | Proprietário vinculado | Validação de UUID, e-mail e identidade Google no servidor; ainda requer teste completo de uso na sessão real. |
+| Contas e acesso | Implementado | Login Google aberto a contas verificadas; cada conta tem espaço pessoal isolado (RLS). Papéis por sala/grupo; painel master com histórico. |
 | Armazenamento privado na nuvem | Banco aplicado | Tabelas, RLS e RPC remotos verificados; registros persistidos confirmados em 27/09; leitura em outro dispositivo ainda a validar. |
 | Demo pública isolada | Publicada e testada | Origem separada, exemplos somente em memória, sem importação de backups, login ou API de dados pessoais. |
+| Salas, grupos e trabalhos em grupo | Implementado | Instituição > sala > grupo, convites por link, mural, enquetes com voto secreto, trabalhos divididos em partes com entrega, entrega em nome, revisão e documento final padronizado (copiar para Docs / PDF). |
+| Contatos e LGPD | Implementado | Agenda privada com aniversários; termos, privacidade, aceite versionado, exportação e exclusão da conta. |
+| Planos | Infraestrutura | Acadêmico (grátis) e Pro; fase de lançamento com tudo liberado, controlada no painel master. Pagamento ainda não integrado. |
 | Vários cursos | Roadmap | Ainda não existe entidade de curso nem separação de dados por curso. |
 | Finanças, saúde, rotina, social, inventário e metas | Roadmap | Módulos próprios ainda não implementados; tarefas e foco não equivalem a esses módulos. |
-| IA e WhatsApp Oráculo | Roadmap | Sem bot ativo, envio de mensagens ou análise de notas por IA. Exigirão identidade do workspace e consentimento. |
+| IA e WhatsApp Oráculo | Roadmap | Sem IA conectada ainda: a padronização do documento final é feita por regras, sem enviar texto a terceiros. IA exigirá chave do provedor e aviso aos usuários. |
 
 Detalhes desta evolução: [áreas e cadernos](docs/AREAS_E_CADERNOS_2026-09-27.md) e [editor multimídia](docs/CADERNO_MULTIMIDIA_2026-09-27.md).
 

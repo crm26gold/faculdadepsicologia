@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ownerSession } from '@/lib/supabase/server';
+import { userSession } from '@/lib/supabase/server';
 import { applicationOrigin } from '@/lib/auth-input';
 import { demoRequested } from '@/lib/config';
 import { mediaTypes, validMedia, NOTE_BUCKET } from '@/lib/note-media';
@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   if (demoRequested(process.env)) return reply({ error: 'Anexos privados indisponíveis na demonstração.' }, 404);
   const origin = applicationOrigin(process.env);
   if (!origin || request.headers.get('origin') !== origin) return reply({ error: 'Origem não autorizada.' }, 403);
-  const session = await ownerSession();
+  const session = await userSession();
   if (!session) return reply({ error: 'Entre novamente para anexar arquivos.' }, 401);
   if (process.env.FACULDADE_CLOUD_WORKSPACE !== 'true') return reply({ error: 'Armazenamento não ativado.' }, 503);
   // This endpoint only receives metadata; large files go directly to private Storage.

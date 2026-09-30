@@ -273,7 +273,8 @@ test('espaço vazio cadastra a primeira matéria e aula e preserva após recarre
   await page.reload();
   await nav.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.getByRole('button', { name: 'Minha grade', exact: true }).click();
-  await page.getByRole('button', { name: /18:10.*Matéria particular de teste/ }).click();
+  // Restrito à grade: quando o teste roda numa quarta, a mesma aula também aparece no calendário.
+  await page.getByRole('dialog').getByRole('button', { name: /18:10.*Matéria particular de teste/ }).click();
   await expect(page.getByLabel('Dia da semana', { exact: true })).toHaveValue('3');
   await expect(page.getByLabel('Início', { exact: true })).toHaveValue('18:10');
   await expect(page.getByLabel('Término (opcional)', { exact: true })).toHaveValue('');
@@ -406,6 +407,8 @@ test('planejamento: métrica decrescente, ausência de métrica e ações de sta
 });
 
 test('planejamento: arquivamento de projeto preserva tarefas e desvinculação é imutável', async ({ page }) => {
+  // Tarefas do dia atual no fuso do navegador, para aparecerem em "Meu dia" em qualquer data de execução.
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
   const data = {
     version: 1,
     editorGeneration: 5,
@@ -415,8 +418,8 @@ test('planejamento: arquivamento de projeto preserva tarefas e desvinculação �
     goals: [{ id: 'g1', title: 'Meta Base', status: 'active' }],
     projects: [{ id: 'p1', title: 'Projeto Alpha', goalId: 'g1', status: 'active' }],
     tasks: [
-      { id: 't1', title: 'Tarefa do Projeto Alpha', projectId: 'p1', subjectId: '', date: '2026-09-29', done: false, kind: 'Tarefa', minutes: 25 },
-      { id: 't2', title: 'Segunda Tarefa Alpha', projectId: 'p1', subjectId: '', date: '2026-09-29', done: true, kind: 'Tarefa', minutes: 30 },
+      { id: 't1', title: 'Tarefa do Projeto Alpha', projectId: 'p1', subjectId: '', date: today, done: false, kind: 'Tarefa', minutes: 25 },
+      { id: 't2', title: 'Segunda Tarefa Alpha', projectId: 'p1', subjectId: '', date: today, done: true, kind: 'Tarefa', minutes: 30 },
     ],
   };
   // Seed only once before the first goto — do NOT re-seed on reload

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { serverSupabase } from '@/lib/supabase/server';
-import { demoRequested, isGoogleOwner, isGoogleOwnerEmail, oauthConfiguration, validConfiguration } from '@/lib/config';
+import { demoRequested, isGoogleOwnerEmail, isVerifiedGoogleUser, oauthConfiguration, validConfiguration } from '@/lib/config';
 import { applicationOrigin } from '@/lib/auth-input';
 
 export async function GET(request: Request) {
@@ -20,7 +20,8 @@ export async function GET(request: Request) {
       headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
     });
   }
-  if (error || !isGoogleOwner(data.user, process.env)) {
+  // Contas Google verificadas entram; o banco decide o que cada uma pode ver.
+  if (error || !isVerifiedGoogleUser(data.user)) {
     await client.auth.signOut({ scope: 'local' });
     return denied();
   }
