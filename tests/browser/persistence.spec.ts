@@ -15,7 +15,7 @@ test('edição do workspace preserva metas e projetos após recarregar', async (
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
   expect(saved.goals).toEqual(data.goals);
   expect(saved.projects).toEqual(data.projects);
-  expect(saved.editorGeneration).toBe(5);
+  expect(saved.editorGeneration).toBe(6);
 });
 
 test('capturas longas não alargam a página nem cortam o menu Android', async ({ page }) => {
@@ -764,4 +764,3 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     await expect(projModal).not.toBeVisible();
   }
 });
-

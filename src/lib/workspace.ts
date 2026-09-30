@@ -12,7 +12,11 @@ export const daySchema = z.string().refine((value) => {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }, 'Data inválida');
 const day = daySchema;
-export const CURRENT_EDITOR_GENERATION = 5;
+export const CURRENT_EDITOR_GENERATION = 6;
+const focusContextSchema = z.object({
+  taskId: identifier.optional(), projectId: identifier.optional(),
+  taskTitle: z.string().max(160).optional(), projectTitle: z.string().max(160).optional(),
+});
 const planningStatus = z.enum(['active', 'paused', 'completed', 'archived']);
 export const goalSchema = z.object({
   id: identifier, title: z.string().trim().min(1).max(160),
@@ -84,10 +88,11 @@ export type Flashcard = z.infer<typeof flashcardSchema>;
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
-  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5)]).optional(),
+  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]).optional(),
   goals: z.array(goalSchema).max(200).optional(),
   projects: z.array(projectSchema).max(500).optional(),
   activeFocus: z.object({
+    context: focusContextSchema.optional(),
     id: identifier, activity: z.string().trim().min(1).max(160), subjectId: z.string().max(100), areaId: z.string().max(100),
     targetSeconds: z.number().int().min(0).max(14400),
     segments: z.array(z.object({ start: z.number().int().nonnegative(), end: z.number().int().nonnegative().nullable() })).min(1).max(1000),
@@ -102,7 +107,7 @@ export const workspaceSchema = z.object({
   profile: profileSchema.optional(),
   legacyImportId: z.string().max(100).optional(),
   tasks: z.array(taskSchema).max(2000), notes: z.array(noteSchema).max(300),
-  sessions: z.array(z.object({ id: identifier, date: day, minutes: z.number().min(0).max(1500), subjectId: z.string().max(100).optional(), seconds: z.number().min(0).max(90000).optional(), activity: z.string().max(160).optional(), areaId: z.string().max(100).optional(), focusId: identifier.optional() })).max(5000),
+  sessions: z.array(z.object({ id: identifier, date: day, minutes: z.number().min(0).max(1500), subjectId: z.string().max(100).optional(), seconds: z.number().min(0).max(90000).optional(), activity: z.string().max(160).optional(), areaId: z.string().max(100).optional(), focusId: identifier.optional(), context: focusContextSchema.optional() })).max(5000),
   classes: z.array(classSchema).max(300).default([]),
   term: termSchema.default({}),
   curriculumVersion: z.literal('photo-2026-09').optional(),
@@ -126,8 +131,11 @@ export const workspaceSchema = z.object({
   });
   const goals = new Set((data.goals ?? []).map(goal => goal.id));
   const projects = new Set((data.projects ?? []).map(project => project.id));
-  if ((data.goals !== undefined || data.projects !== undefined || data.tasks.some(task => task.projectId)) && data.editorGeneration !== CURRENT_EDITOR_GENERATION) {
+  if ((data.goals !== undefined || data.projects !== undefined || data.tasks.some(task => task.projectId)) && (data.editorGeneration ?? 0) < 5) {
     ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Planejamento exige editor atualizado.' });
+  }
+  if ((data.activeFocus?.context || data.sessions.some(session => session.context)) && data.editorGeneration !== CURRENT_EDITOR_GENERATION) {
+    ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Vínculos de foco exigem editor atualizado.' });
   }
   data.projects?.forEach((project, index) => {
     if (project.goalId && !goals.has(project.goalId)) ctx.addIssue({ code: 'custom', path: ['projects', index, 'goalId'], message: 'Meta inexistente' });
