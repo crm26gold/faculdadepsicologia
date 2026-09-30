@@ -48,3 +48,11 @@ export function isOwnerIdentity(userId: string | undefined, env: Record<string, 
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(env.APP_OWNER_USER_ID ?? '') &&
     userId === env.APP_OWNER_USER_ID;
 }
+
+// Any account signed in with Google and a verified e-mail. Access to data is decided
+// by the database (row-level security), never by client-supplied roles.
+export function isVerifiedGoogleUser(user: { email?: string; identities?: Array<{ provider: string; identity_data?: Record<string, unknown> }> } | null | undefined) {
+  const email = user?.email?.trim().toLowerCase();
+  return !!user && !!email && !!user.identities?.some(identity => identity.provider === 'google' && identity.identity_data?.email_verified === true &&
+    String(identity.identity_data.email ?? '').toLowerCase() === email);
+}

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { ownerSession } from '@/lib/supabase/server';
+import { userSession } from '@/lib/supabase/server';
 import { emptyWorkspace, workspaceSchema } from '@/lib/workspace';
 import { z } from 'zod';
 import { applicationOrigin } from '@/lib/auth-input';
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { 'Cache-Control': 'private, no-store' } });
 export async function GET() {
   if (demoRequested(process.env)) return response({ error: 'Indisponível na demonstração.' }, 404);
-  const session = await ownerSession();
+  const session = await userSession();
   if (!session) return response({ error: 'Acesso não autorizado.' }, 401);
   if (process.env.FACULDADE_CLOUD_WORKSPACE !== 'true') return response({ error: 'Sincronização ainda não ativada.' }, 503);
   const { data, error } = await session.client.from('personal_workspaces').select('data,revision').eq('owner_id', session.user.id).maybeSingle();
@@ -20,7 +20,7 @@ export async function PUT(request: Request) {
   if (demoRequested(process.env)) return response({ error: 'Indisponível na demonstração.' }, 404);
   const origin = applicationOrigin(process.env);
   if (!origin || request.headers.get('origin') !== origin) return response({ error: 'Origem não autorizada.' }, 403);
-  const session = await ownerSession();
+  const session = await userSession();
   if (!session) return response({ error: 'Acesso não autorizado.' }, 401);
   if (process.env.FACULDADE_CLOUD_WORKSPACE !== 'true') return response({ error: 'Sincronização ainda não ativada.' }, 503);
   if (!request.headers.get('content-type')?.includes('application/json')) return response({ error: 'Formato inválido.' }, 415);

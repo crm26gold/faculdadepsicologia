@@ -1,7 +1,7 @@
 import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { isGoogleOwner, oauthConfiguration, validConfiguration } from '@/lib/config';
+import { isVerifiedGoogleUser, oauthConfiguration, validConfiguration } from '@/lib/config';
 import { authCookieOptions } from '@/lib/auth-cookies';
 
 export async function serverSupabase() {
@@ -18,10 +18,12 @@ export async function serverSupabase() {
     },
   });
 }
-export async function ownerSession() {
+// Session of any Google account with a verified e-mail. Each person reaches only
+// their own data and the spaces they were invited to, enforced by RLS.
+export async function userSession() {
   if (!validConfiguration(process.env)) return null;
   const client = await serverSupabase();
   const { data: { user }, error } = await client.auth.getUser();
-  if (error || !user || !isGoogleOwner(user, process.env)) return null;
+  if (error || !user || !isVerifiedGoogleUser(user)) return null;
   return { client, user };
 }
