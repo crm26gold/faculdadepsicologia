@@ -2,7 +2,8 @@
 
 Registro das decisões tomadas pelo proprietário em 30/09/2026. Este documento tem
 precedência sobre o roadmap anterior no que diz respeito a usuários, grupos,
-papéis, planos e integrações. Nada aqui foi aplicado em produção ainda.
+papéis, planos e integrações. A fundação e o piloto já estão em produção (ver
+seção "O que foi entregue em 30/09").
 
 ## Princípio central
 
