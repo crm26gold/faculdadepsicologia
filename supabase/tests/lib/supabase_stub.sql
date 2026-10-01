@@ -1,6 +1,6 @@
--- Simulação mínima do Supabase para testes locais: papéis, auth, storage e extensões.
--- Aplica todas as migrações em ordem sobre um proprietário e um workspace existentes.
--- Incluído pelos testes em supabase/tests. NUNCA executar no projeto remoto.
+﻿-- SimulaÃ§Ã£o mÃ­nima do Supabase para testes locais: papÃ©is, auth, storage e extensÃµes.
+-- Aplica todas as migraÃ§Ãµes em ordem sobre um proprietÃ¡rio e um workspace existentes.
+-- IncluÃ­do pelos testes em supabase/tests. NUNCA executar no projeto remoto.
 do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
 do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
 create schema auth;
@@ -18,7 +18,7 @@ alter table storage.objects enable row level security;
 grant usage on schema auth, extensions, storage to authenticated, anon;
 grant select, insert, delete on storage.objects to authenticated;
 
--- Estado anterior à fundação: proprietário vinculado e um workspace existente.
+-- Estado anterior Ã  fundaÃ§Ã£o: proprietÃ¡rio vinculado e um workspace existente.
 insert into auth.users(id, email, raw_user_meta_data) values
   ('00000000-0000-4000-8000-00000000000a', 'master@example.invalid', '{"full_name": "Pessoa Master"}'),
   ('00000000-0000-4000-8000-00000000000b', 'antiga@example.invalid', '{}');
@@ -33,7 +33,7 @@ values ('00000000-0000-4000-8000-00000000000a', '{"version": "1", "subjects": []
 \ir ../../migrations/20260930094408_multiusuario_fundacao.sql
 \ir ../../migrations/20260930094700_multiusuario_funcoes_app.sql
 \ir ../../migrations/20261001143850_note_attachments_video.sql
-\ir ../../migrations/20261001200000_ai_foundation.sql
+\ir ../../migrations/20261001234639_ai_foundation.sql
 
 create function public.expect(ok boolean, message text) returns void language plpgsql
 as $$ begin if not coalesce(ok, false) then raise exception 'FALHA: %', message; end if; end $$;
