@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   }
   let body;
   try { body = JSON.parse(raw + decoder.decode()); } catch { return reply({ error: 'Pedido inválido.' }, 400); }
-  if (!body || typeof body.noteId !== 'string' || !validMedia(body.type, body.size)) return reply({ error: 'Use imagem ou áudio compatível, com até 25 MB.' }, 400);
+  if (!body || typeof body.noteId !== 'string' || !validMedia(body.type, body.size)) return reply({ error: 'Use imagem, áudio ou vídeo compatível, com até 25 MB.' }, 400);
   const { data, error } = await session.client.from('personal_workspaces').select('data').eq('owner_id', session.user.id).maybeSingle();
   if (error) return reply({ error: 'Não foi possível verificar sua anotação.' }, 503);
   if (!data?.data?.notes?.some((note: { id: string }) => note.id === body.noteId)) return reply({ error: 'Aguarde a anotação sincronizar antes de anexar.' }, 409);

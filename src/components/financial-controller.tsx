@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { dateKey, type Workspace } from '@/lib/workspace';
 import { moneyToCents, type Transaction } from '@/lib/life-data';
 import { AreaSelect } from './life-organization';
@@ -8,7 +8,7 @@ import { ArrowDownRight, ArrowUpRight, DollarSign, Filter, Plus, Trash2, Trendin
 
 const categories = ['Faculdade', 'Livros e Material', 'Transporte', 'Alimentação', 'Remuneração', 'Lazer', 'Saúde', 'Outros'];
 
-export function FinancialController({ data, update, blocked }: { data: Workspace; blocked: boolean; update: (recipe: (previous: Workspace) => Workspace) => boolean }) {
+export function FinancialController({ data, update, blocked, addRequest = 0 }: { data: Workspace; blocked: boolean; update: (recipe: (previous: Workspace) => Workspace) => boolean; addRequest?: number }) {
   const transactions = data.transactions ?? [];
   const [date, setDate] = useState(dateKey);
   const [areaId, setAreaId] = useState('finance');
@@ -21,6 +21,7 @@ export function FinancialController({ data, update, blocked }: { data: Workspace
   const [category, setCategory] = useState('Faculdade');
   const [filterCategory, setFilterCategory] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
+  useEffect(() => { if (addRequest) { setEditingId(''); setDescription(''); setAmount(''); setShowAddForm(true); } }, [addRequest]);
 
   const totalIncome = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amountCents, 0) / 100;
   const totalExpense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amountCents, 0) / 100;

@@ -8,6 +8,7 @@
 
 -- Contas antigas e novas.
 select expect((select count(*) from private.personal_workspaces_backup_20260930) = 1, 'backup copia o workspace existente');
+select expect((select array['video/mp4','video/webm','video/quicktime'] <@ allowed_mime_types and file_size_limit = 26214400 from storage.buckets where id = 'note-attachments'), 'anexos aceitam vídeos curtos sem aumentar o limite');
 select expect((select is_master from accounts where user_id = '00000000-0000-4000-8000-00000000000a'), 'proprietário vira master');
 select expect((select display_name from accounts where user_id = '00000000-0000-4000-8000-00000000000a') = 'Pessoa Master', 'nome vem do Google');
 select expect((select display_name from accounts where user_id = '00000000-0000-4000-8000-00000000000b') = 'antiga', 'nome cai para o e-mail');

@@ -517,6 +517,7 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .note-prose a { color: #155b9b; text-decoration: underline; }
 .note-prose img { display: block; max-inline-size: 100%; block-size: auto; border-radius: 6px; margin-block: 16px; }
 .note-prose audio { display: block; inline-size: 100%; margin-block: 20px; }
+.note-prose video { display: block; inline-size: 100%; max-block-size: 70vh; border-radius: 6px; margin-block: 16px; background: #000; }
 .note-prose .ProseMirror-selectednode { outline: 3px solid #337eb6; outline-offset: 3px; }
 .note-prose table { border-collapse: collapse; inline-size: 100%; table-layout: fixed; margin-block: 20px; }
 .note-prose td, .note-prose th { border: 1px solid #7e91a7; min-inline-size: 40px; padding: 8px; vertical-align: top; position: relative; }

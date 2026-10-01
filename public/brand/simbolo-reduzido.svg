@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Jornada Plena">
+  <defs><clipPath id="jp-r"><circle cx="256" cy="256" r="172"/></clipPath></defs>
+  <g fill="none" stroke="#0F3D2E" stroke-width="34" stroke-linecap="round"><path d="M471.2 301.7A220 220 0 0 1 301.7 471.2"/><path d="M210.3 471.2A220 220 0 0 1 40.8 301.7"/><path d="M40.8 210.3A220 220 0 0 1 210.3 40.8"/><path d="M301.7 40.8A220 220 0 0 1 471.2 210.3"/></g>
+  <g clip-path="url(#jp-r)">
+    
+    <circle cx="256" cy="176" r="50" fill="#D4AF6B"/>
+    <path fill="none" stroke="#C49A48" stroke-width="26" d="M176 380V196A80 80 0 0 1 336 196V380"/>
+    <path fill="#0F3D2E" d="M60 362C140 330 200 330 256 342C312 330 372 330 452 362V470H60Z"/>
+    <path fill="#FAF7ED" d="M242 344C218 370 316 394 276 424C232 456 164 466 160 504H324C316 466 380 440 324 410C290 392 268 372 270 344Z"/>
+  </g>
+  <path d="M257 350C258 330 256 312 257 294" fill="none" stroke="#0F3D2E" stroke-width="22" stroke-linecap="round"/>
+  <path fill="#0F3D2E" d="M257 318C228 324 186 304 184 262C226 256 254 284 257 318Z"/>
+  <path fill="#0F3D2E" d="M257 300C290 306 330 286 332 244C288 238 260 266 257 300Z"/>
+</svg>

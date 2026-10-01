@@ -23,6 +23,11 @@ test('atalhos mobile têm área de toque e indicadores em duas colunas', async (
   const second = await cards.nth(1).boundingBox();
   expect(first!.y).toBe(second!.y);
   await page.screenshot({ path: 'test-results/mobile-home-viewport.png', scale: 'css' });
+  await expect(shortcuts.getByRole('button')).toHaveText(['Hoje', 'Agenda', 'Registrar', 'Estudos', 'Mais']);
+  await shortcuts.getByRole('button', { name: 'Ver todas as áreas' }).click();
+  await page.getByLabel('Botão da barra, ao lado do Registrar').selectOption('notes');
+  await page.getByRole('button', { name: 'Fechar janela' }).click();
+  await expect.poll(() => page.evaluate(() => history.state?.modal ?? null)).toBeNull();
   await shortcuts.getByRole('button', { name: 'Ir para Caderno', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Meu caderno', exact: true })).toBeVisible();
   const indexToggle = page.getByRole('button', { name: 'Cadernos, filtros e anotações', exact: true });

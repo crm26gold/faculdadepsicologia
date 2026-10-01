@@ -236,14 +236,14 @@ test('no celular, salas, trabalho e administração cabem na tela sem rolagem la
   expect(await noOverflow()).toBe(true);
 });
 
-test('conectado no celular, a barra mostra Estudos e Salas e o primeiro curso vai para a nuvem', async ({ page }) => {
+test('conectado no celular, a barra tem o Registrar no centro e o primeiro curso vai para a nuvem', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await mockApi(page);
   const saves: { data: { courses?: unknown[]; editorGeneration?: number } }[] = [];
   page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saves.push(request.postDataJSON()); });
   await page.goto('/');
   const bar = page.getByRole('navigation', { name: 'Atalhos mobile' });
-  await expect(bar.getByRole('button')).toHaveText(['Hoje', 'Estudos', 'Salas', 'Agenda', 'Mais']);
+  await expect(bar.getByRole('button')).toHaveText(['Hoje', 'Agenda', 'Registrar', 'Estudos', 'Mais']);
   for (const button of await bar.getByRole('button').all()) {
     const box = (await button.boundingBox())!;
     expect(box.width).toBeGreaterThanOrEqual(44);

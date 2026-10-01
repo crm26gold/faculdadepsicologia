@@ -7,12 +7,12 @@ import { TextStyleKit } from '@tiptap/extension-text-style';
 import TextAlign from '@tiptap/extension-text-align';
 import Highlight from '@tiptap/extension-highlight';
 import { TableKit } from '@tiptap/extension-table';
-import { Bold, Italic, Underline, Strikethrough, List, ListOrdered, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Highlighter, Link2, ImagePlus, Camera, AudioLines, Table2, Quote, Eraser } from 'lucide-react';
+import { Bold, Italic, Underline, Strikethrough, List, ListOrdered, Undo2, Redo2, AlignLeft, AlignCenter, AlignRight, Highlighter, Link2, ImagePlus, Camera, AudioLines, Clapperboard, Table2, Quote, Eraser } from 'lucide-react';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Modal } from './modal';
 import { NoteSpelling } from './note-spelling';
-import { NoteImage, NoteAudio, SpellingMarks } from './note-extensions';
-import { mediaTypes, safeLink, safeMediaSource, validMedia } from '@/lib/note-media';
+import { NoteImage, NoteAudio, NoteVideo, SpellingMarks } from './note-extensions';
+import { mediaKind, mediaTypes, safeLink, safeMediaSource, validMedia } from '@/lib/note-media';
 import { attachLocalMediaFallback, saveLocalMedia } from '@/lib/local-media-db';
 
 export default function NoteEditor({ content, onChange, disabled, noteId, cloud = false, demo = false }: {
@@ -24,6 +24,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
   const imageInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const audioInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
   const controller = useRef<AbortController | null>(null);
   const mounted = useRef(true);
   const [busy, setBusy] = useState(false);
@@ -41,7 +42,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
   const editor = useEditor({
     extensions: [StarterKit.configure({ link: { openOnClick: false, autolink: true, isAllowedUri: safeLink, HTMLAttributes: { target: '_blank', rel: 'noopener noreferrer' } } }),
       TextStyleKit, TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true }),
-      TableKit.configure({ table: { resizable: false } }), NoteImage, NoteAudio, SpellingMarks],
+      TableKit.configure({ table: { resizable: false } }), NoteImage, NoteAudio, NoteVideo, SpellingMarks],
     content, immediatelyRender: false,
     editorProps: {
       attributes: { class: 'note-prose', 'aria-label': 'Conteúdo da anotação', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true', lang: 'pt-BR' },
@@ -67,7 +68,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
     bulletList: editor.isActive('bulletList'), orderedList: editor.isActive('orderedList'), highlight: editor.isActive('highlight'), blockquote: editor.isActive('blockquote'),
     heading: editor.isActive('heading', { level: 1 }) ? '1' : editor.isActive('heading', { level: 2 }) ? '2' : editor.isActive('heading', { level: 3 }) ? '3' : '0',
     fontSize: editor.getAttributes('textStyle').fontSize || '18px', fontFamily: editor.getAttributes('textStyle').fontFamily || 'inherit',
-    table: editor.isActive('table'), image: editor.isActive('noteImage'), audio: editor.isActive('noteAudio'),
+    table: editor.isActive('table'), image: editor.isActive('noteImage'), audio: editor.isActive('noteAudio') || editor.isActive('noteVideo'),
     undo: editor.can().undo(), redo: editor.can().redo(), words: editor.getText().trim().split(/\s+/).filter(Boolean).length,
   } : null });
   useEffect(() => { editor?.setEditable(!disabled && !busy, false); }, [disabled, busy, editor]);
@@ -78,7 +79,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
     insertFile.current = async file => {
       if (!editor || disabled || controller.current) return;
       if (demo) { setMessage('Anexos indisponíveis na demonstração.'); return; }
-      if (!validMedia(file.type, file.size)) { setMessage('Use JPG, PNG, WebP, GIF, MP3, M4A, WAV, OGG ou WebM de áudio, até 25 MB.'); return; }
+      if (!validMedia(file.type, file.size)) { setMessage('Use imagem (JPG, PNG, WebP, GIF), áudio (MP3, M4A, WAV, OGG, WebM) ou vídeo (MP4, WebM, MOV), até 25 MB.'); return; }
       if (!cloud) {
         bookmark.current ??= editor.state.selection.getBookmark();
         const fileId = crypto.randomUUID();
@@ -89,7 +90,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
         if (!mounted.current || editor.isDestroyed) return;
         const position = bookmark.current?.resolve(editor.state.doc).from ?? editor.state.selection.from;
         editor.chain().focus().insertContentAt(position, {
-          type: file.type.startsWith('image/') ? 'noteImage' : 'noteAudio',
+          type: { image: 'noteImage', audio: 'noteAudio', video: 'noteVideo' }[mediaKind(file.type)],
           attrs: { src: localSrc, alt: file.name, title: file.name },
         }).run();
         bookmark.current = null;
@@ -109,7 +110,7 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
         if (!uploaded.ok) throw new Error('O envio falhou. Seu texto foi preservado; tente anexar novamente.');
         if (!mounted.current || editor.isDestroyed) return;
         const position = bookmark.current?.resolve(editor.state.doc).from ?? editor.state.selection.from;
-        editor.chain().focus().insertContentAt(position, { type: file.type.startsWith('image/') ? 'noteImage' : 'noteAudio', attrs: { src: result.src, alt: file.name, title: file.name } }).run();
+        editor.chain().focus().insertContentAt(position, { type: { image: 'noteImage', audio: 'noteAudio', video: 'noteVideo' }[mediaKind(file.type)], attrs: { src: result.src, alt: file.name, title: file.name } }).run();
         setMessage('Anexo inserido. Aguarde o indicador de sincronização da anotação.');
       } catch (error) {
         if (mounted.current && !abort.signal.aborted) setMessage(error instanceof Error ? error.message : 'Falha ao enviar anexo.');
@@ -163,18 +164,20 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
       <button disabled={locked} onClick={() => pick(imageInput.current)}><ImagePlus size={18} />Imagem</button>
       <button disabled={locked} onClick={() => pick(cameraInput.current)}><Camera size={18} />Fotografar</button>
       <button disabled={locked} onClick={() => pick(audioInput.current)}><AudioLines size={18} />Áudio</button>
+      <button disabled={locked} onClick={() => pick(videoInput.current)}><Clapperboard size={18} />Vídeo</button>
       <button disabled={locked} onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><Table2 size={18} />Tabela</button>
     </div>
     {!demo && <input hidden ref={imageInput} aria-label="Selecionar imagem" type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />}
     {!demo && <input hidden ref={cameraInput} aria-label="Fotografar lousa" type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />}
     {!demo && <input hidden ref={audioInput} aria-label="Selecionar áudio" type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/wav,audio/x-wav,audio/ogg,audio/webm" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />}
+    {!demo && <input hidden ref={videoInput} aria-label="Selecionar vídeo" type="file" accept="video/mp4,video/webm,video/quicktime" onChange={event => { const file = event.target.files?.[0]; if (file) insertFile.current(file); event.target.value = ''; }} />}
     {state.table && <div className="editor-insert"><button disabled={locked} onClick={() => editor.chain().focus().addRowAfter().run()}>Adicionar linha</button><button disabled={locked} onClick={() => editor.chain().focus().addColumnAfter().run()}>Adicionar coluna</button><button disabled={locked} onClick={() => editor.chain().focus().deleteRow().run()}>Excluir linha</button><button disabled={locked} onClick={() => editor.chain().focus().deleteColumn().run()}>Excluir coluna</button><button disabled={locked} onClick={() => editor.chain().focus().deleteTable().run()}>Excluir tabela</button></div>}
     {state.image && <div className="editor-insert"><label>Descrição da imagem<input aria-label="Descrição da imagem" value={editor.getAttributes('noteImage').alt} disabled={locked} onChange={event => editor.commands.updateAttributes('noteImage', { alt: event.target.value })} /></label>{['50%', '75%', '100%'].map(width => <button key={width} disabled={locked} onClick={() => editor.commands.updateAttributes('noteImage', { width })}>{width}</button>)}</div>}
     {(state.image || state.audio) && <button className="text-button" disabled={locked} onClick={() => editor.chain().focus().deleteSelection().run()}>Remover bloco do documento</button>}
     {message && <p className="editor-message" role="status">{message}</p>}
     <NoteSpelling editor={editor} disabled={locked} />
     <div className="document-canvas" ref={canvasRef}><EditorContent editor={editor} /></div>
-    <footer className="editor-footer"><span>{state.words} palavras</span><span>Imagens: cole, arraste ou use o botão · anexos até 25 MB</span></footer>
+    <footer className="editor-footer"><span>{state.words} palavras</span><span>Imagens: cole, arraste ou use o botão · anexos até 25 MB (vídeos curtos)</span></footer>
     {linkOpen && <Modal title="Inserir ou editar link" onClose={() => { setLinkOpen(false); bookmark.current = null; }}><form onSubmit={saveLink}><label htmlFor="note-link">Endereço do link</label><input id="note-link" name="url" type="text" required defaultValue={editor.getAttributes('link').href || 'https://'} autoFocus />{linkError && <p role="alert">{linkError}</p>}<div className="button-row"><button className="button primary" type="submit">Salvar link</button><button className="button outline" type="button" onClick={() => { editor.chain().focus().extendMarkRange('link').unsetLink().run(); setLinkOpen(false); bookmark.current = null; }}>Remover link</button></div></form></Modal>}
   </div>;
 }
