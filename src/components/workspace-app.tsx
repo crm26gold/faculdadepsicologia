@@ -10,6 +10,7 @@ import { useWorkspace } from './use-workspace';
 import { Modal } from './modal';
 import { MobileDisclosure } from './mobile-disclosure';
 import { FocusTimer } from './focus-timer';
+import { FocusHistory } from './focus-history';
 import { CaptureInbox } from './capture-inbox';
 import { AreaSelect, NoteOrganization, OrganizationPanel } from './life-organization';
 import { areaName, itemArea, lifeAreas } from '@/lib/life';
@@ -33,7 +34,7 @@ import { acceptedTerms, hasPro, statusLabels, upcomingBirthdays, type Contact as
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 const AcademicCalendar = dynamic(() => import('./academic-calendar'), { loading: () => <p role="status">Abrindo sua agenda…</p> });
 const StudyPlanner = dynamic(() => import('./study-planner'), { loading: () => <p role="status">Organizando sugestões…</p> });
-type View = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
+type View = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'focus' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
 type FormKind = 'subject' | 'task' | 'note' | 'course';
 type FormState = { kind: FormKind; task?: Task; subject?: Subject; course?: Course; courseId?: string };
 type StudiesRoute = { kind: 'list' } | { kind: 'course'; id: string };
@@ -43,6 +44,7 @@ const navigation = [
   { id: 'community', label: 'Salas e grupos', Icon: Users },
   { id: 'notes', label: 'Caderno', Icon: FileText },
   { id: 'agenda', label: 'Agenda', Icon: CalendarDays },
+  { id: 'focus', label: 'Foco', Icon: Clock3 },
   { id: 'planning', label: 'Metas e projetos', Icon: Target },
   { id: 'finances', label: 'Finanças', Icon: Wallet },
   { id: 'routine', label: 'Minha rotina', Icon: Compass },
@@ -53,7 +55,7 @@ const navigation = [
 ] as const;
 const proViews = new Set<View>(['planning', 'finances', 'routine']);
 const serverViews = new Set<View>(['community', 'contacts', 'admin']);
-const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
+const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -483,38 +485,38 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'today' && <>
             {/* 4 BENTO METRIC CARDS (BROKER SAAS STYLE) */}
             <div className="bento-metric-row">
-              <div className="bento-metric-card">
-                <div className="metric-header">
+              <button type="button" className="bento-metric-card" onClick={() => navigate('focus')}>
+                <span className="metric-header">
                   <span className="metric-icon lavender"><Clock3 size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Foco Registrado</span>
-                </div>
-                <div className="metric-value">{studyMinutes}<small> min</small></div>
+                  <span className="metric-label">Foco Registrado</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
+                </span>
+                <span className="metric-value">{studyMinutes}<small> min</small></span>
                 <span className="metric-sub">{studyMinutes > 0 ? 'Foco acumulado hoje' : 'Pronto para começar'}</span>
-              </div>
-              <div className="bento-metric-card">
-                <div className="metric-header">
+              </button>
+              <button type="button" className="bento-metric-card" onClick={() => navigate('agenda')}>
+                <span className="metric-header">
                   <span className="metric-icon sage"><CheckCheck size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Tarefas de Hoje</span>
-                </div>
-                <div className="metric-value">{doneToday}<small> / {dueToday.length}</small></div>
+                  <span className="metric-label">Tarefas de Hoje</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
+                </span>
+                <span className="metric-value">{doneToday}<small> / {dueToday.length}</small></span>
                 <span className="metric-sub">{dueToday.length === 0 ? 'Sem prazos para hoje' : `${progress}% concluído`}</span>
-              </div>
-              <div className="bento-metric-card">
-                <div className="metric-header">
+              </button>
+              <button type="button" className="bento-metric-card" onClick={() => navigate('studies')}>
+                <span className="metric-header">
                   <span className="metric-icon blue"><GraduationCap size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Estudos ativos</span>
-                </div>
-                <div className="metric-value">{active.length}</div>
+                  <span className="metric-label">Estudos ativos</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
+                </span>
+                <span className="metric-value">{active.length}</span>
                 <span className="metric-sub metric-clamp" title={active.map((item) => item.name).join(' · ') || undefined}>{studiesNames ? [studiesNames, studiesMore].filter(Boolean).join(' ') : courses.length ? 'Nenhum curso em andamento' : 'Cadastre seu primeiro curso'}</span>
-              </div>
-              <div className="bento-metric-card">
-                <div className="metric-header">
+              </button>
+              <button type="button" className="bento-metric-card" onClick={() => navigate('notes')}>
+                <span className="metric-header">
                   <span className="metric-icon sand"><FileText size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Captura Rápida</span>
-                </div>
-                <div className="metric-value">{data.notes.filter((n) => !n.areaId && !n.subjectId).length}</div>
+                  <span className="metric-label">Captura Rápida</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
+                </span>
+                <span className="metric-value">{data.notes.filter((n) => !n.areaId && !n.subjectId).length}</span>
                 <span className="metric-sub">Ideias para triagem</span>
-              </div>
+              </button>
             </div>
 
             {/* ANOTA AQUI · QUICK CAPTURE WIDGET */}
@@ -643,6 +645,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'routine' && (pro ? <DailyRoutine data={data} update={update} blocked={blocked} /> : <ProOnly />)}
 
+          {view === 'focus' && <FocusHistory data={data} blocked={blocked} update={update} />}
           {view === 'flashcards' && <FlashcardsDeck data={data} blocked={blocked} update={update} />}
 
           {view === 'assistant' && <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />}
