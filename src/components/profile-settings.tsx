@@ -103,7 +103,7 @@ export function ProfileSettings({
           <div className="section-heading">
             <div>
               <h2>Foto e Identificação</h2>
-              <p>Personalize seu perfil de estudante e dados acadêmicos.</p>
+              <p>Personalize seu perfil e a sua carteirinha. Seus cursos ficam em Estudos.</p>
             </div>
             {savedNotice && (
               <span className="tiny-tag positive" style={{ background: '#ecfdf5', color: '#047857' }}>
@@ -170,7 +170,7 @@ export function ProfileSettings({
               />
             </div>
             <div>
-              <label htmlFor="p-course">Curso ou atividade · opcional</label>
+              <label htmlFor="p-course">Curso na carteirinha · opcional</label>
               <input
                 id="p-course"
                 value={profile.course}
@@ -178,7 +178,7 @@ export function ProfileSettings({
               />
             </div>
             <div>
-              <label htmlFor="p-sem">Semestre atual</label>
+              <label htmlFor="p-sem">Etapa na carteirinha · opcional</label>
               <input
                 id="p-sem"
                 value={profile.semester}
@@ -198,7 +198,7 @@ export function ProfileSettings({
           <h3 style={{ marginTop: '24px', marginBottom: '10px' }}>Instituição e Contato</h3>
           <div className="form-grid">
             <div>
-              <label htmlFor="p-inst">Universidade</label>
+              <label htmlFor="p-inst">Instituição</label>
               <input
                 id="p-inst"
                 value={profile.institution}
@@ -261,7 +261,7 @@ export function ProfileSettings({
             </div>
             <h3>{profile.name}</h3>
             <span className="student-role-chip">
-              <GraduationCap size={13} /> {profile.course} · {profile.semester}
+              <GraduationCap size={13} /> {[profile.course, profile.semester].filter(Boolean).join(' · ') || 'Meus estudos'}
             </span>
 
             <div className="student-meta-list">

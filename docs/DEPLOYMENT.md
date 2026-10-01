@@ -72,6 +72,10 @@ O destino privado usa `APP_MODE=private` e deve recusar acesso sem configuraçã
 
 Uma instalação privada nova começa vazia. Dados na chave local existente devem ser preservados; nuvem não significa migração automática. Exportação e importação precisam ser decisões explícitas do proprietário.
 
+### Geração do editor e reversões
+
+Cada espaço salvo guarda `editorGeneration`. Um build só lê gerações que constam na sua lista em `src/lib/workspace.ts`; uma geração desconhecida bloqueia o carregamento ("Não foi possível carregar seus dados") sem sobrescrever nada. A versão com Estudos/cursos grava a geração 7 (a anterior em produção gravava 5). Regra de publicação: depois que um build com geração 7 for ao ar e alguém salvar, nunca reverta (Instant Rollback, revert ou deploy antigo) para um build cuja lista não aceite a geração 7 — corrija para frente. Se for preciso uma rede de segurança, publique antes um build só-leitor que aceite as gerações 6 e 7 (e os campos opcionais `courses`, `courseId` e `semester` opcional) mantendo a gravação na geração 5.
+
 ## Preservação e publicação do repositório
 
 Não use limpeza de `localStorage`, redefinição de dados, exclusão de backups ou substituição de `.env.local` como etapa de publicação. A origem inclui protocolo, host e porta: mudar qualquer parte pode tornar os dados anteriores invisíveis sem que tenham sido apagados. Mantenha uma cópia exportada antes de uma mudança intencional de origem.

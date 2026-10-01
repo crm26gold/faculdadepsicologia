@@ -55,7 +55,7 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
   await expect(page.getByText('Demonstração — dados fictícios. Não insira informações pessoais.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Introdução à Psicologia', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Psicologia', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
@@ -76,13 +76,17 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
 test('edições da demo são descartadas e dados antigos não são lidos ou apagados', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('faculdade-psi:personal:v1', 'private-sentinel'));
   await page.goto('/');
-  await navigate(page, 'Matérias');
-  await page.getByRole('button', { name: 'Nova matéria', exact: true }).click();
-  await page.getByLabel('Nome da matéria').fill('Teste descartável');
+  await navigate(page, 'Estudos');
+  await page.getByRole('heading', { name: 'Psicologia', exact: true }).click();
+  await page.getByRole('button', { name: 'Adicionar matéria', exact: true }).click();
+  await page.getByLabel('Nome', { exact: true }).fill('Teste descartável');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Teste descartável', exact: true })).toBeVisible();
+  await expect(page.getByText('4 matérias', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Restaurar exemplos', exact: true }).click();
+  await page.getByRole('heading', { name: 'Psicologia', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Introdução à Psicologia', exact: true })).toBeVisible();
+  await expect(page.getByText('3 matérias', { exact: true })).toBeVisible();
   await expect(page.getByText('Teste descartável', { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('faculdade-psi:personal:v1'))).toBe('private-sentinel');
   expect(await page.evaluate(() => localStorage.length)).toBe(1);

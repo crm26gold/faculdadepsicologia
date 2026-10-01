@@ -193,7 +193,8 @@ test('sem acesso Pro, finanças mostram o convite ao Pro e o menu sinaliza', asy
   await expect(nav(page).getByRole('button', { name: /Finanças/ })).toContainText('Pro');
   await nav(page).getByRole('button', { name: /Finanças/ }).click();
   await expect(page.getByRole('heading', { name: 'Este bloco faz parte do Pro' })).toBeVisible();
-  await nav(page).getByRole('button', { name: /Matérias/ }).click();
+  await nav(page).getByRole('button', { name: 'Estudos', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Meus estudos', level: 1 })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Este bloco faz parte do Pro' })).toBeHidden();
 });
 
@@ -233,4 +234,29 @@ test('no celular, salas, trabalho e administração cabem na tela sem rolagem la
   await page.goto('/#admin');
   await expect(page.getByRole('heading', { name: 'Fase de lançamento' })).toBeVisible();
   expect(await noOverflow()).toBe(true);
+});
+
+test('conectado no celular, a barra mostra Estudos e Salas e o primeiro curso vai para a nuvem', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  await mockApi(page);
+  const saves: { data: { courses?: unknown[]; editorGeneration?: number } }[] = [];
+  page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saves.push(request.postDataJSON()); });
+  await page.goto('/');
+  const bar = page.getByRole('navigation', { name: 'Atalhos mobile' });
+  await expect(bar.getByRole('button')).toHaveText(['Hoje', 'Estudos', 'Salas', 'Agenda', 'Mais']);
+  for (const button of await bar.getByRole('button').all()) {
+    const box = (await button.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+  }
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await bar.getByRole('button', { name: 'Ir para Estudos', exact: true }).click();
+  await page.getByRole('button', { name: 'Cadastrar meu primeiro curso', exact: true }).click();
+  await page.getByLabel('Nome', { exact: true }).fill('Pós em Pedagogia');
+  await page.getByLabel('Tipo', { exact: true }).selectOption('pos');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar matéria', exact: true })).toBeVisible();
+  await expect.poll(() => saves.at(-1)?.data.courses).toEqual([expect.objectContaining({ name: 'Pós em Pedagogia', kind: 'pos', status: 'active' })]);
+  expect(saves.at(-1)?.data.editorGeneration).toBe(7);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

@@ -15,7 +15,7 @@ test('edição do workspace preserva metas e projetos após recarregar', async (
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
   expect(saved.goals).toEqual(data.goals);
   expect(saved.projects).toEqual(data.projects);
-  expect(saved.editorGeneration).toBe(5);
+  expect(saved.editorGeneration).toBe(7);
 });
 
 test('capturas longas não alargam a página nem cortam o menu Android', async ({ page }) => {
@@ -77,7 +77,7 @@ test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ 
   await page.goto('/');
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const label of ['Meu dia', 'Matérias', 'Caderno', 'Agenda', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
+    for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
       if (width <= 760) await page.getByRole('button', { name: 'Abrir navegação', exact: true }).click();
       const nav = width <= 760 ? page.getByRole('dialog') : page.locator('.sidebar');
       await nav.getByRole('button', { name: label, exact: true }).click();
@@ -249,19 +249,26 @@ test('dados corrompidos não são sobrescritos', async ({ page }) => {
   expect(await page.evaluate(() => localStorage.getItem('faculdade-psi:personal:v1'))).toBe('{invalid');
 });
 
-test('espaço vazio cadastra a primeira matéria e aula e preserva após recarregar', async ({ page }) => {
+test('espaço vazio cadastra o primeiro curso, a primeira matéria e aula e preserva após recarregar', async ({ page }) => {
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
   await expect(page.getByRole('button', { name: 'Jornada Plena — início', exact: true })).toBeVisible();
   await nav.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.getByRole('button', { name: 'Minha grade', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Adicionar horário', exact: true })).toBeDisabled();
-  await expect(page.getByRole('dialog')).toContainText('Primeiro cadastre uma matéria');
+  await expect(page.getByRole('dialog')).toContainText('Primeiro cadastre um curso e uma matéria em Estudos.');
   await page.keyboard.press('Escape');
-  await nav.getByRole('button', { name: 'Matérias', exact: true }).click();
-  await page.getByRole('button', { name: 'Nova matéria', exact: true }).click();
-  await page.getByLabel('Nome da matéria').fill('Matéria particular de teste');
+  await nav.getByRole('button', { name: 'Estudos', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cadastrar meu primeiro curso', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Novo curso', exact: true }).click();
+  await page.getByLabel('Nome', { exact: true }).fill('Curso particular de teste');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Curso particular de teste', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar matéria', exact: true }).click();
+  await expect(page.getByLabel('Curso', { exact: true })).toHaveValue(/.+/);
+  await page.getByLabel('Nome', { exact: true }).fill('Matéria particular de teste');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Matéria particular de teste', exact: true })).toBeVisible();
   await nav.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.getByRole('button', { name: 'Minha grade', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('Nenhum horário cadastrado');
@@ -270,6 +277,11 @@ test('espaço vazio cadastra a primeira matéria e aula e preserva após recarre
   await page.getByLabel('Início', { exact: true }).fill('18:10');
   await page.getByRole('button', { name: 'Salvar horário', exact: true }).click();
   await expect.poll(async () => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).classes.length)).toBe(1);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
+  expect(saved.courses).toEqual([expect.objectContaining({ name: 'Curso particular de teste', kind: 'graduacao', status: 'active' })]);
+  expect(saved.courses[0].units).toBeUndefined();
+  expect(saved.subjects).toEqual([expect.objectContaining({ name: 'Matéria particular de teste', courseId: saved.courses[0].id })]);
+  expect(saved.subjects[0].semester).toBeUndefined();
   await page.reload();
   await nav.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.getByRole('button', { name: 'Minha grade', exact: true }).click();
@@ -279,6 +291,244 @@ test('espaço vazio cadastra a primeira matéria e aula e preserva após recarre
   await expect(page.getByLabel('Início', { exact: true })).toHaveValue('18:10');
   await expect(page.getByLabel('Término (opcional)', { exact: true })).toHaveValue('');
   await expect(page.getByLabel('Primeira aula (opcional)', { exact: true })).toHaveValue('');
+});
+
+test('curso livre chama as partes de módulos e o nome personalizado troca os rótulos', async ({ page }) => {
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
+  await page.goto('/');
+  await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Estudos', exact: true }).click();
+  await page.getByRole('button', { name: 'Novo curso', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: 'Novo curso', exact: true })).toBeVisible();
+  await dialog.getByLabel('Nome', { exact: true }).fill('Hipnose clínica');
+  const units = dialog.getByLabel('Como chamar as partes do curso', { exact: true });
+  await expect(units.locator('option:checked')).toHaveText('Automático · matérias');
+  await dialog.getByLabel('Tipo', { exact: true }).selectOption('livre');
+  await expect(units).toHaveValue('auto');
+  await expect(units.locator('option:checked')).toHaveText('Automático · módulos');
+  await expect(dialog.getByText('Vai aparecer como “Adicionar módulo” e “2 módulos”.', { exact: true })).toBeVisible();
+  await dialog.getByLabel('Instituição · opcional', { exact: true }).fill('Instituto de teste');
+  await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Hipnose clínica', level: 1 })).toBeVisible();
+  await expect(page.getByText('Curso livre · Instituto de teste', { exact: true })).toBeVisible();
+  await expect(page.getByText('0 módulos', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar módulo', exact: true }).click();
+  await expect(dialog.getByRole('heading', { name: 'Adicionar módulo', exact: true })).toBeVisible();
+  await dialog.getByLabel('Nome', { exact: true }).fill('Indução hipnótica');
+  await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Indução hipnótica', exact: true })).toBeVisible();
+  await expect(page.getByText('1 módulo', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Editar módulo: Indução hipnótica', exact: true })).toBeVisible();
+  const created = await stored();
+  expect(created.courses).toEqual([expect.objectContaining({ name: 'Hipnose clínica', kind: 'livre', institution: 'Instituto de teste', status: 'active' })]);
+  expect(created.courses[0].units).toBeUndefined();
+  expect(created.editorGeneration).toBe(7);
+
+  await page.getByRole('button', { name: 'Editar curso', exact: true }).click();
+  await expect(dialog.getByRole('heading', { name: 'Editar curso', exact: true })).toBeVisible();
+  await units.selectOption('custom');
+  await dialog.getByLabel('No singular', { exact: true }).fill('encontro');
+  await dialog.getByLabel('No plural', { exact: true }).fill('encontros');
+  await expect(dialog.getByText('Vai aparecer como “Adicionar encontro” e “2 encontros”.', { exact: true })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Adicionar encontro', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Adicionar módulo', exact: true })).toHaveCount(0);
+  await expect(page.getByText('1 encontro', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Editar encontro: Indução hipnótica', exact: true })).toBeVisible();
+  await expect.poll(async () => (await stored()).courses[0].units).toEqual({ singular: 'encontro', plural: 'encontros' });
+
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Hipnose clínica', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Todos os estudos', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Meus estudos', level: 1 })).toBeVisible();
+  const card = page.locator('.course-card').filter({ hasText: 'Hipnose clínica' });
+  await expect(card).toContainText('1 encontro');
+  await card.getByRole('button', { name: 'Editar curso: Hipnose clínica', exact: true }).click();
+  await expect(units).toHaveValue('custom');
+  await expect(dialog.getByLabel('No plural', { exact: true })).toHaveValue('encontros');
+  await units.selectOption({ label: 'Aulas' });
+  await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(card).toContainText('1 aula');
+  await card.getByRole('button', { name: 'Editar curso: Hipnose clínica', exact: true }).click();
+  await units.selectOption('auto');
+  await dialog.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(card).toContainText('1 módulo');
+  await expect.poll(async () => 'units' in (await stored()).courses[0]).toBe(false);
+});
+
+test('espaço antigo sem cursos abre Estudos em "Meu curso" e só grava a migração na próxima edição', async ({ page }) => {
+  const legacy = { version: 1, editorGeneration: 5,
+    subjects: [{ id: 'etica', name: 'Ética profissional', semester: 3, color: 'lavender' }, { id: 'social', name: 'Psicologia social', semester: 3, color: 'sand', professor: 'Ana Souza' }],
+    tasks: [{ id: 'tarefa', title: 'Ler o código de ética', subjectId: 'etica', date: '2026-09-29', kind: 'Estudo', minutes: 25, done: false }],
+    notes: [{ id: 'nota', title: 'Resumo antigo', subjectId: 'social', content: '<p>Texto antigo</p>', updatedAt: '2026-09-22T12:00:00Z' }],
+    sessions: [], classes: [{ id: 'aula', subjectId: 'etica', weekday: 2, startTime: '19:00', intervalWeeks: 1, location: 'Sala 4', enabled: true }] };
+  const raw = JSON.stringify(legacy);
+  await page.addInitScript(value => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', value); }, raw);
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  await expect(page.locator('.bento-metric-card').filter({ hasText: 'Estudos ativos' })).toContainText('Meu curso');
+  await nav.getByRole('button', { name: 'Estudos', exact: true }).click();
+  const card = page.locator('.course-card').filter({ hasText: 'Meu curso' });
+  await expect(card).toContainText('Graduação');
+  await expect(card).toContainText('2 matérias');
+  await card.getByRole('heading', { name: 'Meu curso', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Meu curso', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Ética profissional', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Psicologia social', exact: true })).toBeVisible();
+  await expect(page.getByText('3º sem.', { exact: true })).toHaveCount(2);
+  expect(await page.evaluate(() => localStorage.getItem('faculdade-psi:personal:v1'))).toBe(raw);
+  await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
+  await expect(page.locator('#note-subject optgroup[label="Meu curso"] option')).toHaveText(['Ética profissional', 'Psicologia social']);
+  await page.getByLabel('Título da anotação', { exact: true }).fill('Resumo revisado');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Resumo revisado');
+  await page.reload();
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
+  expect(saved.editorGeneration).toBe(7);
+  expect(saved.courses).toEqual([{ id: 'curso-principal', name: 'Meu curso', kind: 'graduacao', color: 'lavender', status: 'active' }]);
+  expect(saved.subjects).toEqual(legacy.subjects.map(subject => ({ ...subject, courseId: 'curso-principal' })));
+  expect(saved.tasks).toEqual(legacy.tasks);
+  expect(saved.classes).toEqual(legacy.classes);
+  expect(saved.notes.map((note: { id: string; subjectId: string }) => [note.id, note.subjectId])).toEqual([['nota', 'social']]);
+  await nav.getByRole('button', { name: 'Estudos', exact: true }).click();
+  await expect(page.locator('.course-card').filter({ hasText: 'Meu curso' })).toContainText('2 matérias');
+});
+
+test('link antigo #subjects abre Estudos', async ({ page }) => {
+  await page.goto('/#subjects');
+  await expect(page.getByRole('heading', { name: 'Meus estudos', level: 1 })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Estudos', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('button', { name: 'Novo curso', exact: true })).toBeVisible();
+});
+
+test('voltar do Android em um curso retorna para a lista de Estudos', async ({ page }) => {
+  const data = { version: 1, editorGeneration: 7, courses: [{ id: 'idiomas', name: 'Inglês instrumental', kind: 'idioma', color: 'blue', status: 'active' }],
+    subjects: [{ id: 'leitura', name: 'Leitura técnica', color: 'blue', courseId: 'idiomas' }], tasks: [], notes: [], sessions: [] };
+  await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(data));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const list = page.getByRole('heading', { name: 'Em andamento', level: 2 });
+  const hero = page.getByRole('heading', { name: 'Inglês instrumental', level: 1 });
+  await page.locator('.subjects-section').getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await expect(hero).toBeVisible();
+  await expect(page.getByText('1 módulo', { exact: true })).toBeVisible();
+  await expect(page).toHaveTitle('Inglês instrumental · Jornada Plena');
+  await page.goBack();
+  await expect(hero).toBeHidden();
+  await expect(list).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Ir para Estudos', exact: true }).click();
+  await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await expect(hero).toBeVisible();
+  await page.getByRole('button', { name: 'Voltar para Estudos', exact: true }).click();
+  await expect(list).toBeVisible();
+  await expect(hero).toBeHidden();
+  await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await expect(hero).toBeVisible();
+  await page.goBack();
+  await expect(list).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ir para Estudos', exact: true })).toHaveAttribute('aria-current', 'page');
+  // Recarregar dentro de um curso mantém o curso, e voltar ainda leva para a lista.
+  await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await expect(hero).toBeVisible();
+  await page.reload();
+  await expect(hero).toBeVisible();
+  await page.goBack();
+  await expect(hero).toBeHidden();
+  await expect(list).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+});
+
+const twoCourses = { version: 1, editorGeneration: 7,
+  courses: [{ id: 'idiomas', name: 'Inglês instrumental', kind: 'idioma', color: 'blue', status: 'active' }, { id: 'psico', name: 'Psicologia', kind: 'graduacao', color: 'rose', status: 'active' }],
+  subjects: [{ id: 'leitura', name: 'Leitura técnica', color: 'blue', courseId: 'idiomas' }], tasks: [], notes: [], sessions: [] };
+
+test('link direto #subjects: voltar de um curso leva à lista, sem recarregar a página', async ({ page }) => {
+  await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(twoCourses));
+  await page.goto('/#subjects');
+  await expect(page).toHaveURL(/#studies$/);
+  const list = page.getByRole('heading', { name: 'Em andamento', level: 2 });
+  const hero = page.getByRole('heading', { name: 'Inglês instrumental', level: 1 });
+  await expect(list).toBeVisible();
+  await page.evaluate(() => { (window as unknown as { marker: number }).marker = 1; });
+  await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await expect(hero).toBeVisible();
+  await page.goBack();
+  await expect(list).toBeVisible();
+  await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await page.getByRole('button', { name: 'Todos os estudos', exact: true }).click();
+  await expect(list).toBeVisible();
+  await expect(page.locator('#main')).toBeFocused();
+  expect(await page.evaluate(() => (window as unknown as { marker?: number }).marker)).toBe(1);
+});
+
+test('formulários abertos num curso não deixam toques mortos no voltar e mudar de curso avisa', async ({ page }) => {
+  await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(twoCourses));
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  const list = page.getByRole('heading', { name: 'Em andamento', level: 2 });
+  const hero = page.getByRole('heading', { name: 'Inglês instrumental', level: 1 });
+  await nav.getByRole('button', { name: 'Estudos', exact: true }).click();
+  await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await page.getByRole('button', { name: 'Adicionar módulo', exact: true }).click();
+  await page.getByLabel('Nome', { exact: true }).fill('Vocabulário');
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Vocabulário', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar módulo', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.getByRole('button', { name: 'Editar curso', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(hero).toBeVisible();
+  await page.getByRole('button', { name: 'Adicionar módulo', exact: true }).click();
+  await page.getByLabel('Nome', { exact: true }).fill('Fundamentos');
+  await page.getByLabel('Curso', { exact: true }).selectOption('psico');
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'Adicionar matéria', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: '“Fundamentos” agora está em Psicologia.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Fundamentos', exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Voltar para Estudos', exact: true }).click();
+  await expect(list).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await page.goForward();
+  await expect(list).toBeVisible();
+  await page.goForward();
+  await expect(hero).toBeVisible();
+});
+
+test('excluir curso vazio volta para a lista e curso com partes explica como excluir', async ({ page }) => {
+  await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(twoCourses));
+  await page.goto('/#studies');
+  const list = page.getByRole('heading', { name: 'Em andamento', level: 2 });
+  await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
+  await page.getByRole('button', { name: 'Editar curso', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Excluir curso', exact: true })).toBeDisabled();
+  await expect(page.getByText('Para excluir, primeiro leve as partes deste curso (módulos) para outro curso, pelo campo Curso de cada uma.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await page.getByRole('button', { name: 'Voltar para Estudos', exact: true }).click();
+  await page.getByRole('heading', { name: 'Psicologia', exact: true }).click();
+  await page.getByRole('button', { name: 'Editar curso', exact: true }).click();
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Excluir curso', exact: true }).click();
+  await expect(list).toBeVisible();
+  await expect(page.locator('#main')).toBeFocused();
+  await expect(page.locator('.course-card')).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).courses.map((item: { id: string }) => item.id))).toEqual(['idiomas']);
+  await page.goForward();
+  await expect(list).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Psicologia', exact: true })).toHaveCount(0);
+});
+
+test('restaurar backup antigo com matérias cria "Meu curso" na geração 7', async ({ page }) => {
+  await page.goto('/#settings');
+  const backup = { version: 1, editorGeneration: 5, subjects: [{ id: 'etica', name: 'Ética profissional', semester: 3, color: 'lavender' }], tasks: [], notes: [], sessions: [] };
+  await page.getByLabel('Selecionar backup JSON', { exact: true }).setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
+  await page.getByRole('button', { name: 'Confirmar restauração', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1') ?? '{}').editorGeneration)).toBe(7);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
+  expect(saved.courses.map((item: { id: string }) => item.id)).toEqual(['curso-principal']);
+  expect(saved.subjects).toEqual([{ ...backup.subjects[0], courseId: 'curso-principal' }]);
 });
 
 test('planejamento: fluxo completo de meta, projeto ligado, tarefas, 50% operacional e separação conceitual', async ({ page }) => {
@@ -764,4 +1014,3 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     await expect(projModal).not.toBeVisible();
   }
 });
-

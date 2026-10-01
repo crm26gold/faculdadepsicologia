@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { addDays, dateKey, demoWorkspace, emptyWorkspace, parseWorkspace, priorityTasks, workspaceSchema } from '../src/lib/workspace';
+import { addDays, CURRENT_EDITOR_GENERATION, dateKey, demoWorkspace, emptyWorkspace, parseWorkspace, priorityTasks, workspaceSchema } from '../src/lib/workspace';
 
 const today = '2030-01-07';
 
@@ -11,13 +11,15 @@ test('espaço privado começa totalmente vazio e sem metadados de migração', (
   assert.deepEqual(parseWorkspace(JSON.stringify(personal)), personal);
 });
 
-test('demo contém três matérias genéricas sem nomes de professores', () => {
+test('demo contém um curso com três matérias genéricas sem nomes de professores', () => {
   const data = demoWorkspace(today);
   assert.equal(workspaceSchema.safeParse(data).success, true);
+  assert.equal(data.editorGeneration, CURRENT_EDITOR_GENERATION);
+  assert.deepEqual(data.courses, [{ id: 'psicologia', name: 'Psicologia', kind: 'graduacao', stage: '1º semestre', color: 'rose', status: 'active' }]);
   assert.deepEqual(data.subjects, [
-    { id: 'intro', name: 'Introdução à Psicologia', semester: 1, color: 'sage' },
-    { id: 'neuro', name: 'Bases Biológicas', semester: 1, color: 'lavender' },
-    { id: 'desenv', name: 'Psicologia do Desenvolvimento', semester: 1, color: 'sand' },
+    { id: 'intro', name: 'Introdução à Psicologia', semester: 1, color: 'sage', courseId: 'psicologia' },
+    { id: 'neuro', name: 'Bases Biológicas', semester: 1, color: 'lavender', courseId: 'psicologia' },
+    { id: 'desenv', name: 'Psicologia do Desenvolvimento', semester: 1, color: 'sand', courseId: 'psicologia' },
   ]);
   assert.equal(data.subjects.some((subject) => subject.professor), false);
   assert.deepEqual(data.classes.map(({ subjectId, weekday, startTime, intervalWeeks }) => ({ subjectId, weekday, startTime, intervalWeeks })), [
@@ -46,12 +48,14 @@ test('instâncias privadas e demonstrações não compartilham objetos mutáveis
   demo.notes[0].content = '<p>Alteração de teste</p>';
   demo.classes[0].enabled = false;
   demo.term.start = today;
+  demo.courses![0].name = 'Curso de teste';
   personal.subjects.push({ id: 'private-test', name: 'Matéria privada de teste', semester: 1, color: 'sage' });
   assert.equal(another.subjects[0].name, 'Introdução à Psicologia');
   assert.equal(another.tasks[0].done, false);
   assert.notEqual(another.notes[0].content, demo.notes[0].content);
   assert.equal(another.classes[0].enabled, true);
   assert.deepEqual(another.term, {});
+  assert.equal(another.courses![0].name, 'Psicologia');
   assert.equal(another.subjects.length, 3);
   assert.equal(emptyWorkspace().subjects.length, 0);
 });
@@ -132,5 +136,8 @@ test('backup rejeita datas impossíveis e limites de coleções', () => {
     assert.throws(() => parseWorkspace(JSON.stringify({ ...data, tasks: [{ ...data.tasks[0], date }] })));
   }
   const subjects = Array.from({ length: 101 }, (_, i) => ({ ...data.subjects[0], id: `subject-${i}` }));
-  assert.equal(workspaceSchema.safeParse({ ...emptyWorkspace(), subjects }).success, false);
+  const base = { ...emptyWorkspace(), editorGeneration: data.editorGeneration, courses: data.courses };
+  assert.equal(workspaceSchema.safeParse({ ...base, subjects: subjects.slice(0, 100) }).success, true);
+  assert.equal(workspaceSchema.safeParse({ ...base, subjects }).success, false);
+  assert.equal(workspaceSchema.safeParse({ ...base, subjects: [], courses: Array.from({ length: 31 }, (_, i) => ({ ...data.courses![0], id: `course-${i}` })) }).success, false);
 });

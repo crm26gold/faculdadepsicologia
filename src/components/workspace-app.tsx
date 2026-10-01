@@ -2,8 +2,9 @@
 
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, Contact, FileText, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Users, Wallet, X } from 'lucide-react';
-import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
+import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Users, Wallet, X } from 'lucide-react';
+import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Course, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
+import { activeCourses, capitalize, courseKindLabels, courseOf, courseStatusLabels, courseUnits, ensureCourses, subjectsOfCourse, unitCount, unitPresets } from '@/lib/courses';
 import { calendarEntries, weekdays } from '@/lib/academic';
 import { useWorkspace } from './use-workspace';
 import { Modal } from './modal';
@@ -18,6 +19,8 @@ import { ProfileSettings, defaultUserProfile, type UserProfileData } from './pro
 import { QuickCaptureWidget } from './quick-capture';
 import { LegacyImport } from './legacy-import';
 import { FlashcardsDeck } from './flashcards-deck';
+import { ColorOptions, CourseFields } from './course-form';
+import { SubjectOptions } from './subject-options';
 import { PlanningPanel } from './planning-panel';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
 import { AdminPanel } from './community/admin-panel';
@@ -30,12 +33,14 @@ import { acceptedTerms, hasPro, statusLabels, upcomingBirthdays, type Contact as
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 const AcademicCalendar = dynamic(() => import('./academic-calendar'), { loading: () => <p role="status">Abrindo sua agenda…</p> });
 const StudyPlanner = dynamic(() => import('./study-planner'), { loading: () => <p role="status">Organizando sugestões…</p> });
-type View = 'today' | 'community' | 'subjects' | 'notes' | 'agenda' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
-type FormKind = 'subject' | 'task' | 'note';
+type View = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
+type FormKind = 'subject' | 'task' | 'note' | 'course';
+type FormState = { kind: FormKind; task?: Task; subject?: Subject; course?: Course; courseId?: string };
+type StudiesRoute = { kind: 'list' } | { kind: 'course'; id: string };
 const navigation = [
   { id: 'today', label: 'Meu dia', Icon: LayoutDashboard },
+  { id: 'studies', label: 'Estudos', Icon: GraduationCap },
   { id: 'community', label: 'Salas e grupos', Icon: Users },
-  { id: 'subjects', label: 'Matérias', Icon: BookOpen },
   { id: 'notes', label: 'Caderno', Icon: FileText },
   { id: 'agenda', label: 'Agenda', Icon: CalendarDays },
   { id: 'planning', label: 'Metas e projetos', Icon: Target },
@@ -48,7 +53,8 @@ const navigation = [
 ] as const;
 const proViews = new Set<View>(['planning', 'finances', 'routine']);
 const serverViews = new Set<View>(['community', 'contacts', 'admin']);
-const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', subjects: 'Minhas matérias', notes: 'Meu caderno', agenda: 'Minha agenda', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
+const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
+const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = `jornada-plena-${dateKey()}.json`; link.click();
@@ -59,7 +65,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const { data, ready, demo, status, error, blocked, update, ensureSaved } = useWorkspace(mode);
   const [view, setView] = useState<View>('today');
   const [mobileMenu, setMobileMenu] = useState(false);
-  const [form, setForm] = useState<{ kind: FormKind; task?: Task; subject?: Subject } | null>(null);
+  const [form, setForm] = useState<FormState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [selectedNote, setSelectedNote] = useState('');
@@ -76,6 +82,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [homeError, setHomeError] = useState('');
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [communityRoute, setCommunityRoute] = useState<CommunityRoute>({ kind: 'list' });
+  const [studiesRoute, setStudiesRoute] = useState<StudiesRoute>({ kind: 'list' });
   const refreshHome = useCallback(() => {
     if (!cloud) return;
     api<Home>('/api/me').then(value => { setHome(value); setHomeError(''); }).catch(reason => setHomeError(reason instanceof Error ? reason.message : 'Não foi possível carregar sua conta.'));
@@ -101,6 +108,13 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const studyMinutes = Math.floor(data.sessions.filter((session) => session.date === today).reduce((sum, session) => sum + session.minutes, 0));
   const progress = dueToday.length ? Math.round(doneToday / dueToday.length * 100) : 0;
   const subject = (id: string) => data.subjects.find((item) => item.id === id);
+  const courses = data.courses ?? [];
+  const active = activeCourses(data);
+  const studyCourse = studiesRoute.kind === 'course' ? courses.find((item) => item.id === studiesRoute.id) : undefined;
+  const unitsOf = (item: Pick<Subject, 'courseId'>) => { const course = courseOf(data, item); return course ? courseUnits(course) : unitPresets[0]; };
+  const formCourseId = form?.courseId ?? form?.subject?.courseId ?? studyCourse?.id ?? active[0]?.id ?? courses[0]?.id ?? '';
+  const studiesNames = active.slice(0, 2).map((item) => item.name).join(' · ');
+  const studiesMore = active.length > 2 ? `+${active.length - 2}` : '';
   const previewLabel = authenticated ? 'Administrador · conectado' : hostedPreview ? 'Prévia online' : 'Prévia local';
   const storageNotice = authenticated
     ? 'Conta administradora · sessão autenticada. Dados só neste navegador, sem sincronização na nuvem.'
@@ -119,15 +133,19 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     window.addEventListener('pageshow', refresh);
     return () => window.removeEventListener('pageshow', refresh);
   }, [authenticated]);
-  useEffect(() => { document.title = `${names[view]} · Jornada Plena`; }, [view]);
+  const pageName = view === 'studies' && studyCourse ? studyCourse.name : names[view];
+  useEffect(() => { document.title = `${pageName} · Jornada Plena`; }, [pageName]);
   useEffect(() => {
-    const initial = window.location.hash.slice(1) as View;
+    const initial = viewOf(window.location.hash.slice(1));
     if (initial && initial !== 'today' && names[initial]) setView(initial);
+    if (initial === 'studies' && window.history.state?.course) setStudiesRoute({ kind: 'course', id: window.history.state.course });
   }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!window.history.state || window.history.state.app !== 'jornada-plena') {
-      window.history.replaceState({ app: 'jornada-plena', view: 'today' }, '', window.location.hash || window.location.pathname);
+      // Keeps Next's own keys (a first entry without them reloads the page on Back) and the real starting view.
+      const start = viewOf(window.location.hash.slice(1));
+      window.history.replaceState({ ...window.history.state, app: 'jornada-plena', view: names[start] ? start : 'today' }, '', start === 'studies' ? '#studies' : window.location.hash || window.location.pathname);
     }
 
     const onPopState = (event: PopStateEvent) => {
@@ -148,8 +166,11 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         return;
       }
 
-      const targetView = (event.state?.view as View) || (window.location.hash.slice(1) as View) || 'today';
+      const targetView = viewOf(event.state?.view || window.location.hash.slice(1) || 'today');
       if (names[targetView]) {
+        const course = targetView === 'studies' ? event.state?.course as string | undefined : undefined;
+        if (targetView === 'studies') setStudiesRoute(course ? { kind: 'course', id: course } : { kind: 'list' });
+        if (targetView === 'studies' && (view !== 'studies' || course !== (studiesRoute.kind === 'course' ? studiesRoute.id : undefined))) requestAnimationFrame(() => main.current?.focus());
         setView(targetView);
       } else {
         setView('today');
@@ -159,7 +180,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
-  }, [form, mobileMenu, searchOpen, imported]);
+  }, [form, mobileMenu, searchOpen, imported, view, studiesRoute]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -167,55 +188,72 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     };
     document.addEventListener('keydown', shortcut);
     return () => document.removeEventListener('keydown', shortcut);
-  }, []);
+  });
 
+  // A modal's own history entry is replaced (never stacked on) when leaving it for another place.
   function navigate(next: View) {
-    if (typeof window !== 'undefined' && next !== view) {
-      window.history.pushState({ app: 'jornada-plena', view: next }, '', `#${next}`);
+    const modal = !!window.history.state?.modal;
+    if (modal || next !== view || (next === 'studies' && studiesRoute.kind === 'course')) {
+      window.history[modal ? 'replaceState' : 'pushState']({ app: 'jornada-plena', view: next }, '', `#${next}`);
     }
+    if (next === 'studies') setStudiesRoute({ kind: 'list' });
     setView(next);
     setMobileMenu(false);
     requestAnimationFrame(() => main.current?.focus());
   }
 
+  // The list entry sits below every course entry, so Back from a course always lands on Estudos.
+  function openCourse(id: string) {
+    const state = window.history.state ?? {};
+    const listed = state.view === 'studies' && !state.course;
+    if (state.modal && listed) window.history.replaceState({ app: 'jornada-plena', view: 'studies', course: id }, '', '#studies');
+    else {
+      if (state.modal || !listed) window.history[state.modal ? 'replaceState' : 'pushState']({ app: 'jornada-plena', view: 'studies' }, '', '#studies');
+      window.history.pushState({ app: 'jornada-plena', view: 'studies', course: id }, '', '#studies');
+    }
+    setStudiesRoute({ kind: 'course', id }); setView('studies'); setMobileMenu(false); setSearchOpen(false); setQuery('');
+    requestAnimationFrame(() => main.current?.focus());
+  }
+
+  function showStudies() {
+    if (window.history.state?.course) window.history.back();
+    else navigate('studies');
+    setStudiesRoute({ kind: 'list' });
+    requestAnimationFrame(() => main.current?.focus());
+  }
+
   function handleGoBack() {
     if (form) {
-      setForm(null);
+      closeForm();
       return;
     }
     if (mobileMenu) {
-      setMobileMenu(false);
+      closeMenu();
       return;
     }
     if (searchOpen) {
-      setSearchOpen(false);
+      closeSearch();
       return;
     }
-    if (view !== 'today') {
+    if (studyCourse && view === 'studies') showStudies();
+    else if (view !== 'today') {
       navigate('today');
     }
   }
 
-  function openMobileMenu() {
-    if (typeof window !== 'undefined') {
-      window.history.pushState({ app: 'jornada-plena', view, modal: 'menu' }, '', window.location.hash || `#${view}`);
-    }
-    setMobileMenu(true);
+  function pushModal(modal: 'menu' | 'form' | 'search') {
+    window.history.pushState({ app: 'jornada-plena', view, ...(view === 'studies' && studiesRoute.kind === 'course' ? { course: studiesRoute.id } : {}), modal }, '', window.location.hash || `#${view}`);
   }
+  function popModal(modal: 'menu' | 'form' | 'search') { if (window.history.state?.modal === modal) window.history.back(); }
 
-  function openForm(value: { kind: FormKind; task?: Task; subject?: Subject } | null) {
-    if (value && typeof window !== 'undefined') {
-      window.history.pushState({ app: 'jornada-plena', view, modal: 'form' }, '', window.location.hash || `#${view}`);
-    }
-    setForm(value);
-  }
+  function openMobileMenu() { pushModal('menu'); setMobileMenu(true); }
+  function closeMenu() { setMobileMenu(false); popModal('menu'); }
 
-  function openSearch() {
-    if (typeof window !== 'undefined') {
-      window.history.pushState({ app: 'jornada-plena', view, modal: 'search' }, '', window.location.hash || `#${view}`);
-    }
-    setSearchOpen(true);
-  }
+  function openForm(value: FormState) { pushModal('form'); setForm(value); }
+  function closeForm() { setForm(null); popModal('form'); }
+
+  function openSearch() { pushModal('search'); setSearchOpen(true); }
+  function closeSearch() { setSearchOpen(false); setQuery(''); popModal('search'); }
   function editNote(patch: Partial<Note>) {
     if (!activeNote) return;
     update((previous) => ({ ...previous, notes: previous.notes.map((note) => note.id === activeNote.id ? { ...note, ...patch, updatedAt: new Date().toISOString() } : note) }));
@@ -226,9 +264,20 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     const fields = new FormData(event.currentTarget);
     const text = (name: string) => String(fields.get(name) ?? '').trim();
     if (!text('title')) { setNotice('Preencha um nome antes de salvar.'); return; }
-    if (form.kind === 'subject') {
-      const value: Subject = { ...form.subject, professor: text('professor') || undefined, id: form.subject?.id ?? crypto.randomUUID(), name: text('title'), semester: Number(fields.get('semester')), color: text('color') as Subject['color'] };
+    if (form.kind === 'course') {
+      const mode = text('units');
+      const units = mode === 'custom' ? { singular: text('unitSingular'), plural: text('unitPlural') } : mode === 'auto' ? undefined : { ...unitPresets[Number(mode)] };
+      if (units && (!units.singular || !units.plural)) { setNotice('Informe como chamar as partes no singular e no plural.'); return; }
+      if (!form.course && courses.length >= 30) { setNotice('Limite de 30 cursos atingido.'); return; }
+      const value: Course = { ...form.course, id: form.course?.id ?? crypto.randomUUID(), name: text('title'), kind: text('courseKind') as Course['kind'], institution: text('institution') || undefined, stage: text('stage') || undefined, color: text('color') as Course['color'], status: text('status') as Course['status'], units };
+      if (!update((previous) => ({ ...previous, courses: form.course ? (previous.courses ?? []).map((item) => item.id === value.id ? value : item) : [...(previous.courses ?? []), value] }))) return;
+      if (!form.course) { setForm(null); setNotice(''); openCourse(value.id); return; }
+    } else if (form.kind === 'subject') {
+      const target = courses.find((item) => item.id === text('course'));
+      if (!target) { setNotice('Escolha um curso antes de salvar.'); return; }
+      const value: Subject = { ...form.subject, professor: text('professor') || undefined, id: form.subject?.id ?? crypto.randomUUID(), name: text('title'), semester: Number(fields.get('semester')) || undefined, color: text('color') as Subject['color'], courseId: target.id };
       if (!update((previous) => ({ ...previous, subjects: form.subject ? previous.subjects.map((item) => item.id === value.id ? value : item) : [...previous.subjects, value] }))) return;
+      closeForm(); setNotice(studyCourse && studyCourse.id !== target.id ? `“${value.name}” agora está em ${target.name}.` : ''); return;
     } else if (form.kind === 'task') {
       const value: Task = { ...form.task, time: text('time') || undefined, id: form.task?.id ?? crypto.randomUUID(), title: text('title'), date: text('date'), subjectId: text('subject'), areaId: text('area') || undefined, kind: text('kind') as Task['kind'], done: form.task?.done ?? false, minutes: Number(fields.get('minutes')), projectId: text('project') || undefined };
       if (!update((previous) => ({ ...previous, tasks: form.task ? previous.tasks.map((item) => item.id === value.id ? value : item) : [...previous.tasks, value] }))) return;
@@ -237,13 +286,22 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       if (!update((previous) => ({ ...previous, notes: [{ id, title: text('title'), subjectId: text('subject'), areaId: text('area') || data.notebooks?.find((book) => book.id === text('notebook'))?.areaId || (text('subject') ? 'studies' : ''), notebookId: text('notebook'), content: '<p></p>', updatedAt: new Date().toISOString() }, ...previous.notes] }))) return;
       setSelectedNote(id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes');
     }
-    setForm(null); setNotice('');
+    closeForm(); setNotice('');
   }
   function addToAgenda(title: string, date: string) {
     return update((previous) => ({ ...previous, tasks: [...previous.tasks, { id: crypto.randomUUID(), title: title.slice(0, 160), subjectId: '', date, kind: 'Trabalho', done: false, minutes: 30 }] }));
   }
   function toggleTask(task: Task) { update((previous) => ({ ...previous, tasks: previous.tasks.map((item) => item.id === task.id ? { ...item, done: !item.done } : item) })); }
   function openSubject(item: Subject) { setBookFilter(''); setAreaFilter(''); setSubjectFilter(item.id); setSelectedNote(''); navigate('notes'); }
+  function deleteCourse(course: Course) {
+    if (!window.confirm(`Excluir o curso ${course.name}? Ele está vazio e você pode cadastrá-lo de novo quando quiser.`)) return;
+    if (!update((previous) => ({ ...previous, courses: (previous.courses ?? []).filter((item) => item.id !== course.id) }))) return;
+    const state = window.history.state ?? {};
+    const steps = (state.modal === 'form' ? 1 : 0) + (state.course === course.id ? 1 : 0);
+    setForm(null); setStudiesRoute({ kind: 'list' }); setNotice('Curso excluído.');
+    if (steps) window.history.go(-steps);
+    requestAnimationFrame(() => main.current?.focus());
+  }
 
   const navContent = <>
     <div className="sidebar-header">
@@ -257,7 +315,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         </div>
         <div className="user-meta-info">
           <strong>{userProfile.name || home?.account.display_name || 'Meu espaço'}</strong>
-          <span>{[userProfile.course, userProfile.semester].filter(Boolean).join(' · ') || (home?.account.is_master ? 'Administração' : 'Meu espaço pessoal')}</span>
+          {studiesNames ? <span className="user-meta-studies" title={active.map((item) => item.name).join(' · ')}><span>{studiesNames}</span>{studiesMore && <b>{studiesMore}</b>}</span> : <span>{[userProfile.course, userProfile.semester].filter(Boolean).join(' · ') || (home?.account.is_master ? 'Administração' : 'Meu espaço pessoal')}</span>}
         </div>
       </div>
     </div>
@@ -301,8 +359,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const subjectCard = (item: Subject) => <article className={`subject-card ${item.color}`} key={item.id}>
     <div className="subject-card-top">
       <span className={`subject-symbol ${item.color}`}><BookOpen size={18} aria-hidden="true" /></span>
-      <span className={`subject-sem-tag ${item.color}`}>{item.semester}º sem.</span>
-      <button className="icon-button" aria-label={`Editar matéria: ${item.name}`} onClick={() => openForm({ kind: 'subject', subject: item })}>
+      {item.semester && <span className={`subject-sem-tag ${item.color}`}>{item.semester}º sem.</span>}
+      <button className="icon-button" aria-label={`Editar ${unitsOf(item).singular}: ${item.name}`} onClick={() => openForm({ kind: 'subject', subject: item })}>
         <MoreHorizontal size={17} aria-hidden="true" />
       </button>
     </div>
@@ -320,7 +378,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         <button
           type="button"
           className="subject-focus-btn"
-          title="Focar 25 min nesta matéria"
+          title={`Focar 25 min em ${item.name}`}
           onClick={(e) => {
             e.stopPropagation();
             setFocusRequest({ id: crypto.randomUUID(), subjectId: item.id });
@@ -336,10 +394,29 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     </div>
   </article>;
 
+  const courseCard = (course: Course) => <article className={`subject-card course-card ${course.color}`} key={course.id}>
+    <div className="subject-card-top">
+      <span className={`subject-symbol ${course.color}`}><GraduationCap size={18} aria-hidden="true" /></span>
+      <span className={`subject-sem-tag ${course.color}`}>{courseKindLabels[course.kind]}</span>
+      {course.status !== 'active' && <span className="tiny-tag">{courseStatusLabels[course.status]}</span>}
+      <button className="icon-button" aria-label={`Editar curso: ${course.name}`} disabled={blocked} onClick={() => openForm({ kind: 'course', course })}>
+        <MoreHorizontal size={17} aria-hidden="true" />
+      </button>
+    </div>
+    <button className="subject-title" onClick={() => openCourse(course.id)}>
+      <h3>{course.name}</h3>
+      <span>{[course.institution, course.stage].filter(Boolean).join(' · ') || 'Sem instituição ou etapa informada'}</span>
+    </button>
+    <div className="subject-card-footer">
+      <span><BookOpen size={12} aria-hidden="true" />{unitCount(course, subjectsOfCourse(data, course.id).length)}</span>
+      <ArrowUpRight size={17} aria-hidden="true" />
+    </div>
+  </article>;
+
   return <div className="app-shell">
     <a className="skip-link" href="#main">Pular para o conteúdo</a>
     <aside className="sidebar">{navContent}</aside>
-    {mobileMenu && <Modal title="Seu espaço" onClose={() => setMobileMenu(false)}><div className="mobile-navigation">{navContent}</div></Modal>}
+    {mobileMenu && <Modal title="Seu espaço" onClose={closeMenu}><div className="mobile-navigation">{navContent}</div></Modal>}
     <div className="app-body">
       <header className="topbar">
         <div className="breadcrumb">
@@ -350,7 +427,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             <button
               type="button"
               className="topbar-back-button"
-              aria-label="Voltar para início"
+              aria-label={view === 'studies' && studyCourse ? 'Voltar para Estudos' : 'Voltar para início'}
               onClick={handleGoBack}
             >
               <ArrowLeft size={16} aria-hidden="true" />
@@ -359,7 +436,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           )}
           <span>Meu espaço</span>
           <ChevronRight aria-hidden="true" size={14} />
-          <strong>{names[view]}</strong>
+          {view === 'studies' && studyCourse && <><span><button type="button" className="cm-crumb" onClick={showStudies}>Estudos</button></span><ChevronRight aria-hidden="true" size={14} /></>}
+          <strong>{pageName}</strong>
         </div>
         <div className="topbar-actions">
           <button className="search-trigger" aria-label="Buscar no meu espaço" onClick={openSearch}>
@@ -386,14 +464,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         <div className="page-heading">
           <div>
             <span className="eyebrow">{ready && view === 'today' ? formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Sua vida, do seu jeito'}</span>
-            <h1>{view === 'today' ? <>Um novo dia, <span>no seu ritmo.</span></> : names[view]}</h1>
-            <p>{view === 'today' ? 'Você não precisa dar conta de tudo. Vamos cuidar do próximo passo.' : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'subjects' ? 'Cada matéria, um novo universo para descobrir.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'planning' ? 'Metas apontam a direção e projetos organizam os passos práticos.' : view === 'finances' ? 'Controle seu orçamento, mensalidades e despesas com clareza.' : view === 'routine' ? 'Defina seus blocos do dia e mantenha hábitos consistentes.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : view === 'community' ? 'Conectividade com segurança: cada grupo vê só o que é seu.' : view === 'contacts' ? 'Sua agenda privada. Ninguém mais vê.' : view === 'admin' ? 'Pessoas, papéis, planos e estrutura, com histórico de tudo.' : 'Suas preferências, seus dados e suas conexões.'}</p>
+            <h1>{view === 'today' ? <>Um novo dia, <span>no seu ritmo.</span></> : pageName}</h1>
+            <p>{view === 'studies' && studyCourse ? [courseKindLabels[studyCourse.kind], studyCourse.institution, studyCourse.stage].filter(Boolean).join(' · ') : view === 'today' ? 'Você não precisa dar conta de tudo. Vamos cuidar do próximo passo.' : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'studies' ? 'Graduação, pós, cursos livres e extensões — cada um no seu lugar.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'planning' ? 'Metas apontam a direção e projetos organizam os passos práticos.' : view === 'finances' ? 'Controle seu orçamento, mensalidades e despesas com clareza.' : view === 'routine' ? 'Defina seus blocos do dia e mantenha hábitos consistentes.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : view === 'community' ? 'Conectividade com segurança: cada grupo vê só o que é seu.' : view === 'contacts' ? 'Sua agenda privada. Ninguém mais vê.' : view === 'admin' ? 'Pessoas, papéis, planos e estrutura, com histórico de tudo.' : 'Suas preferências, seus dados e suas conexões.'}</p>
           </div>
           <div className="heading-actions-row">
             {view === 'today' && <>
               <button className="button outline" onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
               <button className="button primary" onClick={() => openForm({ kind: 'note' })}><FileText size={16} aria-hidden="true" />Nova anotação</button>
             </>}
+            {ready && view === 'studies' && !studyCourse && <button className="button primary" disabled={blocked || courses.length >= 30} onClick={() => openForm({ kind: 'course' })}><Plus size={16} aria-hidden="true" />Novo curso</button>}
           </div>
         </div>
 
@@ -422,11 +501,11 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               </div>
               <div className="bento-metric-card">
                 <div className="metric-header">
-                  <span className="metric-icon blue"><BookOpen size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Matérias Ativas</span>
+                  <span className="metric-icon blue"><GraduationCap size={18} aria-hidden="true" /></span>
+                  <span className="metric-label">Estudos ativos</span>
                 </div>
-                <div className="metric-value">{data.subjects.length}</div>
-                <span className="metric-sub">{[userProfile.course, userProfile.semester].filter(Boolean).join(' · ') || 'Organize suas matérias'}</span>
+                <div className="metric-value">{active.length}</div>
+                <span className="metric-sub metric-clamp" title={active.map((item) => item.name).join(' · ') || undefined}>{studiesNames ? [studiesNames, studiesMore].filter(Boolean).join(' ') : courses.length ? 'Nenhum curso em andamento' : 'Cadastre seu primeiro curso'}</span>
               </div>
               <div className="bento-metric-card">
                 <div className="metric-header">
@@ -473,15 +552,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 {/* STUDY PLANNER COMPACT */}
                 <StudyPlanner data={data} update={update} blocked={blocked} compact onAgenda={() => navigate('agenda')} />
 
-                {/* MATÉRIAS */}
+                {/* ESTUDOS */}
                 <section className="subjects-section">
                   <div className="section-heading">
                     <h2>Meus universos de estudo</h2>
-                    <button className="text-button" onClick={() => navigate('subjects')}>Ver matérias <ArrowRight size={13} aria-hidden="true" /></button>
+                    <button className="text-button" onClick={() => navigate('studies')}>Ver estudos <ArrowRight size={13} aria-hidden="true" /></button>
                   </div>
                   <div className="subject-grid">
-                    {data.subjects.slice(0, 3).map(subjectCard)}
-                    {!data.subjects.length && <button className="add-subject-card" onClick={() => openForm({ kind: 'subject' })}><Plus aria-hidden="true" />Adicionar minha primeira matéria</button>}
+                    {active.slice(0, 3).map(courseCard)}
+                    {!active.length && <button className="add-subject-card" disabled={blocked || courses.length >= 30} onClick={() => openForm({ kind: 'course' })}><Plus aria-hidden="true" />{courses.length ? 'Cadastrar outro curso' : 'Cadastrar meu primeiro curso'}</button>}
                   </div>
                 </section>
               </div>
@@ -517,24 +596,40 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             </div>
           </>}
 
-          {view === 'subjects' && (
-            <section>
-              <div className="section-heading">
-                <span className="muted">{data.subjects.length} matérias organizadas</span>
-                <button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'subject' })}>
-                  <Plus size={16} aria-hidden="true" /> Nova matéria
-                </button>
+          {view === 'studies' && (studyCourse ? (
+            <section className="cm-page">
+              <div className="cm-crumbs"><button className="text-button" onClick={showStudies}><ArrowLeft size={14} aria-hidden="true" /> Todos os estudos</button></div>
+              <div className={`cm-hero course-bar ${studyCourse.color}`}>
+                <div>
+                  <span className="eyebrow">Curso{studyCourse.status !== 'active' ? ` · ${courseStatusLabels[studyCourse.status].toLowerCase()}` : ''}</span>
+                  <p>{unitCount(studyCourse, subjectsOfCourse(data, studyCourse.id).length)}</p>
+                </div>
+                <div className="button-row"><button className="button outline" disabled={blocked} onClick={() => openForm({ kind: 'course', course: studyCourse })}><Settings2 size={16} aria-hidden="true" />Editar curso</button></div>
               </div>
               <div className="subject-grid expanded">
-                {data.subjects.map(subjectCard)}
-                <button className="add-subject-card" disabled={blocked} onClick={() => openForm({ kind: 'subject' })}>
-                  <Plus aria-hidden="true" /> Um novo universo de estudo
+                {subjectsOfCourse(data, studyCourse.id).map(subjectCard)}
+                <button className="add-subject-card" disabled={blocked || data.subjects.length >= 100} onClick={() => openForm({ kind: 'subject', courseId: studyCourse.id })}>
+                  <Plus aria-hidden="true" /> Adicionar {courseUnits(studyCourse).singular}
                 </button>
               </div>
             </section>
-          )}
+          ) : (
+            <section>
+              {courses.length > 0 && <div className="section-heading"><h2>Em andamento</h2><span className="muted">{active.length === 1 ? '1 curso' : `${active.length} cursos`}</span></div>}
+              <div className="subject-grid expanded">
+                {active.map(courseCard)}
+                <button className="add-subject-card" disabled={blocked || courses.length >= 30} onClick={() => openForm({ kind: 'course' })}>
+                  <Plus aria-hidden="true" /> {courses.length ? 'Adicionar outro curso' : 'Cadastrar meu primeiro curso'}
+                </button>
+              </div>
+              {courses.length > active.length && <>
+                <div className="section-heading studies-secondary"><h2>Pausados e concluídos</h2></div>
+                <div className="subject-grid expanded">{courses.filter((item) => item.status !== 'active').map(courseCard)}</div>
+              </>}
+            </section>
+          ))}
 
-          {view === 'notes' && <section className="notebook-layout"><aside className="note-index"><MobileDisclosure label="Cadernos, filtros e anotações"><div className="section-heading"><h2>Anotações</h2><button className="icon-button" disabled={blocked} aria-label="Nova anotação" onClick={() => openForm({ kind: 'note' })}><Plus size={19} aria-hidden="true" /></button></div><label className="sr-only" htmlFor="note-filter">Filtrar anotações por matéria</label><select id="note-filter" value={subjectFilter} onChange={(event) => { setSubjectFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as matérias e pessoais</option><option value="__personal">Pessoais · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><div className="life-fields"><label htmlFor="note-area-filter">Filtrar área</label><select id="note-area-filter" value={areaFilter} onChange={(event) => { setAreaFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as áreas</option><option value="__none">Sem área</option>{lifeAreas(data).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select><label htmlFor="notebook-filter">Filtrar caderno</label><select id="notebook-filter" value={bookFilter} onChange={(event) => { setBookFilter(event.target.value); setSelectedNote(''); }}><option value="">Todos os cadernos</option><option value="__none">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select><button className="text-button" onClick={() => navigate('settings')}>Gerenciar áreas e cadernos</button></div><div className="note-list">{visibleNotes.map((note) => <button key={note.id} className={`note-list-item ${activeNote?.id === note.id ? 'selected' : ''}`} onClick={() => setSelectedNote(note.id)}><FileText size={16} aria-hidden="true" /><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></span></button>)}</div></MobileDisclosure></aside><div className="note-paper">{activeNote ? <><div className="note-meta"><button type="button" className="note-return-btn" onClick={handleGoBack} aria-label="Voltar para início"><ArrowLeft size={13} aria-hidden="true" /> Voltar</button><span><LockKeyhole size={13} aria-hidden="true" />{demo ? 'Exemplo temporário' : mode === 'local' ? 'Armazenamento local' : 'Anotação pessoal'}</span><span role="status">{status}</span></div><label htmlFor="note-title" className="sr-only">Título da anotação</label><input id="note-title" className="note-title-input" value={activeNote.title} maxLength={160} disabled={blocked} onChange={(event) => editNote({ title: event.target.value })} placeholder="Sem título" /><MobileDisclosure label="Organizar esta anotação"><label className="sr-only" htmlFor="note-subject">Matéria da anotação</label><select id="note-subject" className="note-subject-select" value={activeNote.subjectId} disabled={blocked} onChange={(event) => editNote({ subjectId: event.target.value })}><option value="">Pessoal · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select><NoteOrganization data={data} note={activeNote} blocked={blocked} onChange={editNote} /></MobileDisclosure><NoteEditor demo={demo} noteId={activeNote.id} cloud={mode === 'cloud'} key={activeNote.id} content={activeNote.content} disabled={blocked} onChange={(content) => editNote({ content })} /></> : <div className="empty-state"><FileText size={40} aria-hidden="true" /><h2>Sua próxima ideia mora aqui.</h2><p>Crie uma anotação para começar a escrever.</p><button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'note' })}>Criar anotação <Plus size={16} aria-hidden="true" /></button></div>}</div></section>}
+          {view === 'notes' && <section className="notebook-layout"><aside className="note-index"><MobileDisclosure label="Cadernos, filtros e anotações"><div className="section-heading"><h2>Anotações</h2><button className="icon-button" disabled={blocked} aria-label="Nova anotação" onClick={() => openForm({ kind: 'note' })}><Plus size={19} aria-hidden="true" /></button></div><label className="sr-only" htmlFor="note-filter">Filtrar anotações por matéria</label><select id="note-filter" value={subjectFilter} onChange={(event) => { setSubjectFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as matérias e pessoais</option><option value="__personal">Pessoais · sem matéria</option><SubjectOptions data={data} /></select><div className="life-fields"><label htmlFor="note-area-filter">Filtrar área</label><select id="note-area-filter" value={areaFilter} onChange={(event) => { setAreaFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as áreas</option><option value="__none">Sem área</option>{lifeAreas(data).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select><label htmlFor="notebook-filter">Filtrar caderno</label><select id="notebook-filter" value={bookFilter} onChange={(event) => { setBookFilter(event.target.value); setSelectedNote(''); }}><option value="">Todos os cadernos</option><option value="__none">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select><button className="text-button" onClick={() => navigate('settings')}>Gerenciar áreas e cadernos</button></div><div className="note-list">{visibleNotes.map((note) => <button key={note.id} className={`note-list-item ${activeNote?.id === note.id ? 'selected' : ''}`} onClick={() => setSelectedNote(note.id)}><FileText size={16} aria-hidden="true" /><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></span></button>)}</div></MobileDisclosure></aside><div className="note-paper">{activeNote ? <><div className="note-meta"><button type="button" className="note-return-btn" onClick={handleGoBack} aria-label="Voltar para início"><ArrowLeft size={13} aria-hidden="true" /> Voltar</button><span><LockKeyhole size={13} aria-hidden="true" />{demo ? 'Exemplo temporário' : mode === 'local' ? 'Armazenamento local' : 'Anotação pessoal'}</span><span role="status">{status}</span></div><label htmlFor="note-title" className="sr-only">Título da anotação</label><input id="note-title" className="note-title-input" value={activeNote.title} maxLength={160} disabled={blocked} onChange={(event) => editNote({ title: event.target.value })} placeholder="Sem título" /><MobileDisclosure label="Organizar esta anotação"><label className="sr-only" htmlFor="note-subject">Matéria da anotação</label><select id="note-subject" className="note-subject-select" value={activeNote.subjectId} disabled={blocked} onChange={(event) => editNote({ subjectId: event.target.value })}><option value="">Pessoal · sem matéria</option><SubjectOptions data={data} /></select><NoteOrganization data={data} note={activeNote} blocked={blocked} onChange={editNote} /></MobileDisclosure><NoteEditor demo={demo} noteId={activeNote.id} cloud={mode === 'cloud'} key={activeNote.id} content={activeNote.content} disabled={blocked} onChange={(content) => editNote({ content })} /></> : <div className="empty-state"><FileText size={40} aria-hidden="true" /><h2>Sua próxima ideia mora aqui.</h2><p>Crie uma anotação para começar a escrever.</p><button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'note' })}>Criar anotação <Plus size={16} aria-hidden="true" /></button></div>}</div></section>}
 
           {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
@@ -555,6 +650,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'settings' && <>
             {cloud && home && <AccountSettings home={home} refreshHome={refreshHome} />}
             {!demo && <LegacyImport data={data} update={update} blocked={blocked} />}
+            {!demo && <input className="sr-only" tabIndex={-1} ref={fileInput} type="file" accept=".json,application/json" aria-label="Selecionar backup JSON" onChange={async (event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; try { if (file.size > 2_000_000) throw new Error(); setImported(parseWorkspace(await file.text())); } catch { setNotice('Backup inválido ou maior que 2 MB. Nada foi alterado.'); } }} />}
             <ProfileSettings
               data={data}
               update={update}
@@ -571,15 +667,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status} · v0.2</span></footer>
       </main>
       <nav className="mobile-tabbar" aria-label="Atalhos mobile">
-        {navigation.filter((item) => ['today', ...(cloud ? ['community'] : []), 'notes', 'agenda'].includes(item.id)).map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : label}</span></button>)}
-        <button type="button" aria-label="Ver todas as áreas" aria-expanded={mobileMenu} onClick={() => setMobileMenu(true)}><Menu size={21} aria-hidden="true" /><span>Mais</span></button>
+        {navigation.filter((item) => ['today', 'studies', cloud ? 'community' : 'notes', 'agenda'].includes(item.id)).map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : label}</span></button>)}
+        <button type="button" aria-label="Ver todas as áreas" aria-expanded={mobileMenu} onClick={openMobileMenu}><Menu size={21} aria-hidden="true" /><span>Mais</span></button>
       </nav>
     </div>
 
-    {form && <Modal title={form.kind === 'subject' ? form.subject ? 'Editar matéria' : 'Uma nova matéria' : form.kind === 'task' ? form.task ? 'Editar compromisso' : 'Um novo passo' : 'Capture uma ideia'} onClose={() => setForm(null)}><form onSubmit={submitForm} className="entry-form"><label htmlFor="entry-title">{form.kind === 'subject' ? 'Nome da matéria' : form.kind === 'task' ? 'O que você quer fazer?' : 'Título da anotação'}</label><input id="entry-title" name="title" required autoFocus maxLength={form.kind === 'subject' ? 100 : 160} defaultValue={form.subject?.name ?? form.task?.title ?? ''} placeholder={form.kind === 'subject' ? 'Ex.: Psicologia Social' : form.kind === 'task' ? 'Um pequeno passo já conta' : 'Dê um nome à sua ideia'} />{form.kind === 'subject' ? <><label htmlFor="entry-professor">Professor(a) · opcional</label><input id="entry-professor" name="professor" maxLength={100} defaultValue={form.subject?.professor ?? ''} /><label htmlFor="entry-semester">Semestre</label><input id="entry-semester" name="semester" type="number" min={1} max={20} defaultValue={form.subject?.semester ?? 1} required /><fieldset className="color-options"><legend>Cor da matéria</legend>{colors.map((color, index) => <label key={color} className={color}><input type="radio" name="color" value={color} defaultChecked={(form.subject?.color ?? 'sage') === color} />{['Verde', 'Lilás', 'Areia', 'Azul', 'Rosa'][index]}</label>)}</fieldset></> : <><label htmlFor="entry-area">Área da vida · opcional</label><AreaSelect id="entry-area" name="area" data={data} value={form.task ? itemArea(form.task) : subjectFilter && subjectFilter !== '__personal' ? 'studies' : ''} />{form.kind === 'note' && <><label htmlFor="entry-notebook">Caderno · opcional</label><select id="entry-notebook" name="notebook" defaultValue={bookFilter === '__none' ? '' : bookFilter}><option value="">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select></>}<label htmlFor="entry-subject">Matéria · opcional</label><select id="entry-subject" name="subject" defaultValue={form.task?.subjectId ?? (subjectFilter === '__personal' ? '' : subjectFilter)}><option value="">Pessoal · sem matéria</option>{data.subjects.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{form.kind === 'task' && <><label htmlFor="entry-project">Projeto · opcional</label><select id="entry-project" name="project" defaultValue={form.task?.projectId ?? ''}><option value="">Sem projeto</option>{data.projects?.filter((p) => p.status !== 'archived' || p.id === form.task?.projectId).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select><div className="form-grid"><div><label htmlFor="entry-date">Data</label><input id="entry-date" name="date" type="date" required defaultValue={form.task?.date ?? (view === 'agenda' ? agendaDate : today)} /></div><div><label htmlFor="entry-minutes">Tempo estimado (min)</label><input id="entry-minutes" name="minutes" type="number" min={5} max={240} required defaultValue={form.task?.minutes ?? 25} /></div></div><label htmlFor="entry-time">Horário · opcional</label><input id="entry-time" name="time" type="time" defaultValue={form.task?.time ?? ''} /><label htmlFor="entry-kind">Tipo</label><select id="entry-kind" name="kind" defaultValue={form.task?.kind ?? 'Compromisso'}>{taskKinds.map((kind) => <option key={kind}>{kind}</option>)}</select></>}</>}<div className="form-footer"><button type="button" className="button outline" onClick={() => setForm(null)}>Cancelar</button><button className="button primary" disabled={blocked}>Salvar <Check size={17} aria-hidden="true" /></button></div></form></Modal>}
+    {form && <Modal title={form.kind === 'course' ? form.course ? 'Editar curso' : 'Novo curso' : form.kind === 'subject' ? `${form.subject ? 'Editar' : 'Adicionar'} ${unitsOf({ courseId: formCourseId }).singular}` : form.kind === 'task' ? form.task ? 'Editar compromisso' : 'Um novo passo' : 'Capture uma ideia'} onClose={closeForm}><form onSubmit={submitForm} className="entry-form"><label htmlFor="entry-title">{form.kind === 'subject' || form.kind === 'course' ? 'Nome' : form.kind === 'task' ? 'O que você quer fazer?' : 'Título da anotação'}</label><input id="entry-title" name="title" required autoFocus maxLength={form.kind === 'subject' || form.kind === 'course' ? 100 : 160} defaultValue={form.course?.name ?? form.subject?.name ?? form.task?.title ?? ''} placeholder={form.kind === 'course' ? 'Ex.: Psicologia, Hipnose clínica, Pós em Pedagogia' : form.kind === 'subject' ? 'Ex.: Psicologia Social, Fundamentos, Módulo 1' : form.kind === 'task' ? 'Um pequeno passo já conta' : 'Dê um nome à sua ideia'} />{form.kind === 'course' ? <CourseFields course={form.course} color={colors.find((color) => !courses.some((item) => item.color === color)) ?? 'sage'} /> : form.kind === 'subject' ? <><label htmlFor="entry-course">Curso</label><select id="entry-course" name="course" required value={formCourseId} onChange={(event) => setForm({ ...form, courseId: event.target.value })}>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}{item.status !== 'active' ? ` · ${courseStatusLabels[item.status].toLowerCase()}` : ''}</option>)}</select><label htmlFor="entry-professor">Professor(a) · opcional</label><input id="entry-professor" name="professor" maxLength={100} defaultValue={form.subject?.professor ?? ''} /><label htmlFor="entry-semester">Semestre · opcional</label><input id="entry-semester" name="semester" type="number" min={1} max={20} defaultValue={form.subject?.semester ?? ''} /><ColorOptions legend="Cor" value={form.subject?.color ?? 'sage'} /></> : <><label htmlFor="entry-area">Área da vida · opcional</label><AreaSelect id="entry-area" name="area" data={data} value={form.task ? itemArea(form.task) : subjectFilter && subjectFilter !== '__personal' ? 'studies' : ''} />{form.kind === 'note' && <><label htmlFor="entry-notebook">Caderno · opcional</label><select id="entry-notebook" name="notebook" defaultValue={bookFilter === '__none' ? '' : bookFilter}><option value="">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select></>}<label htmlFor="entry-subject">Matéria · opcional</label><select id="entry-subject" name="subject" defaultValue={form.task?.subjectId ?? (subjectFilter === '__personal' ? '' : subjectFilter)}><option value="">Pessoal · sem matéria</option><SubjectOptions data={data} /></select>{form.kind === 'task' && <><label htmlFor="entry-project">Projeto · opcional</label><select id="entry-project" name="project" defaultValue={form.task?.projectId ?? ''}><option value="">Sem projeto</option>{data.projects?.filter((p) => p.status !== 'archived' || p.id === form.task?.projectId).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select><div className="form-grid"><div><label htmlFor="entry-date">Data</label><input id="entry-date" name="date" type="date" required defaultValue={form.task?.date ?? (view === 'agenda' ? agendaDate : today)} /></div><div><label htmlFor="entry-minutes">Tempo estimado (min)</label><input id="entry-minutes" name="minutes" type="number" min={5} max={240} required defaultValue={form.task?.minutes ?? 25} /></div></div><label htmlFor="entry-time">Horário · opcional</label><input id="entry-time" name="time" type="time" defaultValue={form.task?.time ?? ''} /><label htmlFor="entry-kind">Tipo</label><select id="entry-kind" name="kind" defaultValue={form.task?.kind ?? 'Compromisso'}>{taskKinds.map((kind) => <option key={kind}>{kind}</option>)}</select></>}</>}{form.course && subjectsOfCourse(data, form.course.id).length > 0 && <p id="course-delete-help" className="form-hint">Para excluir, primeiro leve as partes deste curso ({courseUnits(form.course).plural}) para outro curso, pelo campo Curso de cada uma.</p>}<div className="form-footer">{form.course && <button type="button" className="button outline cm-danger" disabled={blocked || subjectsOfCourse(data, form.course.id).length > 0} aria-describedby={subjectsOfCourse(data, form.course.id).length ? 'course-delete-help' : undefined} onClick={() => deleteCourse(form.course!)}>Excluir curso</button>}<button type="button" className="button outline" onClick={closeForm}>Cancelar</button><button className="button primary" disabled={blocked}>Salvar <Check size={17} aria-hidden="true" /></button></div></form></Modal>}
 
-    {searchOpen && <Modal title="Encontre no seu espaço" onClose={() => { setSearchOpen(false); setQuery(''); }}><label className="sr-only" htmlFor="workspace-search">Buscar matérias, anotações e tarefas</label><input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Uma matéria, uma ideia, um compromisso…" /><div className="search-results">{!query.trim() ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>{data.subjects.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>Matéria</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.notes.filter((item) => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setSelectedNote(item.id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.tasks.filter((item) => item.title.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}<p className="search-end">Fim dos resultados para “{query}”.</p></>}</div></Modal>}
-    {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => imported); setImported(null); setSelectedNote(''); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
+    {searchOpen && <Modal title="Encontre no seu espaço" onClose={closeSearch}><label className="sr-only" htmlFor="workspace-search">Buscar cursos, matérias, anotações e tarefas</label><input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Um curso, uma matéria, uma ideia, um compromisso…" /><div className="search-results">{!query.trim() ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>{courses.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => openCourse(item.id)}><GraduationCap size={17} aria-hidden="true" /><span>{item.name}<small>Curso</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.subjects.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>{capitalize(unitsOf(item).singular)}{courseOf(data, item) ? ` · ${courseOf(data, item)!.name}` : ''}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.notes.filter((item) => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setSelectedNote(item.id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.tasks.filter((item) => item.title.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}<p className="search-end">Fim dos resultados para “{query}”.</p></>}</div></Modal>}
+    {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
     {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
     {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
   </div>;
@@ -596,5 +692,5 @@ function ServerOnly({ view, cloud, error }: { view: 'community' | 'contacts' | '
 
 function ProOnly() {
   return <div className="empty-state"><Sparkles size={40} aria-hidden="true" /><h2>Este bloco faz parte do Pro</h2>
-    <p>No plano Acadêmico você usa tudo da faculdade: matérias, caderno, agenda, foco, flashcards, salas e trabalhos em grupo.<br />Finanças, rotina e metas completam a sua Jornada Plena no Pro.</p></div>;
+    <p>No plano Acadêmico você usa tudo dos seus estudos: cursos, matérias, caderno, agenda, foco, flashcards, salas e trabalhos em grupo.<br />Finanças, rotina e metas completam a sua Jornada Plena no Pro.</p></div>;
 }

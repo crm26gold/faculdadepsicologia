@@ -38,6 +38,10 @@
   .subject-card { padding: 16px; }
   .subject-card-footer { font-size: .8rem; flex-wrap: wrap; gap: 8px; }
   .subject-card :is(button, a) { min-block-size: 44px; }
+  .subject-card .icon-button { min-inline-size: 44px; }
+  .cm-crumbs .text-button { min-block-size: 44px; }
+  .studies-secondary { margin-block-start: 20px; }
+  .color-options label { min-block-size: 44px; }
   .page-heading { gap: 12px; margin-block-end: 16px; }
   .heading-actions-row { inline-size: 100%; display: flex; flex-wrap: wrap; }
   .heading-actions-row .button { flex: 1 1 130px; min-block-size: 44px; white-space: normal; }
