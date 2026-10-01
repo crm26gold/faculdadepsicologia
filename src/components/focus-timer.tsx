@@ -19,6 +19,9 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
   const [target, setTarget] = useState(0);
   const [now, setNow] = useState(0);
   const handled = useRef('');
+  const section = useRef<HTMLElement>(null);
+  const activityInput = useRef<HTMLInputElement>(null);
+  const [focusTick, setFocusTick] = useState(0);
   const focus = data.activeFocus;
   const running = focus?.segments.at(-1)?.end === null;
   useEffect(() => {
@@ -32,10 +35,13 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
   useEffect(() => {
     if (!request || handled.current === request.id) return;
     handled.current = request.id; setExpanded(true);
-    if (focus) return; // Never discard an existing activity's partial time.
+    requestAnimationFrame(() => section.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    if (!request.subjectId && !focus) setFocusTick(tick => tick + 1);
+    if (focus || !request.subjectId) return; // Never discard an existing activity's partial time.
     setSubjectId(request.subjectId); setAreaId('studies'); setTarget(25);
     setActivity(data.subjects.find(s => s.id === request.subjectId)?.name ?? 'Estudo');
   }, [request, focus, data.subjects]);
+  useEffect(() => { if (focusTick && expanded) activityInput.current?.focus(); }, [focusTick, expanded]);
   const seconds = focus ? focusMilliseconds(focus, now || focus.segments[0].start) / 1000 : 0;
   const recent = data.sessions.slice(-20).toReversed();
   function start() {
@@ -47,7 +53,7 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
     } });
     setNow(timestamp);
   }
-  return <section className="focus-tracker" aria-label="Registro de tempo e foco">
+  return <section ref={section} className="focus-tracker" aria-label="Registro de tempo e foco">
     <div className="focus-strip">
       <button className="focus-summary" aria-expanded={expanded} aria-controls="focus-details" onClick={() => setExpanded(!expanded)}>
         <Clock3 size={20} aria-hidden="true" /><span><strong>{focus?.activity ?? 'Tempo e foco'}</strong><small>{focus ? running ? 'Em andamento' : 'Pausado' : 'Meça qualquer atividade'}</small></span>
@@ -66,7 +72,7 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
     <div className="focus-status">{demo ? 'Demonstração: o tempo não será salvo.' : status}{focus ? ' · Aguarde a confirmação de salvamento antes de fechar.' : ''}</div>
     <div id="focus-details" className="focus-details" hidden={!expanded}>
       {!focus && <div className="focus-fields">
-        <label>O que você vai fazer?<input value={activity} maxLength={160} onChange={e => setActivity(e.target.value)} placeholder="Aula, trabalho, treino, leitura…" /></label>
+        <label>O que você vai fazer?<input ref={activityInput} value={activity} maxLength={160} onChange={e => setActivity(e.target.value)} placeholder="Aula, trabalho, treino, leitura…" /></label>
         <label>Área do tempo<select value={areaId} onChange={e => setAreaId(e.target.value)}><option value="">Sem área</option>{lifeAreas(data).filter(a => !a.hidden).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
         <label>Matéria do foco · opcional<select value={subjectId} onChange={e => setSubjectId(e.target.value)}><option value="">Sem matéria</option><SubjectOptions data={data} /></select></label>
         <label>Meta de tempo<select value={target} onChange={e => setTarget(Number(e.target.value))}><option value={0}>Cronômetro livre</option>{[10,25,45].map(n => <option key={n} value={n}>{n} minutos</option>)}</select></label>

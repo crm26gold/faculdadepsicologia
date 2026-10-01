@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0f172a',
+  themeColor: '#0F3D2E',
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -25,7 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="pt-BR">
       <head>
-        <link rel="apple-touch-icon" href="/jornalogoplena369.png" />
+        <link rel="apple-touch-icon" href="/brand/icone-180.png" />
       </head>
       <body>{children}</body>
     </html>

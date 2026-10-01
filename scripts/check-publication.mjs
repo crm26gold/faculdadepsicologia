@@ -2,10 +2,14 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 
-// Brand images visually reviewed on 2026-09-28. Any changed bytes require a new review.
+// Brand files (owner's Jornada Plena identity, vector master) visually reviewed on 2026-10-01. Any changed bytes require a new review.
 const reviewedAssets = new Map([
-  ['public/jornalogoplena369.png', '306000dfba0ac562fd77e167f863cbc3824f2477fa4f06a191d8c9eeba992189'],
-  ['public/logopleno9.png', '2ef299c5d80f0432cbb753528b8b4f01b124e9f0601f25f38bf4fd8849b56c70'],
+  ['public/brand/simbolo.svg', 'cba66f8a8dc232d25844873ec2850fde1c0b21bafe4462b08bb78f767aab48a0'],
+  ['public/brand/simbolo-revertido.svg', '0cb2f1c76ac9843d3ce059d9b76f3d0fa488188668c7ae0ba432fb49459e70ad'],
+  ['public/brand/simbolo-reduzido.svg', '185ff2cd60f0b97765cd7abc9d3a8dc9352ee092043952076fe01c3f21572130'],
+  ['public/brand/icone-180.png', 'bddea385fc2b78fe84e2420693fb905dcf693ec0d5bb63515ef6bbd5182bdf4d'],
+  ['public/brand/icone-192.png', 'c73a86436045ade131a533ed5651a54a535a96f8170d316a39212b240cd8671b'],
+  ['public/brand/icone-512.png', '5d2940c0b952c59571567980f4e6671a757f0370bfc4476edaffefe99c25cf1d'],
 ]);
 
 // Audit the exact Git index, not ignored local files or environment values.

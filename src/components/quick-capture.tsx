@@ -1,14 +1,21 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Send, Trash2, Download, Play, Square } from 'lucide-react';
+import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Send, Trash2, Download, Square, Video, RefreshCw, X } from 'lucide-react';
 import { captureNote, CAPTURE_LIMIT, isUnorganized } from '@/lib/capture';
-import { MEDIA_LIMIT, mediaTypes, safeLink, validMedia } from '@/lib/note-media';
+import { MEDIA_LIMIT, mediaKind, mediaTypes, safeLink, validMedia } from '@/lib/note-media';
 import { saveLocalMedia } from '@/lib/local-media-db';
 import { uploadNoteMedia } from '@/lib/upload-note-media';
 import type { Workspace } from '@/lib/workspace';
 
 const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+const mediaHtml = (type: string, src: string, name: string) => ({
+  image: `<p><img src="${src}" alt="${escape(name)}" width="100%"></p>`,
+  video: `<p><video src="${src}" title="${escape(name)}" controls></video></p>`,
+  audio: `<p><audio src="${src}" title="${escape(name)}" controls></audio></p>`,
+})[mediaKind(type)];
+const VIDEO_SECONDS = 180; // ~0,7 Mbps keeps three minutes well under the 25 MB attachment limit
+const videoMime = () => ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(type => MediaRecorder.isTypeSupported(type)) ?? '';
 
 export function QuickCaptureWidget({
   data,
@@ -19,6 +26,8 @@ export function QuickCaptureWidget({
   cloud,
   demo = false,
   ensureSaved,
+  variant = 'panel',
+  onSaved,
 }: {
   data: Workspace;
   blocked: boolean;
@@ -28,6 +37,8 @@ export function QuickCaptureWidget({
   update: (change: (previous: Workspace) => Workspace) => boolean;
   onOpen: (id: string) => void;
   ensureSaved: () => Promise<void>;
+  variant?: 'panel' | 'sheet';
+  onSaved?: (id: string) => void;
 }) {
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -40,10 +51,19 @@ export function QuickCaptureWidget({
   const [permError, setPermError] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [speechConsent, setSpeechConsent] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [videoRecording, setVideoRecording] = useState(false);
+  const [facing, setFacing] = useState<'environment' | 'user'>('environment');
 
   const input = useRef<HTMLInputElement>(null);
+  const textArea = useRef<HTMLTextAreaElement>(null);
   const camera = useRef<HTMLInputElement>(null);
   const nativeAudioInput = useRef<HTMLInputElement>(null);
+  const nativeVideoInput = useRef<HTMLInputElement>(null);
+  const videoPreview = useRef<HTMLVideoElement>(null);
+  const videoStream = useRef<MediaStream | null>(null);
+  const videoRecorder = useRef<MediaRecorder | null>(null);
+  const videoDiscard = useRef(false);
   const recorder = useRef<MediaRecorder | null>(null);
   const stream = useRef<MediaStream | null>(null);
   const speechRecognizer = useRef<{ stop: () => void } | null>(null);
@@ -70,25 +90,32 @@ export function QuickCaptureWidget({
         speechRecognizer.current = null;
       }
       stream.current?.getTracks().forEach(t => t.stop());
+      videoDiscard.current = true;
+      if (videoRecorder.current?.state === 'recording') videoRecorder.current.stop();
+      videoStream.current?.getTracks().forEach(t => t.stop());
     };
   }, []);
   useEffect(() => () => { if (filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview); }, [filePreview]);
+  // In the sheet, type right away on desktop; on touch screens keep the keyboard closed so photo, audio and video stay in view.
+  useEffect(() => { if (variant === 'sheet' && window.matchMedia('(pointer: fine)').matches) requestAnimationFrame(() => textArea.current?.focus()); }, [variant]);
 
   useEffect(() => {
     const protect = (event: BeforeUnloadEvent) => {
-      if (file || recording || text.trim()) {
+      if (file || recording || videoRecording || text.trim()) {
         event.preventDefault();
         event.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', protect);
     return () => window.removeEventListener('beforeunload', protect);
-  }, [file, recording, text]);
+  }, [file, recording, videoRecording, text]);
 
   function selectFile(value?: File) {
     if (!value || blocked || busy) return;
     if (!validMedia(value.type, value.size)) {
-      setMessage('Use JPG, PNG, WebP, GIF ou áudio MP3, M4A, WAV, OGG, WebM de até 25 MB.');
+      setMessage(value.type.startsWith('video/') && value.size > MEDIA_LIMIT
+        ? 'Este vídeo passa de 25 MB. Grave pelo botão Vídeo do Jornada Plena (o vídeo já sai leve) ou envie um trecho menor.'
+        : 'Use foto (JPG, PNG, WebP, GIF), áudio (MP3, M4A, WAV, OGG, WebM) ou vídeo (MP4, WebM, MOV) de até 25 MB.');
       return;
     }
     if (filePreview && filePreview.startsWith('blob:')) URL.revokeObjectURL(filePreview);
@@ -225,6 +252,62 @@ export function QuickCaptureWidget({
     }
   }
 
+  async function openVideo(mode = facing) {
+    if (demo) { setMessage('No modo demonstração, o acesso à câmera é restrito para proteção de privacidade.'); return; }
+    if (blocked || busy || recording) return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined' || !videoMime()) { nativeVideoInput.current?.click(); return; }
+    videoStream.current?.getTracks().forEach(t => t.stop());
+    setMessage('Abrindo a câmera… se o navegador perguntar, toque em Permitir.');
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({ audio: true, video: { facingMode: mode, width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24, max: 30 } } });
+      if (!mounted.current) { media.getTracks().forEach(t => t.stop()); return; }
+      videoStream.current = media; setFacing(mode); setVideoOpen(true); setMessage('');
+      requestAnimationFrame(() => { if (videoPreview.current) { videoPreview.current.srcObject = media; void videoPreview.current.play().catch(() => {}); } });
+    } catch {
+      setMessage('Câmera ou microfone não autorizados. Toque em Permitir quando o navegador perguntar, ou grave com o app da câmera.');
+      nativeVideoInput.current?.click();
+    }
+  }
+
+  function recordVideo() {
+    const media = videoStream.current;
+    if (!media || videoRecorder.current?.state === 'recording') return;
+    const mimeType = videoMime();
+    const rec = new MediaRecorder(media, { mimeType, videoBitsPerSecond: 700_000, audioBitsPerSecond: 64_000 });
+    const chunks: Blob[] = [];
+    let size = 0;
+    videoDiscard.current = false;
+    rec.ondataavailable = event => {
+      if (!event.data.size) return;
+      chunks.push(event.data); size += event.data.size;
+      if (size >= MEDIA_LIMIT - 1_000_000 && rec.state === 'recording') rec.stop();
+    };
+    rec.onstop = () => {
+      if (recordingInterval.current) clearInterval(recordingInterval.current);
+      if (recordingTimeout.current) clearTimeout(recordingTimeout.current);
+      media.getTracks().forEach(t => t.stop()); videoStream.current = null;
+      if (!mounted.current) return;
+      setVideoRecording(false); setVideoOpen(false); setRecordingSeconds(0);
+      if (videoDiscard.current) return;
+      const type = mimeType.split(';')[0];
+      const blob = new Blob(chunks, { type });
+      if (blob.size < 1000) { setMessage('Vídeo muito curto ou vazio. Tente novamente.'); return; }
+      selectFile(new File([blob], `video-${Date.now()}.${mediaTypes[type] ?? 'webm'}`, { type }));
+      setMessage('Vídeo gravado! Confira abaixo e toque em Guardar ideia.');
+    };
+    videoRecorder.current = rec;
+    rec.start(1000);
+    setVideoRecording(true); setRecordingSeconds(0);
+    recordingInterval.current = setInterval(() => setRecordingSeconds(prev => prev + 1), 1000);
+    recordingTimeout.current = setTimeout(() => { if (rec.state === 'recording') rec.stop(); }, VIDEO_SECONDS * 1000);
+  }
+
+  function closeVideo() {
+    videoDiscard.current = true;
+    if (videoRecorder.current?.state === 'recording') videoRecorder.current.stop();
+    else { videoStream.current?.getTracks().forEach(t => t.stop()); videoStream.current = null; setVideoOpen(false); }
+  }
+
   function stopRecording() {
     if (speechRecognizer.current) {
       try { speechRecognizer.current.stop(); } catch {}
@@ -263,18 +346,14 @@ export function QuickCaptureWidget({
           abort.current = new AbortController();
           const src = uploadedSource.current || await uploadNoteMedia(id, file, abort.current.signal);
           uploadedSource.current = src;
-          content += file.type.startsWith('image/')
-            ? `<p><img src="${src}" alt="${escape(file.name)}" width="100%"></p>`
-            : `<p><audio src="${src}" title="${escape(file.name)}" controls></audio></p>`;
+          content += mediaHtml(file.type, src, file.name);
         } else {
           // Local/offline mode: store real media in IndexedDB and link via safe /api/note-media source
           const fileId = crypto.randomUUID();
           const ext = mediaTypes[file.type] || (file.type.startsWith('image/') ? 'png' : 'webm');
           const localSrc = `/api/note-media/${fileId}.${ext}`;
           await saveLocalMedia(localSrc, file);
-          content += file.type.startsWith('image/')
-            ? `<p><img src="${localSrc}" alt="${escape(file.name)}" width="100%"></p>`
-            : `<p><audio src="${localSrc}" title="${escape(file.name)}" controls></audio></p>`;
+          content += mediaHtml(file.type, localSrc, file.name);
         }
       }
 
@@ -293,6 +372,7 @@ export function QuickCaptureWidget({
       setText('');
       clearFile();
       setMessage(cloud ? 'Ideia e mídia sincronizadas na sua conta na nuvem!' : 'Ideia guardada no seu caderno local!');
+      onSaved?.(id);
     } catch (error) {
       if (mounted.current) {
         setMessage(error instanceof Error ? error.message : 'Não foi possível salvar.');
@@ -306,6 +386,8 @@ export function QuickCaptureWidget({
   const locked = blocked || busy;
   const isAudioFile = file && file.type.startsWith('audio/');
   const isImageFile = file && file.type.startsWith('image/');
+  const isVideoFile = file && file.type.startsWith('video/');
+  const sheet = variant === 'sheet';
 
   const formatTimer = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -314,8 +396,8 @@ export function QuickCaptureWidget({
   };
 
   return (
-    <section className="panel quick-capture-widget capture-inbox" aria-label="Caixa de entrada de ideias">
-      <div className="section-heading">
+    <section className={`panel quick-capture-widget capture-inbox ${sheet ? 'capture-sheet-body' : ''}`} aria-label={sheet ? 'Registro rápido' : 'Caixa de entrada de ideias'}>
+      {!sheet && <div className="section-heading">
         <div className="capture-title-group">
           <span className="capture-badge-icon"><FileText size={18} /></span>
           <div>
@@ -324,9 +406,9 @@ export function QuickCaptureWidget({
           </div>
         </div>
         <span className="unorganized-counter-chip">{pending.length} para organizar</span>
-      </div>
+      </div>}
 
-      {!demo && <label><input type="checkbox" checked={speechConsent} disabled={recording || requestingMic} onChange={e => setSpeechConsent(e.target.checked)} />Transcrever com o serviço de fala do navegador (pode enviar áudio a um serviço externo). Opcional; gravar não exige transcrição.</label>}
+      {!demo && <label className="capture-consent"><input type="checkbox" checked={speechConsent} disabled={recording || requestingMic} onChange={e => setSpeechConsent(e.target.checked)} /><span>Transcrever a fala do áudio em texto<small>Opcional. Usa o serviço de voz do navegador, que pode enviar o áudio a um serviço externo.</small></span></label>}
       <form className="quick-capture-form" onSubmit={submit}>
         <div className="quick-capture-input-box">
           <textarea
@@ -335,6 +417,7 @@ export function QuickCaptureWidget({
             maxLength={CAPTURE_LIMIT}
             value={text}
             disabled={locked}
+            ref={textArea}
             onChange={e => setText(e.target.value)}
             placeholder="O que você precisa registrar agora? Uma ideia de aula, citação, insight..."
             aria-label="O que você quer guardar?"
@@ -358,12 +441,25 @@ export function QuickCaptureWidget({
             </div>
           )}
 
+          {videoOpen && (
+            <div className="video-recorder" role="group" aria-label="Gravar vídeo">
+              <video ref={videoPreview} className="video-recorder-preview" muted playsInline autoPlay aria-label="Prévia da câmera" />
+              <div className="video-recorder-bar">
+                {videoRecording
+                  ? <button type="button" className="button video-stop" onClick={() => videoRecorder.current?.stop()}><Square size={14} fill="currentColor" aria-hidden="true" />Parar ({formatTimer(recordingSeconds)} de {formatTimer(VIDEO_SECONDS)})</button>
+                  : <button type="button" className="button video-record" onClick={recordVideo}><span className="video-dot" aria-hidden="true" />Gravar vídeo</button>}
+                <button type="button" className="icon-button" aria-label="Trocar câmera" disabled={videoRecording} onClick={() => void openVideo(facing === 'environment' ? 'user' : 'environment')}><RefreshCw size={18} aria-hidden="true" /></button>
+                <button type="button" className="icon-button" aria-label="Cancelar vídeo" onClick={closeVideo}><X size={18} aria-hidden="true" /></button>
+              </div>
+            </div>
+          )}
+
           {/* ATTACHED FILE PREVIEW (AUDIO PLAYER OR IMAGE THUMBNAIL) */}
           {file && filePreview && (
             <div style={{ padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                 <span style={{ fontWeight: 600, color: '#0f172a' }}>
-                  {isAudioFile ? '🎙️ Áudio gravado' : '📷 Foto / Imagem'}: {file.name} ({Math.ceil(file.size / 1024)} KB)
+                  {isAudioFile ? '🎙️ Áudio gravado' : isVideoFile ? '🎬 Vídeo' : '📷 Foto / Imagem'}: {file.name} ({Math.ceil(file.size / 1024)} KB)
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <a
@@ -388,6 +484,8 @@ export function QuickCaptureWidget({
               {isAudioFile && (
                 <audio controls src={filePreview} style={{ width: '100%', height: 38, marginTop: 4 }} />
               )}
+
+              {isVideoFile && <video controls playsInline src={filePreview} className="capture-video-preview" aria-label="Prévia do vídeo" />}
 
               {/* REAL IMAGE THUMBNAIL FOR PHOTO/UPLOAD */}
               {isImageFile && (
@@ -454,7 +552,7 @@ export function QuickCaptureWidget({
               <button
                 type="button"
                 className="media-pill-btn"
-                disabled={locked || recording}
+                disabled={locked || recording || videoOpen}
                 title="Tirar foto ou fotografar lousa"
                 onClick={() => {
                   if (demo) {
@@ -471,7 +569,7 @@ export function QuickCaptureWidget({
               <button
                 type="button"
                 className={`media-pill-btn ${recording ? 'recording' : ''}`}
-                disabled={locked || requestingMic}
+                disabled={locked || requestingMic || videoOpen}
                 title={recording ? 'Parar gravação' : 'Gravar áudio pelo microfone'}
                 onClick={() => {
                   if (recording) {
@@ -484,12 +582,22 @@ export function QuickCaptureWidget({
                 <Mic size={14} /> <span>{recording ? `Gravando (${formatTimer(recordingSeconds)})` : 'Áudio'}</span>
               </button>
 
+              <button
+                type="button"
+                className={`media-pill-btn ${videoRecording ? 'recording' : ''}`}
+                disabled={locked || recording || videoOpen}
+                title="Gravar um vídeo curto"
+                onClick={() => void openVideo()}
+              >
+                <Video size={14} /> <span>Vídeo</span>
+              </button>
+
               {/* ANEXAR ARQUIVO / IMAGEM */}
               <button
                 type="button"
                 className="media-pill-btn"
-                disabled={locked || recording}
-                title="Subir arquivo de imagem ou áudio"
+                disabled={locked || recording || videoOpen}
+                title="Subir foto, áudio ou vídeo"
                 onClick={() => {
                   if (demo) {
                     setMessage('No modo demonstração, upload de arquivos é restrito.');
@@ -525,7 +633,7 @@ export function QuickCaptureWidget({
               type="submit"
               className="button primary compact-send-btn"
               aria-label="Guardar ideia"
-              disabled={locked || recording || requestingMic || (!text.trim() && !file)}
+              disabled={locked || recording || requestingMic || videoOpen || (!text.trim() && !file)}
             >
               <Send size={14} /> {busy ? 'Salvando…' : 'Guardar ideia'}
             </button>
@@ -552,7 +660,7 @@ export function QuickCaptureWidget({
             hidden
             type="file"
             ref={input}
-            accept="image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm"
+            accept="image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm,video/mp4,video/webm,video/quicktime"
             aria-label="Anexar arquivo para insight"
             onChange={e => {
               selectFile(e.target.files?.[0]);
@@ -570,12 +678,24 @@ export function QuickCaptureWidget({
               e.target.value = '';
             }}
           />
+          <input
+            hidden
+            type="file"
+            ref={nativeVideoInput}
+            accept="video/*"
+            capture="environment"
+            aria-label="Gravar vídeo com app da câmera"
+            onChange={e => {
+              selectFile(e.target.files?.[0]);
+              e.target.value = '';
+            }}
+          />
         </>
       )}
 
       {message && <p role="status" style={{ fontSize: '0.8rem', color: '#0369a1', marginTop: 8, fontWeight: 600 }}>{message}</p>}
 
-      <div className="unorganized-notes-deck">
+      {!sheet && <div className="unorganized-notes-deck">
         <h4>Para organizar ({pending.length})</h4>
         <div className="unorganized-chips-grid">
           {pending.map(note => (
@@ -600,7 +720,7 @@ export function QuickCaptureWidget({
           ))}
         </div>
         {!pending.length && <p>Nenhuma anotação pendente de organização.</p>}
-      </div>
+      </div>}
     </section>
   );
 }

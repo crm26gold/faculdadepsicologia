@@ -70,8 +70,8 @@ export function attachLocalMediaFallback(container: HTMLElement): () => void {
   const objectUrls: string[] = [];
 
   const handleError = async (event: Event) => {
-    const el = event.target as HTMLImageElement | HTMLAudioElement | null;
-    if (!el || !(el instanceof HTMLImageElement || el instanceof HTMLAudioElement)) return;
+    const el = event.target as HTMLImageElement | HTMLMediaElement | null;
+    if (!el || !(el instanceof HTMLImageElement || el instanceof HTMLMediaElement)) return;
     const initialSrc = el.getAttribute('src');
     if (!initialSrc || !initialSrc.startsWith('/api/note-media/')) return;
     if (el.dataset.localResolved === 'true') return;
@@ -82,7 +82,7 @@ export function attachLocalMediaFallback(container: HTMLElement): () => void {
       const objUrl = URL.createObjectURL(blob);
       objectUrls.push(objUrl);
       el.src = objUrl;
-      if (el instanceof HTMLAudioElement) {
+      if (el instanceof HTMLMediaElement) {
         el.load();
       }
     }

@@ -38,3 +38,12 @@ export const NoteAudio = Node.create({
   parseHTML() { return [{ tag: 'audio[src]', getAttrs: el => safeMediaSource((el as HTMLElement).getAttribute('src')) ? {} : false }]; },
   renderHTML({ node }) { return ['audio', { src: safeMediaSource(node.attrs.src), title: node.attrs.title, 'aria-label': node.attrs.title, controls: '', preload: 'none', contenteditable: 'false' }]; },
 });
+export const NoteVideo = Node.create({
+  name: 'noteVideo', group: 'block', atom: true, draggable: true,
+  addAttributes() { return {
+    src: { default: '', parseHTML: el => safeMediaSource(el.getAttribute('src')) },
+    title: { default: 'Vídeo da anotação' },
+  }; },
+  parseHTML() { return [{ tag: 'video[src]', getAttrs: el => safeMediaSource((el as HTMLElement).getAttribute('src')) ? {} : false }]; },
+  renderHTML({ node }) { return ['video', { src: safeMediaSource(node.attrs.src), title: node.attrs.title, 'aria-label': node.attrs.title, controls: '', playsinline: '', preload: 'metadata', class: 'note-inline-video', contenteditable: 'false' }]; },
+});

@@ -125,3 +125,72 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2563eb
 .focus-log-day h3 { display: flex; justify-content: space-between; font-size: .9rem; margin-block: 12px 2px; text-transform: capitalize; }
 .focus-log-day h3 small { color: var(--muted); text-transform: none; }
 .focus-log-actions { display: inline-flex; align-items: center; gap: 6px; }
+
+.capture-consent { display: flex; gap: 8px; align-items: flex-start; font-size: .88rem; margin-block-end: 8px; }
+.capture-consent input { margin-block-start: 3px; }
+.capture-consent small { display: block; color: var(--muted); font-size: .76rem; }
+.capture-sheet-body { border: 0; box-shadow: none; padding: 0; background: transparent; }
+.video-recorder { border-block-start: 1px solid var(--line); background: #0b1f18; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.video-recorder-preview, .capture-video-preview { inline-size: 100%; max-block-size: 46vh; border-radius: 8px; background: #000; object-fit: contain; }
+.video-recorder-bar { display: flex; gap: 8px; align-items: center; }
+.video-recorder-bar .icon-button { color: #fff; min-inline-size: 44px; min-block-size: 44px; }
+.video-record, .video-stop { flex: 1; min-block-size: 44px; justify-content: center; color: #fff; background: #b91c1c; border: 0; }
+.video-stop { background: #374151; }
+.video-dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: #fff; display: inline-block; }
+
+/* Jornada Plena brand: Verde Floresta, Verde Sálvia, Ouro Suave e Marfim. */
+:root { --brand-forest: #0F3D2E; --brand-sage: #8CA88A; --brand-gold: #D4AF6B; --brand-ivory: #FAF7ED; }
+.brand-icon:has(> img) { background: none; inline-size: 34px; block-size: 34px; border-radius: 50%; }
+.brand-icon > img { display: block; inline-size: 100%; block-size: 100%; }
+.topbar-capture { display: inline-flex; align-items: center; gap: 8px; background: var(--brand-forest); border-color: var(--brand-forest); }
+.topbar-capture:hover { background: #0a2b20; }
+.topbar-capture img { border-radius: 50%; background: var(--brand-ivory); padding: 1px; }
+
+.tabbar-center { position: relative; }
+.tabbar-center-badge { display: grid; place-items: center; inline-size: 60px; block-size: 60px; margin-block-start: -26px; border-radius: 50%; background: var(--brand-ivory); border: 2px solid var(--brand-gold); box-shadow: 0 6px 18px #0f3d2e40; overflow: hidden; }
+.tabbar-center-badge img { display: block; inline-size: 56px; block-size: 56px; }
+.tabbar-center > span:last-child { color: var(--brand-forest); font-weight: 700; }
+.tabbar-center:active .tabbar-center-badge { transform: scale(.96); }
+.tabbar-shortcut { display: flex; flex-direction: column; gap: 6px; margin-block-start: 16px; padding-block-start: 14px; border-block-start: 1px solid var(--line); font-weight: 600; font-size: .9rem; }
+
+.capture-sheet-lead { color: var(--muted); margin-block-end: 12px; }
+.capture-sheet-saved { margin-block: 8px 0; }
+.capture-sheet-subtitle { font-size: .95rem; margin-block: 18px 8px; }
+.capture-sheet-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.capture-sheet-actions button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 6px; min-block-size: 76px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-weight: 600; font-size: .82rem; text-align: center; color: var(--ink); }
+.capture-sheet-actions button:hover { border-color: var(--brand-gold); }
+.capture-sheet-actions svg { color: var(--brand-forest); }
+
+.assistant-bubble { position: fixed; z-index: 30; inline-size: 56px; block-size: 56px; padding: 0; border-radius: 50%; background: var(--brand-forest); border: 2px solid var(--brand-gold); box-shadow: 0 8px 24px #0f3d2e47; touch-action: none; cursor: grab; transition: left .18s ease, right .18s ease, top .18s ease; }
+.assistant-bubble.dragging { transition: none; cursor: grabbing; opacity: .9; }
+.assistant-bubble img { display: block; inline-size: 100%; block-size: 100%; border-radius: 50%; pointer-events: none; user-select: none; }
+.assistant-bubble-mic { position: absolute; inset-inline-end: -3px; inset-block-end: -3px; display: grid; place-items: center; inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--brand-gold); color: var(--brand-forest); border: 2px solid var(--brand-forest); }
+.assistant-panel { display: flex; flex-direction: column; gap: 12px; }
+.assistant-status { display: inline-flex; align-items: center; gap: 8px; font-size: .82rem; color: var(--muted); }
+.assistant-status-dot { inline-size: 8px; block-size: 8px; border-radius: 50%; background: var(--brand-gold); }
+.assistant-messages { display: flex; flex-direction: column; gap: 8px; max-block-size: 40vh; overflow-y: auto; padding: 4px; }
+.assistant-message { max-inline-size: 88%; padding: 10px 12px; border-radius: 12px; font-size: .92rem; }
+.assistant-message p + p { margin-block-start: 6px; }
+.assistant-message.assistant { align-self: flex-start; background: var(--brand-ivory); border: 1px solid #e9e1c8; color: #1d2b25; }
+.assistant-message.me { align-self: flex-end; background: var(--brand-forest); color: #fff; }
+.assistant-message.me p { color: #fff; }
+.assistant-message.assistant p { color: #1d2b25; }
+[data-theme='dark'] .assistant-message.assistant p { color: #f1f5f9; }
+.assistant-message.listening { opacity: .75; font-style: italic; }
+.assistant-problem { color: #b91c1c; font-size: .85rem; }
+.assistant-mic { display: flex; align-items: center; justify-content: center; gap: 10px; min-block-size: 64px; border-radius: 999px; background: var(--brand-forest); color: #fff; font-weight: 700; font-size: 1rem; border: 0; }
+.assistant-mic.listening { background: #b91c1c; animation: assistant-pulse 1.2s ease-in-out infinite; }
+.assistant-mic:disabled { opacity: .55; }
+@keyframes assistant-pulse { 50% { box-shadow: 0 0 0 10px #b91c1c22; } }
+@media (prefers-reduced-motion: reduce) { .assistant-mic.listening { animation: none; } .assistant-bubble { transition: none; } }
+.assistant-form { display: flex; gap: 8px; }
+.assistant-form input { flex: 1; min-inline-size: 0; }
+.assistant-form .button { min-inline-size: 48px; justify-content: center; }
+.assistant-privacy { font-size: .76rem; color: var(--muted); }
+[data-theme='dark'] .assistant-message.assistant { background: #1e293b; border-color: #334155; color: #f1f5f9; }
+[data-theme='dark'] .capture-sheet-actions button { background: #111827; color: #f1f5f9; }
+
+@media (max-width: 760px) {
+  .topbar-capture { display: none; }
+  .capture-sheet-actions button { font-size: .78rem; }
+}

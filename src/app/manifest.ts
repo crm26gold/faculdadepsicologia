@@ -8,19 +8,12 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#f8fafc',
-    theme_color: '#0f172a',
+    background_color: '#FAF7ED',
+    theme_color: '#0F3D2E',
     icons: [
-      {
-        src: '/jornalogoplena369.png',
-        sizes: '192x192',
-        type: 'image/png',
-      },
-      {
-        src: '/logopleno9.png',
-        sizes: '512x512',
-        type: 'image/png',
-      },
+      { src: '/brand/icone-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/brand/icone-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/brand/icone-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   };
 }

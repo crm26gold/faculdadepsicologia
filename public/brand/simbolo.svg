@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Jornada Plena">
+  <defs>
+    <clipPath id="jp-inner"><circle cx="256" cy="256" r="188"/></clipPath>
+    <radialGradient id="jp-glow" cx="256" cy="172" r="170" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#D4AF6B" stop-opacity="0.42"/><stop offset=".55" stop-color="#D4AF6B" stop-opacity="0.12"/><stop offset="1" stop-color="#D4AF6B" stop-opacity="0"/></radialGradient>
+    <linearGradient id="jp-sun" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#EFD69C"/><stop offset="1" stop-color="#D4AF6B"/></linearGradient>
+    <path id="jp-star" d="M0 -1C.07 -.3 .3 -.07 1 0C.3 .07 .07 .3 0 1C-.07 .3 -.3 .07 -1 0C-.3 -.07 -.07 -.3 0 -1Z"/>
+  </defs>
+  <g fill="none" stroke="#0F3D2E" stroke-width="11" stroke-linecap="round"><path d="M463.4 300.1A212 212 0 0 1 300.1 463.4"/><path d="M211.9 463.4A212 212 0 0 1 48.6 300.1"/><path d="M48.6 211.9A212 212 0 0 1 211.9 48.6"/><path d="M300.1 48.6A212 212 0 0 1 463.4 211.9"/></g>
+  <g fill="#C49A48"><use href="#jp-star" transform="translate(256 44) scale(30)"/><use href="#jp-star" transform="translate(468 256) scale(21)"/><use href="#jp-star" transform="translate(256 468) scale(21)"/><use href="#jp-star" transform="translate(44 256) scale(21)"/></g>
+  <g clip-path="url(#jp-inner)">
+    
+    <rect x="68" y="68" width="376" height="376" fill="url(#jp-glow)"/>
+    <circle cx="256" cy="172" r="40" fill="url(#jp-sun)"/>
+    <path fill="#C5D3BF" d="M60 308Q150 198 236 294H276Q362 198 452 308V470H60Z"/>
+    <path fill="#8CA88A" d="M60 340C120 294 186 296 256 328C326 296 392 294 452 340V470H60Z"/>
+    <path fill="none" stroke="#C49A48" stroke-width="9" d="M190 366V184A66 66 0 0 1 322 184V366"/>
+    <path fill="#0F3D2E" d="M60 378C130 346 200 346 256 358C312 346 382 346 452 378V470H60Z"/>
+    <path fill="#FAF7ED" stroke="#D4AF6B" stroke-width="3" stroke-linejoin="round" d="M246 362C226 380 300 398 270 422C228 450 176 460 172 500H306C300 460 356 438 312 414C284 398 266 382 266 362Z"/>
+  </g>
+  <path d="M256 362C257 338 255 316 256 292" fill="none" stroke="#0F3D2E" stroke-width="8" stroke-linecap="round"/>
+  <path fill="#0F3D2E" d="M256 306C236 310 206 298 204 270C232 266 252 282 256 306Z"/>
+  <path fill="#0F3D2E" d="M256 296C278 302 308 290 310 262C282 258 260 274 256 296Z"/>
+  <g fill="none" stroke="#8CA88A" stroke-width="2.4" stroke-linecap="round"><path d="M252 302Q232 288 211 274"/><path d="M260 292Q282 278 303 266"/></g>
+</svg>
