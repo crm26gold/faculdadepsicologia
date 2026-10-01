@@ -4,6 +4,7 @@ import { Clock3, Pause, Play, Square } from 'lucide-react';
 import type { Workspace } from '@/lib/workspace';
 import { lifeAreas } from '@/lib/life';
 import { finishFocus, focusMilliseconds, formatFocusTime, pauseFocus, resumeFocus } from '@/lib/focus';
+import { SubjectOptions } from './subject-options';
 
 type Props = {
   data: Workspace; disabled: boolean; status: string; demo: boolean;
@@ -67,7 +68,7 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
       {!focus && <div className="focus-fields">
         <label>O que você vai fazer?<input value={activity} maxLength={160} onChange={e => setActivity(e.target.value)} placeholder="Aula, trabalho, treino, leitura…" /></label>
         <label>Área do tempo<select value={areaId} onChange={e => setAreaId(e.target.value)}><option value="">Sem área</option>{lifeAreas(data).filter(a => !a.hidden).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
-        <label>Matéria do foco · opcional<select value={subjectId} onChange={e => setSubjectId(e.target.value)}><option value="">Sem matéria</option>{data.subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}</select></label>
+        <label>Matéria do foco · opcional<select value={subjectId} onChange={e => setSubjectId(e.target.value)}><option value="">Sem matéria</option><SubjectOptions data={data} /></select></label>
         <label>Meta de tempo<select value={target} onChange={e => setTarget(Number(e.target.value))}><option value={0}>Cronômetro livre</option>{[10,25,45].map(n => <option key={n} value={n}>{n} minutos</option>)}</select></label>
       </div>}
       <p className="focus-help">O cronômetro conta também com o navegador fechado. Pause nas interrupções e encerre ao terminar. Ele mede tempo registrado, não detecta sua atenção automaticamente.</p>

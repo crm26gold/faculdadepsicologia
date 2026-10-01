@@ -6,6 +6,7 @@ import { weekdays } from '@/lib/academic';
 import { upsertClass } from '@/lib/class-schedule';
 import { classSchema, termSchema, type ClassSession, type Workspace } from '@/lib/workspace';
 import { Modal } from './modal';
+import { SubjectOptions } from './subject-options';
 import styles from './academic.module.css';
 
 type Props = {
@@ -81,7 +82,7 @@ export function ScheduleSettings({ data, update, blocked, onClose }: Props) {
         <legend className="sr-only">Dados do horário</legend>
         <label htmlFor="class-subject">Matéria da aula</label>
         <select autoFocus id="class-subject" name="subjectId" required defaultValue={editing.subjectId}>
-          {data.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}
+          <SubjectOptions data={data} />
         </select>
         <label htmlFor="class-weekday">Dia da semana</label>
         <select id="class-weekday" name="weekday" defaultValue={editing.weekday}>{weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}</select>
@@ -101,7 +102,7 @@ export function ScheduleSettings({ data, update, blocked, onClose }: Props) {
       <div className="button-row"><button type="button" className="button outline" onClick={backToList}>Voltar à grade</button><button type="submit" className="button primary" disabled={blocked}>Salvar horário</button></div>
     </form> : <>
       <button ref={newButton} type="button" className="button primary" disabled={blocked || data.subjects.length === 0 || data.classes.length >= 300} onClick={newClass}><Plus size={17} aria-hidden="true" />Adicionar horário</button>
-      {data.subjects.length === 0 && <p>Primeiro cadastre uma matéria na seção Matérias. Depois, volte aqui para adicionar os horários.</p>}
+      {data.subjects.length === 0 && <p>Primeiro cadastre um curso e uma matéria em Estudos.</p>}
       {data.classes.length === 0 && data.subjects.length > 0 && <p>Nenhum horário cadastrado. Adicione sua primeira aula.</p>}
       {data.classes.length >= 300 && <p>Limite de 300 horários atingido. Você ainda pode editar os horários existentes.</p>}
       <div className={styles.scheduleList}>{data.classes.map((item) => {

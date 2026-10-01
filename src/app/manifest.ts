@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'Jornada Plena · Gestor para a Vida',
     short_name: 'Jornada Plena',
-    description: 'Seu espaço integrado para faculdade, rotina, finanças e desenvolvimento pessoal.',
+    description: 'Seu espaço integrado para estudos, rotina, finanças e desenvolvimento pessoal.',
     start_url: '/',
     display: 'standalone',
     orientation: 'portrait',

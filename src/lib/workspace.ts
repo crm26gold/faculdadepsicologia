@@ -12,7 +12,7 @@ export const daySchema = z.string().refine((value) => {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }, 'Data inválida');
 const day = daySchema;
-export const CURRENT_EDITOR_GENERATION = 6;
+export const CURRENT_EDITOR_GENERATION = 7;
 const focusContextSchema = z.object({
   taskId: identifier.optional(), projectId: identifier.optional(),
   taskTitle: z.string().max(160).optional(), projectTitle: z.string().max(160).optional(),
@@ -48,10 +48,19 @@ export const profileSchema = z.object({
   email: z.union([z.literal(''), z.email().max(254)]), phone: z.string().max(40),
   photoUrl: z.string().max(400_000).refine(value => !value || /^data:image\/(png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(value), 'Foto inválida'),
 });
+export const courseKinds = ['graduacao', 'pos', 'tecnico', 'livre', 'extensao', 'idioma', 'outro'] as const;
+export const courseStatuses = ['active', 'paused', 'completed'] as const;
+export const courseSchema = z.object({
+  id: identifier, name: z.string().trim().min(1).max(100), kind: z.enum(courseKinds),
+  institution: z.string().trim().max(160).optional(), stage: z.string().trim().max(60).optional(),
+  color: z.enum(colors), status: z.enum(courseStatuses),
+  units: z.object({ singular: z.string().trim().min(1).max(30), plural: z.string().trim().min(1).max(30) }).optional(),
+});
 export const subjectSchema = z.object({
   id: identifier, name: z.string().trim().min(1).max(100),
-  semester: z.number().int().min(1).max(20), color: z.enum(colors),
+  semester: z.number().int().min(1).max(20).optional(), color: z.enum(colors),
   professor: z.string().trim().max(100).optional(),
+  courseId: identifier.optional(),
 });
 export const taskSchema = z.object({
   id: identifier, title: z.string().trim().min(1).max(160), subjectId: z.string().max(100),
@@ -88,7 +97,8 @@ export type Flashcard = z.infer<typeof flashcardSchema>;
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
-  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6)]).optional(),
+  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7)]).optional(),
+  courses: z.array(courseSchema).max(30).optional(),
   goals: z.array(goalSchema).max(200).optional(),
   projects: z.array(projectSchema).max(500).optional(),
   activeFocus: z.object({
@@ -117,7 +127,7 @@ export const workspaceSchema = z.object({
 }).superRefine((data, ctx) => {
   const areas = new Set((data.areas ?? defaultAreas).map((area) => area.id));
   const notebooks = new Set((data.notebooks ?? []).map((book) => book.id));
-  for (const collection of ['areas', 'notebooks', 'transactions', 'habits', 'flashcards', 'goals', 'projects'] as const) {
+  for (const collection of ['areas', 'notebooks', 'transactions', 'habits', 'flashcards', 'goals', 'projects', 'courses'] as const) {
     const items = data[collection] ?? [];
     if (new Set(items.map((item) => item.id)).size !== items.length) ctx.addIssue({ code: 'custom', path: [collection], message: 'Identificadores duplicados' });
   }
@@ -134,9 +144,17 @@ export const workspaceSchema = z.object({
   if ((data.goals !== undefined || data.projects !== undefined || data.tasks.some(task => task.projectId)) && (data.editorGeneration ?? 0) < 5) {
     ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Planejamento exige editor atualizado.' });
   }
-  if ((data.activeFocus?.context || data.sessions.some(session => session.context)) && data.editorGeneration !== CURRENT_EDITOR_GENERATION) {
+  if ((data.activeFocus?.context || data.sessions.some(session => session.context)) && (data.editorGeneration ?? 0) < 6) {
     ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Vínculos de foco exigem editor atualizado.' });
   }
+  if ((data.courses !== undefined || data.subjects.some(subject => subject.courseId)) && (data.editorGeneration ?? 0) < 7) {
+    ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Cursos exigem editor atualizado.' });
+  }
+  const courses = new Set((data.courses ?? []).map(course => course.id));
+  data.subjects.forEach((subject, index) => {
+    if (subject.courseId && !courses.has(subject.courseId)) ctx.addIssue({ code: 'custom', path: ['subjects', index, 'courseId'], message: 'Curso inexistente' });
+    if (!subject.courseId && data.courses !== undefined) ctx.addIssue({ code: 'custom', path: ['subjects', index, 'courseId'], message: 'Informe o curso.' });
+  });
   data.projects?.forEach((project, index) => {
     if (project.goalId && !goals.has(project.goalId)) ctx.addIssue({ code: 'custom', path: ['projects', index, 'goalId'], message: 'Meta inexistente' });
   });
@@ -159,6 +177,9 @@ export type Goal = z.infer<typeof goalSchema>;
 export type Project = z.infer<typeof projectSchema>;
 export type ActiveFocus = NonNullable<Workspace['activeFocus']>;
 export type Subject = z.infer<typeof subjectSchema>;
+export type Course = z.infer<typeof courseSchema>;
+export type CourseKind = Course['kind'];
+export type CourseUnits = NonNullable<Course['units']>;
 export type Task = z.infer<typeof taskSchema>;
 export type Note = z.infer<typeof noteSchema>;
 export type ClassSession = z.infer<typeof classSchema>;
@@ -181,10 +202,12 @@ export function demoWorkspace(today: string): Workspace {
   return {
     ...emptyWorkspace(),
     version: 1,
+    editorGeneration: CURRENT_EDITOR_GENERATION,
+    courses: [{ id: 'psicologia', name: 'Psicologia', kind: 'graduacao', stage: '1º semestre', color: 'rose', status: 'active' }],
     subjects: [
-      { id: 'intro', name: 'Introdução à Psicologia', semester: 1, color: 'sage' },
-      { id: 'neuro', name: 'Bases Biológicas', semester: 1, color: 'lavender' },
-      { id: 'desenv', name: 'Psicologia do Desenvolvimento', semester: 1, color: 'sand' },
+      { id: 'intro', name: 'Introdução à Psicologia', semester: 1, color: 'sage', courseId: 'psicologia' },
+      { id: 'neuro', name: 'Bases Biológicas', semester: 1, color: 'lavender', courseId: 'psicologia' },
+      { id: 'desenv', name: 'Psicologia do Desenvolvimento', semester: 1, color: 'sand', courseId: 'psicologia' },
     ],
     tasks: [
       { id: 't1', title: 'Revisar as escolas da Psicologia', subjectId: 'intro', date: today, kind: 'Estudo', minutes: 25, done: false },

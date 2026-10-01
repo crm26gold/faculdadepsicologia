@@ -4,7 +4,7 @@ import './focus-responsive.css';
 
 export const metadata: Metadata = {
   title: 'Jornada Plena · Gestor para a Vida',
-  description: 'Seu espaço integrado para faculdade, rotina, finanças e desenvolvimento pessoal.',
+  description: 'Seu espaço integrado para estudos, rotina, finanças e desenvolvimento pessoal.',
   robots: { index: false, follow: false },
   manifest: '/manifest.webmanifest',
   appleWebApp: {

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CURRENT_EDITOR_GENERATION, dateKey, demoWorkspace, emptyWorkspace, LOCAL_KEY, parseWorkspace, type Workspace } from '@/lib/workspace';
+import { ensureCourses } from '@/lib/courses';
 
 export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const [data, setData] = useState<Workspace>(emptyWorkspace);
@@ -38,6 +39,8 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
           initial = parseWorkspace(JSON.stringify(result.data));
           revision.current = result.revision;
         }
+        // Held in memory only; the next accepted update() persists it.
+        initial = ensureCourses(initial);
         if (!active) return;
         current.current = initial; saved.current = initial; setData(initial);
         setStatus(mode === 'demo' ? 'Exemplos temporários · não salvos' : mode === 'local' ? 'Somente neste navegador' : revision.current === 0 ? 'Nenhum registro salvo na nuvem ainda' : 'Sincronizado');

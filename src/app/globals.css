@@ -189,6 +189,22 @@ kbd { font-family: inherit; font-size: .6rem; border: 1px solid #cbd5e1; border-
 .subject-focus-btn:hover { background: #d7e4f4; }
 .add-subject-card { min-block-size: 160px; padding: 20px; border: 1px dashed #cbd5e1; border-radius: 12px; display: flex; flex-direction: column; gap: 10px; align-items: center; justify-content: center; font-size: .8rem; color: var(--muted); background: #fafbfc; transition: all 0.15s ease; }
 .add-subject-card:hover { border-color: var(--green); color: var(--ink); background: #fff; }
+/* Course cards: the title button stretches over the whole card; the edit button stays on top. */
+.course-card { position: relative; }
+.course-card .subject-title::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.course-card .subject-card-top .icon-button { position: relative; z-index: 1; }
+.course-card .subject-card-footer > svg { color: var(--muted); }
+.studies-secondary { margin-block: 28px 14px; }
+.form-hint { font-size: .78rem; margin: 8px 0 0; }
+.metric-sub { overflow-wrap: anywhere; }
+.metric-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+.user-meta-info .user-meta-studies { display: flex; gap: 4px; min-inline-size: 0; }
+.user-meta-studies > span { min-inline-size: 0; }
+.user-meta-studies > b { flex: none; font-size: .65rem; font-weight: 700; color: var(--muted); }
+.course-bar { align-items: center; padding-block: 14px; }
+.course-bar p { margin: 0; font-weight: 600; color: var(--ink); }
+.breadcrumb { min-inline-size: 0; }
+.breadcrumb strong { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* WEEK CARD */
 .week-card { padding: 18px 16px 12px; }
@@ -782,8 +798,17 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
   --ink: #f8fafc;
   --text: #cbd5e1;
   --muted: #94a3b8;
+  --canvas: #090d16;
   color-scheme: dark;
 }
+[data-theme='dark'] .cm-hero { background: linear-gradient(135deg, #111827, #1c2a3a); }
+[data-theme='dark'] .cm-hero.lavender { background: linear-gradient(135deg, #111827, #2a2440); }
+[data-theme='dark'] .cm-hero.sand { background: linear-gradient(135deg, #111827, #362c1c); }
+[data-theme='dark'] .cm-hero.rose { background: linear-gradient(135deg, #111827, #3b2730); }
+[data-theme='dark'] .cm-hero.blue { background: linear-gradient(135deg, #111827, #1b2d40); }
+[data-theme='dark'] .add-subject-card { background: #111827; border-color: #334155; color: #cbd5e1; }
+[data-theme='dark'] .add-subject-card:hover { background: #1e293b; color: #f8fafc; }
+[data-theme='dark'] .mobile-tabbar button[aria-current="page"] { background: #1e293b; color: #f8fafc; }
 [data-theme='dark'] body { background-color: #090d16; color: #cbd5e1; }
 [data-theme='dark'] .topbar { background: #0f172aef; border-color: #334155; }
 [data-theme='dark'] .sidebar { background: #0b1120; border-color: #1e293b; }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { ArrowLeft, ArrowRight, BookOpen, Check, Layers, Plus, RotateCw, Sparkles, Trash2 } from 'lucide-react';
 import { dateKey, type Flashcard, type Workspace } from '@/lib/workspace';
+import { SubjectOptions } from './subject-options';
 
 const defaultCards: Omit<Flashcard, 'id'>[] = [
   {
@@ -180,11 +181,7 @@ export function FlashcardsDeck({
             style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--line)', fontSize: '0.8rem', background: '#fff' }}
           >
             <option value="">Todas as matérias ({cards.length})</option>
-            {subjects.map(s => (
-              <option key={s.id} value={s.id}>
-                {s.name} ({cards.filter(c => c.subjectId === s.id).length})
-              </option>
-            ))}
+            <SubjectOptions data={data} label={s => `${s.name} (${cards.filter(c => c.subjectId === s.id).length})`} />
           </select>
 
           {cards.length === 0 && (
@@ -213,9 +210,7 @@ export function FlashcardsDeck({
                 onChange={e => setSubjectId(e.target.value)}
                 style={{ width: '100%', padding: '8px 12px', borderRadius: 8, border: '1px solid var(--line)' }}
               >
-                {subjects.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
+                <SubjectOptions data={data} />
               </select>
             </div>
             <div>
@@ -277,7 +272,7 @@ export function FlashcardsDeck({
             aria-label="Toque para virar o cartão"
           >
             <div className="card-face-tag">
-              <span>{subjects.find(s => s.id === currentCard.subjectId)?.name || 'Psicologia'}</span>
+              <span>{subjects.find(s => s.id === currentCard.subjectId)?.name || 'Sem matéria'}</span>
               <small>{flipped ? 'Verso (Resposta)' : 'Frente (Pergunta)'}</small>
             </div>
             <div className="card-face-text">
@@ -324,7 +319,7 @@ export function FlashcardsDeck({
             <article key={card.id} className="panel flashcard-item-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
                 <span className="tiny-tag">
-                  {subjects.find(s => s.id === card.subjectId)?.name || 'Matéria'}
+                  {subjects.find(s => s.id === card.subjectId)?.name || 'Sem matéria'}
                 </span>
                 <button
                   type="button"

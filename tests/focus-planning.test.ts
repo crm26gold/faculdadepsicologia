@@ -42,6 +42,7 @@ test('histórico antigo continua legível e novos vínculos exigem geração 6',
   const completed = finishFocus(started, now + 1000);
   assert.throws(() => startFocus(completed, { id: 'f', now }));
   assert.throws(() => parseWorkspace(JSON.stringify({ ...completed, editorGeneration: 5 })));
+  assert.equal(parseWorkspace(JSON.stringify({ ...completed, editorGeneration: 6 })).sessions[0].context?.taskId, 't');
 });
 
 test('totais usam segundos sem arredondar e não duplicam dimensões', () => {

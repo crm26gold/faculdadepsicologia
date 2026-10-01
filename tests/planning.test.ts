@@ -17,7 +17,7 @@ test('planejamento e vínculos sobrevivem à serialização', () => {
   assert.deepEqual(workspaceSchema.parse(JSON.parse(JSON.stringify(fixture()))), fixture());
 });
 test('campos novos exigem geração atual e versões futuras são recusadas', () => {
-  for (const generation of [undefined, 2, 3, 4, 7]) assert.equal(workspaceSchema.safeParse({ ...fixture(), editorGeneration: generation }).success, false);
+  for (const generation of [undefined, 2, 3, 4, 8]) assert.equal(workspaceSchema.safeParse({ ...fixture(), editorGeneration: generation }).success, false);
   assert.equal(workspaceSchema.safeParse({ ...fixture(), editorGeneration: 5 }).success, true);
 });
 test('metas e projetos recusam IDs duplicados e áreas desconhecidas', () => {
