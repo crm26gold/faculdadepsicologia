@@ -12,7 +12,7 @@ import { MobileDisclosure } from './mobile-disclosure';
 import { FocusTimer } from './focus-timer';
 import { FocusHistory } from './focus-history';
 import { CaptureSheet } from './capture-sheet';
-import { AssistantBubble, AssistantPanel, type AssistantMessage } from './assistant';
+import { AssistantBubble, AssistantChat, AssistantPanel, type AssistantMessage } from './assistant';
 import { CaptureInbox } from './capture-inbox';
 import { AreaSelect, NoteOrganization, OrganizationPanel } from './life-organization';
 import { areaName, itemArea, lifeAreas } from '@/lib/life';
@@ -57,9 +57,10 @@ const navigation = [
 ] as const;
 const proViews = new Set<View>(['planning', 'finances', 'routine']);
 const serverViews = new Set<View>(['community', 'contacts', 'admin']);
-const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente de estudos', settings: 'Meu espaço' };
+const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente', settings: 'Meu espaço' };
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 const SHORTCUT_KEY = 'jornada-atalho-barra';
+const BUBBLE_KEY = 'jornada-assistente-escondido';
 const tabLabel = (id: View, label: string) => id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : id === 'planning' ? 'Metas' : id === 'routine' ? 'Rotina' : label;
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -86,6 +87,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
   const [shortcut, setShortcut] = useState<View>('studies');
   const [financeRequest, setFinanceRequest] = useState(0);
+  const [bubbleHidden, setBubbleHidden] = useState(false);
   const userProfile = data.profile ?? defaultUserProfile;
   const [focusRequest, setFocusRequest] = useState<{ id: string; subjectId: string } | null>(null);
   const cloud = mode === 'cloud';
@@ -108,7 +110,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const visibleNavigation = navigation.filter(item => item.id !== 'admin' || !!home?.account.is_master);
   const shortcutOptions = navigation.filter(item => !['today', 'agenda', 'admin'].includes(item.id) && (cloud || !serverViews.has(item.id)));
   const tabShortcut = shortcutOptions.find(item => item.id === shortcut) ?? shortcutOptions[0];
-  useEffect(() => { if (mode === 'demo') return; try { const saved = viewOf(localStorage.getItem(SHORTCUT_KEY) ?? ''); if (names[saved]) setShortcut(saved); } catch {} }, [mode]);
+  useEffect(() => { if (mode === 'demo') return; try { const saved = viewOf(localStorage.getItem(SHORTCUT_KEY) ?? ''); if (names[saved]) setShortcut(saved); setBubbleHidden(localStorage.getItem(BUBBLE_KEY) === '1'); } catch {} }, [mode]);
   const today = dateKey();
   const main = useRef<HTMLElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
@@ -278,6 +280,11 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function captureTask() { swapModal('form'); setCaptureOpen(false); setForm({ kind: 'task' }); }
   function captureFocus() { setCaptureOpen(false); if (serverViews.has(view)) navigate('today'); else popModal('capture'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }
   function captureMoney() { setCaptureOpen(false); setFinanceRequest(Date.now()); navigate('finances'); }
+  function setBubble(hidden: boolean) {
+    setBubbleHidden(hidden);
+    if (!demo) try { if (hidden) localStorage.setItem(BUBBLE_KEY, '1'); else localStorage.removeItem(BUBBLE_KEY); } catch {}
+    setNotice(hidden ? 'Assistente escondido. Para trazê-lo de volta, abra Assistente no menu.' : 'A bolinha do assistente voltou.');
+  }
   function chooseShortcut(next: View) { setShortcut(next); if (!demo) try { localStorage.setItem(SHORTCUT_KEY, next); } catch {} }
 
   function openMobileMenu() { pushModal('menu'); setMobileMenu(true); }
@@ -681,7 +688,13 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'focus' && <FocusHistory data={data} blocked={blocked} update={update} />}
           {view === 'flashcards' && <FlashcardsDeck data={data} blocked={blocked} update={update} />}
 
-          {view === 'assistant' && <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />}
+          {view === 'assistant' && <>
+            <section className="panel assistant-inline" aria-labelledby="assistant-inline-title">
+              <div className="section-heading"><h2 id="assistant-inline-title">Converse com o assistente</h2>{bubbleHidden && <button type="button" className="text-button desktop-only" onClick={() => setBubble(false)}>Mostrar a bolinha do assistente</button>}</div>
+              <AssistantChat cloud={cloud} blocked={blocked} demo={demo} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onOpenNote={openNote} />
+            </section>
+            <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />
+          </>}
 
           {view === 'settings' && <>
             {cloud && home && <AccountSettings home={home} refreshHome={refreshHome} />}
@@ -715,8 +728,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     {searchOpen && <Modal title="Encontre no seu espaço" onClose={closeSearch}><label className="sr-only" htmlFor="workspace-search">Buscar cursos, matérias, anotações e tarefas</label><input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Um curso, uma matéria, uma ideia, um compromisso…" /><div className="search-results">{!query.trim() ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>{courses.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => openCourse(item.id)}><GraduationCap size={17} aria-hidden="true" /><span>{item.name}<small>Curso</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.subjects.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>{capitalize(unitsOf(item).singular)}{courseOf(data, item) ? ` · ${courseOf(data, item)!.name}` : ''}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.notes.filter((item) => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setSelectedNote(item.id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.tasks.filter((item) => item.title.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}<p className="search-end">Fim dos resultados para “{query}”.</p></>}</div></Modal>}
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
     {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} />}
-    {ready && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} onOpen={openAssistant} />}
-    {assistantOpen && <AssistantPanel blocked={blocked} demo={demo} update={update} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
+    {ready && !bubbleHidden && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} onOpen={openAssistant} onHide={() => setBubble(true)} />}
+    {assistantOpen && <AssistantPanel cloud={cloud} blocked={blocked} demo={demo} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
     {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
     {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
   </div>;
