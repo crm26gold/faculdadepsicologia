@@ -20,13 +20,14 @@ test('API privada recusa anônimos e login antigo está desativado', async ({ re
   expect((await request.get('/api/note-media/11111111-1111-4111-8111-111111111111.png')).status()).toBe(401);
   expect((await request.post('/api/note-media', { headers: { origin: 'http://127.0.0.1:3005' }, data: {} })).status()).toBe(401);
   expect((await request.post('/api/note-media', { headers: { origin: 'https://other.example' }, data: {} })).status()).toBe(403);
+  for (const path of ['/api/ai/admin', '/api/ai/assistant']) expect((await request.post(path, { headers: { origin: 'http://127.0.0.1:3005' }, data: {} })).status(), path).toBe(401);
   expect((await request.post('/auth/login')).status()).toBe(410);
   expect((await request.post('/auth/google', { headers: { origin: 'https://other.example' } })).status()).toBe(403);
   expect((await request.get('/auth/callback?code=fake')).status()).toBe(503);
-  for (const path of ['/api/me', '/api/spaces?id=11111111-1111-4111-8111-111111111111', '/api/work?id=11111111-1111-4111-8111-111111111111', '/api/admin', '/api/contacts']) {
+  for (const path of ['/api/me', '/api/spaces?id=11111111-1111-4111-8111-111111111111', '/api/work?id=11111111-1111-4111-8111-111111111111', '/api/admin', '/api/contacts', '/api/ai/admin']) {
     expect((await request.get(path)).status(), path).toBe(401);
   }
-  for (const path of ['/api/me', '/api/spaces', '/api/work', '/api/admin', '/api/contacts']) {
+  for (const path of ['/api/me', '/api/spaces', '/api/work', '/api/admin', '/api/contacts', '/api/ai/admin', '/api/ai/assistant']) {
     expect((await request.post(path, { headers: { origin: 'https://other.example' }, data: {} })).status(), path).toBe(403);
   }
 });

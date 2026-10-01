@@ -70,7 +70,7 @@ const admin = {
 };
 
 type Posted = { url: string; body: Record<string, unknown> };
-async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown } = {}) {
+async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown } = {}) {
   const posted: Posted[] = [];
   let home = options.home ?? homeFixture();
   const json = (route: Route, data: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
@@ -93,6 +93,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
     if (url.pathname === '/api/spaces') return json(route, { ok: true, data: groupOverview });
     if (url.pathname === '/api/work') return json(route, { ok: true, data: detail });
     if (url.pathname === '/api/admin') return json(route, { ok: true, data: admin });
+    if (url.pathname === '/api/ai/admin' && options.ai) return json(route, { ok: true, data: options.ai });
     return json(route, { error: 'não simulado' }, 404);
   });
   return posted;
@@ -259,4 +260,28 @@ test('conectado no celular, a barra tem o Registrar no centro e o primeiro curso
   await expect.poll(() => saves.at(-1)?.data.courses).toEqual([expect.objectContaining({ name: 'Pós em Pedagogia', kind: 'pos', status: 'active' })]);
   expect(saves.at(-1)?.data.editorGeneration).toBe(7);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa e teste de conexão', async ({ page }) => {
+  const providers = ['anthropic', 'compatible', 'gemini', 'openai', 'vertex'].map(id => ({ id, enabled: id === 'gemini', label: '', base_url: '', gcp_project: '', gcp_location: '', has_key: id === 'gemini', key_hint: id === 'gemini' ? 'abcd' : '', updated_at: '2026-10-01T12:00:00Z' }));
+  const ai = { secretReady: true, providers, tasks: [{ id: 'assistente', provider: 'gemini', model: 'modelo-teste', enabled: true, updated_at: '' }, { id: 'organizar', provider: null, model: '', enabled: false, updated_at: '' }] };
+  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, onPost: post => post.body.action === 'test' ? { text: 'Conexão funcionou', ms: 820 } : post.body.action === 'models' ? ['modelo-a', 'modelo-b'] : null });
+  await page.goto('/');
+  await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Inteligência artificial' });
+  await expect(panel.getByText(/Cofre de chaves pronto/)).toBeVisible();
+  const gemini = panel.locator('form').filter({ hasText: 'Google Gemini (AI Studio)' }).filter({ hasText: 'aistudio' });
+  await expect(gemini.getByText(/chave …abcd/)).toBeVisible();
+  await gemini.getByRole('button', { name: 'Ver modelos' }).click();
+  await expect(panel.getByText(/2 modelos disponíveis/)).toBeVisible();
+  const vertex = panel.locator('form').filter({ hasText: 'Credencial da conta de serviço' });
+  await vertex.getByLabel(/Credencial da conta de serviço/).fill('{"client_email":"robo@projeto.iam.gserviceaccount.com","private_key":"x"}');
+  await vertex.getByLabel('Região').fill('us-central1');
+  await vertex.getByRole('button', { name: 'Salvar' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'save_provider')?.body).toMatchObject({ provider: 'vertex', gcp_location: 'us-central1', key: expect.stringContaining('client_email') });
+  const task = panel.locator('form').filter({ hasText: 'Conversa do assistente' });
+  await task.getByRole('button', { name: 'Testar' }).click();
+  await expect(panel.getByText(/Funcionou em 0.8 s/)).toBeVisible();
+  expect(posted.find(item => item.body.action === 'test')?.body).toEqual({ action: 'test', provider: 'gemini', model: 'modelo-teste' });
+  expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
 });

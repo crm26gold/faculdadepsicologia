@@ -218,3 +218,17 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 [data-theme='dark'] .button.outline, [data-theme='dark'] .heading-actions-row .button.outline { background: var(--surface); color: var(--ink); border-color: #4A6357; }
 [data-theme='dark'] .search-trigger { background: var(--surface); color: var(--muted); }
 [data-theme='dark'] .tabbar-center > span:last-child { color: var(--brand-gold); }
+
+/* Painel de IA (somente o proprietário) */
+.ai-settings { display: flex; flex-direction: column; gap: 12px; margin-block-end: 18px; }
+.ai-settings h3 { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; }
+.ai-status { display: flex; align-items: center; gap: 8px; font-size: .88rem; color: #8a5a00; }
+.ai-status.ok { color: var(--green); }
+.ai-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+.ai-card { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); min-inline-size: 0; }
+.ai-card label { display: flex; flex-direction: column; gap: 4px; font-size: .85rem; font-weight: 600; }
+.ai-card label.cm-check { flex-direction: row; align-items: center; font-weight: 500; }
+.ai-card textarea { font-family: ui-monospace, monospace; font-size: .78rem; }
+.ai-badge { display: inline-block; margin-inline-start: 8px; padding: 1px 8px; border-radius: 999px; background: var(--sage); color: var(--green); font-size: .72rem; font-weight: 600; }
+.ai-connectors { border-style: dashed; }
+.assistant-message p { white-space: pre-line; }
