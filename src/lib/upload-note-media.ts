@@ -1,7 +1,7 @@
 import { safeMediaSource, validMedia } from './note-media';
 
 export async function uploadNoteMedia(noteId: string, file: File, signal?: AbortSignal) {
-  if (!validMedia(file.type, file.size)) throw new Error('Use imagem ou áudio compatível de até 25 MB.');
+  if (!validMedia(file.type, file.size)) throw new Error('Use imagem, áudio ou vídeo compatível de até 25 MB.');
   const response = await fetch('/api/note-media', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ noteId, type: file.type, size: file.size }), signal });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error || 'Não foi possível preparar o anexo.');

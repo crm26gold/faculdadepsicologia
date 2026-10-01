@@ -2,18 +2,11 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Send, Trash2, Download, Square, Video, RefreshCw, X } from 'lucide-react';
-import { captureNote, CAPTURE_LIMIT, isUnorganized } from '@/lib/capture';
-import { MEDIA_LIMIT, mediaKind, mediaTypes, safeLink, validMedia } from '@/lib/note-media';
-import { saveLocalMedia } from '@/lib/local-media-db';
-import { uploadNoteMedia } from '@/lib/upload-note-media';
+import { CAPTURE_LIMIT, isUnorganized } from '@/lib/capture';
+import { MEDIA_LIMIT, mediaTypes, safeLink, validMedia } from '@/lib/note-media';
+import { saveCapture } from '@/lib/save-capture';
 import type { Workspace } from '@/lib/workspace';
 
-const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
-const mediaHtml = (type: string, src: string, name: string) => ({
-  image: `<p><img src="${src}" alt="${escape(name)}" width="100%"></p>`,
-  video: `<p><video src="${src}" title="${escape(name)}" controls></video></p>`,
-  audio: `<p><audio src="${src}" title="${escape(name)}" controls></audio></p>`,
-})[mediaKind(type)];
 const VIDEO_SECONDS = 180; // ~0,7 Mbps keeps three minutes well under the 25 MB attachment limit
 const videoMime = () => ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(type => MediaRecorder.isTypeSupported(type)) ?? '';
 
@@ -326,45 +319,11 @@ export function QuickCaptureWidget({
     setBusy(true);
 
     try {
-      const id = draftId.current || crypto.randomUUID();
-      const note = captureNote(text.trim() || file?.name || 'Nova anotação rápida', id, new Date().toISOString());
-
-      if (!draftId.current) {
-        if (!update(previous => ({ ...previous, notes: [note, ...previous.notes] }))) {
-          throw new Error('Não foi possível registrar a ideia. Tente novamente.');
-        }
-        draftId.current = id;
-      }
-
-      await ensureSaved();
-      if (!mounted.current) return;
-
-      let content = note.content;
-
-      if (file) {
-        if (cloud) {
-          abort.current = new AbortController();
-          const src = uploadedSource.current || await uploadNoteMedia(id, file, abort.current.signal);
-          uploadedSource.current = src;
-          content += mediaHtml(file.type, src, file.name);
-        } else {
-          // Local/offline mode: store real media in IndexedDB and link via safe /api/note-media source
-          const fileId = crypto.randomUUID();
-          const ext = mediaTypes[file.type] || (file.type.startsWith('image/') ? 'png' : 'webm');
-          const localSrc = `/api/note-media/${fileId}.${ext}`;
-          await saveLocalMedia(localSrc, file);
-          content += mediaHtml(file.type, localSrc, file.name);
-        }
-      }
-
-      if (!update(previous => ({
-        ...previous,
-        notes: previous.notes.map(item => item.id === id ? { ...item, content, title: note.title, updatedAt: new Date().toISOString() } : item),
-      }))) {
-        throw new Error('Anexo enviado, mas a anotação não foi atualizada. Tente novamente.');
-      }
-
-      await ensureSaved();
+      abort.current = new AbortController();
+      const draft = { id: draftId.current, src: uploadedSource.current };
+      let saved;
+      try { saved = await saveCapture({ text, file, cloud, draft, signal: abort.current.signal, update, ensureSaved }); }
+      finally { draftId.current = draft.id; uploadedSource.current = draft.src; }
       if (!mounted.current) return;
 
       draftId.current = '';
@@ -372,7 +331,7 @@ export function QuickCaptureWidget({
       setText('');
       clearFile();
       setMessage(cloud ? 'Ideia e mídia sincronizadas na sua conta na nuvem!' : 'Ideia guardada no seu caderno local!');
-      onSaved?.(id);
+      onSaved?.(saved.id);
     } catch (error) {
       if (mounted.current) {
         setMessage(error instanceof Error ? error.message : 'Não foi possível salvar.');
