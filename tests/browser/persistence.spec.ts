@@ -476,8 +476,10 @@ test('formulários abertos num curso não deixam toques mortos no voltar e mudar
   await expect(page.getByRole('heading', { name: 'Vocabulário', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar módulo', exact: true }).click();
   await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => history.state?.modal ?? null)).toBeNull();
   await page.getByRole('button', { name: 'Editar curso', exact: true }).click();
   await page.keyboard.press('Escape');
+  await expect.poll(() => page.evaluate(() => history.state?.modal ?? null)).toBeNull();
   await page.reload();
   await expect(hero).toBeVisible();
   await page.getByRole('button', { name: 'Adicionar módulo', exact: true }).click();
@@ -487,6 +489,7 @@ test('formulários abertos num curso não deixam toques mortos no voltar e mudar
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: '“Fundamentos” agora está em Psicologia.' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Fundamentos', exact: true })).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => history.state?.modal ?? null)).toBeNull();
   await page.getByRole('button', { name: 'Voltar para Estudos', exact: true }).click();
   await expect(list).toBeVisible();
   await page.goBack();
