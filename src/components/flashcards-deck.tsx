@@ -163,7 +163,7 @@ export function FlashcardsDeck({
         </div>
       </div>
 
-      {message && <p role="status" style={{ fontSize: '0.8rem', color: '#0369a1', fontWeight: 600 }}>{message}</p>}
+      {message && <p role="status" style={{ fontSize: '0.8rem', color: '#2F6B55', fontWeight: 600 }}>{message}</p>}
 
       {/* FILTER BY SUBJECT */}
       {!studyMode && (
