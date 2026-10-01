@@ -77,7 +77,7 @@ test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ 
   await page.goto('/');
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
+    for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Foco', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
       if (width <= 760) await page.getByRole('button', { name: 'Abrir navegação', exact: true }).click();
       const nav = width <= 760 ? page.getByRole('dialog') : page.locator('.sidebar');
       await nav.getByRole('button', { name: label, exact: true }).click();
@@ -1012,5 +1012,33 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     // Cancelar para fechar modal
     await projCancelBtn.click();
     await expect(projModal).not.toBeVisible();
+  }
+});
+
+test('cards do Meu dia abrem suas abas e a aba Foco mostra o histórico', async ({ page }) => {
+  const today = await page.evaluate(() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; });
+  const data = { version: 1, editorGeneration: 7, tasks: [], notes: [],
+    courses: [{ id: 'psi', name: 'Psicologia', kind: 'graduacao', color: 'rose', status: 'active' }],
+    subjects: [{ id: 'etica', name: 'Ética', color: 'rose', courseId: 'psi' }],
+    sessions: [
+      { id: 'a', date: today, minutes: 50, seconds: 3000, activity: 'Leitura de ética', areaId: 'studies', subjectId: 'etica' },
+      { id: 'b', date: today, minutes: 30, seconds: 1800, activity: 'Corrida', areaId: 'health', subjectId: '' },
+    ] };
+  await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(data));
+  await page.goto('/');
+  await page.getByRole('button', { name: /Foco Registrado/ }).click();
+  await expect(page.getByRole('heading', { name: 'Meu foco', level: 1 })).toBeVisible();
+  await expect(page.getByLabel('Por área da vida')).toContainText('Estudos e aprendizagem');
+  await expect(page.getByLabel('Por curso e matéria')).toContainText('Psicologia › Ética');
+  await expect(page.locator('.focus-log')).toContainText('Corrida');
+  await expect(page.locator('.focus-page .metric-value').first()).toHaveText('1h 20min');
+  expect((await new AxeBuilder({ page }).include('.focus-page').analyze()).violations).toEqual([]);
+  page.once('dialog', dialog => dialog.accept());
+  await page.getByRole('button', { name: 'Apagar registro Corrida' }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).sessions.length)).toBe(1);
+  for (const [card, heading] of [[/Tarefas de Hoje/, 'Minha agenda'], [/Estudos ativos/, 'Meus estudos'], [/Captura Rápida/, 'Meu caderno']] as const) {
+    await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Meu dia', exact: true }).click();
+    await page.getByRole('button', { name: card }).click();
+    await expect(page.getByRole('heading', { name: heading, level: 1 })).toBeVisible();
   }
 });
