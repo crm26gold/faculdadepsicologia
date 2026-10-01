@@ -370,9 +370,9 @@ export function ProfileSettings({
             Intermediação 100% direta de mensagens, áudios, finanças e tarefas enviadas para o seu número exclusivo.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.78rem' }}>
-            <div style={{ background: '#f8fafc', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
+            <div style={{ background: '#FBF9F3', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
               <strong>Webhook do Sistema para o Gateway:</strong>
-              <code style={{ display: 'block', fontSize: '0.72rem', color: '#0369a1', marginTop: 4, wordBreak: 'break-all' }}>
+              <code style={{ display: 'block', fontSize: '0.72rem', color: '#2F6B55', marginTop: 4, wordBreak: 'break-all' }}>
                 https://faculdadepsicologia.vercel.app/api/assistant/webhook
               </code>
             </div>

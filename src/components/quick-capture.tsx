@@ -388,7 +388,7 @@ export function QuickCaptureWidget({
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#dc2626', animation: 'pulse 1s infinite' }} />
                 Gravando áudio real do microfone ({formatTimer(recordingSeconds)})
-                {transcribing && <span style={{ marginLeft: 6, color: '#0284c7', fontWeight: 600 }}>· 🎙️ Transcrevendo fala ao vivo...</span>}
+                {transcribing && <span style={{ marginLeft: 6, color: '#3E7A62', fontWeight: 600 }}>· 🎙️ Transcrevendo fala ao vivo...</span>}
               </span>
               <button
                 type="button"
@@ -415,9 +415,9 @@ export function QuickCaptureWidget({
 
           {/* ATTACHED FILE PREVIEW (AUDIO PLAYER OR IMAGE THUMBNAIL) */}
           {file && filePreview && (
-            <div style={{ padding: '10px 14px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ padding: '10px 14px', background: '#FBF9F3', borderTop: '1px solid #E6E0D0', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                <span style={{ fontWeight: 600, color: '#0f172a' }}>
+                <span style={{ fontWeight: 600, color: '#10231C' }}>
                   {isAudioFile ? '🎙️ Áudio gravado' : isVideoFile ? '🎬 Vídeo' : '📷 Foto / Imagem'}: {file.name} ({Math.ceil(file.size / 1024)} KB)
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -425,7 +425,7 @@ export function QuickCaptureWidget({
                     href={filePreview}
                     download={file.name}
                     title="Baixar cópia"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#0369a1', textDecoration: 'none', fontWeight: 600 }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#2F6B55', textDecoration: 'none', fontWeight: 600 }}
                   >
                     <Download size={13} /> Baixar
                   </a>
@@ -448,7 +448,7 @@ export function QuickCaptureWidget({
 
               {/* REAL IMAGE THUMBNAIL FOR PHOTO/UPLOAD */}
               {isImageFile && (
-                <div style={{ maxHeight: 160, overflow: 'hidden', borderRadius: 6, border: '1px solid #cbd5e1' }}>
+                <div style={{ maxHeight: 160, overflow: 'hidden', borderRadius: 6, border: '1px solid #D3CCBA' }}>
                   <img src={filePreview} alt="Preview" style={{ width: '100%', maxHeight: 160, objectFit: 'contain', display: 'block', background: '#000' }} />
                 </div>
               )}
@@ -652,7 +652,7 @@ export function QuickCaptureWidget({
         </>
       )}
 
-      {message && <p role="status" style={{ fontSize: '0.8rem', color: '#0369a1', marginTop: 8, fontWeight: 600 }}>{message}</p>}
+      {message && <p role="status" style={{ fontSize: '0.8rem', color: '#2F6B55', marginTop: 8, fontWeight: 600 }}>{message}</p>}
 
       {!sheet && <div className="unorganized-notes-deck">
         <h4>Para organizar ({pending.length})</h4>

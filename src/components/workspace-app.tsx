@@ -348,7 +348,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     <div className="sidebar-header">
       <button className="brand" onClick={() => navigate('today')} aria-label="Jornada Plena — início">
         <span className="brand-icon"><img src="/brand/simbolo-reduzido.svg" alt="" width={34} height={34} /></span>
-        <span className="brand-text">Jornada<span className="brand-psi">Plena<span className="brand-dot">.</span></span></span>
+        <span className="brand-text">Jornada Plena<span className="brand-dot">.</span></span>
       </button>
       <div className="sidebar-user-card" onClick={() => navigate('settings')} role="button" tabIndex={0} title="Meu perfil e configurações">
         <div className="user-avatar-badge" aria-hidden="true">
