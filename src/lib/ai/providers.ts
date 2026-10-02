@@ -5,7 +5,8 @@ import { autoCapable, isAuto, pickModel, pickModels } from './models';
 import { conversationTurns, type Turn } from './turns';
 
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string };
-type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[] };
+/** audio: a voice note sent along with the last message (Gemini and Vertex Gemini only). */
+export type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string } };
 export class AiError extends Error {
   constructor(message: string, readonly status = 0) { super(message); }
   /** Busy, rate-limited or briefly broken: worth another try, maybe on another model. */
@@ -59,8 +60,9 @@ function vertexBase(config: AiConfig, account: ServiceAccount) {
   return `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}`;
 }
 
-const geminiBody = ({ system, prompt, maxTokens = 800, json, history }: Prompt) => JSON.stringify({
-  systemInstruction: { parts: [{ text: system }] }, contents: conversationTurns(history, prompt).map(turn => ({ role: turn.role === 'assistant' ? 'model' : 'user', parts: [{ text: turn.text }] })), generationConfig: { maxOutputTokens: maxTokens, ...(json ? { responseMimeType: 'application/json' } : {}) },
+const geminiBody = ({ system, prompt, maxTokens = 800, json, history, audio }: Prompt) => JSON.stringify({
+  systemInstruction: { parts: [{ text: system }] }, contents: conversationTurns(history, prompt).map((turn, index, all) => ({ role: turn.role === 'assistant' ? 'model' : 'user',
+    parts: [{ text: turn.text }, ...(audio && index === all.length - 1 ? [{ inlineData: { mimeType: audio.mimeType, data: audio.base64 } }] : [])] })), generationConfig: { maxOutputTokens: maxTokens, ...(json ? { responseMimeType: 'application/json' } : {}) },
 });
 const geminiText = (body: any) => (body?.candidates?.[0]?.content?.parts ?? []).map((part: { text?: string }) => part.text ?? '').join('').trim();
 const claudeText = (body: any) => (body?.content ?? []).map((part: { text?: string }) => part.text ?? '').join('').trim();
@@ -70,6 +72,7 @@ const chatText = (body: any) => String(body?.choices?.[0]?.message?.content ?? '
 export async function generate(config: AiConfig, input: Prompt): Promise<string> {
   const { system, prompt, maxTokens = 800 } = input;
   const json = { 'Content-Type': 'application/json' };
+  if (input.audio && !(config.provider === 'gemini' || (config.provider === 'vertex' && !config.model.startsWith('claude')))) throw new AiError('Mensagens de voz funcionam com o Google Gemini. Escolha o Gemini na tarefa do assistente ou mande por texto.', 400);
   const turns = conversationTurns(input.history, prompt).map(turn => ({ role: turn.role, content: turn.text }));
   let text = '';
   switch (config.provider) {

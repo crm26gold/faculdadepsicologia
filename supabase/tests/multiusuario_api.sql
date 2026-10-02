@@ -173,5 +173,44 @@ select expect(ai_runtime('assistente') is null, 'provedor desligado não roda');
 do $$ begin perform ai_save_provider('gemini', true, '', 'http://inseguro.example', '', '', null, null); raise exception 'FALHA: aceitou endereço sem https';
 exception when check_violation then null; end $$;
 select expect((select count(*) from admin_audit_log where action = 'ai_provider' and details::text not like '%chave-cifrada%') >= 3, 'histórico registra sem a chave');
+
+-- Mensageiros: só o proprietário configura e vincula; o robô só age com o segredo do servidor e só na conta vinculada.
+select act_as('00000000-0000-4000-8000-000000000001');
+do $$ begin perform messenger_admin_state(); raise exception 'FALHA: master comum viu os mensageiros';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform messenger_create_code('telegram', repeat('a', 64)); raise exception 'FALHA: conta comum gerou código de vínculo';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform count(*) from messenger_settings; raise exception 'FALHA: configuração de mensageiros legível';
+exception when insufficient_privilege then null; end $$;
+select act_as('00000000-0000-4000-8000-00000000000a');
+select messenger_save('telegram', true, 'jornada_bot', 'v1.token-cifrado', 'abcd', encode(extensions.digest('segredo-do-servidor-com-mais-de-32-caracteres', 'sha256'), 'hex'));
+select expect(messenger_admin_state()::text not like '%token-cifrado%', 'painel nunca recebe o token');
+select expect((messenger_admin_state()->>'server_ready')::boolean, 'segredo do servidor registrado');
+select messenger_create_code('telegram', encode(extensions.digest('codigo-123', 'sha256'), 'hex'));
+reset role;
+set role anon;
+do $$ begin perform bot_context('segredo-errado-com-mais-de-trinta-e-dois-caracteres', 'telegram', '555'); raise exception 'FALHA: robô aceitou segredo errado';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform private.bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555'); raise exception 'FALHA: anônimo chamou função privada';
+exception when insufficient_privilege then null; end $$;
+select expect(bot_settings('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram')->>'token_ciphertext' = 'v1.token-cifrado', 'robô obtém o token cifrado');
+select expect(bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555') is null, 'conversa sem vínculo não vê nada');
+select expect(not bot_link('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555', encode(extensions.digest('codigo-errado', 'sha256'), 'hex')), 'código errado não vincula');
+select expect(bot_link('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555', encode(extensions.digest('codigo-123', 'sha256'), 'hex')), 'código certo vincula');
+select expect(not bot_link('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '777', encode(extensions.digest('codigo-123', 'sha256'), 'hex')), 'código é de uso único');
+select expect(bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555')->>'user_id' = '00000000-0000-4000-8000-00000000000a', 'conversa vinculada chega só à conta dona do código');
+select expect(bot_log('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555', 'u1', 'user', 'gastei 50 no lanche', null), 'mensagem registrada');
+select expect(not bot_log('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555', 'u1', 'user', 'gastei 50 no lanche', null), 'mensagem repetida do Telegram é ignorada');
+select expect(jsonb_array_length(bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555')->'history') = 1, 'histórico curto disponível');
+select expect(bot_save('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555',
+  (bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555')->'workspace'->'data') || '{"tasks": []}',
+  (bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555')->'workspace'->>'revision')::integer) > 0, 'robô salva o espaço da conta vinculada');
+do $$ begin perform bot_save('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '999', '{"version": "1", "subjects": [], "notes": [], "tasks": [], "sessions": []}', 1);
+  raise exception 'FALHA: robô salvou numa conversa sem vínculo';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform count(*) from messenger_messages; raise exception 'FALHA: anônimo leu mensagens';
+exception when insufficient_privilege then null; end $$;
+select expect(bot_unlink('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555'), 'desvincular pelo robô');
+select expect(bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555') is null, 'depois de desvincular não vê nada');
 reset role;
 \echo 'OK: funções da aplicação passaram.'

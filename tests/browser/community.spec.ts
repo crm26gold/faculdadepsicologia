@@ -369,3 +369,28 @@ test('assistente: falha da IA oferece tentar de novo (pergunta não vira anotaç
   await expect(page.getByText('Seu saldo agora é R$ 1.200,00.')).toBeVisible();
   expect((await new AxeBuilder({ page }).include('.assistant-panel').analyze()).violations).toEqual([]);
 });
+
+test('telegram: a pessoa gera o código, abre o robô e a tela confirma quando o vínculo chega', async ({ page }) => {
+  await mockApi(page, { home: homeFixture({ master: true }) });
+  let linked = false;
+  await page.route('**/api/messenger**', route => {
+    const request = route.request();
+    if (request.method() === 'POST') {
+      const body = request.postDataJSON() as { action: string };
+      if (body.action === 'link_code') { setTimeout(() => { linked = true; }, 1500); return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { code: 'ABCD2345', link: 'https://t.me/jornada_teste_bot?start=ABCD2345' } }) }); }
+      linked = false;
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: null }) });
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { owner: true, channels: [{ channel: 'telegram', enabled: true, bot_username: 'jornada_teste_bot', linked }, { channel: 'whatsapp', enabled: false, bot_username: '', linked: false }] } }) });
+  });
+  await page.goto('/#settings');
+  const card = page.getByRole('region', { name: 'Telegram' });
+  await card.getByRole('button', { name: 'Conectar meu Telegram' }).click();
+  await expect(card.getByRole('link', { name: 'Abrir no Telegram e conectar' })).toHaveAttribute('href', 'https://t.me/jornada_teste_bot?start=ABCD2345');
+  await expect(card.getByText('/start ABCD2345')).toBeVisible();
+  await expect(card.getByText(/Conectado ao @jornada_teste_bot/)).toBeVisible({ timeout: 15_000 });
+  expect((await new AxeBuilder({ page }).include('.telegram-link').analyze()).violations).toEqual([]);
+  page.once('dialog', dialog => dialog.accept());
+  await card.getByRole('button', { name: 'Desconectar' }).click();
+  await expect(card.getByRole('button', { name: 'Conectar meu Telegram' })).toBeVisible();
+});
