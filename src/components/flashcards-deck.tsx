@@ -133,10 +133,7 @@ export function FlashcardsDeck({
   return (
     <section className="flashcards-deck-container">
       <div className="finances-header-row">
-        <div>
-          <h2>Flashcards · Memorização Ativa</h2>
-          <p>Técnica de repetição espaçada para fixar conteúdos antes das provas.</p>
-        </div>
+        <p className="muted">Revisão espaçada: cada cartão volta no momento certo para você fixar.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {filteredCards.length > 0 && !studyMode && (
             <button
@@ -184,16 +181,6 @@ export function FlashcardsDeck({
             <SubjectOptions data={data} label={s => `${s.name} (${cards.filter(c => c.subjectId === s.id).length})`} />
           </select>
 
-          {cards.length === 0 && (
-            <button
-              type="button"
-              className="text-button"
-              onClick={seedExamples}
-              style={{ fontSize: '0.78rem', fontWeight: 600 }}
-            >
-              ✨ Carregar exemplos de Psicologia
-            </button>
-          )}
         </div>
       )}
 
@@ -349,15 +336,15 @@ export function FlashcardsDeck({
               <Layers size={32} style={{ color: 'var(--muted)', margin: '0 auto 8px' }} />
               <h3>Nenhum flashcard criado ainda</h3>
               <p style={{ fontSize: '0.8rem', color: 'var(--muted)' }}>
-                Crie cartões de pergunta e resposta para exercitar sua memória antes das provas.
+                Crie cartões de pergunta e resposta sobre qualquer assunto que você quer lembrar.
               </p>
               <button
                 type="button"
                 className="button primary"
-                onClick={seedExamples}
+                onClick={() => setShowAdd(true)}
                 style={{ marginTop: 10 }}
               >
-                Carregar exemplos de Psicologia
+                Criar meu primeiro cartão
               </button>
             </div>
           )}

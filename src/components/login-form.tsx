@@ -10,6 +10,6 @@ export function LoginForm({ configured, error = false }: { configured: boolean; 
     {error && <div role="alert" className={styles.error}>Não foi possível concluir o acesso. Use uma conta Google com e-mail verificado e tente novamente.</div>}
     {!configured && <p role="status" className={styles.setupNotice}>Configuração do Google pendente. O espaço pessoal permanece fechado até a validação da conta administradora.</p>}
     <button type="submit" className={styles.submit} disabled={pending || !configured}>{pending ? <><LoaderCircle size={19} aria-hidden="true" />Conectando…</> : <>Continuar com Google <ArrowRight size={19} aria-hidden="true" /></>}</button>
-    <details className={styles.help}><summary>Precisa de ajuda para entrar?</summary><p>Use a conta Google que você usa na faculdade ou no dia a dia. Recuperação de conta e verificação em duas etapas são gerenciadas pelo Google. Recebeu um link de convite? Abra o link antes de entrar e você cai direto na sala.</p></details>
+    <details className={styles.help}><summary>Precisa de ajuda para entrar?</summary><p>Use a sua conta Google de sempre. Recuperação de conta e verificação em duas etapas são gerenciadas pelo Google. Recebeu um link de convite? Abra o link antes de entrar e você cai direto na sala.</p></details>
   </form>;
 }

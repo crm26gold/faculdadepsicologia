@@ -14,7 +14,7 @@
 .calendarPanel { min-width: 0; background: #fff; border: 1px solid #dfe6dc; border-radius: 15px; overflow: clip; box-shadow: 0 5px 24px #213f3404; }
 .calendarToolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 21px 18px 12px; flex-wrap: wrap; }
 .monthNavigation { display: flex; align-items: center; gap: 8px; }
-.monthNavigation h3 { min-width: 155px; text-align: center; font-size: 1.03rem; text-transform: capitalize; margin: 0; }
+.monthNavigation h3 { min-width: 155px; text-align: center; font-size: 1.03rem; margin: 0; }
 .viewControls { display: flex; gap: 8px; align-items: center; }
 .viewControls > button { min-height: 34px; padding: 5px 12px; }
 .segmented { display: flex; gap: 3px; padding: 4px; background: #f0f3ed; border-radius: 9px; }
@@ -44,7 +44,7 @@
 .calendarFoot span { display: inline-flex; gap: 7px; align-items: center; }
 .agendaAside { display: grid; gap: 18px; }
 .sideCard { background: white; border: 1px solid #e0e6dc; border-radius: 14px; padding: 23px 19px; }
-.sideCard h3 { margin: 9px 0 18px; font-size: .97rem; text-transform: capitalize; }
+.sideCard h3 { margin: 9px 0 18px; font-size: 1.02rem; }
 .sideCard > p { font-size: .78rem; }
 .sideCard > small { display: block; font-size: .7rem; color: #516246; line-height: 1.65; margin-bottom: 17px; }
 .pendingCard { background: #f2f3e7; }
@@ -121,3 +121,16 @@
 @media (max-width: 600px) { .monthTable { padding-inline: 4px; border-spacing: 3px; } .day { height: 68px; padding: 6px 2px; gap: 5px; } .dayNumber { width: 23px; height: 23px; font-size: .73rem; } .dayItems { display: none; } .mobileCount { display: block; font-size: .56rem; color: #50663e; letter-spacing: -.03em; text-align: center; } .monthNavigation h3 { min-width: 135px; font-size: .94rem; } .calendarFoot { padding-inline: 15px; font-size: .61rem; } .filterRow { padding: 6px 14px 13px; } .filterRow select { width: 100%; max-width: 100%; } .suggestion { padding: 19px; } .compactPlanner { padding: 16px; } }
 .scheduleFields { display: grid; gap: .7rem; min-width: 0; margin: 0; padding: 0; border: 0; }
 .scheduleFields input:not([type="checkbox"]), .scheduleFields select { font-size: 1rem; min-height: 48px; }
+
+.lateCard { margin-block-end: 16px; padding: 16px; border-radius: 14px; background: #fdf3f2; border: 1px solid #f3cfcb; scroll-margin-top: 76px; }
+.lateCard:focus { outline: none; }
+.lateCard h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: #8f1d1d; font-size: 1.05rem; }
+.lateCard ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.lateCard li { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border-radius: 10px; background: var(--surface); border: 1px solid #f3cfcb; }
+.lateDate { flex-shrink: 0; min-inline-size: 54px; font-weight: 700; color: #8f1d1d; }
+.lateWhat { display: flex; flex-direction: column; flex: 1; min-inline-size: 140px; }
+.lateWhat small { color: var(--muted); }
+.lateActions { display: flex; gap: 6px; }
+.lateActions .button { min-block-size: 40px; padding: .4rem .7rem; }
+.sideCard { scroll-margin-top: 76px; }
+.sideCard:focus { outline: none; }

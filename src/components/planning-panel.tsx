@@ -141,18 +141,7 @@ export function PlanningPanel({ data, blocked, update }: PlanningProps) {
   return (
     <section className="planning-container" aria-label="Planejamento de Metas e Projetos">
       <header className="planning-header">
-        <div className="planning-title-block">
-          <div className="planning-badge">
-            <Target size={15} aria-hidden="true" />
-            <span>Direção e Ação</span>
-          </div>
-          <h2>Metas e Projetos</h2>
-          <p>
-            Metas orientam onde você quer chegar. Projetos transformam intenções em passos práticos.
-            Tarefas concluídas mostram o esforço operacional do projeto, sem substituir a medição da
-            meta.
-          </p>
-        </div>
+        <p className="planning-intro">Metas dizem aonde você quer chegar; projetos quebram o caminho em passos.</p>
 
         <div className="planning-header-actions">
           <button

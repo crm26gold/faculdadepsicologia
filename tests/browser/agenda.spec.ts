@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('20
 
 test('agenda mensal, semanal e acessibilidade com exemplos', async ({ page }, info) => {
   await page.goto('/'); await navigate(page, 'Agenda');
-  await expect(page.getByRole('heading', { name: 'setembro de 2026', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^setembro de 2026$/i })).toBeVisible();
   await expect(page.getByRole('table')).toBeVisible();
   await page.getByLabel('Filtrar matéria', { exact: true }).selectOption('neuro');
   await page.getByLabel('Filtrar matéria', { exact: true }).selectOption('');
