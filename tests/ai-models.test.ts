@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { isAuto, modelNote, pickModel, sortModels } from '../src/lib/ai/models';
+import { conversationTurns } from '../src/lib/ai/turns';
 
 const gemini = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.8-flash-001',
   'gemini-3.9-flash-preview', 'gemini-3.8-flash-tts', 'gemini-3.8-live', 'gemini-embedding-002', 'gemma-4-27b-it', 'nano-banana-2-lite', 'gemini-omni-1.1-flash'];
@@ -25,4 +26,18 @@ test('lista mostra os modelos de texto primeiro, do mais novo ao mais antigo, se
   assert.equal(modelNote('gemini', 'gemini-3.1-pro-preview'), 'mais forte · prévia');
   assert.equal(isAuto('auto:rapido'), true);
   assert.equal(isAuto('gemini-3.8-flash'), false);
+});
+
+test('histórico da conversa alterna pessoa e assistente, começando pela pessoa', () => {
+  assert.deepEqual(conversationTurns([
+    { role: 'assistant', text: 'Olá! Como posso ajudar?' },
+    { role: 'user', text: 'Gastei 50 no lanche' },
+    { role: 'assistant', text: 'Anotei R$ 50 em Alimentação.' },
+    { role: 'assistant', text: '' },
+  ], 'E quanto gastei hoje?'), [
+    { role: 'user', text: 'Gastei 50 no lanche' },
+    { role: 'assistant', text: 'Anotei R$ 50 em Alimentação.' },
+    { role: 'user', text: 'E quanto gastei hoje?' },
+  ]);
+  assert.deepEqual(conversationTurns([{ role: 'user', text: 'oi' }], 'tudo bem?'), [{ role: 'user', text: 'oi\ntudo bem?' }]);
 });

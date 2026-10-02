@@ -71,6 +71,7 @@ const subtitles: Record<View, string> = {
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 const SHORTCUT_KEY = 'jornada-atalho-barra';
 const BUBBLE_KEY = 'jornada-assistente-escondido';
+const CHAT_KEY = 'jornada-assistente-conversa';
 const tabLabel = (id: View, label: string) => id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : id === 'planning' ? 'Metas' : id === 'routine' ? 'Rotina' : label;
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -124,6 +125,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const visibleNavigation = navigation.filter(item => item.id !== 'admin' || !!home?.account.is_master);
   const shortcutOptions = navigation.filter(item => !['today', 'agenda', 'admin'].includes(item.id) && (cloud || !serverViews.has(item.id)));
   const tabShortcut = shortcutOptions.find(item => item.id === shortcut) ?? shortcutOptions[0];
+  // The conversation stays on this device (only the last 40 messages), so it continues after a reload.
+  const [chatLoaded, setChatLoaded] = useState(false);
+  useEffect(() => { if (mode === 'demo') return; try { const saved = JSON.parse(localStorage.getItem(CHAT_KEY) ?? '[]'); if (Array.isArray(saved)) setAssistantMessages(saved.slice(-40)); } catch {} setChatLoaded(true); }, [mode]);
+  useEffect(() => { if (mode === 'demo' || !chatLoaded) return; try { if (assistantMessages.length) localStorage.setItem(CHAT_KEY, JSON.stringify(assistantMessages.slice(-40))); else localStorage.removeItem(CHAT_KEY); } catch {} }, [assistantMessages, mode, chatLoaded]);
   useEffect(() => { if (mode === 'demo') return; try { const saved = viewOf(localStorage.getItem(SHORTCUT_KEY) ?? ''); if (names[saved]) setShortcut(saved); setBubbleHidden(localStorage.getItem(BUBBLE_KEY) === '1'); } catch {} }, [mode]);
   const today = dateKey();
   const main = useRef<HTMLElement>(null);

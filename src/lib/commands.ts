@@ -21,7 +21,7 @@ export const commandAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('concluir'), title: name }),
 ]);
 export type CommandAction = z.infer<typeof commandAction>;
-export const commandResult = z.object({ reply: z.string().trim().max(800).default(''), actions: z.array(commandAction).max(8).default([]) });
+export const commandResult = z.object({ reply: z.string().trim().max(3000).default(''), actions: z.array(commandAction).max(8).default([]) });
 export type CommandResult = z.infer<typeof commandResult>;
 export type Undo = { kind: 'task' | 'note' | 'transactions' | 'focus' | 'reopen'; id: string };
 export type Applied = { label: string; view: 'agenda' | 'notes' | 'finances' | 'focus'; id?: string; undo: Undo };
@@ -124,26 +124,29 @@ export function commandContext(data: Workspace, today: string) {
   ].filter(Boolean).join('\n').slice(0, 6000);
 }
 
-export const commandSystem = `Você é o assistente da Jornada Plena, organizador da vida inteira (estudos, trabalho, rotina, saúde, finanças, relações).
-A pessoa fala ou escreve em português do Brasil. Entenda o pedido e devolva SOMENTE um JSON, sem texto fora dele, no formato:
-{"reply": "resposta curta em português, no máximo 2 frases", "actions": [ ... ]}
-Ações possíveis (use só as necessárias; nenhuma se for só uma pergunta):
+export const commandSystem = `Você é o assistente pessoal da Jornada Plena, um organizador da vida inteira (estudos, trabalho, rotina, saúde, finanças, relações e projetos).
+Converse de verdade, como um bom assistente: natural, caloroso e direto, em português do Brasil. Responda perguntas, ajude a pensar, dê sugestões, lembre do que foi dito antes na conversa.
+Quando a pessoa pedir para registrar, anotar, agendar, lançar um gasto ou um recebimento, começar um foco ou marcar algo como feito, você mesmo executa com as ações abaixo e conta o que fez, já com a categoria certa.
+Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
+{"reply": "sua resposta para a pessoa", "actions": [ ... ]}
+A resposta deve soar falada: frases curtas e claras, sem listas longas nem markdown; pode ser mais longa só quando a pessoa pedir explicação.
+Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa comum, "actions" fica vazio):
 - {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional)}
 - {"type":"anotacao","text":"o conteúdo a guardar"} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro
 - {"type":"financeiro","flow":"expense"|"income","description":"...","amount":número em reais,"category":uma de [${expenseCategories.join(', ')}] para saídas ou [${incomeCategories.join(', ')}] para entradas,"date":"AAAA-MM-DD","pending":true se ainda vai pagar/receber,"nature":"fixed"|"variable"|"oneoff","installments":número de parcelas (opcional),"monthly":meses se repete todo mês (opcional)}
 - {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo
 - {"type":"concluir","title":"nome do compromisso"} — marcar como feito
 Regras: datas relativas ("amanhã", "sexta", "dia 10") viram datas reais a partir de hoje. Gasto já feito = pending false; conta futura = pending true.
-Na resposta, confirme o que fez de forma natural. Se for uma pergunta sobre o dia, a agenda ou as contas, responda usando o contexto e não crie ações.
+Ao registrar, confirme de forma natural (por exemplo: "Anotei: R$ 50 em lanche, na categoria Alimentação"). Se for uma pergunta sobre o dia, a agenda ou as contas, responda usando o contexto e não crie ações.
 Nunca invente dados que a pessoa não disse. Se faltar algo essencial (por exemplo o valor de um gasto), pergunte na resposta e não crie a ação.`;
 
 /** Model output → validated result, tolerating code fences and stray text around the JSON. */
 export function parseCommand(raw: string): CommandResult {
   const start = raw.indexOf('{'), end = raw.lastIndexOf('}');
-  if (start < 0 || end <= start) return { reply: raw.trim().slice(0, 800), actions: [] };
+  if (start < 0 || end <= start) return { reply: raw.trim().slice(0, 3000), actions: [] };
   let value: unknown;
-  try { value = JSON.parse(raw.slice(start, end + 1)); } catch { return { reply: raw.trim().slice(0, 800), actions: [] }; }
+  try { value = JSON.parse(raw.slice(start, end + 1)); } catch { return { reply: raw.trim().slice(0, 3000), actions: [] }; }
   const object = value as { reply?: unknown; actions?: unknown };
   const actions = Array.isArray(object.actions) ? object.actions.flatMap(item => { const parsed = commandAction.safeParse(item); return parsed.success ? [parsed.data] : []; }) : [];
-  return { reply: typeof object.reply === 'string' ? object.reply.trim().slice(0, 800) : '', actions: actions.slice(0, 8) };
+  return { reply: typeof object.reply === 'string' ? object.reply.trim().slice(0, 3000) : '', actions: actions.slice(0, 8) };
 }

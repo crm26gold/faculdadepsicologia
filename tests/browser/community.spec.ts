@@ -321,9 +321,17 @@ test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Pa
   await expect(page.getByText(/\(desfeito\)/)).toBeVisible();
   await expect.poll(() => saves.at(-1)?.data.tasks.length).toBe(0);
   expect(saves.at(-1)?.data.transactions ?? []).toEqual([]);
+  await input.fill('e quanto gastei hoje?');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect.poll(() => posted.filter(item => item.url === '/api/ai/command').length).toBe(2);
+  const second = posted.filter(item => item.url === '/api/ai/command')[1].body as { history: { role: string; text: string }[] };
+  expect(second.history.slice(0, 2)).toEqual([{ role: 'user', text: 'amanhã às 15h dentista e gastei 32 no mercado' }, { role: 'assistant', text: 'Pronto: dentista amanhã às 15h e o mercado anotado. (desfeito)' }]);
+  await page.getByRole('button', { name: 'Nova conversa' }).click();
+  await expect(page.getByText('e quanto gastei hoje?')).toHaveCount(0);
   configured = false;
   await input.fill('ideia solta para depois');
   await page.getByRole('button', { name: 'Enviar mensagem' }).click();
   await expect(page.getByText(/Guardei em Para organizar: “ideia solta para depois”/)).toBeVisible();
   await expect(page.getByText('IA ainda não ligada: guardo tudo em Para organizar')).toBeVisible();
+  await expect(page.getByText(/Administração › Inteligência artificial/)).toBeVisible();
 });
