@@ -1176,7 +1176,7 @@ test('no celular não há bolinha: o assistente vive na aba Assistente', async (
   await expect(page.getByRole('button', { name: 'Mostrar a bolinha nas outras telas' })).toHaveCount(0);
   await page.getByLabel('Mensagem para o assistente').fill('Lembrar de levar o livro de Ética');
   await page.getByRole('button', { name: 'Enviar mensagem' }).click();
-  await expect(page.getByText(/Anotei em Para organizar: “Lembrar de levar o livro de Ética”/)).toBeVisible();
+  await expect(page.getByText(/Guardei em Para organizar: “Lembrar de levar o livro de Ética”/)).toBeVisible();
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Lembrar de levar o livro de Ética');
   await page.getByRole('button', { name: /Ver anotação/ }).click();
   await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Lembrar de levar o livro de Ética');

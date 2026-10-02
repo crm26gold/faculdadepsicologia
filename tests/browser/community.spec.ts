@@ -292,3 +292,38 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   await expect.poll(() => posted.find(item => item.body.action === 'save_task')?.body).toMatchObject({ task: 'assistente', provider: 'gemini', model: 'gemini-3.5-flash-lite' });
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
 });
+
+test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Para organizar', async ({ page }) => {
+  const tomorrow = (() => { const date = new Date(); date.setDate(date.getDate() + 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; })();
+  let configured = true;
+  const posted = await mockApi(page, { onPost: post => post.url === '/api/ai/command' ? (configured
+    ? { configured: true, model: 'gemini-3.8-flash', reply: 'Pronto: dentista amanhã às 15h e o mercado anotado.', actions: [
+      { type: 'compromisso', title: 'Dentista', date: tomorrow, time: '15:00', kind: 'Consulta', area: 'Saúde física' },
+      { type: 'financeiro', flow: 'expense', description: 'Mercado', amount: 32, category: 'Alimentação', date: new Date().toISOString().slice(0, 10) }] }
+    : { configured: false }) : null });
+  const saves: { data: { tasks: { title: string }[]; transactions?: { description: string }[] } }[] = [];
+  page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith('/api/workspace')) saves.push(request.postDataJSON()); });
+  await page.goto('/');
+  await nav(page).getByRole('button', { name: 'Assistente', exact: true }).click();
+  const input = page.getByLabel('Mensagem para o assistente');
+  await input.fill('amanhã às 15h dentista e gastei 32 no mercado');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.getByText('Pronto: dentista amanhã às 15h e o mercado anotado.')).toBeVisible();
+  await expect(page.getByText('Consulta: Dentista · amanhã às 15:00')).toBeVisible();
+  await expect(page.getByText(/Saída: Mercado · R\$\s32,00/)).toBeVisible();
+  await expect(page.getByText(/Inteligência artificial ligada · gemini-3.8-flash/)).toBeVisible();
+  const command = posted.find(item => item.url === '/api/ai/command')!.body;
+  expect(command.message).toBe('amanhã às 15h dentista e gastei 32 no mercado');
+  expect(String(command.context)).toMatch(/^Hoje: /);
+  await expect.poll(() => saves.at(-1)?.data.tasks.map(task => task.title)).toEqual(['Dentista']);
+  expect((await new AxeBuilder({ page }).include('.assistant-panel').analyze()).violations).toEqual([]);
+  await page.getByRole('button', { name: 'Desfazer' }).click();
+  await expect(page.getByText(/\(desfeito\)/)).toBeVisible();
+  await expect.poll(() => saves.at(-1)?.data.tasks.length).toBe(0);
+  expect(saves.at(-1)?.data.transactions ?? []).toEqual([]);
+  configured = false;
+  await input.fill('ideia solta para depois');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.getByText(/Guardei em Para organizar: “ideia solta para depois”/)).toBeVisible();
+  await expect(page.getByText('IA ainda não ligada: guardo tudo em Para organizar')).toBeVisible();
+});

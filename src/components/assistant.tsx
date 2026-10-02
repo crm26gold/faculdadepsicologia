@@ -1,13 +1,14 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
-import { ArrowRight, Mic, Paperclip, Send, Square, X } from 'lucide-react';
+import { ArrowRight, AudioLines, Check, Mic, Paperclip, Send, Square, Undo2, X } from 'lucide-react';
 import { validMedia } from '@/lib/note-media';
 import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
-import type { Workspace } from '@/lib/workspace';
+import { dateKey, type Workspace } from '@/lib/workspace';
+import { applyCommands, commandContext, undoApplied, type Applied, type CommandAction } from '@/lib/commands';
 import { Modal } from './modal';
 
-export type AssistantMessage = { id: string; from: 'me' | 'assistant'; text: string; noteId?: string };
+export type AssistantMessage = { id: string; from: 'me' | 'assistant'; text: string; noteId?: string; applied?: Applied[] };
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start: () => void; stop: () => void;
   onresult: ((event: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
   onerror: ((event: { error: string }) => void) | null; onend: (() => void) | null };
@@ -94,68 +95,99 @@ export function AssistantBubble({ onOpen, onHide, persist }: { onOpen: () => voi
 }
 
 type ChatProps = {
-  cloud: boolean; blocked: boolean; demo: boolean;
+  cloud: boolean; blocked: boolean; demo: boolean; data: Workspace;
   update: (change: (previous: Workspace) => Workspace) => boolean;
   ensureSaved: () => Promise<void>;
   messages: AssistantMessage[]; setMessages: (change: (previous: AssistantMessage[]) => AssistantMessage[]) => void;
-  onOpenNote: (id: string) => void;
+  onOpenNote: (id: string) => void; onNavigate: (view: Applied['view']) => void;
 };
+type CommandReply = { configured: boolean; reply?: string; actions?: CommandAction[]; model?: string };
 // The same conversation lives in the computer's bubble and in the Assistente tab (the phone's way in).
-export function AssistantChat({ cloud, blocked, demo, update, ensureSaved, messages, setMessages, onOpenNote }: ChatProps) {
+// With AI connected it understands and acts (and can undo); without it, nothing is lost: it goes to "Para organizar".
+export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved, messages, setMessages, onOpenNote, onNavigate }: ChatProps) {
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
+  const [talking, setTalking] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const [heard, setHeard] = useState('');
   const [problem, setProblem] = useState('');
+  const [ai, setAi] = useState<{ ready: boolean; model?: string } | null>(null);
   const recognizer = useRef<Recognition | null>(null);
+  const conversation = useRef(false);
   const list = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const draft = useRef<CaptureDraft>({ id: '', src: '' });
+  const latest = useRef(data);
+  useEffect(() => { latest.current = data; }, [data]);
   const [voice] = useState(() => !!recognition());
-  useEffect(() => () => { try { recognizer.current?.stop(); } catch {} window.speechSynthesis?.cancel(); }, []);
+  useEffect(() => () => { conversation.current = false; try { recognizer.current?.stop(); } catch {} window.speechSynthesis?.cancel(); }, []);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [messages, heard]);
 
+  // Speaks the answer; in conversation mode, listening starts again only after the voice finishes.
   function speak(value: string) {
-    if (!('speechSynthesis' in window)) return;
+    if (!('speechSynthesis' in window) || !value) { if (conversation.current) listen(); return; }
     const utterance = new SpeechSynthesisUtterance(value);
     utterance.lang = 'pt-BR';
-    window.speechSynthesis.cancel(); window.speechSynthesis.speak(utterance);
+    const next = () => { setSpeaking(false); if (conversation.current) listen(); };
+    utterance.onend = next; utterance.onerror = next;
+    window.speechSynthesis.cancel(); setSpeaking(true); window.speechSynthesis.speak(utterance);
   }
   function attach(value?: File) {
     if (!value) return;
     if (!validMedia(value.type, value.size)) { setProblem('Anexe uma foto, um áudio ou um vídeo curto de até 25 MB.'); return; }
     setProblem(''); setFile(value); draft.current.src = '';
   }
-  // Until an AI provider is connected, nothing said here is lost: it becomes a capture in "Para organizar".
+  async function capture(said: string, id: string, note: string) {
+    const saved = await saveCapture({ text: said, file, cloud, draft: draft.current, update, ensureSaved });
+    draft.current = { id: '', src: '' };
+    setMessages(previous => [...previous, { id, from: 'assistant', text: `${note}Guardei em Para organizar: “${saved.title}”${file ? ', com o anexo' : ''}.`, noteId: saved.id }]);
+    return 'Guardei em Para organizar.';
+  }
   async function send(value: string, spoken = false) {
     const said = value.trim();
     if ((!said && !file) || blocked || busy) return;
     setBusy(true); setProblem('');
     const id = crypto.randomUUID();
+    setMessages(previous => [...previous, { id: `${id}:eu`, from: 'me', text: said || `Anexo: ${file!.name}` }]);
+    setText('');
+    let voiceAnswer = '';
     try {
-      const saved = await saveCapture({ text: said, file, cloud, draft: draft.current, update, ensureSaved });
-      draft.current = { id: '', src: '' };
-      let answer = `Anotei em Para organizar: “${saved.title}”${file ? ', com o anexo' : ''}. Quando a inteligência artificial estiver ligada, eu mesmo vou entender e organizar isso para você — por exemplo, criar o compromisso na agenda.`;
-      if (cloud && said) {
-        try {
-          const ai = await api<{ configured: boolean; reply?: string }>('/api/ai/assistant', { message: said });
-          if (ai.configured && ai.reply) answer = `${ai.reply}
-
-Guardei em Para organizar${file ? ', com o anexo' : ''}.`;
-        } catch (error) { answer = `Anotei em Para organizar: “${saved.title}”. A inteligência artificial não respondeu agora (${error instanceof Error ? error.message : 'erro'}).`; }
+      let result: CommandReply = { configured: false };
+      if (cloud && said && !file) {
+        try { result = await api<CommandReply>('/api/ai/command', { message: said, context: commandContext(latest.current, dateKey()) }); }
+        catch (error) {
+          setAi(previous => previous ?? { ready: true });
+          voiceAnswer = await capture(said, id, `A inteligência artificial não respondeu (${error instanceof Error ? error.message : 'erro'}). `);
+          return;
+        }
       }
-      setMessages(previous => [...previous, { id: `${id}:eu`, from: 'me', text: said || `Anexo: ${file!.name}` }, { id, from: 'assistant', text: answer, noteId: saved.id }]);
-      setText(''); setFile(null);
-      if (spoken) speak('Anotei. Está em Para organizar.');
+      setAi(result.configured ? { ready: true, model: result.model } : cloud ? { ready: false } : null);
+      if (!result.configured) { voiceAnswer = await capture(said, id, ''); return; }
+      const actions = result.actions ?? [];
+      if (!actions.length && !result.reply) { voiceAnswer = await capture(said, id, 'Não entendi como organizar isso. '); return; }
+      let outcome: ReturnType<typeof applyCommands> | null = null;
+      const saved = !actions.length || update(previous => { outcome = applyCommands(previous, actions, { today: dateKey(), now: Date.now() }); return outcome.data; });
+      const done = saved ? (outcome as ReturnType<typeof applyCommands> | null) : null;
+      const failed = !saved ? 'Não consegui salvar agora. Confira o aviso de salvamento.' : done?.failed.length ? `Não consegui: ${done.failed.join('; ')}.` : '';
+      const reply = [result.reply, failed].filter(Boolean).join(' ');
+      setMessages(previous => [...previous, { id, from: 'assistant', text: reply || 'Feito.', applied: done?.applied.length ? done.applied : undefined }]);
+      voiceAnswer = reply || 'Feito.';
     } catch (error) {
-      setProblem(error instanceof Error ? error.message : 'Não consegui anotar agora. Confira o aviso de salvamento e tente de novo.');
-    } finally { setBusy(false); }
+      setProblem(error instanceof Error ? error.message : 'Não consegui agora. Confira o aviso de salvamento e tente de novo.');
+    } finally {
+      setFile(null); setBusy(false);
+      if (spoken) speak(voiceAnswer);
+    }
+  }
+  function undo(message: AssistantMessage) {
+    if (!message.applied?.length || blocked) return;
+    if (update(previous => undoApplied(previous, message.applied!))) setMessages(previous => previous.map(item => item.id === message.id ? { ...item, applied: undefined, text: `${item.text} (desfeito)` } : item));
   }
   function listen() {
-    if (listening) { recognizer.current?.stop(); return; }
     const recognize = recognition();
-    if (!recognize) { setProblem('Este navegador não reconhece fala. Escreva sua mensagem ou use o Áudio do Registro rápido.'); return; }
+    if (!recognize) { setProblem('Este navegador não reconhece fala. Escreva sua mensagem ou use o Áudio do Registro rápido.'); conversation.current = false; setTalking(false); return; }
     recognize.lang = 'pt-BR'; recognize.interimResults = true; recognize.continuous = false;
     let final = '';
     recognize.onresult = event => {
@@ -166,35 +198,55 @@ Guardei em Para organizar${file ? ', com o anexo' : ''}.`;
       }
       setHeard(`${final} ${partial}`.trim());
     };
-    recognize.onerror = event => setProblem(event.error === 'not-allowed' || event.error === 'service-not-allowed'
-      ? 'O microfone não foi autorizado. Toque em Permitir quando o navegador perguntar, ou libere em Configurações do site › Microfone.'
-      : event.error === 'no-speech' ? 'Não ouvi nada. Toque no microfone e fale de novo.' : 'Não consegui ouvir agora. Tente de novo ou escreva.');
-    recognize.onend = () => { setListening(false); setHeard(''); recognizer.current = null; if (final.trim()) void send(final, true); };
+    recognize.onerror = event => {
+      if (event.error === 'no-speech' && conversation.current) return;
+      conversation.current = false; setTalking(false);
+      setProblem(event.error === 'not-allowed' || event.error === 'service-not-allowed'
+        ? 'O microfone não foi autorizado. Toque em Permitir quando o navegador perguntar, ou libere em Configurações do site › Microfone.'
+        : event.error === 'no-speech' ? 'Não ouvi nada. Toque no microfone e fale de novo.' : 'Não consegui ouvir agora. Tente de novo ou escreva.');
+    };
+    recognize.onend = () => {
+      setListening(false); setHeard(''); recognizer.current = null;
+      if (final.trim()) void send(final, true);
+      else if (conversation.current) listen();
+    };
     recognizer.current = recognize;
     setProblem(''); setHeard(''); setListening(true);
     try { recognize.start(); } catch { setListening(false); setProblem('Não consegui abrir o microfone. Tente de novo.'); }
   }
+  function toggleOnce() { if (listening) { recognizer.current?.stop(); return; } listen(); }
+  function toggleConversation() {
+    if (talking) { conversation.current = false; setTalking(false); try { recognizer.current?.stop(); } catch {} window.speechSynthesis?.cancel(); setSpeaking(false); return; }
+    conversation.current = true; setTalking(true); listen();
+  }
   function submit(event: FormEvent) { event.preventDefault(); void send(text); }
   const locked = blocked || busy;
+  const state = talking ? speaking ? 'Respondendo…' : busy ? 'Executando…' : listening ? 'Ouvindo… pode falar' : 'Um instante…' : '';
 
   return <div className="assistant-panel">
-    <p className="assistant-status"><span className="assistant-status-dot" aria-hidden="true" />Inteligência artificial em preparação</p>
+    <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? `Inteligência artificial ligada${ai.model ? ` · ${ai.model}` : ''}` : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Fale ou escreva: eu entendo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
     <div className="assistant-messages" ref={list} aria-live="polite">
       {!messages.length && <div className="assistant-message assistant">
-        <p>Olá! Fale ou escreva o que precisa: uma ideia, um compromisso, uma tarefa. Também dá para anexar uma foto, um áudio ou um vídeo.</p>
-        <p>Por enquanto eu guardo tudo em <strong>Para organizar</strong>, sem perder nada. Quando a inteligência artificial for ligada, vou entender e organizar sozinho.</p>
+        <p>Olá! Diga, por exemplo: “amanhã às 15h dentista”, “gastei 32 reais no mercado”, “conta de luz de 210 vence dia 10”, “começa um foco de 25 minutos em leitura” ou “o que eu tenho hoje?”.</p>
+        <p>Toque em <strong>Conversar</strong> para falar à vontade: eu executo, respondo e volto a ouvir. O que eu não souber organizar fica em <strong>Para organizar</strong>.</p>
       </div>}
       {messages.map(message => <div key={message.id} className={`assistant-message ${message.from}`}>
         <p>{message.text}</p>
+        {message.applied?.length ? <ul className="assistant-applied">{message.applied.map((item, index) => <li key={index}><Check size={14} aria-hidden="true" /><span>{item.label}</span><button type="button" className="text-button" onClick={() => onNavigate(item.view)}>Ver</button></li>)}</ul> : null}
+        {message.applied?.length ? <button type="button" className="text-button assistant-undo" disabled={blocked} onClick={() => undo(message)}><Undo2 size={14} aria-hidden="true" />Desfazer</button> : null}
         {message.noteId && <button type="button" className="text-button" onClick={() => onOpenNote(message.noteId!)}>Ver anotação <ArrowRight size={13} aria-hidden="true" /></button>}
       </div>)}
       {listening && <div className="assistant-message me listening"><p>{heard || 'Ouvindo…'}</p></div>}
     </div>
     {problem && <p className="assistant-problem" role="alert">{problem}</p>}
-    <button type="button" className={`assistant-mic ${listening ? 'listening' : ''}`} disabled={locked || (!voice && !listening)} aria-pressed={listening} onClick={listen}>
-      {listening ? <Square size={22} fill="currentColor" aria-hidden="true" /> : <Mic size={26} aria-hidden="true" />}
-      <span>{listening ? 'Parar e enviar' : voice ? 'Toque para falar' : 'Voz indisponível neste navegador'}</span>
-    </button>
+    <div className="assistant-voice">
+      <button type="button" className={`assistant-mic ${talking ? 'listening' : ''}`} disabled={blocked || !voice || (listening && !talking)} aria-pressed={talking} onClick={toggleConversation}>
+        {talking ? <Square size={22} fill="currentColor" aria-hidden="true" /> : <AudioLines size={24} aria-hidden="true" />}
+        <span>{talking ? 'Encerrar conversa' : voice ? 'Conversar' : 'Voz indisponível neste navegador'}</span>
+      </button>
+      {!talking && voice && <button type="button" className={`assistant-once ${listening ? 'listening' : ''}`} disabled={locked} aria-pressed={listening} onClick={toggleOnce} aria-label={listening ? 'Parar e enviar' : 'Falar uma vez'}>{listening ? <Square size={18} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}</button>}
+    </div>
+    {state && <p className="assistant-live" role="status">{state}</p>}
     {file && <p className="assistant-attachment"><Paperclip size={14} aria-hidden="true" /><span>{file.name} ({Math.ceil(file.size / 1024)} KB)</span><button type="button" className="text-button" disabled={locked} onClick={() => setFile(null)}>Remover</button></p>}
     <form className="assistant-form" onSubmit={submit}>
       {!demo && <button type="button" className="icon-button assistant-clip" aria-label="Anexar foto, áudio ou vídeo" disabled={locked || listening} onClick={() => fileInput.current?.click()}><Paperclip size={18} aria-hidden="true" /></button>}
@@ -203,7 +255,7 @@ Guardei em Para organizar${file ? ', com o anexo' : ''}.`;
       <button className="button primary" aria-label="Enviar mensagem" disabled={locked || listening || (!text.trim() && !file)}><Send size={16} aria-hidden="true" /></button>
     </form>
     {!demo && <input hidden ref={fileInput} type="file" aria-label="Anexar arquivo ao assistente" accept="image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm,video/mp4,video/webm,video/quicktime" onChange={event => { attach(event.target.files?.[0]); event.target.value = ''; }} />}
-    <p className="assistant-privacy">{demo ? 'Demonstração: nada é guardado de verdade.' : busy ? 'Guardando… aguarde antes de fechar.' : 'A voz usa o reconhecimento de fala do navegador (no Chrome, processado pelo Google).'}</p>
+    <p className="assistant-privacy">{demo ? 'Demonstração: nada é guardado de verdade.' : busy ? 'Guardando… aguarde antes de fechar.' : 'A voz usa o reconhecimento de fala do navegador (no Chrome, processado pelo Google). O que você diz vai para o provedor de IA escolhido no painel.'}</p>
   </div>;
 }
 

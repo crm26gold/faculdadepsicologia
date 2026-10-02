@@ -722,6 +722,19 @@
 [data-theme='dark'] .today-new {
     color: hsl(160 61% 78%)
 }
+[data-theme='dark'] .assistant-once {
+    color: hsl(160 61% 78%)
+}
+[data-theme='dark'] .assistant-live {
+    color: hsl(160 61% 78%)
+}
+[data-theme='dark'] .assistant-applied li {
+    background: hsl(140 28% 17%);
+    color: hsl(152 54% 78%)
+}
+[data-theme='dark'] .assistant-applied li svg {
+    color: hsl(150 55% 78%)
+}
 /* src/app/finance.css */
 [data-theme='dark'] .fin-hero {
     background: linear-gradient(135deg, hsl(47 28% 17%), var(--surface))
