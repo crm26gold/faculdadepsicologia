@@ -349,3 +349,12 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .assistant-top .text-button { display: inline-flex; align-items: center; gap: 4px; }
 .assistant-setup { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fbf4e4; color: #5c4108; font-size: .88rem; }
 [data-theme='dark'] .assistant-setup { background: #3a2f17; color: #fde7b0; }
+.assistant-top-actions { display: inline-flex; gap: 12px; flex-wrap: wrap; }
+.assistant-history { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--soft-bg); }
+.assistant-history ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-block-size: 40vh; overflow-y: auto; }
+.assistant-history li { display: flex; gap: 6px; align-items: center; }
+.assistant-history-open { flex: 1; display: flex; flex-direction: column; text-align: start; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); min-inline-size: 0; }
+.assistant-history-open strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.assistant-history-open small, .assistant-history-note { color: var(--muted); font-size: .8rem; margin: 0; }
+.assistant-retry { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-block-start: 8px; }
+.assistant-retry .button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }

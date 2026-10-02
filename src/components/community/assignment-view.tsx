@@ -59,7 +59,10 @@ export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda }: {
     if (!part) return;
     const body: Record<string, unknown> = { action: 'save_part', part: part.id, status };
     if (draft && canEdit) body.content = draft;
-    if (await run(body, done)) setDirty(false);
+    // Counted as saved from the moment it is sent, so opening another part meanwhile does not ask to discard;
+    // a failed save marks it unsaved again.
+    setDirty(false);
+    if (!(await run(body, done))) setDirty(true);
   }
 
   const commentBox = useRef<HTMLTextAreaElement>(null);

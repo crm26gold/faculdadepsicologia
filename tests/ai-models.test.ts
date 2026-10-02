@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isAuto, modelNote, pickModel, sortModels } from '../src/lib/ai/models';
+import { isAuto, modelNote, pickModel, pickModels, sortModels } from '../src/lib/ai/models';
 import { conversationTurns } from '../src/lib/ai/turns';
 
 const gemini = ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-pro-preview', 'gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-3.8-flash', 'gemini-3.8-flash-001',
@@ -40,4 +40,9 @@ test('histórico da conversa alterna pessoa e assistente, começando pela pessoa
     { role: 'user', text: 'E quanto gastei hoje?' },
   ]);
   assert.deepEqual(conversationTurns([{ role: 'user', text: 'oi' }], 'tudo bem?'), [{ role: 'user', text: 'oi\ntudo bem?' }]);
+});
+
+test('modelos de reserva: os mais novos estáveis da linha, depois os anteriores, depois a linha seguinte', () => {
+  assert.deepEqual(pickModels('gemini', gemini, 'auto:rapido', 3), ['gemini-3.8-flash', 'gemini-3.8-flash-001', 'gemini-3.5-flash']);
+  assert.deepEqual(pickModels('gemini', ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], 'auto:rapido', 3), ['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
 });

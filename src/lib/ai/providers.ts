@@ -1,24 +1,28 @@
 import 'server-only';
 import { createHash, createSign } from 'node:crypto';
 import { aiCatalog, type AiProviderId } from './catalog';
-import { autoCapable, isAuto, pickModel } from './models';
+import { autoCapable, isAuto, pickModel, pickModels } from './models';
 import { conversationTurns, type Turn } from './turns';
 
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string };
 type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[] };
-export class AiError extends Error {}
+export class AiError extends Error {
+  constructor(message: string, readonly status = 0) { super(message); }
+  /** Busy, rate-limited or briefly broken: worth another try, maybe on another model. */
+  get transient() { return this.status === 0 || this.status === 429 || this.status >= 500; }
+}
 
 const TIMEOUT = 30_000;
 async function call(provider: AiProviderId, url: string, init: RequestInit) {
   let response: Response;
   try { response = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT), cache: 'no-store' }); }
-  catch { throw new AiError(`${aiCatalog[provider].name}: sem resposta (rede ou tempo esgotado).`); }
+  catch { throw new AiError(`${aiCatalog[provider].name}: sem resposta (rede ou tempo esgotado).`, 0); }
   const raw = await response.text();
   let body: any = null;
   try { body = JSON.parse(raw); } catch {}
   if (!response.ok) {
     const detail = String(body?.error?.message ?? body?.message ?? raw).replace(/\s+/g, ' ').slice(0, 220);
-    throw new AiError(`${aiCatalog[provider].name} recusou (${response.status}): ${detail}`);
+    throw new AiError(`${aiCatalog[provider].name} recusou (${response.status}): ${detail}`, response.status);
   }
   return body;
 }
@@ -137,4 +141,31 @@ export async function resolveModel(config: AiConfig): Promise<AiConfig> {
   const model = pickModel(config.provider, await cachedModels(config), config.model);
   if (!model) throw new AiError(`Nenhum modelo de texto encontrado em ${aiCatalog[config.provider].name} para o modo automático.`);
   return { ...config, model };
+}
+
+// When a model is overloaded (503) or rate-limited (429), wait a moment and retry, then fall back to the next
+// candidate of the same kind (e.g. the previous Flash, then Flash-Lite) instead of failing the person.
+export async function generateResilient(config: AiConfig, input: Prompt): Promise<{ text: string; model: string }> {
+  let candidates: string[] = [config.model];
+  if (autoCapable.includes(config.provider)) {
+    try {
+      const ids = await cachedModels(config);
+      const mode = isAuto(config.model) ? config.model : 'auto:rapido';
+      candidates = isAuto(config.model) ? pickModels(config.provider, ids, mode, 3) : [config.model, ...pickModels(config.provider, ids, 'auto:rapido', 2)];
+      if (isAuto(config.model) && !candidates.length) throw new AiError(`Nenhum modelo de texto encontrado em ${aiCatalog[config.provider].name} para o modo automático.`, 404);
+    } catch (error) { if (isAuto(config.model)) throw error; }
+  } else if (isAuto(config.model)) throw new AiError(`${aiCatalog[config.provider].name} não lista modelos: escolha um modelo pelo nome.`, 400);
+  let last: unknown = null;
+  for (const model of [...new Set(candidates)]) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { return { text: await generate({ ...config, model }, input), model }; }
+      catch (error) {
+        last = error;
+        if (!(error instanceof AiError) || !(error.transient || error.status === 404)) throw error;
+        if (error.status === 404) break;
+        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 900));
+      }
+    }
+  }
+  throw last instanceof AiError ? new AiError(`${last.message} Tentei outros modelos e também não deu agora.`, last.status) : last;
 }
