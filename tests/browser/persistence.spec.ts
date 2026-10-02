@@ -76,7 +76,7 @@ test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ 
   await page.goto('/');
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Foco', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente Regras', 'Meu espaço']) {
+    for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Foco', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente', 'Meu espaço']) {
       if (width <= 760) await page.getByRole('button', { name: 'Abrir navegação', exact: true }).click();
       const nav = width <= 760 ? page.getByRole('dialog') : page.locator('.sidebar');
       await nav.getByRole('button', { name: label, exact: true }).click();
@@ -1159,7 +1159,9 @@ test('no computador, a bolinha se apresenta uma vez, anexa arquivos, pode ser ar
   await expect(bubble).toHaveCount(0);
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: /^Assistente/ }).click();
   await expect(page.getByRole('heading', { name: 'Assistente', level: 1 })).toBeVisible();
-  await page.getByRole('button', { name: 'Mostrar a bolinha do assistente' }).click();
+  await expect(bubble).toHaveCount(0);
+  await page.getByRole('button', { name: 'Mostrar a bolinha nas outras telas' }).click();
+  await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Meu dia', exact: true }).click();
   await expect(bubble).toBeVisible();
 });
 
@@ -1171,7 +1173,7 @@ test('no celular não há bolinha: o assistente vive na aba Assistente', async (
   await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^Assistente/ }).click();
   await expect(page.getByRole('heading', { name: 'Assistente', level: 1 })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Mostrar a bolinha do assistente' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Mostrar a bolinha nas outras telas' })).toHaveCount(0);
   await page.getByLabel('Mensagem para o assistente').fill('Lembrar de levar o livro de Ética');
   await page.getByRole('button', { name: 'Enviar mensagem' }).click();
   await expect(page.getByText(/Anotei em Para organizar: “Lembrar de levar o livro de Ética”/)).toBeVisible();

@@ -327,3 +327,5 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 }
 .bento-metric-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 [data-theme='dark'] .today-new { border-color: var(--brand-gold); }
+.assistant-show-bubble { align-self: flex-end; }
+.assistant-inline { max-inline-size: 820px; }
