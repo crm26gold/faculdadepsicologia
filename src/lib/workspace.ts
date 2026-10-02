@@ -12,7 +12,7 @@ export const daySchema = z.string().refine((value) => {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }, 'Data inválida');
 const day = daySchema;
-export const CURRENT_EDITOR_GENERATION = 7;
+export const CURRENT_EDITOR_GENERATION = 8;
 const focusContextSchema = z.object({
   taskId: identifier.optional(), projectId: identifier.optional(),
   taskTitle: z.string().max(160).optional(), projectTitle: z.string().max(160).optional(),
@@ -36,6 +36,11 @@ export const transactionSchema = z.object({
   amountCents: z.number().int().positive().max(100_000_000_000),
   type: z.enum(['income', 'expense']), category: z.string().trim().min(1).max(100),
   date: day, areaId: z.string().max(100).optional(),
+  // Generation 8: bills and expected income. Without status the entry already happened.
+  status: z.enum(['paid', 'pending']).optional(), paidOn: day.optional(),
+  nature: z.enum(['fixed', 'variable', 'oneoff']).optional(),
+  groupId: identifier.optional(),
+  installment: z.object({ index: z.number().int().min(1).max(480), count: z.number().int().min(2).max(480) }).refine(part => part.index <= part.count, 'Parcela inválida').optional(),
 });
 export const habitSchema = z.object({
   id: identifier, period: z.enum(['morning', 'afternoon', 'night']), time: timeSchema,
@@ -97,7 +102,7 @@ export type Flashcard = z.infer<typeof flashcardSchema>;
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
-  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7)]).optional(),
+  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8)]).optional(),
   courses: z.array(courseSchema).max(30).optional(),
   goals: z.array(goalSchema).max(200).optional(),
   projects: z.array(projectSchema).max(500).optional(),
@@ -149,6 +154,9 @@ export const workspaceSchema = z.object({
   }
   if ((data.courses !== undefined || data.subjects.some(subject => subject.courseId)) && (data.editorGeneration ?? 0) < 7) {
     ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Cursos exigem editor atualizado.' });
+  }
+  if ((data.transactions ?? []).some(item => item.status || item.paidOn || item.nature || item.groupId || item.installment) && (data.editorGeneration ?? 0) < 8) {
+    ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Contas e parcelas exigem editor atualizado.' });
   }
   const courses = new Set((data.courses ?? []).map(course => course.id));
   data.subjects.forEach((subject, index) => {

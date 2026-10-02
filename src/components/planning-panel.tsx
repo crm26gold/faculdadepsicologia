@@ -141,8 +141,6 @@ export function PlanningPanel({ data, blocked, update }: PlanningProps) {
   return (
     <section className="planning-container" aria-label="Planejamento de Metas e Projetos">
       <header className="planning-header">
-        <p className="planning-intro">Metas dizem aonde você quer chegar; projetos quebram o caminho em passos.</p>
-
         <div className="planning-header-actions">
           <button
             type="button"

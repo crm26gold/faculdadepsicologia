@@ -8,7 +8,10 @@ export type UserProfileData = z.infer<typeof profileSchema>;
 export const emptyProfile: UserProfileData = { name: '', course: '', semester: '', institution: '', campus: '', registration: '', email: '', phone: '', photoUrl: '' };
 
 export function moneyToCents(raw: string): number {
-  const value = raw.trim().replace(',', '.');
+  // Accepts what people type in Brazil: "R$ 1.234,56", "1234,56", "1.500" or "19.90".
+  let value = raw.trim().replace(/^R\$\s*/i, '');
+  if (value.includes(',')) value = value.replace(/\./g, '').replace(',', '.');
+  else if (/^\d{1,3}(\.\d{3})+$/.test(value)) value = value.replace(/\./g, '');
   if (!/^\d+(\.\d{1,2})?$/.test(value)) throw new Error('Informe um valor positivo com até duas casas decimais.');
   const [whole, fraction = ''] = value.split('.');
   const cents = Number(whole) * 100 + Number(fraction.padEnd(2, '0'));

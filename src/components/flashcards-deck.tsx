@@ -160,7 +160,7 @@ export function FlashcardsDeck({
         </div>
       </div>
 
-      {message && <p role="status" style={{ fontSize: '0.8rem', color: '#2F6B55', fontWeight: 600 }}>{message}</p>}
+      {message && <p role="status" style={{ fontSize: '0.8rem', color: 'var(--accent-text)', fontWeight: 600 }}>{message}</p>}
 
       {/* FILTER BY SUBJECT */}
       {!studyMode && (
@@ -175,7 +175,7 @@ export function FlashcardsDeck({
               setSelectedSubject(e.target.value);
               setCurrentIndex(0);
             }}
-            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--line)', fontSize: '0.8rem', background: '#fff' }}
+            style={{ padding: '6px 12px', borderRadius: 8, border: '1px solid var(--line)', fontSize: '0.8rem', background: 'var(--surface)' }}
           >
             <option value="">Todas as matérias ({cards.length})</option>
             <SubjectOptions data={data} label={s => `${s.name} (${cards.filter(c => c.subjectId === s.id).length})`} />
@@ -325,7 +325,7 @@ export function FlashcardsDeck({
                 {card.back}
               </p>
               {card.repetitionCount > 0 && (
-                <div style={{ marginTop: 10, fontSize: '0.65rem', color: '#047857', fontWeight: 600 }}>
+                <div style={{ marginTop: 10, fontSize: '0.65rem', color: 'var(--ok-text)', fontWeight: 600 }}>
                   ✓ Revisado {card.repetitionCount} {card.repetitionCount === 1 ? 'vez' : 'vezes'}
                 </div>
               )}
