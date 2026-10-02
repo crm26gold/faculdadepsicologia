@@ -282,3 +282,47 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .ai-roadmap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .ai-roadmap li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: .88rem; }
 .ai-roadmap span { color: var(--muted); }
+
+/* Caixa "Para organizar" no Caderno, aberta pelos atalhos do Meu dia */
+.notes-inbox { margin-block-end: 16px; scroll-margin-top: 76px; }
+.notes-inbox:focus { outline: none; }
+.notes-inbox ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.notes-inbox li button { inline-size: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); text-align: start; min-block-size: 52px; }
+.notes-inbox li button > span:first-child { display: flex; flex-direction: column; min-inline-size: 0; }
+.notes-inbox li small { color: var(--muted); font-size: .82rem; }
+.notes-inbox-action { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; font-weight: 600; color: var(--brand-forest); }
+#note-editor-area { scroll-margin-top: 76px; }
+
+/* Meu dia, refinado: saudação e ciclo do mês no topo; o cartão foca no dia */
+.topbar-today { display: flex; flex-direction: column; gap: 3px; min-inline-size: 0; }
+.topbar-today strong { font-size: .98rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar-cycle { display: flex; align-items: center; gap: 8px; font-size: .78rem; font-weight: 600; color: var(--brand-forest); white-space: nowrap; }
+.cycle-bars { display: inline-grid; grid-template-columns: repeat(4, 14px); gap: 3px; }
+.cycle-bars i { block-size: 6px; border-radius: 3px; background: #dcd6c4; }
+.cycle-bars i.past { background: var(--brand-sage); }
+.cycle-bars i.on { background: var(--brand-gold); box-shadow: 0 0 0 1px #b88f3e; }
+[data-theme='dark'] .topbar-cycle { color: var(--brand-gold); }
+.today-hero { position: relative; overflow: hidden; background: linear-gradient(180deg, #fffefb 0%, #f8f5ec 100%); }
+.today-hero::before { content: ''; position: absolute; inset: 0 0 auto 0; block-size: 4px; background: linear-gradient(90deg, var(--brand-forest), var(--brand-sage) 60%, var(--brand-gold)); }
+[data-theme='dark'] .today-hero { background: var(--surface); }
+.today-head { align-items: center; }
+.today-new { display: inline-flex; align-items: center; gap: 6px; min-block-size: 44px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--brand-forest); color: var(--brand-forest); background: transparent; font-weight: 600; font-size: .9rem; }
+.today-new:hover { background: var(--sage); }
+.today-agenda button { border-inline-start: 4px solid var(--brand-sage); background: var(--surface); }
+@media (max-width: 760px) { .today-new { inline-size: auto; } .today-head { flex-wrap: nowrap; } .today-head h1 { font-size: 1.6rem; } }
+.routine-day-row { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; margin-block: 8px 12px; }
+.routine-day-row label { inline-size: 100%; margin: 0; }
+.routine-day-row input { flex: 1; min-inline-size: 160px; }
+.routine-item-actions { display: flex; gap: 14px; margin-block-start: 4px; }
+.planning-intro { margin: 0; color: var(--muted); }
+/* Topo do celular: o título encolhe, nunca empurra os botões para outra linha */
+@media (max-width: 760px) {
+  .topbar { flex-wrap: nowrap; gap: 8px; padding-inline: 12px; }
+  .breadcrumb { flex: 1; min-inline-size: 0; flex-wrap: nowrap; }
+  .breadcrumb strong { min-inline-size: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-actions { flex-shrink: 0; gap: 4px; }
+  .topbar-back-button span { display: none; }
+  .breadcrumb > .topbar-today { display: flex; }
+  .topbar-cycle .cycle-month { display: none; }
+}
+.bento-metric-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }

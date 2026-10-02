@@ -18,7 +18,7 @@ test('atalhos mobile têm área de toque e indicadores em duas colunas', async (
     expect(box!.width).toBeGreaterThanOrEqual(44);
   }
   const cards = page.locator('.bento-metric-card');
-  await expect(cards).toHaveCount(4);
+  await expect(cards).toHaveCount(2);
   const first = await cards.nth(0).boundingBox();
   const second = await cards.nth(1).boundingBox();
   expect(first!.y).toBe(second!.y);

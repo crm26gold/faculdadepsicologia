@@ -102,8 +102,8 @@ export function ProfileSettings({
           <fieldset disabled={blocked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="section-heading">
             <div>
-              <h2>Foto e Identificação</h2>
-              <p>Personalize seu perfil e a sua carteirinha. Seus cursos ficam em Estudos.</p>
+              <h2>Seu perfil</h2>
+              <p>Como você aparece no app e como podemos falar com você. Cursos e instituições ficam em Estudos.</p>
             </div>
             {savedNotice && (
               <span className="tiny-tag positive" style={{ background: '#ecfdf5', color: '#047857' }}>
@@ -170,51 +170,7 @@ export function ProfileSettings({
               />
             </div>
             <div>
-              <label htmlFor="p-course">Curso na carteirinha · opcional</label>
-              <input
-                id="p-course"
-                value={profile.course}
-                onChange={e => setProfile(prev => ({ ...prev, course: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label htmlFor="p-sem">Etapa na carteirinha · opcional</label>
-              <input
-                id="p-sem"
-                value={profile.semester}
-                onChange={e => setProfile(prev => ({ ...prev, semester: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label htmlFor="p-reg">Matrícula / RA</label>
-              <input
-                id="p-reg"
-                value={profile.registration}
-                onChange={e => setProfile(prev => ({ ...prev, registration: e.target.value }))}
-              />
-            </div>
-          </div>
-
-          <h3 style={{ marginTop: '24px', marginBottom: '10px' }}>Instituição e Contato</h3>
-          <div className="form-grid">
-            <div>
-              <label htmlFor="p-inst">Instituição</label>
-              <input
-                id="p-inst"
-                value={profile.institution}
-                onChange={e => setProfile(prev => ({ ...prev, institution: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label htmlFor="p-campus">Campus / Polo</label>
-              <input
-                id="p-campus"
-                value={profile.campus}
-                onChange={e => setProfile(prev => ({ ...prev, campus: e.target.value }))}
-              />
-            </div>
-            <div>
-              <label htmlFor="p-email">E-mail institucional / pessoal</label>
+              <label htmlFor="p-email">E-mail para contato · opcional</label>
               <input
                 id="p-email"
                 type="email"
@@ -223,7 +179,7 @@ export function ProfileSettings({
               />
             </div>
             <div>
-              <label htmlFor="p-phone">WhatsApp / Telefone</label>
+              <label htmlFor="p-phone">Telefone · opcional</label>
               <input
                 id="p-phone"
                 value={profile.phone}
@@ -234,7 +190,7 @@ export function ProfileSettings({
 
           <div className="form-footer" style={{ marginTop: '20px' }}>
             <button type="submit" className="button primary">
-              Salvar dados do perfil
+              Salvar perfil
             </button>
           </div>
           </fieldset>
@@ -246,48 +202,6 @@ export function ProfileSettings({
 
       {/* RIGHT COLUMN: PREVIEW CARD & SYSTEM INTEGRATIONS */}
       <div className="profile-preview-column">
-        {/* PREVIEW CARD INSPIRED BY BROKER REFERENCE */}
-        <div className="panel student-id-card">
-          <div className="student-card-banner">
-            <span className="inst-badge">{profile.institution}</span>
-          </div>
-          <div className="student-card-body">
-            <div className="student-photo-frame">
-              {profile.photoUrl ? (
-                <img src={profile.photoUrl} alt={profile.name} />
-              ) : (
-                <span className="avatar-initials">{profile.name.slice(0, 1) || 'P'}</span>
-              )}
-            </div>
-            <h3>{profile.name}</h3>
-            <span className="student-role-chip">
-              <GraduationCap size={13} /> {[profile.course, profile.semester].filter(Boolean).join(' · ') || 'Meus estudos'}
-            </span>
-
-            <div className="student-meta-list">
-              <div className="meta-line">
-                <MapPin size={14} />
-                <span>{profile.campus}</span>
-              </div>
-              <div className="meta-line">
-                <Mail size={14} />
-                <span>{profile.email}</span>
-              </div>
-              {profile.phone && (
-                <div className="meta-line">
-                  <Phone size={14} />
-                  <span>{profile.phone}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="student-status-row">
-              <span className="status-indicator-dot" />
-              <span>Identificação pessoal: {profile.registration || 'não informada'} · sem validade de carteirinha oficial</span>
-            </div>
-          </div>
-        </div>
-
         {/* BACKUP & PRIVACIDADE */}
         <div className="panel backup-card">
           <h3>Segurança e Backup dos Dados</h3>

@@ -61,6 +61,13 @@ const navigation = [
 const proViews = new Set<View>(['planning', 'finances', 'routine']);
 const serverViews = new Set<View>(['community', 'contacts', 'admin']);
 const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente', settings: 'Meu espaço' };
+const subtitles: Record<View, string> = {
+  today: '', studies: 'Graduação, pós, cursos livres e extensões, cada um no seu lugar.', community: 'Seus grupos, salas e trabalhos em conjunto.',
+  notes: 'Ideias, aulas e reflexões, organizadas do seu jeito.', agenda: 'Compromissos, aulas e prazos de todas as áreas da vida.', focus: 'Para onde vai o seu tempo, dia após dia.',
+  planning: 'Metas apontam a direção; projetos organizam os passos.', finances: 'O que entra, o que sai e o que está por vir.', routine: 'Seus hábitos, por período do dia.',
+  flashcards: 'Cartões de pergunta e resposta para fixar o que você aprende.', assistant: 'Fale ou escreva: ele guarda e ajuda a organizar.', contacts: 'Sua agenda de pessoas. Só você vê.',
+  admin: 'Pessoas, papéis e planos, com histórico de tudo.', settings: 'Seu perfil, suas áreas da vida e seus dados.',
+};
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 const SHORTCUT_KEY = 'jornada-atalho-barra';
 const BUBBLE_KEY = 'jornada-assistente-escondido';
@@ -91,6 +98,9 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [shortcut, setShortcut] = useState<View>('studies');
   const [financeRequest, setFinanceRequest] = useState(0);
   const [bubbleHidden, setBubbleHidden] = useState(false);
+  const [agendaFocus, setAgendaFocus] = useState<'late' | 'day' | null>(null);
+  const [notesInbox, setNotesInbox] = useState(false);
+  const inboxRef = useRef<HTMLElement>(null);
   const userProfile = data.profile ?? defaultUserProfile;
   const [focusRequest, setFocusRequest] = useState<{ id: string; subjectId: string } | null>(null);
   const cloud = mode === 'cloud';
@@ -122,7 +132,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const pending = data.tasks.filter((task) => !task.done);
   const dueToday = data.tasks.filter((task) => task.date === today);
   const priorities = priorityTasks(data, today);
-  const upcoming = calendarEntries(data, today, addDays(today, 7)).filter((entry) => !entry.done);
+  const upcoming = calendarEntries(data, addDays(today, 1), addDays(today, 7)).filter((entry) => !entry.done);
   const doneToday = dueToday.filter((task) => task.done).length;
   const studyMinutes = Math.floor(data.sessions.filter((session) => session.date === today).reduce((sum, session) => sum + session.minutes, 0));
   const progress = dueToday.length ? Math.round(doneToday / dueToday.length * 100) : 0;
@@ -136,8 +146,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const studyCourse = studiesRoute.kind === 'course' ? courses.find((item) => item.id === studiesRoute.id) : undefined;
   const unitsOf = (item: Pick<Subject, 'courseId'>) => { const course = courseOf(data, item); return course ? courseUnits(course) : unitPresets[0]; };
   const formCourseId = form?.courseId ?? form?.subject?.courseId ?? studyCourse?.id ?? active[0]?.id ?? courses[0]?.id ?? '';
-  const studiesNames = active.slice(0, 2).map((item) => item.name).join(' · ');
-  const studiesMore = active.length > 2 ? `+${active.length - 2}` : '';
+  const firstName = (userProfile.name || home?.account.display_name || '').trim().split(/\s+/)[0];
   const previewLabel = authenticated ? 'Administrador · conectado' : hostedPreview ? 'Prévia online' : 'Prévia local';
   const storageNotice = authenticated
     ? 'Conta administradora · sessão autenticada. Dados só neste navegador, sem sincronização na nuvem.'
@@ -228,6 +237,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       window.history[modal ? 'replaceState' : 'pushState']({ app: 'jornada-plena', view: next }, '', `#${next}`);
     }
     if (next === 'studies') setStudiesRoute({ kind: 'list' });
+    setAgendaFocus(null); setNotesInbox(false);
     setView(next);
     setMobileMenu(false);
     requestAnimationFrame(() => main.current?.focus());
@@ -283,9 +293,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function closeCapture() { setCaptureOpen(false); popModal('capture'); }
   function openAssistant() { pushModal('assistant'); setAssistantOpen(true); }
   function closeAssistant() { setAssistantOpen(false); popModal('assistant'); }
-  function openNote(id: string) { setCaptureOpen(false); setAssistantOpen(false); setSelectedNote(id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); }
-  function openInbox() { setSelectedNote(''); setSubjectFilter('__personal'); setBookFilter('__none'); setAreaFilter('__none'); navigate('notes'); }
-  function openAlert(alert: TodayAlert) { if (alert.target === 'notes') openInbox(); else { if (alert.date) setAgendaDate(alert.date); navigate(alert.target); } }
+  function openNote(id: string) { setCaptureOpen(false); setAssistantOpen(false); setSelectedNote(id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); requestAnimationFrame(() => document.getElementById('note-editor-area')?.scrollIntoView({ block: 'start' })); }
+  // Alerts land exactly on the items they mention.
+  function openInbox() { setSelectedNote(''); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); setNotesInbox(true); requestAnimationFrame(() => requestAnimationFrame(() => { inboxRef.current?.scrollIntoView({ block: 'start' }); inboxRef.current?.focus({ preventScroll: true }); })); }
+  function openAlert(alert: TodayAlert) {
+    if (alert.target === 'notes') { openInbox(); return; }
+    if (alert.date) setAgendaDate(alert.date);
+    navigate(alert.target);
+    if (alert.target === 'agenda') setAgendaFocus(alert.id === 'late' ? 'late' : 'day');
+  }
   function captureTask() { swapModal('form'); setCaptureOpen(false); setForm({ kind: 'task' }); }
   function captureFocus() { setCaptureOpen(false); navigate('focus'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }
   function captureMoney() { setCaptureOpen(false); setFinanceRequest(Date.now()); navigate('finances'); }
@@ -365,7 +381,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         </div>
         <div className="user-meta-info">
           <strong>{userProfile.name || home?.account.display_name || 'Meu espaço'}</strong>
-          {studiesNames ? <span className="user-meta-studies" title={active.map((item) => item.name).join(' · ')}><span>{studiesNames}</span>{studiesMore && <b>{studiesMore}</b>}</span> : <span>{[userProfile.course, userProfile.semester].filter(Boolean).join(' · ') || (home?.account.is_master ? 'Administração' : 'Meu espaço pessoal')}</span>}
+          <span>{home?.account.email || userProfile.email || 'Meu perfil e preferências'}</span>
         </div>
       </div>
     </div>
@@ -486,7 +502,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           )}
           {view !== 'today' && <><span>Meu espaço</span><ChevronRight aria-hidden="true" size={14} /></>}
           {view === 'studies' && studyCourse && <><span><button type="button" className="cm-crumb" onClick={showStudies}>Estudos</button></span><ChevronRight aria-hidden="true" size={14} /></>}
-          <strong>{view === 'today' && ready ? `${greeting(new Date().getHours())}${(userProfile.name || home?.account.display_name || '').trim() ? `, ${(userProfile.name || home?.account.display_name || '').trim().split(/\s+/)[0]}` : ''}` : pageName}</strong>
+          {view === 'today' && ready ? <span className="topbar-today"><strong>{greeting(new Date().getHours())}{firstName ? `, ${firstName}` : ''}</strong><span className="topbar-cycle"><span className="sr-only">{`${cycles.month}: ciclo ${cycles.cycle} de 4, dia ${cycles.day} de ${cycles.last}`}</span><span className="cycle-bars" aria-hidden="true">{cycles.cycles.map((cycle) => <i key={cycle.index} className={cycle.current ? 'on' : cycle.end < cycles.day ? 'past' : ''} />)}</span><span aria-hidden="true"><span className="cycle-month">{cycles.month} · </span>ciclo {cycles.cycle}/4 · dia {cycles.day}/{cycles.last}</span></span></span> : <strong>{pageName}</strong>}
         </div>
         <div className="topbar-actions">
           <button type="button" className="button primary topbar-capture" disabled={!ready} onClick={openCapture}><img src="/brand/simbolo-reduzido.svg" alt="" width={22} height={22} />Registrar</button>
@@ -513,9 +529,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
         {view !== 'today' && <div className="page-heading">
           <div>
-            <span className="eyebrow">Sua vida, do seu jeito</span>
             <h1>{pageName}</h1>
-            <p>{view === 'studies' && studyCourse ? [courseKindLabels[studyCourse.kind], studyCourse.institution, studyCourse.stage].filter(Boolean).join(' · ') : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'studies' ? 'Graduação, pós, cursos livres e extensões — cada um no seu lugar.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'planning' ? 'Metas apontam a direção e projetos organizam os passos práticos.' : view === 'finances' ? 'Controle seu orçamento, mensalidades e despesas com clareza.' : view === 'routine' ? 'Defina seus blocos do dia e mantenha hábitos consistentes.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : view === 'community' ? 'Conectividade com segurança: cada grupo vê só o que é seu.' : view === 'contacts' ? 'Sua agenda privada. Ninguém mais vê.' : view === 'admin' ? 'Pessoas, papéis, planos e estrutura, com histórico de tudo.' : 'Suas preferências, seus dados e suas conexões.'}</p>
+            <p>{view === 'studies' && studyCourse ? [courseKindLabels[studyCourse.kind], studyCourse.institution, studyCourse.stage].filter(Boolean).join(' · ') : subtitles[view]}</p>
           </div>
           <div className="heading-actions-row">
             {ready && view === 'studies' && !studyCourse && <button className="button primary" disabled={blocked || courses.length >= 30} onClick={() => openForm({ kind: 'course' })}><Plus size={16} aria-hidden="true" />Novo curso</button>}
@@ -525,18 +540,14 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         {!ready && !error && <div className="loading-panel" role="status">Preparando seu espaço…</div>}
 
         {ready && <>
-          {!serverViews.has(view) && view !== 'today' && <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />}
+          {!serverViews.has(view) && (view === 'focus' || (!!data.activeFocus && view !== 'today')) && <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />}
           {view === 'today' && <>
             <section className="today-hero" aria-labelledby="today-title">
               <div className="today-head">
                 <h1 id="today-title"><span className="today-kicker">Hoje</span>{capitalize(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</h1>
-                <button className="button outline today-new" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
+                <button className="today-new" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
               </div>
-              <div className="today-cycles">
-                <p className="today-cycle-label">{cycles.month} · ciclo {cycles.cycle} de 4 · dia {cycles.day} de {cycles.last}</p>
-                <ol aria-label={`Ciclos de ${cycles.month}`}>{cycles.cycles.map((cycle) => <li key={cycle.index} className={cycle.current ? 'current' : cycle.end < cycles.day ? 'past' : ''} aria-current={cycle.current ? 'step' : undefined}><span>Ciclo {cycle.index}</span><small>{cycle.start}–{cycle.end}</small></li>)}</ol>
-              </div>
-              <h2 className="today-subtitle">Na agenda de hoje</h2>
+              <h2 className="today-subtitle">{agendaToday.length ? `Hoje você tem ${agendaToday.length} ${agendaToday.length === 1 ? 'item' : 'itens'}` : 'Agenda de hoje'}</h2>
               {agendaToday.length ? <ul className="today-agenda">{agendaToday.slice(0, 5).map((entry) => { const course = entry.session ? courseOf(data, { courseId: subject(entry.subjectId)?.courseId }) : undefined; return <li key={entry.id} className={entry.task ? 'with-check' : ''}>{entry.task && <label className="task-checkbox"><input type="checkbox" checked={entry.done} disabled={blocked} onChange={() => toggleTask(entry.task!)} aria-label={`Concluir: ${entry.title}`} /><span className="check-visual"><Check size={13} aria-hidden="true" /></span></label>}<button type="button" className={entry.done ? 'done' : ''} onClick={() => { setAgendaDate(today); navigate('agenda'); }}><span className="today-time">{entry.time ?? 'Dia todo'}</span><span className="today-what"><strong>{entry.title}</strong><small>{[entry.kind, course?.name, entry.professor, entry.location, entry.task?.projectId ? `Projeto: ${data.projects?.find((p) => p.id === entry.task!.projectId)?.title ?? ''}` : ''].filter(Boolean).join(' · ')}</small></span>{entry.done && <Check size={16} aria-label="Concluído" />}</button></li>; })}</ul> : <p className="today-empty">Nada marcado para hoje. Um bom dia para avançar no que importa.</p>}
               {agendaToday.length > 5 && <button type="button" className="text-button" onClick={() => { setAgendaDate(today); navigate('agenda'); }}>Mais {agendaToday.length - 5} hoje na agenda <ArrowRight size={13} aria-hidden="true" /></button>}
             </section>
@@ -546,12 +557,12 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               <ul>{alerts.map((alert) => <li key={alert.id} className={alert.tone}><button type="button" onClick={() => openAlert(alert)}><span className="today-alert-dot" aria-hidden="true" /><span>{alert.text}</span><ArrowRight size={14} aria-hidden="true" /></button></li>)}</ul>
             </section>}
 
-            {/* 4 BENTO METRIC CARDS (BROKER SAAS STYLE) */}
-            <div className="bento-metric-row">
+            {/* Foco e tarefas do dia; registros soltos ficam no aviso de Atenção */}
+            <div className="bento-metric-row two">
               <button type="button" className="bento-metric-card" onClick={() => navigate('focus')}>
                 <span className="metric-header">
                   <span className="metric-icon lavender"><Clock3 size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Foco Registrado</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
+                  <span className="metric-label">Foco hoje</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
                 </span>
                 <span className="metric-value">{studyMinutes}<small> min</small></span>
                 <span className="metric-sub">{studyMinutes > 0 ? 'Foco acumulado hoje' : 'Pronto para começar'}</span>
@@ -559,33 +570,12 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               <button type="button" className="bento-metric-card" onClick={() => navigate('agenda')}>
                 <span className="metric-header">
                   <span className="metric-icon sage"><CheckCheck size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Tarefas de Hoje</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
+                  <span className="metric-label">Tarefas de hoje</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
                 </span>
                 <span className="metric-value">{doneToday}<small> / {dueToday.length}</small></span>
                 <span className="metric-sub">{dueToday.length === 0 ? 'Sem prazos para hoje' : `${progress}% concluído`}</span>
               </button>
-              <button type="button" className="bento-metric-card" onClick={() => navigate('studies')}>
-                <span className="metric-header">
-                  <span className="metric-icon blue"><GraduationCap size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Estudos ativos</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
-                </span>
-                <span className="metric-value">{active.length}</span>
-                <span className="metric-sub metric-clamp" title={active.map((item) => item.name).join(' · ') || undefined}>{studiesNames ? [studiesNames, studiesMore].filter(Boolean).join(' ') : courses.length ? 'Nenhum curso em andamento' : 'Cadastre seu primeiro curso'}</span>
-              </button>
-              <button type="button" className="bento-metric-card" onClick={openInbox}>
-                <span className="metric-header">
-                  <span className="metric-icon sand"><FileText size={18} aria-hidden="true" /></span>
-                  <span className="metric-label">Captura Rápida</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
-                </span>
-                <span className="metric-value">{loose.length}</span>
-                <span className="metric-sub">Ideias para triagem</span>
-              </button>
             </div>
-
-            {loose.length > 0 && <section className="panel today-loose" aria-labelledby="today-loose-title">
-              <div className="section-heading"><h2 id="today-loose-title">Para organizar ({loose.length})</h2><button type="button" className="text-button" onClick={openInbox}>Ver todos <ArrowRight size={13} aria-hidden="true" /></button></div>
-              <div className="unorganized-chips-grid">{loose.slice(0, 3).map((note) => <div key={note.id} className="unorganized-chip-card"><div className="chip-content"><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></div><button type="button" className="chip-organize-btn" aria-label={`Abrir e organizar: ${note.title || 'Sem título'}`} onClick={() => openNote(note.id)}>Abrir e organizar</button></div>)}</div>
-            </section>}
 
             {/* DASHBOARD SPLIT GRID */}
             <div className="dashboard-grid">
@@ -596,7 +586,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 {/* ESTUDOS */}
                 <section className="subjects-section">
                   <div className="section-heading">
-                    <h2>Meus universos de estudo</h2>
+                    <h2>Meus estudos</h2>
                     <button className="text-button" onClick={() => navigate('studies')}>Ver estudos <ArrowRight size={13} aria-hidden="true" /></button>
                   </div>
                   <div className="subject-grid">
@@ -621,7 +611,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 {/* SEMANA */}
                 <section className="panel week-card">
                   <div className="section-heading"><h2>Sua semana</h2><CalendarDays size={16} aria-hidden="true" /></div>
-                  <div className="week-strip">{Array.from({ length: 7 }, (_, index) => { const day = addDays(today, index); return <button key={day} className={day === today ? 'today' : ''} aria-label={`Abrir agenda de ${formatDate(day)}`} onClick={() => { setAgendaDate(day); navigate('agenda'); }}><span>{formatDate(day, { weekday: 'short' }).replace('.', '')}</span><strong>{new Date(`${day}T12:00:00`).getDate()}</strong><i className={upcoming.some((entry) => entry.date === day) ? 'has-task' : ''} /></button>; })}</div>
+                  <div className="week-strip">{Array.from({ length: 7 }, (_, index) => { const day = addDays(today, index); return <button key={day} className={day === today ? 'today' : ''} aria-label={`Abrir agenda de ${formatDate(day)}`} onClick={() => { setAgendaDate(day); navigate('agenda'); }}><span>{formatDate(day, { weekday: 'short' }).replace('.', '')}</span><strong>{new Date(`${day}T12:00:00`).getDate()}</strong><i className={(day === today ? agendaToday.length > 0 : upcoming.some((entry) => entry.date === day)) ? 'has-task' : ''} /></button>; })}</div>
                   <h3 className="small-heading">Vem por aí</h3>
                   <div className="upcoming-list">{upcoming.slice(0, 3).map((task) => <button key={task.id} className="upcoming-item" onClick={() => { setAgendaDate(task.date); navigate('agenda'); }}><span className={`date-block ${subject(task.subjectId)?.color ?? 'sage'}`}><strong>{new Date(`${task.date}T12:00:00`).getDate()}</strong><small>{formatDate(task.date, { month: 'short' }).replace('.', '')}</small></span><span><strong>{task.title}</strong><small>{task.time ?? 'Sem horário'} · {task.kind}</small></span></button>)}{!upcoming.length && <p className="muted">Sua semana tem espaço para novos planos.</p>}</div>
                   <button className="text-button full-width" onClick={() => navigate('agenda')}>Abrir agenda <ArrowRight size={13} aria-hidden="true" /></button>
@@ -666,13 +656,18 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             </section>
           ))}
 
-          {view === 'notes' && <section className="notebook-layout"><aside className="note-index"><MobileDisclosure label="Cadernos, filtros e anotações"><div className="section-heading"><h2>Anotações</h2><button className="icon-button" disabled={blocked} aria-label="Nova anotação" onClick={() => openForm({ kind: 'note' })}><Plus size={19} aria-hidden="true" /></button></div><label className="sr-only" htmlFor="note-filter">Filtrar anotações por matéria</label><select id="note-filter" value={subjectFilter} onChange={(event) => { setSubjectFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as matérias e pessoais</option><option value="__personal">Pessoais · sem matéria</option><SubjectOptions data={data} /></select><div className="life-fields"><label htmlFor="note-area-filter">Filtrar área</label><select id="note-area-filter" value={areaFilter} onChange={(event) => { setAreaFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as áreas</option><option value="__none">Sem área</option>{lifeAreas(data).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select><label htmlFor="notebook-filter">Filtrar caderno</label><select id="notebook-filter" value={bookFilter} onChange={(event) => { setBookFilter(event.target.value); setSelectedNote(''); }}><option value="">Todos os cadernos</option><option value="__none">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select><button className="text-button" onClick={() => navigate('settings')}>Gerenciar áreas e cadernos</button></div><div className="note-list">{visibleNotes.map((note) => <button key={note.id} className={`note-list-item ${activeNote?.id === note.id ? 'selected' : ''}`} onClick={() => setSelectedNote(note.id)}><FileText size={16} aria-hidden="true" /><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></span></button>)}</div></MobileDisclosure></aside><div className="note-paper">{activeNote ? <><div className="note-meta"><button type="button" className="note-return-btn" onClick={handleGoBack} aria-label="Voltar para início"><ArrowLeft size={13} aria-hidden="true" /> Voltar</button><span><LockKeyhole size={13} aria-hidden="true" />{demo ? 'Exemplo temporário' : mode === 'local' ? 'Armazenamento local' : 'Anotação pessoal'}</span><span role="status">{status}</span></div><label htmlFor="note-title" className="sr-only">Título da anotação</label><input id="note-title" className="note-title-input" value={activeNote.title} maxLength={160} disabled={blocked} onChange={(event) => editNote({ title: event.target.value })} placeholder="Sem título" /><MobileDisclosure label="Organizar esta anotação"><label className="sr-only" htmlFor="note-subject">Matéria da anotação</label><select id="note-subject" className="note-subject-select" value={activeNote.subjectId} disabled={blocked} onChange={(event) => editNote({ subjectId: event.target.value })}><option value="">Pessoal · sem matéria</option><SubjectOptions data={data} /></select><NoteOrganization data={data} note={activeNote} blocked={blocked} onChange={editNote} /></MobileDisclosure><NoteEditor demo={demo} noteId={activeNote.id} cloud={mode === 'cloud'} key={activeNote.id} content={activeNote.content} disabled={blocked} onChange={(content) => editNote({ content })} /></> : <div className="empty-state"><FileText size={40} aria-hidden="true" /><h2>Sua próxima ideia mora aqui.</h2><p>Crie uma anotação para começar a escrever.</p><button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'note' })}>Criar anotação <Plus size={16} aria-hidden="true" /></button></div>}</div></section>}
+          {view === 'notes' && notesInbox && <section ref={inboxRef} tabIndex={-1} className="panel notes-inbox" aria-labelledby="notes-inbox-title">
+            <div className="section-heading"><h2 id="notes-inbox-title">Para organizar ({loose.length})</h2><button type="button" className="text-button" onClick={() => setNotesInbox(false)}>Fechar lista</button></div>
+            <p className="muted">Registros sem área, matéria ou caderno. Abra um para dar um lugar a ele.</p>
+            {loose.length ? <ul>{loose.map((note) => <li key={note.id}><button type="button" aria-label={`Abrir e organizar: ${note.title || 'Sem título'}`} onClick={() => { setNotesInbox(false); openNote(note.id); }}><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></span><span className="notes-inbox-action">Organizar <ArrowRight size={14} aria-hidden="true" /></span></button></li>)}</ul> : <p>Tudo organizado. Nada esperando por aqui.</p>}
+          </section>}
+          {view === 'notes' && <section id="note-editor-area" className="notebook-layout"><aside className="note-index"><MobileDisclosure label="Cadernos, filtros e anotações"><div className="section-heading"><h2>Anotações</h2><button className="icon-button" disabled={blocked} aria-label="Nova anotação" onClick={() => openForm({ kind: 'note' })}><Plus size={19} aria-hidden="true" /></button></div><label className="sr-only" htmlFor="note-filter">Filtrar anotações por matéria</label><select id="note-filter" value={subjectFilter} onChange={(event) => { setSubjectFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as matérias e pessoais</option><option value="__personal">Pessoais · sem matéria</option><SubjectOptions data={data} /></select><div className="life-fields"><label htmlFor="note-area-filter">Filtrar área</label><select id="note-area-filter" value={areaFilter} onChange={(event) => { setAreaFilter(event.target.value); setSelectedNote(''); }}><option value="">Todas as áreas</option><option value="__none">Sem área</option>{lifeAreas(data).map((area) => <option key={area.id} value={area.id}>{area.name}</option>)}</select><label htmlFor="notebook-filter">Filtrar caderno</label><select id="notebook-filter" value={bookFilter} onChange={(event) => { setBookFilter(event.target.value); setSelectedNote(''); }}><option value="">Todos os cadernos</option><option value="__none">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select><button className="text-button" onClick={() => navigate('settings')}>Gerenciar áreas e cadernos</button></div><div className="note-list">{visibleNotes.map((note) => <button key={note.id} className={`note-list-item ${activeNote?.id === note.id ? 'selected' : ''}`} onClick={() => setSelectedNote(note.id)}><FileText size={16} aria-hidden="true" /><span><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></span></button>)}</div></MobileDisclosure></aside><div className="note-paper">{activeNote ? <><div className="note-meta"><span><LockKeyhole size={13} aria-hidden="true" />{demo ? 'Exemplo temporário' : 'Só você vê'}</span><span role="status">{status}</span></div><label htmlFor="note-title" className="sr-only">Título da anotação</label><input id="note-title" className="note-title-input" value={activeNote.title} maxLength={160} disabled={blocked} onChange={(event) => editNote({ title: event.target.value })} placeholder="Sem título" /><MobileDisclosure label="Organizar esta anotação"><label className="sr-only" htmlFor="note-subject">Matéria da anotação</label><select id="note-subject" className="note-subject-select" value={activeNote.subjectId} disabled={blocked} onChange={(event) => editNote({ subjectId: event.target.value })}><option value="">Pessoal · sem matéria</option><SubjectOptions data={data} /></select><NoteOrganization data={data} note={activeNote} blocked={blocked} onChange={editNote} /></MobileDisclosure><NoteEditor demo={demo} noteId={activeNote.id} cloud={mode === 'cloud'} key={activeNote.id} content={activeNote.content} disabled={blocked} onChange={(content) => editNote({ content })} /></> : <div className="empty-state"><FileText size={40} aria-hidden="true" /><h2>Sua próxima ideia mora aqui.</h2><p>Crie uma anotação para começar a escrever.</p><button className="button primary" disabled={blocked} onClick={() => openForm({ kind: 'note' })}>Criar anotação <Plus size={16} aria-hidden="true" /></button></div>}</div></section>}
 
           {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
           {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
 
-          {view === 'agenda' && <AcademicCalendar data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); openForm({ kind: 'task' }); }} onEdit={(task) => openForm({ kind: 'task', task })} />}
+          {view === 'agenda' && <AcademicCalendar focus={agendaFocus} data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); openForm({ kind: 'task' }); }} onEdit={(task) => openForm({ kind: 'task', task })} />}
 
           {view === 'planning' && (pro ? <PlanningPanel data={data} blocked={blocked} update={update} /> : <ProOnly />)}
 
@@ -708,7 +703,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             />
           </>}
         </>}
-        <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status} · v0.2</span></footer>
+        <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status}</span></footer>
       </main>
       <nav className="mobile-tabbar" aria-label="Atalhos mobile">
         {[navigation[0], navigation.find((item) => item.id === 'agenda')!].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{tabLabel(id, label)}</span></button>)}
