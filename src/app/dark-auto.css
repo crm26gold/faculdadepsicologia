@@ -759,3 +759,23 @@
     background: hsl(45 28% 17%);
     color: hsl(39 70% 78%)
 }
+/* src/app/notes.css */
+[data-theme='dark'] .nb-inbox.has {
+    background: hsl(40 28% 17%)
+}
+[data-theme='dark'] .nb-inbox.has b {
+    color: hsl(158 37% 78%)
+}
+[data-theme='dark'] .nb-add {
+    color: hsl(160 61% 78%)
+}
+[data-theme='dark'] .nb-error,
+[data-theme='dark'] .nb-problem {
+    color: hsl(4 60% 78%)
+}
+[data-theme='dark'] .nb-place.loose {
+    background: hsl(40 28% 17%)
+}
+[data-theme='dark'] .nb-delete {
+    color: hsl(4 60% 78%)
+}

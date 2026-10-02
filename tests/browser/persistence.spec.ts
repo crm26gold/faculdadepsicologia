@@ -9,6 +9,7 @@ test('edição do workspace preserva metas e projetos após recarregar', async (
   await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(data));
   await page.goto('/');
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByRole('button', { name: new RegExp('^Nota sintética') }).first().click();
   await page.getByLabel('Título da anotação', { exact: true }).fill('Nota editada');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Nota editada');
   await page.reload();
@@ -122,10 +123,12 @@ test('captura rápida persiste e sai da caixa ao organizar, sem perder texto', a
   await page.getByRole('button', { name: /1 registro esperando organização/ }).click();
   await page.getByRole('button', { name: 'Abrir e organizar: Minha ideia capturada' }).click();
   await expect(page.getByRole('textbox', { name: 'Conteúdo da anotação', exact: true })).toContainText('<script>texto, não código</script>');
-  await page.getByLabel('Área da anotação', { exact: true }).selectOption('emotional');
+  await page.getByLabel('Onde fica', { exact: true }).selectOption('area:emotional');
   await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
   await expect(page.getByRole('button', { name: /esperando organização/ })).toHaveCount(0);
   await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByRole('button', { name: /^Emocional e autoconhecimento/ }).click();
+  await page.getByRole('button', { name: new RegExp('^Minha ideia capturada') }).first().click();
   await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Minha ideia capturada');
 });
 
@@ -144,15 +147,15 @@ test('áreas e cadernos pessoais organizam notas e agenda sem exigir matéria', 
   await page.getByRole('button', { name: 'Salvar organização', exact: true }).click();
   const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
   await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByRole('button', { name: /^Reflexões diárias/ }).click();
+  await expect(page.getByRole('heading', { name: 'Reflexões diárias', level: 2 })).toBeVisible();
   await page.getByRole('button', { name: 'Nova anotação', exact: true }).click();
+  await expect(page.getByLabel('Título da anotação', { exact: true })).toBeFocused();
   await page.getByLabel('Título da anotação', { exact: true }).fill('Minha reflexão');
-  await page.getByLabel('Caderno · opcional', { exact: true }).selectOption({ label: 'Reflexões diárias' });
-  await page.getByLabel('Área da vida · opcional', { exact: true }).selectOption('emotional');
-  await page.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await page.getByLabel('Filtrar caderno', { exact: true }).selectOption({ label: 'Reflexões diárias' });
-  await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Minha reflexão');
-  await page.getByLabel('Filtrar caderno', { exact: true }).selectOption('__none');
-  await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Onde fica', { exact: true }).locator('option:checked')).toHaveText('Reflexões diárias');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes.find((note: { title: string }) => note.title === 'Minha reflexão')?.areaId)).toBe('emotional');
+  await page.getByRole('button', { name: 'Voltar para Reflexões diárias' }).click();
+  await expect(page.getByRole('button', { name: /^Minha reflexão/ })).toBeVisible();
   await nav.getByRole('button', { name: 'Agenda', exact: true }).click();
   await page.getByRole('button', { name: 'Novo compromisso', exact: true }).click();
   await page.getByLabel('O que você quer fazer?', { exact: true }).fill('Consulta de rotina');
@@ -165,10 +168,11 @@ test('áreas e cadernos pessoais organizam notas e agenda sem exigir matéria', 
   await expect(page.getByRole('button').filter({ hasText: 'Sem horário · Consulta' })).toHaveCount(0);
   await page.reload();
   await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
-  await page.getByLabel('Filtrar caderno', { exact: true }).selectOption({ label: 'Reflexões diárias' });
+  await page.getByRole('button', { name: /^Reflexões diárias/ }).click();
+  await page.getByRole('button', { name: new RegExp('^Minha reflexão') }).first().click();
   await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Minha reflexão');
-  await expect(page.getByLabel('Área da anotação', { exact: true })).toHaveValue('emotional');
-  await page.getByRole('button', { name: 'Gerenciar áreas e cadernos', exact: true }).click();
+  await page.getByRole('button', { name: 'Voltar para Reflexões diárias' }).click();
+  await page.getByRole('button', { name: 'Renomear ou apagar este caderno', exact: true }).click();
   await page.getByRole('button', { name: 'Editar caderno Reflexões diárias', exact: true }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Meu diário');
   await page.getByRole('button', { name: 'Salvar organização', exact: true }).click();
@@ -193,6 +197,7 @@ test('caderno completo preserva mídia, marcas e correções manuais ao reabrir'
   await page.addInitScript(value => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', value); }, raw);
   await page.goto('/');
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByRole('button', { name: new RegExp('^Caderno de teste') }).first().click();
   const editor = page.getByRole('textbox', { name: 'Conteúdo da anotação', exact: true });
   await expect(editor.locator('img')).toHaveAttribute('src', `${media}.png`);
   await expect(editor.locator('audio')).toHaveAttribute('src', `${media}.mp3`);
@@ -215,6 +220,7 @@ test('caderno completo preserva mídia, marcas e correções manuais ao reabrir'
   await page.getByLabel('Título da anotação', { exact: true }).fill('Caderno revisado');
   await page.reload();
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByRole('button', { name: new RegExp('^Caderno revisado') }).first().click();
   await expect(editor.locator('strong')).toHaveText('umbigo');
   await expect(editor.locator('img')).toHaveAttribute('src', `${media}.png`);
   await expect(editor.locator('audio')).toHaveAttribute('controls', '');
@@ -236,6 +242,7 @@ test('leitura preserva backup anterior sem adicionar uma grade automática', asy
   await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, old);
   await page.goto('/');
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByRole('button', { name: new RegExp('^Conteúdo anterior') }).first().click();
   await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Conteúdo anterior');
   const editor = page.getByRole('textbox', { name: 'Conteúdo da anotação', exact: true });
   await expect(editor.locator('strong')).toHaveText('Minha anotação');
@@ -244,6 +251,7 @@ test('leitura preserva backup anterior sem adicionar uma grade automática', asy
   await expect(page.getByRole('status').filter({ hasText: 'Salvo neste navegador' })).toBeVisible();
   await page.reload();
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Caderno', exact: true }).click();
+  await page.getByRole('button', { name: new RegExp('^Edição preservada') }).first().click();
   await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Edição preservada');
   await expect(editor.locator('strong')).toHaveText('Minha anotação');
 });
@@ -384,7 +392,10 @@ test('espaço antigo sem cursos abre Estudos em "Meu curso" e só grava a migra�
   await expect(page.getByText('3º sem.', { exact: true })).toHaveCount(2);
   expect(await page.evaluate(() => localStorage.getItem('faculdade-psi:personal:v1'))).toBe(raw);
   await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
-  await expect(page.locator('#note-subject optgroup[label="Meu curso"] option')).toHaveText(['Ética profissional', 'Psicologia social']);
+  await expect(page.getByRole('heading', { name: 'Meu curso', level: 2 })).toBeVisible();
+  await page.getByRole('button', { name: /^Psicologia social/ }).click();
+  await page.getByRole('button', { name: new RegExp('^Resumo antigo') }).first().click();
+  await expect(page.locator('#note-place optgroup[label="Estudos · Meu curso"] option')).toHaveText(['Ética profissional', 'Psicologia social']);
   await page.getByLabel('Título da anotação', { exact: true }).fill('Resumo revisado');
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Resumo revisado');
   await page.reload();
@@ -1297,4 +1308,35 @@ test('a bolinha do assistente acompanha a altura da janela até ser arrastada, e
   expect(intro.y).toBeGreaterThan(topbar.y + topbar.height);
   await page.getByRole('button', { name: 'Ajuda e configurações' }).click();
   await expect(page.getByRole('heading', { name: 'Meu espaço', level: 1 })).toBeVisible();
+});
+
+test('caderno: cada matéria já é um caderno e a anotação criada dentro dela nasce lá, sem perguntas', async ({ page }) => {
+  const data = { version: 1, editorGeneration: 9, tasks: [], sessions: [], classes: [], term: {},
+    courses: [{ id: 'psi', name: 'Psicologia', kind: 'graduacao', color: 'rose', status: 'active' }],
+    subjects: [{ id: 'etica', name: 'Ética', color: 'rose', courseId: 'psi' }, { id: 'social', name: 'Psicologia Social', color: 'blue', courseId: 'psi' }],
+    notes: [{ id: 'solta', title: 'Ideia solta', subjectId: '', content: '<p>Para depois</p>', updatedAt: '2026-10-01T12:00:00Z' }] };
+  await page.addInitScript(raw => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', raw); }, JSON.stringify(data));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#notes');
+  await expect(page.getByRole('heading', { name: 'Psicologia', level: 2 })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Ética/ })).toContainText('0 anotações');
+  await page.getByRole('button', { name: /^Ética/ }).click();
+  await page.getByRole('button', { name: 'Nova anotação', exact: true }).click();
+  await expect(page.getByLabel('Título da anotação', { exact: true })).toBeFocused();
+  await page.getByLabel('Título da anotação', { exact: true }).fill('Código de ética: artigos 1 a 5');
+  await expect(page.getByLabel('Onde fica', { exact: true }).locator('option:checked')).toHaveText('Ética');
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0])).toMatchObject({ title: 'Código de ética: artigos 1 a 5', subjectId: 'etica', areaId: 'studies' });
+  expect((await new AxeBuilder({ page }).include('.nb-editor').analyze()).violations).toEqual([]);
+  await page.locator('#note-editor-area').getByRole('button', { name: 'Voltar para Ética' }).click();
+  await page.getByRole('button', { name: /^Cadernos/ }).click();
+  await page.getByRole('button', { name: /^Para organizar/ }).click();
+  await page.getByRole('button', { name: 'Abrir e organizar: Ideia solta' }).click();
+  await page.getByLabel('Onde fica', { exact: true }).selectOption('subject:social');
+  await page.locator('#note-editor-area').getByRole('button', { name: 'Voltar para Psicologia Social' }).click();
+  await expect(page.getByRole('button', { name: /^Ideia solta/ })).toBeVisible();
+  await page.getByRole('button', { name: /^Cadernos/ }).click();
+  await page.getByLabel('Buscar nas anotações').fill('artigos');
+  await expect(page.getByRole('button', { name: /^Código de ética/ })).toBeVisible();
+  expect((await new AxeBuilder({ page }).include('.nb').analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
