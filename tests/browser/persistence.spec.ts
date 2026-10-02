@@ -15,7 +15,7 @@ test('edição do workspace preserva metas e projetos após recarregar', async (
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
   expect(saved.goals).toEqual(data.goals);
   expect(saved.projects).toEqual(data.projects);
-  expect(saved.editorGeneration).toBe(8);
+  expect(saved.editorGeneration).toBe(9);
 });
 
 test('capturas longas não alargam a página nem cortam o menu Android', async ({ page }) => {
@@ -328,7 +328,7 @@ test('curso livre chama as partes de módulos e o nome personalizado troca os r�
   const created = await stored();
   expect(created.courses).toEqual([expect.objectContaining({ name: 'Hipnose clínica', kind: 'livre', institution: 'Instituto de teste', status: 'active' })]);
   expect(created.courses[0].units).toBeUndefined();
-  expect(created.editorGeneration).toBe(8);
+  expect(created.editorGeneration).toBe(9);
 
   await page.getByRole('button', { name: 'Editar curso', exact: true }).click();
   await expect(dialog.getByRole('heading', { name: 'Editar curso', exact: true })).toBeVisible();
@@ -389,7 +389,7 @@ test('espaço antigo sem cursos abre Estudos em "Meu curso" e só grava a migra�
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Resumo revisado');
   await page.reload();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
-  expect(saved.editorGeneration).toBe(8);
+  expect(saved.editorGeneration).toBe(9);
   expect(saved.courses).toEqual([{ id: 'curso-principal', name: 'Meu curso', kind: 'graduacao', color: 'lavender', status: 'active' }]);
   expect(saved.subjects).toEqual(legacy.subjects.map(subject => ({ ...subject, courseId: 'curso-principal' })));
   expect(saved.tasks).toEqual(legacy.tasks);
@@ -534,7 +534,7 @@ test('restaurar backup antigo com matérias cria "Meu curso" na geração atual'
   const backup = { version: 1, editorGeneration: 5, subjects: [{ id: 'etica', name: 'Ética profissional', semester: 3, color: 'lavender' }], tasks: [], notes: [], sessions: [] };
   await page.getByLabel('Selecionar backup JSON', { exact: true }).setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
   await page.getByRole('button', { name: 'Confirmar restauração', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1') ?? '{}').editorGeneration)).toBe(8);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1') ?? '{}').editorGeneration)).toBe(9);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
   expect(saved.courses.map((item: { id: string }) => item.id)).toEqual(['curso-principal']);
   expect(saved.subjects).toEqual([{ ...backup.subjects[0], courseId: 'curso-principal' }]);
@@ -1103,7 +1103,7 @@ test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pe
   await bar.getByRole('button', { name: 'Registrar', exact: true }).click();
   await sheet.getByRole('button', { name: 'Gasto ou entrada', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Finanças', level: 1 })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Novo lançamento' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Nova saída' })).toBeVisible();
   await expect(page.getByLabel('Descrição')).toBeFocused();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Meu foco', level: 1 })).toBeVisible();
@@ -1183,7 +1183,7 @@ test('no celular não há bolinha: o assistente vive na aba Assistente', async (
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
-test('meu dia mostra o dia, o ciclo do mês, a agenda de hoje e os avisos sem repetir', async ({ page }) => {
+test('meu dia mostra o dia, as semanas do mês, a agenda de hoje e os avisos sem repetir', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/');
   const { today, yesterday, weekday } = await page.evaluate(() => {
@@ -1204,7 +1204,7 @@ test('meu dia mostra o dia, o ciclo do mês, a agenda de hoje e os avisos sem re
   const hero = page.getByRole('region', { name: /^Hoje/ });
   await expect(hero.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
   await expect(page.locator('.topbar .cycle-bars i.on')).toHaveCount(1);
-  await expect(page.locator('.topbar-cycle')).toContainText(/ciclo \d\/4 · dia \d+\/\d+/);
+  await expect(page.locator('.topbar-cycle')).toContainText(/semana \d\/4 · dia \d+\/\d+/);
   const agenda = hero.locator('.today-agenda li');
   await expect(agenda).toHaveCount(2);
   await expect(agenda.nth(0)).toContainText('08:30Consulta médica');
@@ -1222,14 +1222,20 @@ test('meu dia mostra o dia, o ciclo do mês, a agenda de hoje e os avisos sem re
   await expect(page.getByRole('heading', { name: 'Minha agenda', level: 1 })).toBeVisible();
 });
 
-test('finanças: parcelas viram contas a pagar, o aviso do Meu dia leva até elas e "Paguei" registra', async ({ page }) => {
+test('finanças: saldo inicial, parcelas agrupadas, projeção, aviso do Meu dia e "Paguei"', async ({ page }) => {
   const day = (offset: number) => { const date = new Date(); date.setDate(date.getDate() + offset); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; };
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#finances');
-  await expect(page.getByRole('heading', { name: 'Finanças', level: 1 })).toBeVisible();
-  await expect(page.getByText(/Nada em aberto/)).toBeVisible();
-  await page.getByRole('button', { name: 'Novo lançamento' }).click();
+  await expect(page.getByRole('heading', { name: 'Quanto você tem hoje?' })).toBeVisible();
+  await page.getByText('Estou devendo', { exact: true }).click();
+  await page.getByLabel('Quanto você deve').fill('500');
+  await page.getByRole('button', { name: 'Salvar saldo' }).click();
+  await expect(page.locator('.fin-balance strong')).toHaveText(/^-R\$\s500,00$/);
+
+  await page.getByRole('button', { name: 'Saída', exact: true }).click();
   const form = page.locator('form.fin-form');
+  await expect(form.getByRole('heading', { name: 'Nova saída' })).toBeVisible();
+  await expect(page.getByLabel('Descrição')).toBeFocused();
   await form.getByLabel('Descrição').fill('Notebook');
   await form.getByText('A pagar', { exact: true }).click();
   await form.getByLabel('Vencimento').fill(day(1));
@@ -1238,30 +1244,43 @@ test('finanças: parcelas viram contas a pagar, o aviso do Meu dia leva até ela
   await form.getByLabel('Valor de cada parcela').fill('1.250,00');
   await expect(form).toContainText('Cria 3 lançamentos');
   expect((await new AxeBuilder({ page }).include('.fin').analyze()).violations).toEqual([]);
-  await form.getByRole('button', { name: 'Salvar lançamento' }).click();
+  await form.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: '3 lançamentos criados' })).toBeVisible();
-  const open = page.locator('#fin-open');
-  await expect(open.getByText('parcela 1/3', { exact: false })).toBeVisible();
-  await expect(open.locator('.fin-row')).toHaveCount(3);
+
+  await page.getByRole('tab', { name: /^Contas/ }).click();
+  const bills = page.locator('#fin-panel-bills');
+  await expect(bills.locator('.fin-row')).toHaveCount(2);
+  await expect(bills.getByText(/e mais 1 mês, até/)).toBeVisible();
+  await bills.getByLabel('Mostrar cada mês e parcela').check();
+  await expect(bills.locator('.fin-row')).toHaveCount(3);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  await page.getByRole('tab', { name: 'Projeção' }).click();
+  await page.getByRole('button', { name: '6 meses' }).click();
+  await page.getByLabel('Gasto diário considerado').fill('0');
+  await expect(page.locator('.fin-projection > strong')).toHaveText(/^-R\$\s4\.250,00$/);
+  expect((await new AxeBuilder({ page }).include('.fin').analyze()).violations).toEqual([]);
+
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
-  expect(saved.editorGeneration).toBe(8);
+  expect(saved.editorGeneration).toBe(9);
+  expect(saved.finance).toEqual({ openingCents: -50000, openingDate: day(0) });
   expect(saved.transactions.map((item: { amountCents: number; status: string }) => [item.amountCents, item.status])).toEqual([[125000, 'pending'], [125000, 'pending'], [125000, 'pending']]);
 
   await page.goto('/');
   const alert = page.getByRole('button', { name: /Amanhã tem conta para pagar: Notebook · R\$\s1\.250,00/ });
   await expect(alert).toBeVisible();
   await alert.click();
-  await expect(page.locator('#fin-open')).toBeFocused();
-  await page.locator('#fin-open').getByRole('button', { name: 'Paguei: Notebook' }).first().click();
-  await expect(page.locator('#fin-open .fin-row')).toHaveCount(2);
+  await expect(page.getByRole('tab', { name: /^Contas/ })).toBeFocused();
+  await page.locator('#fin-panel-bills').getByRole('button', { name: 'Paguei: Notebook' }).first().click();
+  await expect(page.locator('.fin-balance strong')).toHaveText(/^-R\$\s1\.750,00$/);
   await page.goto('/');
   await expect(page.getByRole('button', { name: /Amanhã tem conta para pagar/ })).toHaveCount(0);
 
   await page.goto('/#finances');
-  await page.locator('#fin-open').getByRole('button', { name: 'Excluir: Notebook' }).first().click();
+  await page.getByRole('tab', { name: /^Contas/ }).click();
+  await page.locator('#fin-panel-bills').getByRole('button', { name: 'Excluir: Notebook' }).first().click();
   await page.getByRole('button', { name: /Este e os próximos \(2\)/ }).click();
-  await expect(page.locator('#fin-open .fin-row')).toHaveCount(0);
+  await expect(page.locator('#fin-panel-bills .fin-row')).toHaveCount(0);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).transactions.length)).toBe(1);
 });
 

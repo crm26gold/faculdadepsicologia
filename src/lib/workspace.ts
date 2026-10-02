@@ -12,7 +12,7 @@ export const daySchema = z.string().refine((value) => {
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
 }, 'Data inválida');
 const day = daySchema;
-export const CURRENT_EDITOR_GENERATION = 8;
+export const CURRENT_EDITOR_GENERATION = 9;
 const focusContextSchema = z.object({
   taskId: identifier.optional(), projectId: identifier.optional(),
   taskTitle: z.string().max(160).optional(), projectTitle: z.string().max(160).optional(),
@@ -102,7 +102,7 @@ export type Flashcard = z.infer<typeof flashcardSchema>;
 export const termSchema = z.object({ start: day.optional(), end: day.optional() }).refine((item) => !item.start || !item.end || item.end >= item.start, 'O fim do semestre deve ser depois do início.');
 export const workspaceSchema = z.object({
   version: z.literal(1), subjects: z.array(subjectSchema).max(100),
-  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8)]).optional(),
+  editorGeneration: z.union([z.literal(2), z.literal(3), z.literal(4), z.literal(5), z.literal(6), z.literal(7), z.literal(8), z.literal(9)]).optional(),
   courses: z.array(courseSchema).max(30).optional(),
   goals: z.array(goalSchema).max(200).optional(),
   projects: z.array(projectSchema).max(500).optional(),
@@ -118,6 +118,8 @@ export const workspaceSchema = z.object({
     });
   }).nullable().optional(),
   transactions: z.array(transactionSchema).max(5000).optional(),
+  // Generation 9: where the money starts. Can be zero or negative (someone who starts in debt).
+  finance: z.object({ openingCents: z.number().int().min(-100_000_000_000).max(100_000_000_000), openingDate: day }).optional(),
   habits: z.array(habitSchema).max(300).optional(),
   profile: profileSchema.optional(),
   legacyImportId: z.string().max(100).optional(),
@@ -157,6 +159,9 @@ export const workspaceSchema = z.object({
   }
   if ((data.transactions ?? []).some(item => item.status || item.paidOn || item.nature || item.groupId || item.installment) && (data.editorGeneration ?? 0) < 8) {
     ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Contas e parcelas exigem editor atualizado.' });
+  }
+  if (data.finance && (data.editorGeneration ?? 0) < 9) {
+    ctx.addIssue({ code: 'custom', path: ['editorGeneration'], message: 'Saldo inicial exige editor atualizado.' });
   }
   const courses = new Set((data.courses ?? []).map(course => course.id));
   data.subjects.forEach((subject, index) => {
