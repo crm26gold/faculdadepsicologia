@@ -278,3 +278,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .today-agenda li.with-check { display: flex; align-items: center; gap: 6px; }
 .today-agenda li.with-check > button { flex: 1; min-inline-size: 0; }
 .today-time { font-size: .9rem; }
+
+.ai-roadmap { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ai-roadmap li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 10px; font-size: .88rem; }
+.ai-roadmap span { color: var(--muted); }

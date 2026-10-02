@@ -105,5 +105,12 @@ export function AiSettings() {
       <strong><PlugZap size={15} aria-hidden="true" /> ChatGPT, Claude e outros assistentes (padrão MCP)</strong>
       <span className="muted small">Próxima etapa: um conector seguro para você conversar com a sua Jornada Plena de dentro do ChatGPT ou do Claude, usando as suas assinaturas. Cada acesso vai pedir a sua autorização e poderá ser revogado aqui.</span>
     </div>
+    <h3><Plug size={15} aria-hidden="true" /> Integrações planejadas (visível só para você)</h3>
+    <ul className="ai-roadmap">
+      <li><strong>WhatsApp</strong><span>Fechado por segurança: o endereço de recebimento recusa tudo até cada pessoa vincular e confirmar o próprio número. Nada aparece para os usuários.</span></li>
+      <li><strong>Google Agenda (sincronização)</strong><span>Hoje só a exportação em arquivo funciona. A sincronização nos dois sentidos depende de autorização do Google por pessoa.</span></li>
+      <li><strong>Google Drive</strong><span>Biblioteca de materiais por matéria e backup; depende de autorização do Google por pessoa.</span></li>
+      <li><strong>Microsoft Teams e instituições</strong><span>Avisos da turma; depende de acesso liberado por cada instituição.</span></li>
+    </ul>
   </section>;
 }

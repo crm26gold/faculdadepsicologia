@@ -38,9 +38,10 @@ test('compromisso com horário e arquivo ICS', async ({ page }) => {
   expect((await pending).suggestedFilename()).toBe('jornada-plena-agenda.ics');
 });
 
-test('planejador distingue regras locais de IA generativa', async ({ page }) => {
+test('planejador explica que usa regras simples e não mostra integrações que não existem', async ({ page }) => {
   await page.goto('/'); await navigate(page, 'Assistente Regras');
-  await expect(page.getByText('IA generativa ainda não conectada.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Sugestões por regras simples.', { exact: true })).toBeVisible();
+  await expect(page.getByText(/WhatsApp|Teams|UNIP|Supabase|API de IA/)).toHaveCount(0);
   const button = page.getByRole('button', { name: 'Adicionar à minha agenda', exact: false }).first();
   await expect(button).toBeVisible();
   await button.click();
