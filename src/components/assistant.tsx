@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
-import { ArrowRight, AudioLines, Check, Mic, Paperclip, Send, Square, Undo2, X } from 'lucide-react';
+import { ArrowRight, AudioLines, Check, MessageSquarePlus, Mic, Paperclip, Send, Square, Undo2, X } from 'lucide-react';
 import { validMedia } from '@/lib/note-media';
 import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
@@ -156,7 +156,9 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
     try {
       let result: CommandReply = { configured: false };
       if (cloud && said && !file) {
-        try { result = await api<CommandReply>('/api/ai/command', { message: said, context: commandContext(latest.current, dateKey()) }); }
+        // The last exchanges go along, so "e aquela de ontem?" or "muda para as 16h" make sense to the model.
+        const history = messages.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' as const : 'assistant' as const, text: item.text.slice(0, 3000) }));
+        try { result = await api<CommandReply>('/api/ai/command', { message: said, context: commandContext(latest.current, dateKey()), history }); }
         catch (error) {
           setAi(previous => previous ?? { ready: true });
           voiceAnswer = await capture(said, id, `A inteligência artificial não respondeu (${error instanceof Error ? error.message : 'erro'}). `);
@@ -224,7 +226,11 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   const state = talking ? speaking ? 'Respondendo…' : busy ? 'Executando…' : listening ? 'Ouvindo… pode falar' : 'Um instante…' : '';
 
   return <div className="assistant-panel">
-    <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? `Inteligência artificial ligada${ai.model ? ` · ${ai.model}` : ''}` : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Fale ou escreva: eu entendo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
+    <div className="assistant-top">
+      <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? `Inteligência artificial ligada${ai.model ? ` · ${ai.model}` : ''}` : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Converse comigo: eu respondo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
+      {messages.length > 0 && <button type="button" className="text-button" disabled={busy} onClick={() => { conversation.current = false; setTalking(false); window.speechSynthesis?.cancel(); setMessages(() => []); }}><MessageSquarePlus size={15} aria-hidden="true" />Nova conversa</button>}
+    </div>
+    {ai && !ai.ready && <p className="assistant-setup">Para eu conversar e organizar sozinho, a IA precisa estar ligada: em <strong>Administração › Inteligência artificial</strong>, na tarefa “Conversa do assistente”, escolha o provedor e um modelo (o “Automático · rápido” serve) e toque em Salvar.</p>}
     <div className="assistant-messages" ref={list} aria-live="polite">
       {!messages.length && <div className="assistant-message assistant">
         <p>Olá! Diga, por exemplo: “amanhã às 15h dentista”, “gastei 32 reais no mercado”, “conta de luz de 210 vence dia 10”, “começa um foco de 25 minutos em leitura” ou “o que eu tenho hoje?”.</p>

@@ -2,9 +2,10 @@ import 'server-only';
 import { createHash, createSign } from 'node:crypto';
 import { aiCatalog, type AiProviderId } from './catalog';
 import { autoCapable, isAuto, pickModel } from './models';
+import { conversationTurns, type Turn } from './turns';
 
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string };
-type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean };
+type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[] };
 export class AiError extends Error {}
 
 const TIMEOUT = 30_000;
@@ -54,8 +55,8 @@ function vertexBase(config: AiConfig, account: ServiceAccount) {
   return `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}`;
 }
 
-const geminiBody = ({ system, prompt, maxTokens = 800, json }: Prompt) => JSON.stringify({
-  systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens, ...(json ? { responseMimeType: 'application/json' } : {}) },
+const geminiBody = ({ system, prompt, maxTokens = 800, json, history }: Prompt) => JSON.stringify({
+  systemInstruction: { parts: [{ text: system }] }, contents: conversationTurns(history, prompt).map(turn => ({ role: turn.role === 'assistant' ? 'model' : 'user', parts: [{ text: turn.text }] })), generationConfig: { maxOutputTokens: maxTokens, ...(json ? { responseMimeType: 'application/json' } : {}) },
 });
 const geminiText = (body: any) => (body?.candidates?.[0]?.content?.parts ?? []).map((part: { text?: string }) => part.text ?? '').join('').trim();
 const claudeText = (body: any) => (body?.content ?? []).map((part: { text?: string }) => part.text ?? '').join('').trim();
@@ -65,6 +66,7 @@ const chatText = (body: any) => String(body?.choices?.[0]?.message?.content ?? '
 export async function generate(config: AiConfig, input: Prompt): Promise<string> {
   const { system, prompt, maxTokens = 800 } = input;
   const json = { 'Content-Type': 'application/json' };
+  const turns = conversationTurns(input.history, prompt).map(turn => ({ role: turn.role, content: turn.text }));
   let text = '';
   switch (config.provider) {
     case 'gemini':
@@ -76,22 +78,22 @@ export async function generate(config: AiConfig, input: Prompt): Promise<string>
       const base = vertexBase(config, account);
       text = config.model.startsWith('claude')
         ? claudeText(await call('vertex', `${base}/publishers/anthropic/models/${encodeURIComponent(config.model)}:rawPredict`, { method: 'POST', headers,
-            body: JSON.stringify({ anthropic_version: 'vertex-2023-10-16', system, max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] }) }))
+            body: JSON.stringify({ anthropic_version: 'vertex-2023-10-16', system, max_tokens: maxTokens, messages: turns }) }))
         : geminiText(await call('vertex', `${base}/publishers/google/models/${encodeURIComponent(config.model)}:generateContent`, { method: 'POST', headers, body: geminiBody(input) }));
       break;
     }
     case 'openai':
       text = chatText(await call('openai', 'https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { ...json, Authorization: `Bearer ${config.key}` },
-        body: JSON.stringify({ model: config.model, max_completion_tokens: maxTokens, ...(input.json ? { response_format: { type: 'json_object' } } : {}), messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }) }));
+        body: JSON.stringify({ model: config.model, max_completion_tokens: maxTokens, ...(input.json ? { response_format: { type: 'json_object' } } : {}), messages: [{ role: 'system', content: system }, ...turns] }) }));
       break;
     case 'compatible':
       if (!config.base_url) throw new AiError('Informe o endereço base da API compatível.');
       text = chatText(await call('compatible', `${config.base_url.replace(/\/+$/, '')}/chat/completions`, { method: 'POST', headers: { ...json, Authorization: `Bearer ${config.key}` },
-        body: JSON.stringify({ model: config.model, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }) }));
+        body: JSON.stringify({ model: config.model, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...turns] }) }));
       break;
     case 'anthropic':
       text = claudeText(await call('anthropic', 'https://api.anthropic.com/v1/messages', { method: 'POST', headers: { ...json, 'x-api-key': config.key, 'anthropic-version': '2023-06-01' },
-        body: JSON.stringify({ model: config.model, max_tokens: maxTokens, system, messages: [{ role: 'user', content: prompt }] }) }));
+        body: JSON.stringify({ model: config.model, max_tokens: maxTokens, system, messages: turns }) }));
       break;
   }
   if (!text) throw new AiError(`${aiCatalog[config.provider].name} respondeu sem texto. Confira o nome do modelo.`);

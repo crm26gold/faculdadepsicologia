@@ -345,3 +345,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 [data-theme='dark'] .assistant-applied li svg { color: #7fd1a4; }
 [data-theme='dark'] .assistant-live { color: var(--brand-gold); }
 [data-theme='dark'] .assistant-once { border-color: var(--brand-gold); color: var(--brand-gold); }
+.assistant-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.assistant-top .text-button { display: inline-flex; align-items: center; gap: 4px; }
+.assistant-setup { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fbf4e4; color: #5c4108; font-size: .88rem; }
+[data-theme='dark'] .assistant-setup { background: #3a2f17; color: #fde7b0; }

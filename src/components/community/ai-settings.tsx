@@ -128,8 +128,9 @@ function TaskForm({ task, providers, models, loading, ensureModels, busy, onSave
   ensureModels: (provider: AiProviderId) => Promise<void>; busy: string; onSave: (event: FormEvent<HTMLFormElement>) => void; onTest: () => void;
 }) {
   const [provider, setProvider] = useState<AiProviderId | ''>(task.provider ?? '');
-  const [model, setModel] = useState(task.model);
+  const [model, setModel] = useState(task.model || (task.provider && autoCapable.includes(task.provider) ? 'auto:rapido' : ''));
   const [custom, setCustom] = useState(false);
+  const [enabled, setEnabled] = useState(task.enabled);
   const list = provider ? models[provider] : undefined;
   const ids = provider ? [...new Set([...(list?.ids ?? []), ...aiCatalog[provider].models])] : [];
   const canAuto = !!provider && autoCapable.includes(provider);
@@ -142,7 +143,7 @@ function TaskForm({ task, providers, models, loading, ensureModels, busy, onSave
   return <form className="ai-card" onSubmit={onSave}>
     <strong>{label.name}</strong>
     <span className="muted small">{label.help}</span>
-    <label>Provedor<select name="provider" value={provider} onChange={event => { const next = event.target.value as AiProviderId | ''; setProvider(next); setCustom(false); setModel(next && autoCapable.includes(next) ? 'auto:rapido' : ''); }}>
+    <label>Provedor<select name="provider" value={provider} onChange={event => { const next = event.target.value as AiProviderId | ''; setProvider(next); setCustom(false); if (next && !provider) setEnabled(true); setModel(next && autoCapable.includes(next) ? 'auto:rapido' : ''); }}>
       <option value="">Nenhum</option>
       {providers.map(item => <option key={item.id} value={item.id} disabled={!item.has_key}>{aiCatalog[item.id].name}{item.has_key ? item.enabled ? '' : ' · desligado' : ' · sem chave'}</option>)}
     </select></label>
@@ -158,7 +159,7 @@ function TaskForm({ task, providers, models, loading, ensureModels, busy, onSave
     {provider && loading[provider] && <span className="muted small" role="status">Buscando os modelos da sua conta…</span>}
     {isAuto(model) && <span className="muted small">{autoModes[model].hint}{picked ? ` Hoje usaria: ${picked}.` : ''}</span>}
     {provider === 'gemini' && <span className="muted small">Na chave gratuita do AI Studio, use os modos “rápido” ou “econômico” (Flash e Flash-Lite): os modelos Pro cobram desde o primeiro uso.</span>}
-    <label className="cm-check"><input type="checkbox" name="enabled" defaultChecked={task.enabled} /> Ligada</label>
+    <label className="cm-check"><input type="checkbox" name="enabled" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Ligada</label>
     <div className="button-row">
       <button className="button primary" disabled={!!busy || (!!provider && !model)}>{busy === `t-${task.id}` ? 'Salvando…' : 'Salvar'}</button>
       <button type="button" className="button outline" disabled={!!busy || !task.provider || !task.model} onClick={onTest}>{busy === `x-${task.id}` ? 'Testando…' : 'Testar'}</button>

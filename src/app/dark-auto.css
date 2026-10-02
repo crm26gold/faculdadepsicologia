@@ -735,6 +735,10 @@
 [data-theme='dark'] .assistant-applied li svg {
     color: hsl(150 55% 78%)
 }
+[data-theme='dark'] .assistant-setup {
+    background: hsl(42 28% 17%);
+    color: hsl(41 70% 78%)
+}
 /* src/app/finance.css */
 [data-theme='dark'] .fin-hero {
     background: linear-gradient(135deg, hsl(47 28% 17%), var(--surface))
