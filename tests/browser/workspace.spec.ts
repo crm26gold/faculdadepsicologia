@@ -73,6 +73,7 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
   await page.getByRole('button', { name: 'Pausar', exact: true }).click();
   await page.getByRole('button', { name: 'Ajuda e configurações' }).click();
   await expect(page.getByRole('button', { name: 'Importar backup', exact: true })).toHaveCount(0);
+  await expect(page.getByText(/Webhook|Número Próprio|Supabase|Conexões & Serviços/)).toHaveCount(0);
   await expect(page.locator('input[type=file]')).toHaveCount(0);
   expect(errors).toEqual([]);
   expect(requests).toEqual([]);

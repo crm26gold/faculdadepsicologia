@@ -358,55 +358,6 @@ export function ProfileSettings({
           </div>
         </div>
 
-        {/* ASSISTENTE WHATSAPP COM NÚMERO PRÓPRIO */}
-        <div className="panel" style={{ padding: 18, background: '#fff', borderRadius: 12, border: '1px solid var(--line)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3>Assistente WhatsApp (Número Próprio)</h3>
-            <span className="tiny-tag positive" style={{ background: '#ecfdf5', color: '#047857' }}>
-              Ativo
-            </span>
-          </div>
-          <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '4px 0 12px' }}>
-            Intermediação 100% direta de mensagens, áudios, finanças e tarefas enviadas para o seu número exclusivo.
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: '0.78rem' }}>
-            <div style={{ background: '#FBF9F3', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--line)' }}>
-              <strong>Webhook do Sistema para o Gateway:</strong>
-              <code style={{ display: 'block', fontSize: '0.72rem', color: '#2F6B55', marginTop: 4, wordBreak: 'break-all' }}>
-                https://faculdadepsicologia.vercel.app/api/assistant/webhook
-              </code>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <strong>Comandos aceitos pelo Assistente no WhatsApp:</strong>
-              <ul style={{ margin: 0, paddingLeft: 18, color: 'var(--muted)', lineHeight: 1.5 }}>
-                <li>"Gastei 45 no almoço" ➔ Registra despesa automática em Finanças</li>
-                <li>"Recebi 1200 de estágio" ➔ Adiciona receita no Saldo</li>
-                <li>"Anota aí: resumo da aula de Neuro" ➔ Salva nota no Anota Aqui</li>
-                <li>"Lembrar de entregar trabalho dia 15" ➔ Adiciona tarefa na Agenda</li>
-                <li>"Concluí o hábito de meditação" ➔ Aumenta seu Streak da Rotina</li>
-                <li>"O que tenho pra hoje?" ➔ Retorna suas aulas, tarefas e rotinas</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        {/* CONEXÕES */}
-        <div className="panel integrations-panel">
-          <h3>Conexões & Serviços</h3>
-          {[
-            { name: 'Supabase Database', detail: 'Sincronização e autenticação', state: demo ? 'Desativado na demo' : mode === 'cloud' ? 'Ativo' : 'Aguardando config' },
-            { name: 'Google Agenda', detail: 'Exportação manual .ics · sem sincronização automática', state: 'Exportação pronta' },
-            { name: 'Planejador por regras', detail: 'Sugestões determinísticas, sem IA generativa conectada', state: 'Disponível' },
-          ].map(item => (
-            <div className="integration-row" key={item.name}>
-              <div>
-                <strong>{item.name}</strong>
-                <small>{item.detail}</small>
-              </div>
-              <span className="tiny-tag">{item.state}</span>
-            </div>
-          ))}
-        </div>
       </div>
     </div>
   );
