@@ -264,7 +264,7 @@ revoke all on function private.bot_check(text), private.messenger_admin_state(),
 revoke all on function public.messenger_admin_state(), public.messenger_save(text, boolean, text, text, text, text), public.messenger_create_code(text, text),
   public.messenger_status(), public.messenger_unlink(text), public.bot_settings(text, text), public.bot_link(text, text, text, text),
   public.bot_unlink(text, text, text), public.bot_context(text, text, text), public.bot_save(text, text, text, jsonb, integer),
-  public.bot_log(text, text, text, text, text, text, jsonb) from public;
+  public.bot_log(text, text, text, text, text, text, jsonb) from public, anon;
 grant execute on function private.messenger_admin_state(), private.messenger_save(text, boolean, text, text, text, text), private.messenger_create_code(text, text),
   private.messenger_status(), private.messenger_unlink(text) to authenticated;
 grant execute on function public.messenger_admin_state(), public.messenger_save(text, boolean, text, text, text, text), public.messenger_create_code(text, text),
