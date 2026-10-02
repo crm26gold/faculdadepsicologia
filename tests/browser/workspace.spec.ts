@@ -58,7 +58,7 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
     Object.defineProperty(window, 'sessionStorage', { get() { throw new Error('Demo must not access sessionStorage'); } });
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
   await expect(page.getByText('Demonstração — dados fictícios. Não insira informações pessoais.', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Psicologia', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
@@ -68,7 +68,7 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
   await navigate(page, 'Caderno');
   await expect(page.getByRole('textbox', { name: 'Conteúdo da anotação' })).toBeVisible();
   await page.getByLabel('Título da anotação', { exact: true }).fill('Teste temporário');
-  await navigate(page, 'Meu dia');
+  await navigate(page, 'Foco');
   await page.getByRole('button', { name: 'Começar foco', exact: true }).click();
   await page.getByRole('button', { name: 'Pausar', exact: true }).click();
   await page.getByRole('button', { name: 'Ajuda e configurações' }).click();

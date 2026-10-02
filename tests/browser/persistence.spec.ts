@@ -24,7 +24,8 @@ test('capturas longas não alargam a página nem cortam o menu Android', async (
   for (const width of [360, 393]) {
     await page.setViewportSize({ width, height: 740 });
     await page.goto('/');
-    await expect(page.locator('.unorganized-chip-card')).toHaveCount(7);
+    await expect(page.getByRole('heading', { name: 'Para organizar (7)' })).toBeVisible();
+    await expect(page.locator('.unorganized-chip-card')).toHaveCount(3);
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     for (const card of await page.locator('.unorganized-chip-card').all()) {
       const box = await card.boundingBox();
@@ -34,7 +35,7 @@ test('capturas longas não alargam a página nem cortam o menu Android', async (
     const organizeBtn = page.locator('.chip-organize-btn').first();
     const btnBox = await organizeBtn.boundingBox();
     expect(btnBox!.height).toBeGreaterThanOrEqual(44);
-    await page.locator('.unorganized-notes-deck').scrollIntoViewIfNeeded();
+    await page.locator('.today-loose').scrollIntoViewIfNeeded();
     await page.screenshot({ path: `test-results/android-captures-${width}.png`, scale: 'css' });
     await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
     const dialog = page.getByRole('dialog');
@@ -47,7 +48,7 @@ test('capturas longas não alargam a página nem cortam o menu Android', async (
 });
 
 test('cronômetro global preserva sessão ao reabrir página, pausa e registra tempo parcial', async ({ page, context }) => {
-  await page.goto('/');
+  await page.goto('/#focus');
   await page.getByRole('button', { name: 'Tempo e foco' }).click();
   await page.getByLabel('O que você vai fazer?').fill('Treino de teste');
   await page.getByLabel('Área do tempo').selectOption('health');
@@ -56,7 +57,7 @@ test('cronômetro global preserva sessão ao reabrir página, pausa e registra t
   await page.waitForTimeout(1200);
   const another = await context.newPage();
   await page.close();
-  await another.goto('/');
+  await another.goto('/#focus');
   await expect(another.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
   await another.getByRole('button', { name: 'Pausar', exact: true }).click();
   const time = await another.getByRole('timer').textContent();
@@ -90,6 +91,7 @@ test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ 
 test('captura preserva o texto inteiro além do título de 100 caracteres', async ({ page }) => {
   await page.goto('/');
   const text = 'Ideia longa para regressão\n' + 'conteúdo completo importante '.repeat(20) + 'FIM PRESERVADO';
+  await page.getByRole('button', { name: 'Registrar', exact: true }).click();
   await page.getByLabel('O que você quer guardar?').fill(text);
   await page.getByRole('button', { name: 'Guardar ideia', exact: true }).click();
   await expect(page.getByText('Ideia guardada no seu caderno local!', { exact: true })).toBeVisible();
@@ -102,11 +104,14 @@ test('captura rápida persiste e sai da caixa ao organizar, sem perder texto', a
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
   await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
+  await page.getByRole('button', { name: 'Registrar', exact: true }).click();
   await page.getByLabel('O que você quer guardar?').fill('Minha ideia capturada\n<script>texto, não código</script>');
   await page.getByRole('button', { name: 'Guardar ideia', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'Abrir e organizar: Minha ideia capturada' })).toBeVisible();
+  await expect(page.getByText('Ideia guardada no seu caderno local!', { exact: true })).toBeVisible();
   const audit = await new AxeBuilder({ page }).include('.capture-inbox').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(audit.violations.map(item => item.id)).toEqual([]);
+  await page.getByRole('button', { name: 'Fechar janela' }).click();
+  await expect(page.getByRole('button', { name: 'Abrir e organizar: Minha ideia capturada' })).toBeVisible();
   await page.screenshot({ path: 'test-results/inbox-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
@@ -118,7 +123,7 @@ test('captura rápida persiste e sai da caixa ao organizar, sem perder texto', a
   await expect(page.getByRole('textbox', { name: 'Conteúdo da anotação', exact: true })).toContainText('<script>texto, não código</script>');
   await page.getByLabel('Área da anotação', { exact: true }).selectOption('emotional');
   await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
-  await expect(page.getByText('Nenhuma anotação pendente de organização.')).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^Para organizar/ })).toHaveCount(0);
   await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
   await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Minha ideia capturada');
 });
@@ -416,7 +421,7 @@ test('voltar do Android em um curso retorna para a lista de Estudos', async ({ p
   await expect(hero).toBeHidden();
   await expect(list).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
   await page.getByRole('button', { name: 'Ir para Estudos', exact: true }).click();
   await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
   await expect(hero).toBeVisible();
@@ -493,7 +498,7 @@ test('formulários abertos num curso não deixam toques mortos no voltar e mudar
   await page.getByRole('button', { name: 'Voltar para Estudos', exact: true }).click();
   await expect(list).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
   await page.goForward();
   await expect(list).toBeVisible();
   await page.goForward();
@@ -582,7 +587,7 @@ test('planejamento: fluxo completo de meta, projeto ligado, tarefas, 50% operaci
   await page.getByRole('button', { name: 'Salvar' }).click();
 
   // Conferir que na lista de tarefas aparece o nome do projeto
-  await expect(page.locator('.task-row').first()).toContainText('Projeto: Elaboração do Instrumento');
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Construir itens preliminares' })).toContainText('Projeto: Elaboração do Instrumento');
 
   // 4. Voltar para Metas e Projetos, abrir tarefas do projeto e concluir uma
   await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
@@ -713,8 +718,8 @@ test('planejamento: arquivamento de projeto preserva tarefas e desvinculação �
 
   // ─── 3. Verify tasks still exist after archiving project ───
   await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
-  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
-  await expect(page.locator('.task-row').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
 
   // ─── 4. Reload and verify persistence (no re-seeding) ───
   await page.reload();
@@ -727,8 +732,8 @@ test('planejamento: arquivamento de projeto preserva tarefas e desvinculação �
 
   // Tasks are preserved and still linked
   await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
-  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
-  await expect(page.locator('.task-row').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Segunda Tarefa Alpha' })).toBeVisible();
 
   // ─── 5. Restore project and verify data ───
   await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
@@ -750,13 +755,13 @@ test('planejamento: arquivamento de projeto preserva tarefas e desvinculação �
 
   // The unlinked task still exists in Meu dia
   await nav.getByRole('button', { name: 'Meu dia', exact: true }).click();
-  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
   // No longer shows project name
-  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).not.toContainText('Projeto:');
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Tarefa do Projeto Alpha' })).not.toContainText('Projeto:');
 
   // Reload and confirm persistence
   await page.reload();
-  await expect(page.locator('.task-row').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
+  await expect(page.locator('.today-agenda li').filter({ hasText: 'Tarefa do Projeto Alpha' })).toBeVisible();
 
   // The second task is still linked to the project after reload
   await nav.getByRole('button', { name: 'Metas e projetos', exact: true }).click();
@@ -1074,7 +1079,7 @@ test('botão central abre o registro rápido, guarda vídeo e a nota mantém o v
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Ética · vídeo da aula');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].content)).toContain('<video');
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
 });
 
 test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pessoal', async ({ page }) => {
@@ -1088,7 +1093,7 @@ test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pe
   await expect(page.getByRole('dialog', { name: 'Um novo passo' })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
   await settled();
   await bar.getByRole('button', { name: 'Registrar', exact: true }).click();
   await sheet.getByRole('button', { name: 'Começar foco', exact: true }).click();
@@ -1099,7 +1104,7 @@ test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pe
   await expect(page.getByRole('heading', { name: 'Finanças', level: 1 })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Adicionar Transação' })).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Meu foco', level: 1 })).toBeVisible();
   await bar.getByRole('button', { name: 'Ver todas as áreas' }).click();
   await page.getByLabel('Botão da barra, ao lado do Registrar').selectOption('focus');
   await page.getByRole('button', { name: 'Fechar janela' }).click();
@@ -1148,7 +1153,7 @@ test('no computador, a bolinha se apresenta uma vez, anexa arquivos, pode ser ar
   await expect(bubble).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: 'Assistente escondido' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
   await expect(bubble).toHaveCount(0);
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: /^Assistente/ }).click();
   await expect(page.getByRole('heading', { name: 'Assistente', level: 1 })).toBeVisible();
@@ -1159,7 +1164,7 @@ test('no computador, a bolinha se apresenta uma vez, anexa arquivos, pode ser ar
 test('no celular não há bolinha: o assistente vive na aba Assistente', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { name: 'Um novo dia, no seu ritmo.' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir assistente' })).toBeHidden();
   await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^Assistente/ }).click();
@@ -1172,4 +1177,43 @@ test('no celular não há bolinha: o assistente vive na aba Assistente', async (
   await page.getByRole('button', { name: /Ver anotação/ }).click();
   await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Lembrar de levar o livro de Ética');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('meu dia mostra o dia, o ciclo do mês, a agenda de hoje e os avisos sem repetir', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/');
+  const { today, yesterday, weekday } = await page.evaluate(() => {
+    const key = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const now = new Date(); const before = new Date(now); before.setDate(now.getDate() - 1);
+    return { today: key(now), yesterday: key(before), weekday: now.getDay() };
+  });
+  const data = { version: 1, editorGeneration: 7,
+    courses: [{ id: 'psi', name: 'Psicologia', kind: 'graduacao', color: 'rose', status: 'active' }],
+    subjects: [{ id: 'neuro', name: 'Neuropsicologia', color: 'rose', courseId: 'psi', professor: 'Profa. Lia' }],
+    classes: [{ id: 'aula', subjectId: 'neuro', weekday, startTime: '19:10', endTime: '20:50', location: 'Sala 12', enabled: true, intervalWeeks: 1 }],
+    tasks: [
+      { id: 'consulta', title: 'Consulta médica', subjectId: '', date: today, time: '08:30', kind: 'Consulta', done: false, minutes: 60 },
+      { id: 'luz', title: 'Pagar luz', subjectId: '', date: yesterday, kind: 'Pagamento', done: false, minutes: 10 },
+    ], notes: [], sessions: [] };
+  await page.evaluate(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify(data));
+  await page.reload();
+  const hero = page.getByRole('region', { name: /^Hoje/ });
+  await expect(hero.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(hero.locator('.today-cycles li[aria-current="step"]')).toHaveCount(1);
+  await expect(hero.getByText(/ciclo \d de 4 · dia \d+ de \d+/)).toBeVisible();
+  const agenda = hero.locator('.today-agenda li');
+  await expect(agenda).toHaveCount(2);
+  await expect(agenda.nth(0)).toContainText('08:30Consulta médica');
+  await expect(agenda.nth(1)).toContainText('Neuropsicologia');
+  await expect(agenda.nth(1)).toContainText('Aula · Psicologia · Profa. Lia · Sala 12');
+  await expect(page.getByRole('region', { name: 'Atenção' }).getByRole('button', { name: /1 compromisso atrasado: Pagar luz/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Nova anotação' })).toHaveCount(0);
+  await expect(page.getByRole('region', { name: 'Registro de tempo e foco' })).toHaveCount(0);
+  await expect(page.getByText('Espaço pessoal · privado')).toHaveCount(0);
+  await hero.getByRole('checkbox', { name: 'Concluir: Consulta médica' }).check();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).tasks.find((t: { id: string }) => t.id === 'consulta').done)).toBe(true);
+  expect((await new AxeBuilder({ page }).include('.today-hero').include('.today-alerts').analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('region', { name: 'Atenção' }).getByRole('button', { name: /atrasado/ }).click();
+  await expect(page.getByRole('heading', { name: 'Minha agenda', level: 1 })).toBeVisible();
 });

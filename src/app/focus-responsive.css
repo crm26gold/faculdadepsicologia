@@ -232,3 +232,49 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .ai-badge { display: inline-block; margin-inline-start: 8px; padding: 1px 8px; border-radius: 999px; background: var(--sage); color: var(--green); font-size: .72rem; font-weight: 600; }
 .ai-connectors { border-style: dashed; }
 .assistant-message p { white-space: pre-line; }
+
+/* Meu dia: o dia, o ciclo do mês, a agenda de hoje e o que pede atenção */
+.today-hero { display: flex; flex-direction: column; gap: 14px; padding: 18px 20px; margin-block-end: 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 1px 3px #0f3d2e0d; }
+.today-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.today-head h1 { margin: 0; font-size: clamp(1.75rem, 3vw, 2.4rem); line-height: 1.1; display: flex; flex-direction: column; gap: 2px; }
+.today-head h1::first-letter { text-transform: uppercase; }
+.today-kicker { font-family: 'DM Sans', sans-serif; font-size: .78rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--brand-forest); }
+.today-cycles { display: flex; flex-direction: column; gap: 8px; }
+.today-cycle-label { margin: 0; font-size: .9rem; font-weight: 600; color: var(--ink); }
+.today-cycles ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.today-cycles li { display: flex; flex-direction: column; align-items: center; padding: 6px 4px; border-radius: 10px; background: var(--canvas); border: 1px solid var(--line); font-size: .8rem; font-weight: 600; color: var(--muted); }
+.today-cycles li small { font-size: .74rem; font-weight: 500; }
+.today-cycles li.past { opacity: .7; }
+.today-cycles li.current { background: var(--brand-forest); border-color: var(--brand-forest); color: #fff; }
+.today-cycles li.current small { color: #e8efe6; }
+.today-subtitle { margin: 2px 0 0; font-size: .95rem; }
+.today-agenda { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.today-agenda button { inline-size: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 10px; background: var(--canvas); border: 1px solid var(--line); text-align: start; min-block-size: 52px; }
+.today-agenda button.done strong { text-decoration: line-through; color: var(--muted); }
+.today-agenda button.done .today-time { color: var(--muted); }
+.today-time { flex-shrink: 0; min-inline-size: 52px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--brand-forest); }
+.today-what { display: flex; flex-direction: column; min-inline-size: 0; flex: 1; }
+.today-what strong { font-size: .98rem; overflow-wrap: anywhere; }
+.today-what small { font-size: .82rem; color: var(--muted); overflow-wrap: anywhere; }
+.today-empty { margin: 0; font-size: .92rem; }
+.today-alerts { margin-block-end: 16px; }
+.today-alerts h2 { margin-block-end: 8px; }
+.today-alerts ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.today-alerts button { inline-size: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; text-align: start; font-size: .92rem; font-weight: 600; background: var(--canvas); min-block-size: 46px; }
+.today-alerts button > span:nth-child(2) { flex: 1; }
+.today-alert-dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--brand-sage); flex-shrink: 0; }
+.today-alerts .urgent button { background: #fdf0ef; color: #8f1d1d; }
+.today-alerts .urgent .today-alert-dot { background: #c2410c; }
+.today-alerts .attention button { background: #fbf4e4; color: #6b4a0c; }
+.today-alerts .attention .today-alert-dot { background: var(--brand-gold); }
+.today-loose { margin-block-end: 16px; }
+[data-theme='dark'] .today-alerts .urgent button { background: #3a1d1d; color: #fecaca; }
+[data-theme='dark'] .today-alerts .attention button { background: #3a2f17; color: #fde7b0; }
+[data-theme='dark'] .today-kicker { color: var(--brand-gold); }
+@media (max-width: 760px) {
+  .today-hero { padding: 14px; gap: 12px; }
+  .today-new { inline-size: 100%; }
+}
+.today-agenda li.with-check { display: flex; align-items: center; gap: 6px; }
+.today-agenda li.with-check > button { flex: 1; min-inline-size: 0; }
+.today-time { font-size: .9rem; }

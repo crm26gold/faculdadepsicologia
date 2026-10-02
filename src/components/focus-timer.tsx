@@ -41,7 +41,7 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
     setSubjectId(request.subjectId); setAreaId('studies'); setTarget(25);
     setActivity(data.subjects.find(s => s.id === request.subjectId)?.name ?? 'Estudo');
   }, [request, focus, data.subjects]);
-  useEffect(() => { if (focusTick && expanded) activityInput.current?.focus(); }, [focusTick, expanded]);
+  useEffect(() => { if (!focusTick || !expanded) return; const timer = window.setTimeout(() => activityInput.current?.focus(), 80); return () => window.clearTimeout(timer); }, [focusTick, expanded]);
   const seconds = focus ? focusMilliseconds(focus, now || focus.segments[0].start) / 1000 : 0;
   const recent = data.sessions.slice(-20).toReversed();
   function start() {
