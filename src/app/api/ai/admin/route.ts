@@ -1,7 +1,8 @@
 import { dbError, readSession, reply, writeRequest } from '@/lib/api-route';
 import { aiAdminAction, type AiProviderId } from '@/lib/ai/catalog';
 import { aiSecretReady, keyHint, openKey, sealKey } from '@/lib/ai/crypto';
-import { AiError, generate, listModels, type AiConfig } from '@/lib/ai/providers';
+import { AiError, generate, listModels, resolveModel, type AiConfig } from '@/lib/ai/providers';
+import { autoCapable, autoModes, pickModel, sortModels, type AutoMode } from '@/lib/ai/models';
 import type { userSession } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
@@ -51,9 +52,14 @@ export async function POST(request: Request) {
       if (config instanceof Response) return config;
       const started = Date.now();
       try {
-        if (body.action === 'models') return reply({ ok: true, data: await listModels(config) });
-        const text = await generate(config, { system: 'Você está testando a conexão do aplicativo Jornada Plena. Responda em português do Brasil, em no máximo oito palavras.', prompt: 'Confirme que a conexão funcionou.', maxTokens: 60 });
-        return reply({ ok: true, data: { text: text.slice(0, 300), ms: Date.now() - started } });
+        if (body.action === 'models') {
+          const ids = await listModels(config);
+          const auto = autoCapable.includes(config.provider) ? Object.fromEntries((Object.keys(autoModes) as AutoMode[]).map(mode => [mode, pickModel(config.provider, ids, mode)])) : {};
+          return reply({ ok: true, data: { ids: sortModels(config.provider, ids), auto } });
+        }
+        const resolved = await resolveModel(config);
+        const text = await generate(resolved, { system: 'Você está testando a conexão do aplicativo Jornada Plena. Responda em português do Brasil, em no máximo oito palavras.', prompt: 'Confirme que a conexão funcionou.', maxTokens: 60 });
+        return reply({ ok: true, data: { text: text.slice(0, 300), ms: Date.now() - started, model: resolved.model } });
       } catch (cause) {
         return reply({ error: cause instanceof AiError ? cause.message : 'Falha inesperada ao falar com o provedor.' }, 502);
       }

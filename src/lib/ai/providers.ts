@@ -1,6 +1,7 @@
 import 'server-only';
-import { createSign } from 'node:crypto';
+import { createHash, createSign } from 'node:crypto';
 import { aiCatalog, type AiProviderId } from './catalog';
+import { autoCapable, isAuto, pickModel } from './models';
 
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string };
 type Prompt = { system: string; prompt: string; maxTokens?: number };
@@ -116,4 +117,22 @@ export async function listModels(config: AiConfig): Promise<string[]> {
     case 'vertex': ids = []; break;
   }
   return [...new Set(ids.filter(id => typeof id === 'string'))].sort().slice(0, 200);
+}
+
+// "auto:*" models resolve against the account's live list, cached per key for an hour.
+const listed = new Map<string, { ids: string[]; until: number }>();
+async function cachedModels(config: AiConfig) {
+  const cacheKey = `${config.provider}:${createHash('sha256').update(config.key).digest('hex').slice(0, 16)}`;
+  const hit = listed.get(cacheKey);
+  if (hit && hit.until > Date.now()) return hit.ids;
+  const ids = await listModels(config);
+  listed.set(cacheKey, { ids, until: Date.now() + 3_600_000 });
+  return ids;
+}
+export async function resolveModel(config: AiConfig): Promise<AiConfig> {
+  if (!isAuto(config.model)) return config;
+  if (!autoCapable.includes(config.provider)) throw new AiError(`${aiCatalog[config.provider].name} não lista modelos: escolha um modelo pelo nome.`);
+  const model = pickModel(config.provider, await cachedModels(config), config.model);
+  if (!model) throw new AiError(`Nenhum modelo de texto encontrado em ${aiCatalog[config.provider].name} para o modo automático.`);
+  return { ...config, model };
 }

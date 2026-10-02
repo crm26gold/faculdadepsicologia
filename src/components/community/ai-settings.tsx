@@ -1,11 +1,13 @@
 'use client';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { BrainCircuit, CheckCircle2, KeyRound, ListChecks, Plug, PlugZap } from 'lucide-react';
 import { aiCatalog, aiTaskLabels, type AiAdminState, type AiProviderId, type AiTaskId } from '@/lib/ai/catalog';
+import { autoCapable, autoModes, isAuto, modelNote, type AutoMode } from '@/lib/ai/models';
 import { api } from './client';
 
 type Provider = AiAdminState['providers'][number];
 type Task = AiAdminState['tasks'][number];
+type ModelList = { ids: string[]; auto: Partial<Record<AutoMode, string | null>> };
 
 // Owner-only (the server answers 403 to anyone else, and then this section stays hidden).
 export function AiSettings() {
@@ -13,7 +15,18 @@ export function AiSettings() {
   const [hidden, setHidden] = useState(false);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState('');
-  const [models, setModels] = useState<Partial<Record<AiProviderId, string[]>>>({});
+  const [models, setModels] = useState<Partial<Record<AiProviderId, ModelList>>>({});
+  const [loadingModels, setLoadingModels] = useState<Partial<Record<AiProviderId, boolean>>>({});
+  const requested = useRef(new Set<AiProviderId>());
+  // Each task asks for its provider's models once; the list feeds the select and the automatic modes.
+  const ensureModels = useCallback(async (provider: AiProviderId) => {
+    if (requested.current.has(provider)) return;
+    requested.current.add(provider);
+    setLoadingModels(previous => ({ ...previous, [provider]: true }));
+    try { const list = await api<ModelList>('/api/ai/admin', { action: 'models', provider }); setModels(previous => ({ ...previous, [provider]: list })); }
+    catch { setModels(previous => ({ ...previous, [provider]: { ids: [], auto: {} } })); }
+    finally { setLoadingModels(previous => ({ ...previous, [provider]: false })); }
+  }, []);
   const load = useCallback(async () => {
     try { setState(await api<AiAdminState>('/api/ai/admin')); }
     catch { setHidden(true); }
@@ -52,15 +65,16 @@ export function AiSettings() {
   function test(task: Task) {
     if (!task.provider) { setMessage('Escolha um provedor e salve antes de testar.'); return; }
     void run(`x-${task.id}`, async () => {
-      const result = await api<{ text: string; ms: number }>('/api/ai/admin', { action: 'test', provider: task.provider, model: task.model });
-      return `Funcionou em ${(result.ms / 1000).toFixed(1)} s. Resposta: “${result.text}”`;
+      const result = await api<{ text: string; ms: number; model: string }>('/api/ai/admin', { action: 'test', provider: task.provider, model: task.model });
+      return `Funcionou com ${result.model} em ${(result.ms / 1000).toFixed(1)} s. Resposta: “${result.text}”`;
     });
   }
   function fetchModels(provider: AiProviderId) {
     void run(`m-${provider}`, async () => {
-      const list = await api<string[]>('/api/ai/admin', { action: 'models', provider });
+      const list = await api<ModelList>('/api/ai/admin', { action: 'models', provider });
+      requested.current.add(provider);
       setModels(previous => ({ ...previous, [provider]: list }));
-      return list.length ? `${list.length} modelos disponíveis em ${aiCatalog[provider].name}. Eles aparecem como sugestão no campo Modelo.` : 'Este provedor não lista modelos: digite o nome do modelo.';
+      return list.ids.length ? `${list.ids.length} modelos de texto em ${aiCatalog[provider].name}. Escolha na lista de cada tarefa.` : 'Este provedor não lista modelos: digite o nome do modelo na tarefa.';
     });
   }
 
@@ -70,15 +84,8 @@ export function AiSettings() {
     {message && <p className="cm-message" role="status">{message}</p>}
 
     <h3><ListChecks size={15} aria-hidden="true" /> Tarefas</h3>
-    <div className="ai-grid">{state.tasks.map(task => <form key={task.id} className="ai-card" onSubmit={event => saveTask(task, event)}>
-      <strong>{aiTaskLabels[task.id as AiTaskId].name}</strong>
-      <span className="muted small">{aiTaskLabels[task.id as AiTaskId].help}</span>
-      <label>Provedor<select name="provider" defaultValue={task.provider ?? ''}><option value="">Nenhum</option>{state.providers.map(provider => <option key={provider.id} value={provider.id} disabled={!provider.has_key}>{aiCatalog[provider.id].name}{provider.has_key ? provider.enabled ? '' : ' · desligado' : ' · sem chave'}</option>)}</select></label>
-      <label>Modelo<input name="model" defaultValue={task.model} maxLength={120} list={`ai-models-${task.id}`} placeholder="Nome exato do modelo" /></label>
-      <datalist id={`ai-models-${task.id}`}>{(task.provider ? [...(models[task.provider] ?? []), ...aiCatalog[task.provider].models] : []).map(model => <option key={model} value={model} />)}</datalist>
-      <label className="cm-check"><input type="checkbox" name="enabled" defaultChecked={task.enabled} /> Ligada</label>
-      <div className="button-row"><button className="button primary" disabled={!!busy}>{busy === `t-${task.id}` ? 'Salvando…' : 'Salvar'}</button><button type="button" className="button outline" disabled={!!busy || !task.provider || !task.model} onClick={() => test(task)}>{busy === `x-${task.id}` ? 'Testando…' : 'Testar'}</button></div>
-    </form>)}</div>
+    <div className="ai-grid">{state.tasks.map(task => <TaskForm key={`${task.id}-${task.updated_at}`} task={task} providers={state.providers} models={models} loading={loadingModels}
+      ensureModels={ensureModels} busy={busy} onSave={event => saveTask(task, event)} onTest={() => test(task)} />)}</div>
     {!ready.length && <p className="muted small">Cadastre e ligue pelo menos um provedor abaixo para escolher nas tarefas.</p>}
 
     <h3><KeyRound size={15} aria-hidden="true" /> Provedores</h3>
@@ -113,4 +120,48 @@ export function AiSettings() {
       <li><strong>Microsoft Teams e instituições</strong><span>Avisos da turma; depende de acesso liberado por cada instituição.</span></li>
     </ul>
   </section>;
+}
+
+// One task: provider, then the account's real models, plus automatic modes that follow new releases.
+function TaskForm({ task, providers, models, loading, ensureModels, busy, onSave, onTest }: {
+  task: Task; providers: Provider[]; models: Partial<Record<AiProviderId, ModelList>>; loading: Partial<Record<AiProviderId, boolean>>;
+  ensureModels: (provider: AiProviderId) => Promise<void>; busy: string; onSave: (event: FormEvent<HTMLFormElement>) => void; onTest: () => void;
+}) {
+  const [provider, setProvider] = useState<AiProviderId | ''>(task.provider ?? '');
+  const [model, setModel] = useState(task.model);
+  const [custom, setCustom] = useState(false);
+  const list = provider ? models[provider] : undefined;
+  const ids = provider ? [...new Set([...(list?.ids ?? []), ...aiCatalog[provider].models])] : [];
+  const canAuto = !!provider && autoCapable.includes(provider);
+  const hasKey = !!providers.find(item => item.id === provider)?.has_key;
+  useEffect(() => { if (provider && hasKey) void ensureModels(provider); }, [provider, hasKey, ensureModels]);
+  // A saved name that the list does not offer (or a provider that cannot list) opens the free-text field.
+  const typed = custom || (!!model && !isAuto(model) && (!!list || !canAuto) && !ids.includes(model));
+  const label = aiTaskLabels[task.id as AiTaskId];
+  const picked = isAuto(model) ? list?.auto?.[model] : null;
+  return <form className="ai-card" onSubmit={onSave}>
+    <strong>{label.name}</strong>
+    <span className="muted small">{label.help}</span>
+    <label>Provedor<select name="provider" value={provider} onChange={event => { const next = event.target.value as AiProviderId | ''; setProvider(next); setCustom(false); setModel(next && autoCapable.includes(next) ? 'auto:rapido' : ''); }}>
+      <option value="">Nenhum</option>
+      {providers.map(item => <option key={item.id} value={item.id} disabled={!item.has_key}>{aiCatalog[item.id].name}{item.has_key ? item.enabled ? '' : ' · desligado' : ' · sem chave'}</option>)}
+    </select></label>
+    {provider && !typed && <label>Modelo<select aria-label="Modelo" value={model} onChange={event => { if (event.target.value === '__custom') { setCustom(true); setModel(''); } else setModel(event.target.value); }}>
+      {!model && <option value="">Escolha um modelo</option>}
+      {canAuto && <optgroup label="Automático: acompanha os lançamentos">{(Object.keys(autoModes) as AutoMode[]).map(mode => <option key={mode} value={mode}>{autoModes[mode].label}{list?.auto?.[mode] ? ` (agora: ${list.auto[mode]})` : ''}</option>)}</optgroup>}
+      {ids.length > 0 && <optgroup label={`Modelos da sua conta (${ids.length})`}>{ids.map(id => <option key={id} value={id}>{id}{modelNote(provider, id) ? ` · ${modelNote(provider, id)}` : ''}</option>)}</optgroup>}
+      <option value="__custom">Outro: digitar o nome…</option>
+    </select></label>}
+    {provider && typed && <label>Nome do modelo<input value={model} onChange={event => setModel(event.target.value)} maxLength={120} placeholder="Ex.: gemini-3.8-flash" />
+      {(canAuto || ids.length > 0) && <button type="button" className="text-button" onClick={() => { setCustom(false); setModel(canAuto ? 'auto:rapido' : ids[0] ?? ''); }}>Voltar para a lista</button>}</label>}
+    <input type="hidden" name="model" value={model} />
+    {provider && loading[provider] && <span className="muted small" role="status">Buscando os modelos da sua conta…</span>}
+    {isAuto(model) && <span className="muted small">{autoModes[model].hint}{picked ? ` Hoje usaria: ${picked}.` : ''}</span>}
+    {provider === 'gemini' && <span className="muted small">Na chave gratuita do AI Studio, use os modos “rápido” ou “econômico” (Flash e Flash-Lite): os modelos Pro cobram desde o primeiro uso.</span>}
+    <label className="cm-check"><input type="checkbox" name="enabled" defaultChecked={task.enabled} /> Ligada</label>
+    <div className="button-row">
+      <button className="button primary" disabled={!!busy || (!!provider && !model)}>{busy === `t-${task.id}` ? 'Salvando…' : 'Salvar'}</button>
+      <button type="button" className="button outline" disabled={!!busy || !task.provider || !task.model} onClick={onTest}>{busy === `x-${task.id}` ? 'Testando…' : 'Testar'}</button>
+    </div>
+  </form>;
 }
