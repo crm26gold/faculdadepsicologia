@@ -397,7 +397,6 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         >
           <Icon aria-hidden="true" size={18} />
           <span>{label}</span>
-          {id === 'assistant' && <span className="nav-chip">Regras</span>}
           {proViews.has(id) && !pro && <span className="nav-chip">Pro</span>}
           {id === 'community' && !!home?.to_review.length && <span className="nav-chip">{home.to_review.length}</span>}
         </button>
@@ -583,7 +582,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             <div className="dashboard-grid">
               <div className="dashboard-primary">
                 {/* STUDY PLANNER COMPACT */}
-                <StudyPlanner data={data} update={update} blocked={blocked} compact onAgenda={() => navigate('agenda')} />
+                <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />
 
                 {/* ESTUDOS */}
                 <section className="subjects-section">
@@ -681,11 +680,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'flashcards' && <FlashcardsDeck data={data} blocked={blocked} update={update} />}
 
           {view === 'assistant' && <>
-            <section className="panel assistant-inline" aria-labelledby="assistant-inline-title">
-              <div className="section-heading"><h2 id="assistant-inline-title">Converse com o assistente</h2>{bubbleHidden && <button type="button" className="text-button desktop-only" onClick={() => setBubble(false)}>Mostrar a bolinha do assistente</button>}</div>
+            <section className="assistant-inline" aria-label="Conversa com o assistente">
+              {bubbleHidden && <button type="button" className="text-button desktop-only assistant-show-bubble" onClick={() => setBubble(false)}>Mostrar a bolinha nas outras telas</button>}
               <AssistantChat cloud={cloud} blocked={blocked} demo={demo} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onOpenNote={openNote} />
             </section>
-            <StudyPlanner data={data} update={update} blocked={blocked} onAgenda={() => navigate('agenda')} />
           </>}
 
           {view === 'settings' && <>
@@ -720,7 +718,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     {searchOpen && <Modal title="Encontre no seu espaço" onClose={closeSearch}><label className="sr-only" htmlFor="workspace-search">Buscar cursos, matérias, anotações e tarefas</label><input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Um curso, uma matéria, uma ideia, um compromisso…" /><div className="search-results">{!query.trim() ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>{courses.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => openCourse(item.id)}><GraduationCap size={17} aria-hidden="true" /><span>{item.name}<small>Curso</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.subjects.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>{capitalize(unitsOf(item).singular)}{courseOf(data, item) ? ` · ${courseOf(data, item)!.name}` : ''}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.notes.filter((item) => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setSelectedNote(item.id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.tasks.filter((item) => item.title.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}<p className="search-end">Fim dos resultados para “{query}”.</p></>}</div></Modal>}
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
     {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} />}
-    {ready && !bubbleHidden && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} onOpen={openAssistant} onHide={() => setBubble(true)} />}
+    {ready && !bubbleHidden && view !== 'assistant' && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} onOpen={openAssistant} onHide={() => setBubble(true)} />}
     {assistantOpen && <AssistantPanel cloud={cloud} blocked={blocked} demo={demo} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
     {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
     {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
