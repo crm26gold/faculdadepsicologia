@@ -118,7 +118,7 @@ language sql stable security definer set search_path = ''
 as $$
   select jsonb_build_object(
     'channels', (select jsonb_agg(jsonb_build_object('channel', m.channel, 'enabled', m.enabled and m.token_ciphertext <> '', 'bot_username', m.bot_username,
-      'linked', exists (select 1 from public.messenger_links l where l.channel = m.channel and l.user_id = (select auth.uid())))) order by m.channel)
+      'linked', exists (select 1 from public.messenger_links l where l.channel = m.channel and l.user_id = (select auth.uid()))) order by m.channel)
       from public.messenger_settings m),
     'owner', private.is_owner())
 $$;

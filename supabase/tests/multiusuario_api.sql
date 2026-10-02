@@ -175,6 +175,7 @@ exception when check_violation then null; end $$;
 select expect((select count(*) from admin_audit_log where action = 'ai_provider' and details::text not like '%chave-cifrada%') >= 3, 'histórico registra sem a chave');
 
 -- Mensageiros: só o proprietário configura e vincula; o robô só age com o segredo do servidor e só na conta vinculada.
+select act_as('00000000-0000-4000-8000-000000000001');
 do $$ begin perform messenger_admin_state(); raise exception 'FALHA: master comum viu os mensageiros';
 exception when insufficient_privilege then null; end $$;
 do $$ begin perform messenger_create_code('telegram', repeat('a', 64)); raise exception 'FALHA: conta comum gerou código de vínculo';
