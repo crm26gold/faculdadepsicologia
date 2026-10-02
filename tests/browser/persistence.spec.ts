@@ -1144,7 +1144,7 @@ test('no computador, a bolinha se apresenta uma vez, anexa arquivos, pode ser ar
   await expect(panel.getByText(/lousa\.png/)).toBeVisible();
   await panel.getByLabel('Mensagem para o assistente').fill('Foto da lousa de Ética');
   await panel.getByRole('button', { name: 'Enviar mensagem' }).click();
-  await expect(panel.getByText(/Anotei em Para organizar: “Foto da lousa de Ética”, com o anexo/)).toBeVisible();
+  await expect(panel.getByText(/Guardei em Para organizar: “Foto da lousa de Ética”, com o anexo/)).toBeVisible();
   const note = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0]);
   expect(note).toMatchObject({ title: 'Foto da lousa de Ética', subjectId: '', areaId: '' });
   expect(note.content).toMatch(/<img src="\/api\/note-media\/[0-9a-f-]{36}\.png" alt="lousa\.png"/);
