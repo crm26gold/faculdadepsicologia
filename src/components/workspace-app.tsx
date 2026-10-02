@@ -27,6 +27,7 @@ import { FlashcardsDeck } from './flashcards-deck';
 import { ColorOptions, CourseFields } from './course-form';
 import { SubjectOptions } from './subject-options';
 import { NotesLibrary } from './notes-library';
+import { TelegramAdmin, TelegramLink } from './messenger-settings';
 import type { Place } from '@/lib/notebooks';
 import { PlanningPanel } from './planning-panel';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
@@ -658,7 +659,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
-          {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
+          {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
 
           {view === 'agenda' && <AcademicCalendar focus={agendaFocus} data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); openForm({ kind: 'task' }); }} onEdit={(task) => openForm({ kind: 'task', task })} />}
 
@@ -680,6 +681,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'settings' && <>
             {cloud && home && <AccountSettings home={home} refreshHome={refreshHome} />}
+            {cloud && home?.account.is_master && <TelegramLink />}
             {!demo && <LegacyImport data={data} update={update} blocked={blocked} />}
             {!demo && <input className="sr-only" tabIndex={-1} ref={fileInput} type="file" accept=".json,application/json" aria-label="Selecionar backup JSON" onChange={async (event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; try { if (file.size > 2_000_000) throw new Error(); setImported(parseWorkspace(await file.text())); } catch { setNotice('Backup inválido ou maior que 2 MB. Nada foi alterado.'); } }} />}
             <ProfileSettings

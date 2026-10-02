@@ -358,3 +358,9 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .assistant-history-open small, .assistant-history-note { color: var(--muted); font-size: .8rem; margin: 0; }
 .assistant-retry { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-block-start: 8px; }
 .assistant-retry .button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
+.telegram-link { display: flex; flex-direction: column; gap: 10px; margin-block-end: 18px; }
+.telegram-link h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.05rem; }
+.telegram-ok { display: flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; color: var(--accent-text); }
+.telegram-code { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.telegram-code code { padding: 1px 6px; border-radius: 6px; background: var(--soft-bg); border: 1px solid var(--line); }
+.telegram-link .button { display: inline-flex; align-items: center; gap: 6px; }
