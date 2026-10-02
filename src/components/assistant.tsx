@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
 import { ArrowRight, Mic, Paperclip, Send, Square, X } from 'lucide-react';
 import { validMedia } from '@/lib/note-media';
+import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
 import type { Workspace } from '@/lib/workspace';
 import { Modal } from './modal';
@@ -133,7 +134,15 @@ export function AssistantChat({ cloud, blocked, demo, update, ensureSaved, messa
     try {
       const saved = await saveCapture({ text: said, file, cloud, draft: draft.current, update, ensureSaved });
       draft.current = { id: '', src: '' };
-      const answer = `Anotei em Para organizar: “${saved.title}”${file ? ', com o anexo' : ''}. Quando a inteligência artificial estiver ligada, eu mesmo vou entender e organizar isso para você — por exemplo, criar o compromisso na agenda.`;
+      let answer = `Anotei em Para organizar: “${saved.title}”${file ? ', com o anexo' : ''}. Quando a inteligência artificial estiver ligada, eu mesmo vou entender e organizar isso para você — por exemplo, criar o compromisso na agenda.`;
+      if (cloud && said) {
+        try {
+          const ai = await api<{ configured: boolean; reply?: string }>('/api/ai/assistant', { message: said });
+          if (ai.configured && ai.reply) answer = `${ai.reply}
+
+Guardei em Para organizar${file ? ', com o anexo' : ''}.`;
+        } catch (error) { answer = `Anotei em Para organizar: “${saved.title}”. A inteligência artificial não respondeu agora (${error instanceof Error ? error.message : 'erro'}).`; }
+      }
       setMessages(previous => [...previous, { id: `${id}:eu`, from: 'me', text: said || `Anexo: ${file!.name}` }, { id, from: 'assistant', text: answer, noteId: saved.id }]);
       setText(''); setFile(null);
       if (spoken) speak('Anotei. Está em Para organizar.');

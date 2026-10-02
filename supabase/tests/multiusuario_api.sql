@@ -147,5 +147,31 @@ select archive_space(current_setting('test.g3')::uuid, true);
 select archive_space(current_setting('test.g3')::uuid, false);
 select delete_assignment((string_to_array(current_setting('test.works'), ','))[2]::uuid);
 select expect((select count(*) from assignments) = 1, 'trabalho excluído');
+
+-- IA: só o proprietário configura e usa; a chave cifrada nunca volta pelo painel.
+select expect(ai_runtime('assistente') is null, 'master que não é proprietário não usa a IA do piloto');
+do $$ begin perform ai_admin_state(); raise exception 'FALHA: master comum viu a configuração de IA';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform ai_save_task('assistente', 'gemini', 'x', true); raise exception 'FALHA: master comum mudou a IA';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform ai_provider_runtime('gemini'); raise exception 'FALHA: master comum obteve a chave cifrada';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform count(*) from ai_providers; raise exception 'FALHA: tabela de provedores legível';
+exception when insufficient_privilege then null; end $$;
+select act_as('00000000-0000-4000-8000-00000000000a');
+select ai_save_provider('gemini', true, '', '', '', '', 'v1.chave-cifrada', '1234');
+select ai_save_task('assistente', 'gemini', 'modelo-de-teste', true);
+select expect((select p->>'has_key' from jsonb_array_elements(ai_admin_state()->'providers') p where p->>'id' = 'gemini') = 'true', 'painel sabe que há chave');
+select expect(ai_admin_state()::text not like '%chave-cifrada%', 'painel nunca recebe a chave');
+select expect(ai_runtime('assistente')->>'key_ciphertext' = 'v1.chave-cifrada' and ai_runtime('assistente')->>'model' = 'modelo-de-teste', 'servidor obtém a configuração da tarefa');
+select ai_save_provider('gemini', true, 'Gemini', '', '', '', null, null);
+select expect(ai_runtime('assistente')->>'key_ciphertext' = 'v1.chave-cifrada', 'salvar sem chave mantém a chave');
+select expect(ai_runtime('organizar') is null, 'tarefa desligada não roda');
+select expect(ai_provider_runtime('gemini')->>'key_ciphertext' = 'v1.chave-cifrada', 'proprietário testa o provedor');
+select ai_save_provider('gemini', false, '', '', '', '', null, null);
+select expect(ai_runtime('assistente') is null, 'provedor desligado não roda');
+do $$ begin perform ai_save_provider('gemini', true, '', 'http://inseguro.example', '', '', null, null); raise exception 'FALHA: aceitou endereço sem https';
+exception when check_violation then null; end $$;
+select expect((select count(*) from admin_audit_log where action = 'ai_provider' and details::text not like '%chave-cifrada%') >= 3, 'histórico registra sem a chave');
 reset role;
 \echo 'OK: funções da aplicação passaram.'
