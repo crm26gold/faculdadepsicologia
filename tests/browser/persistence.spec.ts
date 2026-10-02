@@ -1262,3 +1262,18 @@ test('finanças: parcelas viram contas a pagar, o aviso do Meu dia leva até ela
   await expect(page.locator('#fin-open .fin-row')).toHaveCount(0);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).transactions.length)).toBe(1);
 });
+
+test('a bolinha do assistente acompanha a altura da janela até ser arrastada, e a apresentação nunca cobre o topo', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 300 });
+  await page.goto('/');
+  const dock = page.locator('.assistant-dock');
+  await expect(dock).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect.poll(async () => (await dock.boundingBox())!.y).toBeGreaterThan(700);
+  await expect(page.locator('.assistant-intro')).toBeVisible();
+  const intro = (await page.locator('.assistant-intro').boundingBox())!;
+  const topbar = (await page.locator('.topbar').boundingBox())!;
+  expect(intro.y).toBeGreaterThan(topbar.y + topbar.height);
+  await page.getByRole('button', { name: 'Ajuda e configurações' }).click();
+  await expect(page.getByRole('heading', { name: 'Meu espaço', level: 1 })).toBeVisible();
+});

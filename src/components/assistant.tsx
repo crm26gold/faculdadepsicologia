@@ -24,7 +24,8 @@ const limits = () => ({ min: 72, max: window.innerHeight - 84 });
 // Computer only (hidden on phones, where the center Registrar button already does this job).
 // A WhatsApp-style bubble: tap opens the assistant, drag moves it to either edge, × hides it.
 export function AssistantBubble({ onOpen, onHide, persist }: { onOpen: () => void; onHide: () => void; persist: boolean }) {
-  const [position, setPosition] = useState<{ side: 'left' | 'right'; top: number } | null>(null);
+  // chosen: the person dragged it there; otherwise it follows the window and stays at the bottom edge.
+  const [position, setPosition] = useState<{ side: 'left' | 'right'; top: number; chosen?: boolean } | null>(null);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [intro, setIntro] = useState(false);
   const start = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -34,7 +35,8 @@ export function AssistantBubble({ onOpen, onHide, persist }: { onOpen: () => voi
       let saved = previous;
       if (!saved && persist) try { saved = JSON.parse(localStorage.getItem(POSITION_KEY) ?? 'null'); } catch {}
       const { min, max } = limits();
-      return { side: saved?.side === 'left' ? 'left' : 'right', top: Math.min(max, Math.max(min, typeof saved?.top === 'number' ? saved.top : max)) };
+      const chosen = typeof saved?.top === 'number' && saved.chosen !== false;
+      return { side: saved?.side === 'left' ? 'left' : 'right', top: chosen ? Math.min(max, Math.max(min, saved!.top)) : max, chosen };
     });
     place();
     window.addEventListener('resize', place);
@@ -69,14 +71,14 @@ export function AssistantBubble({ onOpen, onHide, persist }: { onOpen: () => voi
     if (!origin?.moved) return;
     dragged.current = true;
     const { min, max } = limits();
-    const next = { side: event.clientX < window.innerWidth / 2 ? 'left' as const : 'right' as const, top: Math.min(max, Math.max(min, event.clientY - 28)) };
+    const next = { side: event.clientX < window.innerWidth / 2 ? 'left' as const : 'right' as const, top: Math.min(max, Math.max(min, event.clientY - 28)), chosen: true };
     setPosition(next); setDrag(null);
     if (persist) try { localStorage.setItem(POSITION_KEY, JSON.stringify(next)); } catch {}
   }
   if (!position) return null;
   const style = drag ? { left: drag.x - 28, top: drag.y - 28 } : position.side === 'left' ? { left: 18, top: position.top } : { right: 18, top: position.top };
   return <div className={`assistant-dock side-${drag ? (drag.x < window.innerWidth / 2 ? 'left' : 'right') : position.side} ${intro ? 'introducing' : ''} ${drag ? 'dragging' : ''}`} style={style}>
-    {intro && <div className="assistant-intro" role="status">
+    {intro && <div className={`assistant-intro${position.top < window.innerHeight / 2 ? ' below' : ''}`} role="status">
       <p><strong>Oi! Eu sou o assistente da Jornada Plena.</strong> Fale ou escreva o que precisa: uma ideia, um compromisso, uma foto da lousa. Eu guardo em Para organizar e, em breve, vou organizar tudo sozinho.</p>
       <button type="button" className="button primary" onClick={introDone}>Entendi</button>
     </div>}

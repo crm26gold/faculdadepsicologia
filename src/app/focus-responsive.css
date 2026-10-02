@@ -174,6 +174,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .assistant-intro .button { align-self: flex-end; background: var(--brand-forest); border-color: var(--brand-forest); }
 .side-right .assistant-intro { inset-inline-end: 0; }
 .side-left .assistant-intro { inset-inline-start: 0; }
+.assistant-intro.below { inset-block-end: auto; inset-block-start: 70px; }
 .assistant-dock.introducing .assistant-bubble { animation: assistant-hop .9s ease-in-out 2; }
 @keyframes assistant-hop { 30% { transform: translateY(-10px); } 60% { transform: translateY(0); } 75% { transform: translateY(-4px); } }
 .assistant-inline { display: flex; flex-direction: column; gap: 12px; margin-block-end: 18px; }
