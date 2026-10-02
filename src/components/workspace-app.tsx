@@ -97,6 +97,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
   const [shortcut, setShortcut] = useState<View>('studies');
   const [financeRequest, setFinanceRequest] = useState(0);
+  const [financeOpen, setFinanceOpen] = useState(0);
   const [bubbleHidden, setBubbleHidden] = useState(false);
   const [agendaFocus, setAgendaFocus] = useState<'late' | 'day' | null>(null);
   const [notesInbox, setNotesInbox] = useState(false);
@@ -298,6 +299,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function openInbox() { setSelectedNote(''); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); setNotesInbox(true); requestAnimationFrame(() => requestAnimationFrame(() => { inboxRef.current?.scrollIntoView({ block: 'start' }); inboxRef.current?.focus({ preventScroll: true }); })); }
   function openAlert(alert: TodayAlert) {
     if (alert.target === 'notes') { openInbox(); return; }
+    if (alert.target === 'finances') { navigate('finances'); setFinanceOpen(Date.now()); return; }
     if (alert.date) setAgendaDate(alert.date);
     navigate(alert.target);
     if (alert.target === 'agenda') setAgendaFocus(alert.id === 'late' ? 'late' : 'day');
@@ -671,7 +673,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'planning' && (pro ? <PlanningPanel data={data} blocked={blocked} update={update} /> : <ProOnly />)}
 
-          {view === 'finances' && (pro ? <FinancialController addRequest={financeRequest} data={data} update={update} blocked={blocked} /> : <ProOnly />)}
+          {view === 'finances' && (pro ? <FinancialController addRequest={financeRequest} openRequest={financeOpen} data={data} update={update} blocked={blocked} /> : <ProOnly />)}
 
           {view === 'routine' && (pro ? <DailyRoutine data={data} update={update} blocked={blocked} /> : <ProOnly />)}
 

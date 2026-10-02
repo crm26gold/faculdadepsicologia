@@ -19,6 +19,7 @@
   --blue: #EDF1EA;
   --rose: #f6e9e9;
   --serif: 'Cormorant Garamond', Georgia, serif;
+  --accent-text: #2F6B55; --ok-text: #047857; --ok-bg: #ecfdf5; --danger-text: #b91c1c; --danger-bg: #fef2f2; --soft-bg: #FBF9F3;
   color-scheme: light;
   font-family: 'DM Sans', 'Segoe UI', sans-serif;
   font-synthesis: none;
@@ -653,52 +654,7 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 }
 
 /* FINANCIAL CONTROLLER */
-.finances-container { display: flex; flex-direction: column; gap: 20px; }
-.finances-header-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; }
-.finances-header-row h2 { margin: 0; font-size: 1.25rem; }
-.finances-header-row p { margin: 4px 0 0; font-size: 0.8rem; color: var(--muted); }
-.finances-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
-@media (max-width: 900px) { .finances-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 500px) { .finances-kpi-grid { grid-template-columns: 1fr; } }
-.finance-kpi-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.03); display: flex; flex-direction: column; gap: 4px; }
-.finance-kpi-card .kpi-header { display: flex; align-items: center; gap: 8px; }
-.finance-kpi-card .kpi-icon { inline-size: 30px; block-size: 30px; border-radius: 7px; display: grid; place-items: center; background: #EAF0E6; color: #1F4A3A; }
-.finance-kpi-card .kpi-icon.income { background: #ecfdf5; color: #047857; }
-.finance-kpi-card .kpi-icon.expense { background: #fef2f2; color: #b91c1c; }
-.finance-kpi-card .kpi-icon.college { background: #f5f3ff; color: #6d28d9; }
-.finance-kpi-card .kpi-title { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.finance-kpi-card .kpi-val { font-size: 1.35rem; font-weight: 700; color: var(--ink); margin-block: 4px 2px; }
-.finance-kpi-card .kpi-val.positive { color: #047857; }
-.finance-kpi-card .kpi-val.negative { color: #b91c1c; }
-.finance-kpi-card .kpi-sub { font-size: 0.66rem; color: var(--muted); }
-.finance-breakdown-card { background: #fff; border-radius: 12px; border: 1px solid var(--line); padding: 18px 20px; }
-.breakdown-total-badge { font-size: 0.76rem; font-weight: 700; color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; padding: 4px 10px; border-radius: 6px; }
-.breakdown-bars-grid { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
-.breakdown-bar-item { display: flex; flex-direction: column; gap: 4px; }
-.breakdown-bar-label { display: flex; justify-content: space-between; align-items: center; font-size: 0.78rem; }
-.breakdown-bar-label strong { color: var(--ink); font-weight: 600; }
-.breakdown-bar-label span { color: var(--muted); font-weight: 500; }
-.breakdown-progress-track { width: 100%; height: 8px; background: #F3F0E6; border-radius: 999px; overflow: hidden; }
-.breakdown-progress-fill { height: 100%; background: linear-gradient(90deg, #3E7A62, #1F5A45); border-radius: 999px; transition: width 0.3s ease; }
-.finance-form { background: #fff; border-radius: 12px; border: 1px solid var(--line); padding: 18px; }
-.finance-form h3 { margin: 0 0 14px; font-size: 0.95rem; }
-.finance-form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-.finance-form-grid label { font-size: 0.75rem; font-weight: 600; margin-bottom: 4px; display: block; }
-.finance-form-grid input, .finance-form-grid select { font-size: 0.82rem; padding: 7px 10px; }
-.finance-list-panel { background: #fff; border-radius: 12px; border: 1px solid var(--line); padding: 18px; }
-.finance-filter-group { display: flex; align-items: center; gap: 6px; color: var(--muted); }
 .compact-select { font-size: 0.75rem !important; padding: 5px 8px !important; border-radius: 6px !important; }
-.transaction-table-wrapper { overflow-x: auto; margin-top: 10px; }
-.transaction-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-.transaction-table th { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 0.68rem; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.transaction-table td { padding: 10px 12px; border-bottom: 1px solid #F3F0E6; vertical-align: middle; }
-.tx-badge { font-size: 0.66rem; padding: 2px 7px; border-radius: 5px; background: #F3F0E6; color: #4F5E57; font-weight: 500; }
-.tx-type-tag { display: inline-flex; align-items: center; gap: 3px; font-size: 0.68rem; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
-.tx-type-tag.income { background: #ecfdf5; color: #047857; }
-.tx-type-tag.expense { background: #fef2f2; color: #b91c1c; }
-.tx-amount { font-weight: 600; }
-.tx-amount.income { color: #047857; }
-.tx-amount.expense { color: #b91c1c; }
 .icon-button.danger:hover { color: #b91c1c; background: #fef2f2; }
 
 /* DAILY ROUTINE */
@@ -805,6 +761,7 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
   --muted: #A6B5AB;
   --canvas: #08130F;
   --sage: #1D3229;
+  --accent-text: #9fd3b8; --ok-text: #7fd1a4; --ok-bg: #173528; --danger-text: #f2a59d; --danger-bg: #3a1d1d; --soft-bg: #10231C;
   color-scheme: dark;
 }
 [data-theme='dark'] .cm-hero { background: linear-gradient(135deg, #0F1D18, #1c2a3a); }
@@ -818,7 +775,7 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 [data-theme='dark'] body { background-color: #08130F; color: #D3CCBA; }
 [data-theme='dark'] .topbar { background: #10231Cef; border-color: #2C4238; }
 [data-theme='dark'] .sidebar { background: #0b1120; border-color: #16271F; }
-[data-theme='dark'] .panel, [data-theme='dark'] .subject-card, [data-theme='dark'] .finance-kpi-card, [data-theme='dark'] .bento-metric-card, [data-theme='dark'] .flashcard-item-card, [data-theme='dark'] .flashcard-big-card, [data-theme='dark'] .student-id-card, [data-theme='dark'] .routine-column {
+[data-theme='dark'] .panel, [data-theme='dark'] .subject-card, [data-theme='dark'] .bento-metric-card, [data-theme='dark'] .flashcard-item-card, [data-theme='dark'] .flashcard-big-card, [data-theme='dark'] .student-id-card, [data-theme='dark'] .routine-column {
   background: #0F1D18;
   border-color: #16271F;
   color: #FBF9F3;
@@ -1066,3 +1023,6 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .legal-page p, .legal-page li { color: var(--ink); font-size: .95rem; }
 .legal-version { color: var(--muted) !important; font-size: .9rem !important; }
 .legal-page footer { margin-block-start: 20px; font-size: .92rem; color: var(--muted); }
+/* Campos no modo escuro: fundo escuro, texto claro e calendário/listas nativos no tema certo */
+[data-theme='dark'] input:not([type=radio], [type=checkbox], [type=file]), [data-theme='dark'] select, [data-theme='dark'] textarea { background: #10231c; border-color: #4a6156; color: var(--ink); color-scheme: dark; }
+[data-theme='dark'] input::placeholder, [data-theme='dark'] textarea::placeholder { color: #9fb0a6; }

@@ -258,7 +258,7 @@ test('conectado no celular, a barra tem o Registrar no centro e o primeiro curso
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Adicionar matéria', exact: true })).toBeVisible();
   await expect.poll(() => saves.at(-1)?.data.courses).toEqual([expect.objectContaining({ name: 'Pós em Pedagogia', kind: 'pos', status: 'active' })]);
-  expect(saves.at(-1)?.data.editorGeneration).toBe(7);
+  expect(saves.at(-1)?.data.editorGeneration).toBe(8);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 

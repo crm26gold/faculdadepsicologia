@@ -384,11 +384,11 @@ export function QuickCaptureWidget({
 
           {/* ACTIVE RECORDING BANNER */}
           {recording && (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: '#fef2f2', borderTop: '1px solid #fecaca', color: '#991b1b', fontSize: '0.8rem', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 14px', background: 'var(--danger-bg)', borderTop: '1px solid var(--line)', color: 'var(--danger-text)', fontSize: '0.8rem', fontWeight: 600 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', background: '#dc2626', animation: 'pulse 1s infinite' }} />
                 Gravando áudio real do microfone ({formatTimer(recordingSeconds)})
-                {transcribing && <span style={{ marginLeft: 6, color: '#3E7A62', fontWeight: 600 }}>· 🎙️ Transcrevendo fala ao vivo...</span>}
+                {transcribing && <span style={{ marginLeft: 6, color: 'var(--accent-text)', fontWeight: 600 }}>· 🎙️ Transcrevendo fala ao vivo...</span>}
               </span>
               <button
                 type="button"
@@ -415,9 +415,9 @@ export function QuickCaptureWidget({
 
           {/* ATTACHED FILE PREVIEW (AUDIO PLAYER OR IMAGE THUMBNAIL) */}
           {file && filePreview && (
-            <div style={{ padding: '10px 14px', background: '#FBF9F3', borderTop: '1px solid #E6E0D0', display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ padding: '10px 14px', background: 'var(--soft-bg)', borderTop: '1px solid var(--line)', display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.75rem' }}>
-                <span style={{ fontWeight: 600, color: '#10231C' }}>
+                <span style={{ fontWeight: 600, color: 'var(--ink)' }}>
                   {isAudioFile ? '🎙️ Áudio gravado' : isVideoFile ? '🎬 Vídeo' : '📷 Foto / Imagem'}: {file.name} ({Math.ceil(file.size / 1024)} KB)
                 </span>
                 <div style={{ display: 'flex', gap: 8 }}>
@@ -425,14 +425,14 @@ export function QuickCaptureWidget({
                     href={filePreview}
                     download={file.name}
                     title="Baixar cópia"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#2F6B55', textDecoration: 'none', fontWeight: 600 }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--accent-text)', textDecoration: 'none', fontWeight: 600 }}
                   >
                     <Download size={13} /> Baixar
                   </a>
                   <button
                     type="button"
                     onClick={clearFile}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#dc2626', background: 'none', border: 0, fontWeight: 600, cursor: 'pointer' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--danger-text)', background: 'none', border: 0, fontWeight: 600, cursor: 'pointer' }}
                   >
                     <Trash2 size={13} /> Remover
                   </button>
@@ -448,7 +448,7 @@ export function QuickCaptureWidget({
 
               {/* REAL IMAGE THUMBNAIL FOR PHOTO/UPLOAD */}
               {isImageFile && (
-                <div style={{ maxHeight: 160, overflow: 'hidden', borderRadius: 6, border: '1px solid #D3CCBA' }}>
+                <div style={{ maxHeight: 160, overflow: 'hidden', borderRadius: 6, border: '1px solid var(--line)' }}>
                   <img src={filePreview} alt="Preview" style={{ width: '100%', maxHeight: 160, objectFit: 'contain', display: 'block', background: '#000' }} />
                 </div>
               )}
@@ -652,7 +652,7 @@ export function QuickCaptureWidget({
         </>
       )}
 
-      {message && <p role="status" style={{ fontSize: '0.8rem', color: '#2F6B55', marginTop: 8, fontWeight: 600 }}>{message}</p>}
+      {message && <p role="status" style={{ fontSize: '0.8rem', color: 'var(--accent-text)', marginTop: 8, fontWeight: 600 }}>{message}</p>}
 
       {!sheet && <div className="unorganized-notes-deck">
         <h4>Para organizar ({pending.length})</h4>

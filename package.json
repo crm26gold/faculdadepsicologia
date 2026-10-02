@@ -7,7 +7,7 @@
   },
   "scripts": {
     "predev": "node scripts/prepare-spelling.mjs",
-    "prebuild": "node scripts/prepare-spelling.mjs",
+    "prebuild": "node scripts/prepare-spelling.mjs && node scripts/dark-theme.mjs --check",
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "start": "next start --hostname 127.0.0.1",
@@ -42,6 +42,7 @@
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "postcss": "8.5.23",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
   }

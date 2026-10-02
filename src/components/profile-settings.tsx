@@ -106,7 +106,7 @@ export function ProfileSettings({
               <p>Como você aparece no app e como podemos falar com você. Cursos e instituições ficam em Estudos.</p>
             </div>
             {savedNotice && (
-              <span className="tiny-tag positive" style={{ background: '#ecfdf5', color: '#047857' }}>
+              <span className="tiny-tag positive" style={{ background: 'var(--ok-bg)', color: 'var(--ok-text)' }}>
                 <Check size={12} /> Alteração enviada · confira o indicador de salvamento
               </span>
             )}
@@ -239,7 +239,7 @@ export function ProfileSettings({
         </div>
 
         {/* TEMA & MODO NOTURNO */}
-        <div className="panel" style={{ padding: 18, background: '#fff', borderRadius: 12, border: '1px solid var(--line)' }}>
+        <div className="panel" style={{ padding: 18, background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)' }}>
           <h3>Aparência & Modo Noturno</h3>
           <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '4px 0 12px' }}>
             Adapte a interface para estudar à noite sem cansar a visão.

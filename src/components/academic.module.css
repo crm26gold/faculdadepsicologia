@@ -134,3 +134,171 @@
 .lateActions .button { min-block-size: 40px; padding: .4rem .7rem; }
 .sideCard { scroll-margin-top: 76px; }
 .sideCard:focus { outline: none; }
+
+/* modo escuro gerado: scripts/dark-theme.mjs */
+:global([data-theme='dark']) .overview {
+    border: 1px solid hsl(152 20% 22%);
+    background: linear-gradient(115deg, hsl(152 27% 15%), hsl(67 28% 17%) 65%, hsl(152 27% 15%))
+}
+:global([data-theme='dark']) .iconTile {
+    background: hsl(152 27% 15%);
+    color: hsl(157 31% 78%)
+}
+:global([data-theme='dark']) .metrics span {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .metrics strong {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .syncNote {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .calendarPanel {
+    background: hsl(152 27% 12%);
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .segmented {
+    background: hsl(152 27% 15%)
+}
+:global([data-theme='dark']) .segmented button[aria-pressed=true] {
+    background: hsl(152 27% 12%)
+}
+:global([data-theme='dark']) .filterRow label {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .filterRow select {
+    background: hsl(152 27% 12%)
+}
+:global([data-theme='dark']) .monthTable th {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .day {
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .day:hover {
+    background: hsl(152 27% 15%)
+}
+:global([data-theme='dark']) .day.selected {
+    background: hsl(87 28% 17%)
+}
+:global([data-theme='dark']) .outside {
+    background: hsl(152 27% 15%)
+}
+:global([data-theme='dark']) .outside .dayNumber {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .dayPill {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .more {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .calendarFoot {
+    border-top: 1px solid hsl(152 20% 22%);
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .sideCard {
+    background: hsl(152 27% 12%);
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .sideCard > small {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .pendingCard {
+    background: hsl(65 28% 17%)
+}
+:global([data-theme='dark']) .pendingCard > p,
+:global([data-theme='dark']) .pendingCard > :global(.eyebrow) {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .event small {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .eventTime {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .event.done strong {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .emptyDay {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .weekColumn {
+    background: hsl(152 27% 12%);
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .weekToday {
+    background: hsl(78 28% 17%)
+}
+:global([data-theme='dark']) .freeDay {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .detailFacts p {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .inlineNotice {
+    color: hsl(134 31% 78%)
+}
+:global([data-theme='dark']) .scheduleRow {
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .scheduleRow small {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .suggestion {
+    background: hsl(152 27% 12%);
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .suggestionLabel {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .compactPlanner {
+    background: hsl(152 27% 15%)
+}
+:global([data-theme='dark']) .compactPlanner p,
+:global([data-theme='dark']) .compactPlanner .plannerHeading :global(.eyebrow) {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .aiBoundary {
+    background: hsl(152 27% 15%);
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .aiBoundary p {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .studyStats {
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .integrationCard {
+    background: hsl(152 27% 12%);
+    border: 1px solid hsl(152 20% 22%)
+}
+:global([data-theme='dark']) .connectionStatus {
+    background: hsl(152 27% 15%);
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .available {
+    background: hsl(102 28% 17%);
+    color: hsl(45 20% 90%)
+}
+:global([data-theme='dark']) .permissionNote {
+    background: hsl(77 28% 17%)
+}
+@media (max-width: 600px) {
+    :global([data-theme='dark']) .mobileCount {
+        color: hsl(45 20% 90%)
+    }
+}
+:global([data-theme='dark']) .lateCard {
+    background: hsl(5 28% 17%);
+    border: 1px solid hsl(6 30% 30%)
+}
+:global([data-theme='dark']) .lateCard h2 {
+    color: hsl(0 66% 78%)
+}
+:global([data-theme='dark']) .lateCard li {
+    border: 1px solid hsl(6 30% 30%)
+}
+:global([data-theme='dark']) .lateDate {
+    color: hsl(0 66% 78%)
+}

@@ -15,7 +15,7 @@ test('edição do workspace preserva metas e projetos após recarregar', async (
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
   expect(saved.goals).toEqual(data.goals);
   expect(saved.projects).toEqual(data.projects);
-  expect(saved.editorGeneration).toBe(7);
+  expect(saved.editorGeneration).toBe(8);
 });
 
 test('capturas longas não alargam a página nem cortam o menu Android', async ({ page }) => {
@@ -328,7 +328,7 @@ test('curso livre chama as partes de módulos e o nome personalizado troca os r�
   const created = await stored();
   expect(created.courses).toEqual([expect.objectContaining({ name: 'Hipnose clínica', kind: 'livre', institution: 'Instituto de teste', status: 'active' })]);
   expect(created.courses[0].units).toBeUndefined();
-  expect(created.editorGeneration).toBe(7);
+  expect(created.editorGeneration).toBe(8);
 
   await page.getByRole('button', { name: 'Editar curso', exact: true }).click();
   await expect(dialog.getByRole('heading', { name: 'Editar curso', exact: true })).toBeVisible();
@@ -389,7 +389,7 @@ test('espaço antigo sem cursos abre Estudos em "Meu curso" e só grava a migra�
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Resumo revisado');
   await page.reload();
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
-  expect(saved.editorGeneration).toBe(7);
+  expect(saved.editorGeneration).toBe(8);
   expect(saved.courses).toEqual([{ id: 'curso-principal', name: 'Meu curso', kind: 'graduacao', color: 'lavender', status: 'active' }]);
   expect(saved.subjects).toEqual(legacy.subjects.map(subject => ({ ...subject, courseId: 'curso-principal' })));
   expect(saved.tasks).toEqual(legacy.tasks);
@@ -529,12 +529,12 @@ test('excluir curso vazio volta para a lista e curso com partes explica como exc
   await expect(page.getByRole('heading', { name: 'Psicologia', exact: true })).toHaveCount(0);
 });
 
-test('restaurar backup antigo com matérias cria "Meu curso" na geração 7', async ({ page }) => {
+test('restaurar backup antigo com matérias cria "Meu curso" na geração atual', async ({ page }) => {
   await page.goto('/#settings');
   const backup = { version: 1, editorGeneration: 5, subjects: [{ id: 'etica', name: 'Ética profissional', semester: 3, color: 'lavender' }], tasks: [], notes: [], sessions: [] };
   await page.getByLabel('Selecionar backup JSON', { exact: true }).setInputFiles({ name: 'backup.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(backup)) });
   await page.getByRole('button', { name: 'Confirmar restauração', exact: true }).click();
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1') ?? '{}').editorGeneration)).toBe(7);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1') ?? '{}').editorGeneration)).toBe(8);
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
   expect(saved.courses.map((item: { id: string }) => item.id)).toEqual(['curso-principal']);
   expect(saved.subjects).toEqual([{ ...backup.subjects[0], courseId: 'curso-principal' }]);
@@ -1103,7 +1103,8 @@ test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pe
   await bar.getByRole('button', { name: 'Registrar', exact: true }).click();
   await sheet.getByRole('button', { name: 'Gasto ou entrada', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Finanças', level: 1 })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'Adicionar Transação' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Novo lançamento' })).toBeVisible();
+  await expect(page.getByLabel('Descrição')).toBeFocused();
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Meu foco', level: 1 })).toBeVisible();
   await bar.getByRole('button', { name: 'Ver todas as áreas' }).click();
@@ -1217,4 +1218,62 @@ test('meu dia mostra o dia, o ciclo do mês, a agenda de hoje e os avisos sem re
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole('region', { name: 'Atenção' }).getByRole('button', { name: /atrasado/ }).click();
   await expect(page.getByRole('heading', { name: 'Minha agenda', level: 1 })).toBeVisible();
+});
+
+test('finanças: parcelas viram contas a pagar, o aviso do Meu dia leva até elas e "Paguei" registra', async ({ page }) => {
+  const day = (offset: number) => { const date = new Date(); date.setDate(date.getDate() + offset); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; };
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#finances');
+  await expect(page.getByRole('heading', { name: 'Finanças', level: 1 })).toBeVisible();
+  await expect(page.getByText(/Nada em aberto/)).toBeVisible();
+  await page.getByRole('button', { name: 'Novo lançamento' }).click();
+  const form = page.locator('form.fin-form');
+  await form.getByLabel('Descrição').fill('Notebook');
+  await form.getByText('A pagar', { exact: true }).click();
+  await form.getByLabel('Vencimento').fill(day(1));
+  await form.getByLabel('Repetição').selectOption('installments');
+  await form.getByLabel('Número de parcelas').fill('3');
+  await form.getByLabel('Valor de cada parcela').fill('1.250,00');
+  await expect(form).toContainText('Cria 3 lançamentos');
+  expect((await new AxeBuilder({ page }).include('.fin').analyze()).violations).toEqual([]);
+  await form.getByRole('button', { name: 'Salvar lançamento' }).click();
+  await expect(page.getByRole('status').filter({ hasText: '3 lançamentos criados' })).toBeVisible();
+  const open = page.locator('#fin-open');
+  await expect(open.getByText('parcela 1/3', { exact: false })).toBeVisible();
+  await expect(open.locator('.fin-row')).toHaveCount(3);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
+  expect(saved.editorGeneration).toBe(8);
+  expect(saved.transactions.map((item: { amountCents: number; status: string }) => [item.amountCents, item.status])).toEqual([[125000, 'pending'], [125000, 'pending'], [125000, 'pending']]);
+
+  await page.goto('/');
+  const alert = page.getByRole('button', { name: /Amanhã tem conta para pagar: Notebook · R\$\s1\.250,00/ });
+  await expect(alert).toBeVisible();
+  await alert.click();
+  await expect(page.locator('#fin-open')).toBeFocused();
+  await page.locator('#fin-open').getByRole('button', { name: 'Paguei: Notebook' }).first().click();
+  await expect(page.locator('#fin-open .fin-row')).toHaveCount(2);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: /Amanhã tem conta para pagar/ })).toHaveCount(0);
+
+  await page.goto('/#finances');
+  await page.locator('#fin-open').getByRole('button', { name: 'Excluir: Notebook' }).first().click();
+  await page.getByRole('button', { name: /Este e os próximos \(2\)/ }).click();
+  await expect(page.locator('#fin-open .fin-row')).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).transactions.length)).toBe(1);
+});
+
+test('a bolinha do assistente acompanha a altura da janela até ser arrastada, e a apresentação nunca cobre o topo', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 300 });
+  await page.goto('/');
+  const dock = page.locator('.assistant-dock');
+  await expect(dock).toBeVisible();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect.poll(async () => (await dock.boundingBox())!.y).toBeGreaterThan(700);
+  await expect(page.locator('.assistant-intro')).toBeVisible();
+  const intro = (await page.locator('.assistant-intro').boundingBox())!;
+  const topbar = (await page.locator('.topbar').boundingBox())!;
+  expect(intro.y).toBeGreaterThan(topbar.y + topbar.height);
+  await page.getByRole('button', { name: 'Ajuda e configurações' }).click();
+  await expect(page.getByRole('heading', { name: 'Meu espaço', level: 1 })).toBeVisible();
 });
