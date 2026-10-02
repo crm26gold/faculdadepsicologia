@@ -723,20 +723,22 @@
     color: hsl(160 61% 78%)
 }
 /* src/app/finance.css */
-[data-theme='dark'] .fin-summary {
+[data-theme='dark'] .fin-hero {
     background: linear-gradient(135deg, hsl(47 28% 17%), var(--surface))
 }
 [data-theme='dark'] .fin-balance strong {
     color: hsl(160 61% 78%)
 }
-[data-theme='dark'] .fin-status {
-    background: hsl(42 28% 17%);
+[data-theme='dark'] .fin-tips li svg {
+    color: hsl(160 61% 78%)
+}
+[data-theme='dark'] .fin-tips li.warn {
+    background: hsl(42 28% 17%)
+}
+[data-theme='dark'] .fin-tips li.warn svg {
     color: hsl(39 70% 78%)
 }
-[data-theme='dark'] .fin-row.late .fin-status {
-    background: hsl(5 28% 17%);
-    color: hsl(0 66% 78%)
-}
-[data-theme='dark'] .fin-filters button[aria-pressed='true'] {
-    color: hsl(160 61% 78%)
+[data-theme='dark'] .fin-status {
+    background: hsl(45 28% 17%);
+    color: hsl(39 70% 78%)
 }

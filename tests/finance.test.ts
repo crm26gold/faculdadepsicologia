@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildSeries, monthSummary, openItems, settle, shiftMonths } from '../src/lib/finance';
+import { buildSeries, collapseSeries, currentBalance, dailySpend, insights, lastDayOfMonth, monthlyProjection, monthSummary, openItems, projectTo, settle, shiftMonths } from '../src/lib/finance';
 import { moneyToCents, type Transaction } from '../src/lib/life-data';
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, workspaceSchema, type Workspace } from '../src/lib/workspace';
 import { todayAlerts } from '../src/lib/today';
@@ -79,4 +79,75 @@ test('contas e parcelas exigem a geração 8, para um editor antigo não apagar 
   assert.deepEqual(parsed.transactions![0].installment, { index: 1, count: 3 });
   assert.equal(workspaceSchema.safeParse({ ...data, editorGeneration: 8, transactions: [entry({ installment: { index: 4, count: 3 } })] }).success, false);
   assert.equal(workspaceSchema.safeParse({ ...emptyWorkspace(), editorGeneration: 7, transactions: [entry({})] }).success, true);
+});
+
+test('saldo agora parte do saldo inicial e soma só o que foi pago ou recebido desde aquele dia', () => {
+  const items = [
+    entry({ id: 'antes', amountCents: 99900, date: '2026-09-30' }),
+    entry({ id: 'mercado', amountCents: 20000, date: '2026-10-02' }),
+    entry({ id: 'salario', type: 'income', amountCents: 300000, date: '2026-10-05' }),
+    entry({ id: 'conta', amountCents: 15000, date: '2026-10-06', status: 'pending' }),
+    entry({ id: 'paga-depois', amountCents: 5000, date: '2026-09-28', status: 'paid', paidOn: '2026-10-03' }),
+  ];
+  assert.equal(currentBalance(items, { openingCents: 100000, openingDate: '2026-10-01' }, '2026-10-10'), 100000 - 20000 + 300000 - 5000);
+  assert.equal(currentBalance(items, { openingCents: -50000, openingDate: '2026-10-01' }, '2026-10-04'), -50000 - 20000 - 5000);
+  assert.equal(currentBalance(items, undefined, '2026-10-10'), -99900 - 20000 + 300000 - 5000);
+  assert.equal(lastDayOfMonth('2026-02'), '2026-02-28');
+  assert.equal(lastDayOfMonth('2026-12'), '2026-12-31');
+});
+
+test('gasto do dia a dia ignora contas fixas e parcelas, e não divide por poucos dias', () => {
+  const items = [
+    entry({ id: 'a', amountCents: 7000, date: '2026-10-09', nature: 'variable' }),
+    entry({ id: 'b', amountCents: 7000, date: '2026-10-10', nature: 'oneoff' }),
+    entry({ id: 'aluguel', amountCents: 150000, date: '2026-10-05', nature: 'fixed' }),
+    entry({ id: 'parcela', amountCents: 30000, date: '2026-10-05', groupId: 'g', installment: { index: 1, count: 3 } }),
+  ];
+  assert.deepEqual(dailySpend(items, '2026-10-10'), { perDayCents: 2000, basisDays: 7 });
+  assert.deepEqual(dailySpend([], '2026-10-10'), { perDayCents: 0, basisDays: 0 });
+});
+
+test('projeção soma o agendado e o gasto diário até a data escolhida, mês a mês', () => {
+  const opening = { openingCents: 100000, openingDate: '2026-10-01' };
+  const items = [
+    entry({ id: 'salario', type: 'income', amountCents: 300000, date: '2026-11-05', status: 'pending' }),
+    entry({ id: 'luz', amountCents: 20000, date: '2026-10-20', status: 'pending' }),
+    entry({ id: 'longe', amountCents: 90000, date: '2027-03-01', status: 'pending' }),
+  ];
+  const result = projectTo(items, opening, '2026-10-10', '2026-11-10', 1000);
+  assert.deepEqual([result.now, result.toReceive, result.toPay, result.days, result.everyday, result.projected], [100000, 300000, 20000, 31, 31000, 349000]);
+  const months = monthlyProjection(items, opening, '2026-10-10', '2026-12-15');
+  assert.deepEqual(months.map(row => [row.month, row.end, row.toPay, row.toReceive]), [['2026-10', '2026-10-31', 20000, 0], ['2026-11', '2026-11-30', 0, 300000], ['2026-12', '2026-12-15', 0, 0]]);
+  assert.deepEqual(months.map(row => row.balance), [80000, 380000, 380000]);
+});
+
+test('séries repetidas aparecem uma vez, com quantas faltam e até quando', () => {
+  const series = buildSeries({ description: 'Motorhome', amountCents: 90000, type: 'expense', category: 'Transporte', nature: 'fixed', date: '2026-10-02', status: 'pending' }, { kind: 'monthly', months: 12 }, '2026-10-02', ids());
+  const open = openItems(series, '2026-10-02');
+  const later = collapseSeries(open.later, series);
+  assert.equal(later.length, 1);
+  assert.equal(later[0].item.date, '2026-11-02');
+  assert.equal(later[0].remaining, 10);
+  assert.equal(later[0].until, '2027-09-02');
+});
+
+test('dicas avisam conta vencida, série que termina, parcelas restantes, gasto que subiu e falta de saldo inicial', () => {
+  const items = [
+    entry({ id: 'vencida', amountCents: 5000, date: '2026-10-01', status: 'pending' }),
+    entry({ id: 'p1', description: 'Notebook', amountCents: 30000, date: '2026-09-15', groupId: 'g', installment: { index: 1, count: 2 } }),
+    entry({ id: 'p2', description: 'Notebook', amountCents: 30000, date: '2026-10-15', status: 'pending', groupId: 'g', installment: { index: 2, count: 2 } }),
+    entry({ id: 'set', category: 'Alimentação', amountCents: 40000, date: '2026-09-10' }),
+    entry({ id: 'out', category: 'Alimentação', amountCents: 60000, date: '2026-10-05' }),
+  ];
+  const tips = insights(items, undefined, '2026-10-10');
+  assert.deepEqual(tips.map(tip => tip.id), ['late', 'ends-g', 'debt', 'jump', 'pace', 'opening']);
+  assert.match(tips[1].text, /^Notebook termina este mês/);
+  assert.match(tips[3].text, /^Alimentação: R\$\s600,00 este mês, 50% acima do mês passado\.$/);
+  assert.equal(insights([], { openingCents: 0, openingDate: '2026-10-01' }, '2026-10-10').length, 0);
+});
+
+test('saldo inicial exige a geração 9', () => {
+  const data = { ...emptyWorkspace(), finance: { openingCents: -1500, openingDate: '2026-10-01' } };
+  assert.equal(workspaceSchema.safeParse({ ...data, editorGeneration: 8 }).success, false);
+  assert.deepEqual(workspaceSchema.parse({ ...data, editorGeneration: 9 }).finance, { openingCents: -1500, openingDate: '2026-10-01' });
 });

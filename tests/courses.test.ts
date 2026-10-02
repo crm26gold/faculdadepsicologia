@@ -77,7 +77,7 @@ test('schema recusa curso inexistente, IDs duplicados, geração antiga e matér
   assert.equal(unknown.success, false);
   assert.ok(unknown.error?.issues.some(issue => issue.message === 'Curso inexistente'));
   assert.equal(workspaceSchema.safeParse({ ...data, courses: [...data.courses!, data.courses![0]] }).success, false);
-  for (const editorGeneration of [undefined, 5, 6, 9]) assert.equal(workspaceSchema.safeParse({ ...data, editorGeneration }).success, false);
+  for (const editorGeneration of [undefined, 5, 6, 10]) assert.equal(workspaceSchema.safeParse({ ...data, editorGeneration }).success, false);
   assert.equal(workspaceSchema.safeParse({ ...legacy(), subjects: [{ ...legacy().subjects[0], courseId: 'b' }] }).success, false);
   const { courseId: _courseId, ...loose } = data.subjects[0];
   assert.equal(workspaceSchema.safeParse({ ...data, subjects: [loose, data.subjects[1]] }).success, false);
