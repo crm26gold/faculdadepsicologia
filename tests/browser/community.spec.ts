@@ -335,3 +335,37 @@ test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Pa
   await expect(page.getByText('IA ainda não ligada: guardo tudo em Para organizar')).toBeVisible();
   await expect(page.getByText(/Administração › Inteligência artificial/)).toBeVisible();
 });
+
+test('assistente: falha da IA oferece tentar de novo (pergunta não vira anotação) e conversas antigas ficam guardadas', async ({ page }) => {
+  await mockApi(page);
+  let calls = 0;
+  await page.route('**/api/ai/command', route => {
+    calls += 1;
+    return calls === 1
+      ? route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: 'Google Gemini (AI Studio) recusou (503): alta demanda.' }) })
+      : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { configured: true, model: 'gemini-3.5-flash', reply: 'Seu saldo agora é R$ 1.200,00.', actions: [] } }) });
+  });
+  const saves: { data: { notes: unknown[] } }[] = [];
+  page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith('/api/workspace')) saves.push(request.postDataJSON()); });
+  await page.goto('/');
+  await nav(page).getByRole('button', { name: 'Assistente', exact: true }).click();
+  await page.getByLabel('Mensagem para o assistente').fill('qual o meu saldo hoje');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.getByText(/Não consegui responder agora\. .*alta demanda/)).toBeVisible();
+  expect(saves.some(save => save.data.notes.length > 0)).toBe(false);
+  await page.getByRole('button', { name: 'Tentar de novo' }).click();
+  await expect(page.getByText('Seu saldo agora é R$ 1.200,00.')).toBeVisible();
+  await expect(page.getByText(/Não consegui responder agora/)).toHaveCount(0);
+  await expect(page.locator('.assistant-message.me')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Nova conversa' }).click();
+  await expect(page.getByText('Seu saldo agora é R$ 1.200,00.')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Conversas anteriores' }).click();
+  const archived = page.getByRole('region', { name: 'Conversas anteriores' });
+  await expect(archived.getByRole('button', { name: /^qual o meu saldo hoje/ })).toBeVisible();
+  await page.reload();
+  await nav(page).getByRole('button', { name: 'Assistente', exact: true }).click();
+  await page.getByRole('button', { name: 'Conversas anteriores' }).click();
+  await page.getByRole('region', { name: 'Conversas anteriores' }).getByRole('button', { name: /^qual o meu saldo hoje/ }).click();
+  await expect(page.getByText('Seu saldo agora é R$ 1.200,00.')).toBeVisible();
+  expect((await new AxeBuilder({ page }).include('.assistant-panel').analyze()).violations).toEqual([]);
+});

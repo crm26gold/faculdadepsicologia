@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { addDays, daySchema, formatDate, taskKinds, timeSchema, type Task, type Workspace } from './workspace';
 import { captureNote } from './capture';
-import { buildSeries, expenseCategories, incomeCategories, money, natures } from './finance';
+import { buildSeries, currentBalance, expenseCategories, incomeCategories, money, monthOf, monthSummary, natures, projectTo } from './finance';
 import { startFocus } from './focus';
 import { lifeAreas } from './life';
 import { todayAgenda } from './today';
@@ -106,6 +106,21 @@ export function undoApplied(data: Workspace, applied: Applied[]): Workspace {
   return next;
 }
 
+// Money the assistant can talk about: balance now (if the person set a starting point), what is due and this month.
+function finance(data: Workspace, today: string) {
+  const items = data.transactions ?? [];
+  if (!items.length && !data.finance) return 'Finanças: nada registrado ainda.';
+  const next = projectTo(items, data.finance, today, addDays(today, 30));
+  const month = monthSummary(items, monthOf(today));
+  const top = month.byCategory.slice(0, 4).map(item => `${item.category} ${money(item.cents)}`).join(', ');
+  return [
+    data.finance ? `Saldo agora: ${money(currentBalance(items, data.finance, today))} (saldo inicial de ${money(data.finance.openingCents)} em ${formatDate(data.finance.openingDate)}).`
+      : `Saldo: a pessoa ainda não informou o saldo inicial em Finanças; o resultado dos lançamentos é ${money(currentBalance(items, undefined, today))}.`,
+    `Este mês: entrou ${money(month.received)}, saiu ${money(month.paid)}; ainda a receber ${money(month.toReceive)}, a pagar ${money(month.toPay)}.${top ? ` Maiores gastos: ${top}.` : ''}`,
+    `Próximos 30 dias: a pagar ${money(next.toPay)}, a receber ${money(next.toReceive)}, previsão de saldo ${money(next.projected)}.`,
+  ].join('\n');
+}
+
 /** What the model needs to know about this person's space, kept short to save tokens. */
 export function commandContext(data: Workspace, today: string) {
   const agenda = todayAgenda(data, today).map(entry => `${entry.time ?? 'sem horário'} ${entry.title} (${entry.kind})${entry.done ? ' [feito]' : ''}`);
@@ -121,6 +136,7 @@ export function commandContext(data: Workspace, today: string) {
     upcoming.length ? `Próximos 7 dias: ${upcoming.join('; ')}.` : '',
     bills.length ? `Contas e recebimentos em aberto (15 dias): ${bills.join('; ')}.` : '',
     data.activeFocus ? `Há um foco ligado: ${data.activeFocus.activity}.` : '',
+    finance(data, today),
   ].filter(Boolean).join('\n').slice(0, 6000);
 }
 

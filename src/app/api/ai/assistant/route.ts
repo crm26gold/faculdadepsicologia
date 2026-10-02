@@ -1,7 +1,7 @@
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { assistantRequest } from '@/lib/ai/catalog';
 import { openKey } from '@/lib/ai/crypto';
-import { AiError, generate, resolveModel } from '@/lib/ai/providers';
+import { AiError, generateResilient } from '@/lib/ai/providers';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +19,8 @@ export async function POST(request: Request) {
   if (error) return dbError(error);
   if (!data) return reply({ ok: true, data: { configured: false } });
   try {
-    const config = await resolveModel({ provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) });
-    const text = await generate(config,
+    const config = ({ provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) });
+    const { text } = await generateResilient(config,
       { system, prompt: body.message, maxTokens: 400 });
     return reply({ ok: true, data: { configured: true, reply: text.slice(0, 1200) } });
   } catch (cause) {

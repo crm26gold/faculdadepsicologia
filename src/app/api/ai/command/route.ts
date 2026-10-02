@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { openKey } from '@/lib/ai/crypto';
-import { AiError, generate, resolveModel } from '@/lib/ai/providers';
+import { AiError, generateResilient } from '@/lib/ai/providers';
 import { commandSystem, parseCommand } from '@/lib/commands';
 
 export const dynamic = 'force-dynamic';
@@ -17,9 +17,9 @@ export async function POST(request: Request) {
   if (error) return dbError(error);
   if (!data) return reply({ ok: true, data: { configured: false } });
   try {
-    const config = await resolveModel({ provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) });
-    const raw = await generate(config, { system: `${commandSystem}\n\nContexto da pessoa:\n${body.context}`, prompt: body.message, history: body.history, maxTokens: 1200, json: true });
-    return reply({ ok: true, data: { configured: true, model: config.model, ...parseCommand(raw) } });
+    const config = { provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) };
+    const { text: raw, model } = await generateResilient(config, { system: `${commandSystem}\n\nContexto da pessoa:\n${body.context}`, prompt: body.message, history: body.history, maxTokens: 1200, json: true });
+    return reply({ ok: true, data: { configured: true, model, ...parseCommand(raw) } });
   } catch (cause) {
     return reply({ error: cause instanceof AiError ? cause.message : 'A inteligência artificial não respondeu agora.' }, 502);
   }

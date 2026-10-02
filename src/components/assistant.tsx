@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
-import { ArrowRight, AudioLines, Check, MessageSquarePlus, Mic, Paperclip, Send, Square, Undo2, X } from 'lucide-react';
+import { ArrowRight, AudioLines, Check, History, MessageSquarePlus, Mic, Paperclip, RotateCcw, Send, Square, Trash2, Undo2, X } from 'lucide-react';
 import { validMedia } from '@/lib/note-media';
 import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
@@ -8,7 +8,15 @@ import { dateKey, type Workspace } from '@/lib/workspace';
 import { applyCommands, commandContext, undoApplied, type Applied, type CommandAction } from '@/lib/commands';
 import { Modal } from './modal';
 
-export type AssistantMessage = { id: string; from: 'me' | 'assistant'; text: string; noteId?: string; applied?: Applied[] };
+export type AssistantMessage = { id: string; from: 'me' | 'assistant'; text: string; noteId?: string; applied?: Applied[]; retry?: string };
+// Past conversations stay on this device only (the AI provider sees each message when it is sent; nothing is kept on our servers).
+const ARCHIVE_KEY = 'jornada-assistente-historico';
+type Archived = { id: string; title: string; updatedAt: string; messages: AssistantMessage[] };
+function readArchive(): Archived[] {
+  try { const value = JSON.parse(localStorage.getItem(ARCHIVE_KEY) ?? '[]'); return Array.isArray(value) ? value : []; } catch { return []; }
+}
+function writeArchive(list: Archived[]) { try { localStorage.setItem(ARCHIVE_KEY, JSON.stringify(list.slice(0, 30))); } catch {} }
+const conversationTitle = (messages: AssistantMessage[]) => (messages.find(item => item.from === 'me')?.text ?? 'Conversa').slice(0, 70);
 type Recognition = { lang: string; interimResults: boolean; continuous: boolean; start: () => void; stop: () => void;
   onresult: ((event: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
   onerror: ((event: { error: string }) => void) | null; onend: (() => void) | null };
@@ -114,6 +122,22 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   const [heard, setHeard] = useState('');
   const [problem, setProblem] = useState('');
   const [ai, setAi] = useState<{ ready: boolean; model?: string } | null>(null);
+  const [history, setHistory] = useState<Archived[] | null>(null);
+  function stopVoice() { conversation.current = false; setTalking(false); try { recognizer.current?.stop(); } catch {} window.speechSynthesis?.cancel(); setSpeaking(false); }
+  // "Nova conversa" archives the current one instead of throwing it away.
+  function archiveCurrent() {
+    if (demo || !messages.length) return readArchive();
+    const list = [{ id: crypto.randomUUID(), title: conversationTitle(messages), updatedAt: new Date().toISOString(), messages }, ...readArchive()];
+    writeArchive(list);
+    return list;
+  }
+  function startNew() { stopVoice(); const list = archiveCurrent(); setMessages(() => []); if (history) setHistory(list); }
+  function reopen(item: Archived) {
+    stopVoice();
+    const list = [...(messages.length ? [{ id: crypto.randomUUID(), title: conversationTitle(messages), updatedAt: new Date().toISOString(), messages }] : []), ...readArchive().filter(entry => entry.id !== item.id)];
+    writeArchive(list); setMessages(() => item.messages); setHistory(null);
+  }
+  function forget(id: string) { const list = readArchive().filter(entry => entry.id !== id); writeArchive(list); setHistory(list); }
   const recognizer = useRef<Recognition | null>(null);
   const conversation = useRef(false);
   const list = useRef<HTMLDivElement>(null);
@@ -160,15 +184,21 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
         const history = messages.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' as const : 'assistant' as const, text: item.text.slice(0, 3000) }));
         try { result = await api<CommandReply>('/api/ai/command', { message: said, context: commandContext(latest.current, dateKey()), history }); }
         catch (error) {
+          // A question must never turn into a note: offer to try again, and saving only if the person wants.
           setAi(previous => previous ?? { ready: true });
-          voiceAnswer = await capture(said, id, `A inteligência artificial não respondeu (${error instanceof Error ? error.message : 'erro'}). `);
+          setMessages(previous => [...previous, { id, from: 'assistant', text: `Não consegui responder agora. ${error instanceof Error ? error.message : ''}`.trim(), retry: said }]);
+          voiceAnswer = 'Não consegui responder agora. Tente de novo em instantes.';
           return;
         }
       }
       setAi(result.configured ? { ready: true, model: result.model } : cloud ? { ready: false } : null);
       if (!result.configured) { voiceAnswer = await capture(said, id, ''); return; }
       const actions = result.actions ?? [];
-      if (!actions.length && !result.reply) { voiceAnswer = await capture(said, id, 'Não entendi como organizar isso. '); return; }
+      if (!actions.length && !result.reply) {
+        setMessages(previous => [...previous, { id, from: 'assistant', text: 'Não entendi bem. Pode dizer de outro jeito?', retry: said }]);
+        voiceAnswer = 'Não entendi bem. Pode dizer de outro jeito?';
+        return;
+      }
       let outcome: ReturnType<typeof applyCommands> | null = null;
       const saved = !actions.length || update(previous => { outcome = applyCommands(previous, actions, { today: dateKey(), now: Date.now() }); return outcome.data; });
       const done = saved ? (outcome as ReturnType<typeof applyCommands> | null) : null;
@@ -228,8 +258,18 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   return <div className="assistant-panel">
     <div className="assistant-top">
       <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? `Inteligência artificial ligada${ai.model ? ` · ${ai.model}` : ''}` : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Converse comigo: eu respondo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
-      {messages.length > 0 && <button type="button" className="text-button" disabled={busy} onClick={() => { conversation.current = false; setTalking(false); window.speechSynthesis?.cancel(); setMessages(() => []); }}><MessageSquarePlus size={15} aria-hidden="true" />Nova conversa</button>}
+      <span className="assistant-top-actions">
+        {!demo && <button type="button" className="text-button" aria-expanded={history !== null} onClick={() => setHistory(history ? null : readArchive())}><History size={15} aria-hidden="true" />Conversas anteriores</button>}
+        {messages.length > 0 && <button type="button" className="text-button" disabled={busy} onClick={startNew}><MessageSquarePlus size={15} aria-hidden="true" />Nova conversa</button>}
+      </span>
     </div>
+    {history && <div className="assistant-history" role="region" aria-label="Conversas anteriores">
+      {history.length ? <ul>{history.map(item => <li key={item.id}>
+        <button type="button" className="assistant-history-open" onClick={() => reopen(item)}><strong>{item.title}</strong><small>{new Date(item.updatedAt).toLocaleString('pt-BR', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} · {item.messages.length} mensagens</small></button>
+        <button type="button" className="icon-button" aria-label={`Apagar conversa: ${item.title}`} onClick={() => forget(item.id)}><Trash2 size={15} aria-hidden="true" /></button>
+      </li>)}</ul> : <p className="muted">Nenhuma conversa arquivada. Ao tocar em “Nova conversa”, a atual fica guardada aqui.</p>}
+      <p className="assistant-history-note">As conversas ficam só neste aparelho. O provedor de IA recebe cada mensagem no momento em que você envia.</p>
+    </div>}
     {ai && !ai.ready && <p className="assistant-setup">Para eu conversar e organizar sozinho, a IA precisa estar ligada: em <strong>Administração › Inteligência artificial</strong>, na tarefa “Conversa do assistente”, escolha o provedor e um modelo (o “Automático · rápido” serve) e toque em Salvar.</p>}
     <div className="assistant-messages" ref={list} aria-live="polite">
       {!messages.length && <div className="assistant-message assistant">
@@ -241,6 +281,10 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
         {message.applied?.length ? <ul className="assistant-applied">{message.applied.map((item, index) => <li key={index}><Check size={14} aria-hidden="true" /><span>{item.label}</span><button type="button" className="text-button" onClick={() => onNavigate(item.view)}>Ver</button></li>)}</ul> : null}
         {message.applied?.length ? <button type="button" className="text-button assistant-undo" disabled={blocked} onClick={() => undo(message)}><Undo2 size={14} aria-hidden="true" />Desfazer</button> : null}
         {message.noteId && <button type="button" className="text-button" onClick={() => onOpenNote(message.noteId!)}>Ver anotação <ArrowRight size={13} aria-hidden="true" /></button>}
+        {message.retry && <span className="assistant-retry">
+          <button type="button" className="button primary" disabled={locked} onClick={() => { const again = message.retry!; setMessages(previous => previous.filter(item => item.id !== message.id && item.id !== `${message.id}:eu`)); void send(again); }}><RotateCcw size={14} aria-hidden="true" />Tentar de novo</button>
+          <button type="button" className="text-button" disabled={locked} onClick={() => { const text = message.retry!; setMessages(previous => previous.map(item => item.id === message.id ? { ...item, retry: undefined } : item)); void capture(text, `${message.id}:guardado`, ''); }}>Guardar em Para organizar</button>
+        </span>}
       </div>)}
       {listening && <div className="assistant-message me listening"><p>{heard || 'Ouvindo…'}</p></div>}
     </div>

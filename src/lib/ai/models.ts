@@ -37,6 +37,12 @@ function parse(provider: AiProviderId, id: string): Parsed | null {
 }
 
 const wanted: Record<AutoMode, Tier[]> = { 'auto:melhor': ['best', 'fast', 'light'], 'auto:rapido': ['fast', 'light', 'best'], 'auto:economico': ['light', 'fast', 'best'] };
+/** Up to `count` candidates in order of preference: newest stable of the wanted line first, then older ones and other lines. */
+export function pickModels(provider: AiProviderId, ids: string[], mode: AutoMode, count = 3): string[] {
+  const parsed = ids.map(id => parse(provider, id)).filter((item): item is Parsed => !!item);
+  const order = (list: Parsed[]) => list.toSorted((a, b) => Number(a.preview) - Number(b.preview) || b.version - a.version || a.id.length - b.id.length || a.id.localeCompare(b.id));
+  return wanted[mode].flatMap(tier => order(parsed.filter(item => item.tier === tier)).map(item => item.id)).slice(0, count);
+}
 /** Newest stable model of the wanted line; previews only when nothing stable exists; shortest id wins ties (the alias). */
 export function pickModel(provider: AiProviderId, ids: string[], mode: AutoMode): string | null {
   const parsed = ids.map(id => parse(provider, id)).filter((item): item is Parsed => !!item);

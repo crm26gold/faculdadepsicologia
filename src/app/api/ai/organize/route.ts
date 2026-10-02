@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { openKey } from '@/lib/ai/crypto';
-import { AiError, generate, resolveModel } from '@/lib/ai/providers';
+import { AiError, generateResilient } from '@/lib/ai/providers';
 
 export const dynamic = 'force-dynamic';
 const organizeRequest = z.object({
@@ -24,9 +24,9 @@ export async function POST(request: Request) {
   const data = runtime.data;
   if (!data) return reply({ ok: true, data: { configured: false } });
   try {
-    const config = await resolveModel({ provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) });
+    const config = { provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) };
     const prompt = `Anotação:\nTítulo: ${body.title || '(sem título)'}\nTexto: ${body.text || '(vazio)'}\n\nLugares possíveis:\n${body.options.map(option => `- ${option.key}: ${option.label}`).join('\n')}`;
-    const raw = await generate(config, { system, prompt, maxTokens: 200, json: true });
+    const { text: raw } = await generateResilient(config, { system, prompt, maxTokens: 200, json: true });
     const match = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
     let parsed: { key?: unknown; reason?: unknown } = {};
     try { parsed = JSON.parse(match); } catch {}
