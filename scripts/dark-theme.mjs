@@ -5,7 +5,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import postcss from 'postcss';
 
-const sources = ['src/app/globals.css', 'src/app/focus-responsive.css', 'src/app/finance.css'];
+const sources = ['src/app/globals.css', 'src/app/focus-responsive.css', 'src/app/finance.css', 'src/app/notes.css'];
 const moduleFile = 'src/components/academic.module.css';
 const MODULE_START = '/* modo escuro gerado: scripts/dark-theme.mjs */';
 

@@ -3,6 +3,7 @@ import './dark-auto.css';
 import './globals.css';
 import './focus-responsive.css';
 import './finance.css';
+import './notes.css';
 
 export const metadata: Metadata = {
   title: 'Jornada Plena · Gestor para a Vida',
