@@ -4,7 +4,7 @@ import { aiCatalog, type AiProviderId } from './catalog';
 import { autoCapable, isAuto, pickModel } from './models';
 
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string };
-type Prompt = { system: string; prompt: string; maxTokens?: number };
+type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean };
 export class AiError extends Error {}
 
 const TIMEOUT = 30_000;
@@ -54,8 +54,8 @@ function vertexBase(config: AiConfig, account: ServiceAccount) {
   return `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}`;
 }
 
-const geminiBody = ({ system, prompt, maxTokens = 800 }: Prompt) => JSON.stringify({
-  systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens },
+const geminiBody = ({ system, prompt, maxTokens = 800, json }: Prompt) => JSON.stringify({
+  systemInstruction: { parts: [{ text: system }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens, ...(json ? { responseMimeType: 'application/json' } : {}) },
 });
 const geminiText = (body: any) => (body?.candidates?.[0]?.content?.parts ?? []).map((part: { text?: string }) => part.text ?? '').join('').trim();
 const claudeText = (body: any) => (body?.content ?? []).map((part: { text?: string }) => part.text ?? '').join('').trim();
@@ -82,7 +82,7 @@ export async function generate(config: AiConfig, input: Prompt): Promise<string>
     }
     case 'openai':
       text = chatText(await call('openai', 'https://api.openai.com/v1/chat/completions', { method: 'POST', headers: { ...json, Authorization: `Bearer ${config.key}` },
-        body: JSON.stringify({ model: config.model, max_completion_tokens: maxTokens, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }) }));
+        body: JSON.stringify({ model: config.model, max_completion_tokens: maxTokens, ...(input.json ? { response_format: { type: 'json_object' } } : {}), messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] }) }));
       break;
     case 'compatible':
       if (!config.base_url) throw new AiError('Informe o endereço base da API compatível.');

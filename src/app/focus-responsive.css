@@ -329,3 +329,19 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 [data-theme='dark'] .today-new { border-color: var(--brand-gold); }
 .assistant-show-bubble { align-self: flex-end; }
 .assistant-inline { max-inline-size: 820px; }
+/* Assistente: conversa por voz, o que foi feito e desfazer */
+.assistant-status.on .assistant-status-dot { background: #1f9d5a; box-shadow: 0 0 0 3px #1f9d5a33; }
+.assistant-voice { display: flex; gap: 10px; align-items: stretch; }
+.assistant-voice .assistant-mic { flex: 1; }
+.assistant-once { display: grid; place-items: center; inline-size: 64px; border-radius: 50%; border: 2px solid var(--brand-forest); background: var(--surface); color: var(--brand-forest); flex-shrink: 0; }
+.assistant-once.listening { background: #b91c1c; border-color: #b91c1c; color: #fff; }
+.assistant-once:disabled { opacity: .55; }
+.assistant-live { margin: 0; text-align: center; font-weight: 600; color: var(--brand-forest); }
+.assistant-applied { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.assistant-applied li { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: #e8f4ec; color: #14432d; font-size: .88rem; }
+.assistant-applied li svg { color: #1f6b45; }
+.assistant-undo { margin-block-start: 6px; display: inline-flex; align-items: center; gap: 4px; }
+[data-theme='dark'] .assistant-applied li { background: #13291f; color: #d7f0e1; }
+[data-theme='dark'] .assistant-applied li svg { color: #7fd1a4; }
+[data-theme='dark'] .assistant-live { color: var(--brand-gold); }
+[data-theme='dark'] .assistant-once { border-color: var(--brand-gold); color: var(--brand-gold); }
