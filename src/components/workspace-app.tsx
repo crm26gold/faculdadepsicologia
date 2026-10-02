@@ -6,6 +6,8 @@ import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, C
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Course, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { activeCourses, capitalize, courseKindLabels, courseOf, courseStatusLabels, courseUnits, ensureCourses, subjectsOfCourse, unitCount, unitPresets } from '@/lib/courses';
 import { calendarEntries, weekdays } from '@/lib/academic';
+import { greeting, monthCycles, todayAgenda, todayAlerts, type TodayAlert } from '@/lib/today';
+import { isUnorganized } from '@/lib/capture';
 import { useWorkspace } from './use-workspace';
 import { Modal } from './modal';
 import { MobileDisclosure } from './mobile-disclosure';
@@ -124,6 +126,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const doneToday = dueToday.filter((task) => task.done).length;
   const studyMinutes = Math.floor(data.sessions.filter((session) => session.date === today).reduce((sum, session) => sum + session.minutes, 0));
   const progress = dueToday.length ? Math.round(doneToday / dueToday.length * 100) : 0;
+  const cycles = monthCycles(today);
+  const agendaToday = todayAgenda(data, today);
+  const alerts = todayAlerts(data, today);
+  const loose = data.notes.filter(isUnorganized).toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const subject = (id: string) => data.subjects.find((item) => item.id === id);
   const courses = data.courses ?? [];
   const active = activeCourses(data);
@@ -278,8 +284,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function openAssistant() { pushModal('assistant'); setAssistantOpen(true); }
   function closeAssistant() { setAssistantOpen(false); popModal('assistant'); }
   function openNote(id: string) { setCaptureOpen(false); setAssistantOpen(false); setSelectedNote(id); setSubjectFilter(''); setBookFilter(''); setAreaFilter(''); navigate('notes'); }
+  function openInbox() { setSelectedNote(''); setSubjectFilter('__personal'); setBookFilter('__none'); setAreaFilter('__none'); navigate('notes'); }
+  function openAlert(alert: TodayAlert) { if (alert.target === 'notes') openInbox(); else { if (alert.date) setAgendaDate(alert.date); navigate(alert.target); } }
   function captureTask() { swapModal('form'); setCaptureOpen(false); setForm({ kind: 'task' }); }
-  function captureFocus() { setCaptureOpen(false); if (serverViews.has(view)) navigate('today'); else popModal('capture'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }
+  function captureFocus() { setCaptureOpen(false); navigate('focus'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }
   function captureMoney() { setCaptureOpen(false); setFinanceRequest(Date.now()); navigate('finances'); }
   function setBubble(hidden: boolean) {
     setBubbleHidden(hidden);
@@ -476,10 +484,9 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               <span>Voltar</span>
             </button>
           )}
-          <span>Meu espaço</span>
-          <ChevronRight aria-hidden="true" size={14} />
+          {view !== 'today' && <><span>Meu espaço</span><ChevronRight aria-hidden="true" size={14} /></>}
           {view === 'studies' && studyCourse && <><span><button type="button" className="cm-crumb" onClick={showStudies}>Estudos</button></span><ChevronRight aria-hidden="true" size={14} /></>}
-          <strong>{pageName}</strong>
+          <strong>{view === 'today' && ready ? `${greeting(new Date().getHours())}${(userProfile.name || home?.account.display_name || '').trim() ? `, ${(userProfile.name || home?.account.display_name || '').trim().split(/\s+/)[0]}` : ''}` : pageName}</strong>
         </div>
         <div className="topbar-actions">
           <button type="button" className="button primary topbar-capture" disabled={!ready} onClick={openCapture}><img src="/brand/simbolo-reduzido.svg" alt="" width={22} height={22} />Registrar</button>
@@ -498,32 +505,47 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       </header>
 
       <main id="main" tabIndex={-1} ref={main} className="main-content">
-        <div className={`mode-banner ${demo ? 'demo-banner' : ''}`}>
+        {(demo || mode !== 'cloud') && <div className={`mode-banner ${demo ? 'demo-banner' : ''}`}>
           <span><CloudOff size={14} aria-hidden="true" />{demo ? 'Demonstração — dados fictícios. Não insira informações pessoais.' : mode === 'local' ? storageNotice : 'Espaço pessoal · privado, visível só para você.'}</span>
           {demo && <button onClick={() => window.location.reload()} disabled={!ready}>Restaurar exemplos <ArrowRight size={13} aria-hidden="true" /></button>}
-        </div>
+        </div>}
         {error && <div className="error-banner" role="alert">{error}{ready && <button className="text-button" onClick={() => download(data)}>Exportar esta versão</button>}<button className="text-button" onClick={() => window.location.reload()}>Recarregar</button></div>}
 
-        <div className="page-heading">
+        {view !== 'today' && <div className="page-heading">
           <div>
-            <span className="eyebrow">{ready && view === 'today' ? formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }) : 'Sua vida, do seu jeito'}</span>
-            <h1>{view === 'today' ? <>Um novo dia, <span>no seu ritmo.</span></> : pageName}</h1>
-            <p>{view === 'studies' && studyCourse ? [courseKindLabels[studyCourse.kind], studyCourse.institution, studyCourse.stage].filter(Boolean).join(' · ') : view === 'today' ? 'Você não precisa dar conta de tudo. Vamos cuidar do próximo passo.' : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'studies' ? 'Graduação, pós, cursos livres e extensões — cada um no seu lugar.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'planning' ? 'Metas apontam a direção e projetos organizam os passos práticos.' : view === 'finances' ? 'Controle seu orçamento, mensalidades e despesas com clareza.' : view === 'routine' ? 'Defina seus blocos do dia e mantenha hábitos consistentes.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : view === 'community' ? 'Conectividade com segurança: cada grupo vê só o que é seu.' : view === 'contacts' ? 'Sua agenda privada. Ninguém mais vê.' : view === 'admin' ? 'Pessoas, papéis, planos e estrutura, com histórico de tudo.' : 'Suas preferências, seus dados e suas conexões.'}</p>
+            <span className="eyebrow">Sua vida, do seu jeito</span>
+            <h1>{pageName}</h1>
+            <p>{view === 'studies' && studyCourse ? [courseKindLabels[studyCourse.kind], studyCourse.institution, studyCourse.stage].filter(Boolean).join(' · ') : view === 'notes' ? 'Um lugar para guardar ideias e fazer conexões.' : view === 'studies' ? 'Graduação, pós, cursos livres e extensões — cada um no seu lugar.' : view === 'agenda' ? 'Um pouco de organização abre espaço para o que importa.' : view === 'planning' ? 'Metas apontam a direção e projetos organizam os passos práticos.' : view === 'finances' ? 'Controle seu orçamento, mensalidades e despesas com clareza.' : view === 'routine' ? 'Defina seus blocos do dia e mantenha hábitos consistentes.' : view === 'assistant' ? 'Inteligência como apoio. Você no controle.' : view === 'community' ? 'Conectividade com segurança: cada grupo vê só o que é seu.' : view === 'contacts' ? 'Sua agenda privada. Ninguém mais vê.' : view === 'admin' ? 'Pessoas, papéis, planos e estrutura, com histórico de tudo.' : 'Suas preferências, seus dados e suas conexões.'}</p>
           </div>
           <div className="heading-actions-row">
-            {view === 'today' && <>
-              <button className="button outline" onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
-              <button className="button primary" onClick={() => openForm({ kind: 'note' })}><FileText size={16} aria-hidden="true" />Nova anotação</button>
-            </>}
             {ready && view === 'studies' && !studyCourse && <button className="button primary" disabled={blocked || courses.length >= 30} onClick={() => openForm({ kind: 'course' })}><Plus size={16} aria-hidden="true" />Novo curso</button>}
           </div>
-        </div>
+        </div>}
 
         {!ready && !error && <div className="loading-panel" role="status">Preparando seu espaço…</div>}
 
         {ready && <>
-          {!serverViews.has(view) && <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />}
+          {!serverViews.has(view) && view !== 'today' && <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />}
           {view === 'today' && <>
+            <section className="today-hero" aria-labelledby="today-title">
+              <div className="today-head">
+                <h1 id="today-title"><span className="today-kicker">Hoje</span>{capitalize(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</h1>
+                <button className="button outline today-new" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
+              </div>
+              <div className="today-cycles">
+                <p className="today-cycle-label">{cycles.month} · ciclo {cycles.cycle} de 4 · dia {cycles.day} de {cycles.last}</p>
+                <ol aria-label={`Ciclos de ${cycles.month}`}>{cycles.cycles.map((cycle) => <li key={cycle.index} className={cycle.current ? 'current' : cycle.end < cycles.day ? 'past' : ''} aria-current={cycle.current ? 'step' : undefined}><span>Ciclo {cycle.index}</span><small>{cycle.start}–{cycle.end}</small></li>)}</ol>
+              </div>
+              <h2 className="today-subtitle">Na agenda de hoje</h2>
+              {agendaToday.length ? <ul className="today-agenda">{agendaToday.slice(0, 5).map((entry) => { const course = entry.session ? courseOf(data, { courseId: subject(entry.subjectId)?.courseId }) : undefined; return <li key={entry.id} className={entry.task ? 'with-check' : ''}>{entry.task && <label className="task-checkbox"><input type="checkbox" checked={entry.done} disabled={blocked} onChange={() => toggleTask(entry.task!)} aria-label={`Concluir: ${entry.title}`} /><span className="check-visual"><Check size={13} aria-hidden="true" /></span></label>}<button type="button" className={entry.done ? 'done' : ''} onClick={() => { setAgendaDate(today); navigate('agenda'); }}><span className="today-time">{entry.time ?? 'Dia todo'}</span><span className="today-what"><strong>{entry.title}</strong><small>{[entry.kind, course?.name, entry.professor, entry.location, entry.task?.projectId ? `Projeto: ${data.projects?.find((p) => p.id === entry.task!.projectId)?.title ?? ''}` : ''].filter(Boolean).join(' · ')}</small></span>{entry.done && <Check size={16} aria-label="Concluído" />}</button></li>; })}</ul> : <p className="today-empty">Nada marcado para hoje. Um bom dia para avançar no que importa.</p>}
+              {agendaToday.length > 5 && <button type="button" className="text-button" onClick={() => { setAgendaDate(today); navigate('agenda'); }}>Mais {agendaToday.length - 5} hoje na agenda <ArrowRight size={13} aria-hidden="true" /></button>}
+            </section>
+
+            {alerts.length > 0 && <section className="panel today-alerts" aria-labelledby="today-alerts-title">
+              <h2 id="today-alerts-title">Atenção</h2>
+              <ul>{alerts.map((alert) => <li key={alert.id} className={alert.tone}><button type="button" onClick={() => openAlert(alert)}><span className="today-alert-dot" aria-hidden="true" /><span>{alert.text}</span><ArrowRight size={14} aria-hidden="true" /></button></li>)}</ul>
+            </section>}
+
             {/* 4 BENTO METRIC CARDS (BROKER SAAS STYLE) */}
             <div className="bento-metric-row">
               <button type="button" className="bento-metric-card" onClick={() => navigate('focus')}>
@@ -550,48 +572,24 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 <span className="metric-value">{active.length}</span>
                 <span className="metric-sub metric-clamp" title={active.map((item) => item.name).join(' · ') || undefined}>{studiesNames ? [studiesNames, studiesMore].filter(Boolean).join(' ') : courses.length ? 'Nenhum curso em andamento' : 'Cadastre seu primeiro curso'}</span>
               </button>
-              <button type="button" className="bento-metric-card" onClick={() => navigate('notes')}>
+              <button type="button" className="bento-metric-card" onClick={openInbox}>
                 <span className="metric-header">
                   <span className="metric-icon sand"><FileText size={18} aria-hidden="true" /></span>
                   <span className="metric-label">Captura Rápida</span><ArrowRight className="metric-go" size={14} aria-hidden="true" />
                 </span>
-                <span className="metric-value">{data.notes.filter((n) => !n.areaId && !n.subjectId).length}</span>
+                <span className="metric-value">{loose.length}</span>
                 <span className="metric-sub">Ideias para triagem</span>
               </button>
             </div>
 
-            {/* ANOTA AQUI · QUICK CAPTURE WIDGET */}
-            <QuickCaptureWidget
-              data={data}
-              blocked={blocked}
-              update={update}
-              status={status}
-              cloud={mode === 'cloud'}
-              demo={demo}
-              ensureSaved={ensureSaved}
-              onOpen={(id) => {
-                setSelectedNote(id);
-                setSubjectFilter('');
-                setBookFilter('');
-                setAreaFilter('');
-                navigate('notes');
-              }}
-            />
+            {loose.length > 0 && <section className="panel today-loose" aria-labelledby="today-loose-title">
+              <div className="section-heading"><h2 id="today-loose-title">Para organizar ({loose.length})</h2><button type="button" className="text-button" onClick={openInbox}>Ver todos <ArrowRight size={13} aria-hidden="true" /></button></div>
+              <div className="unorganized-chips-grid">{loose.slice(0, 3).map((note) => <div key={note.id} className="unorganized-chip-card"><div className="chip-content"><strong>{note.title || 'Sem título'}</strong><small>{new Date(note.updatedAt).toLocaleDateString('pt-BR')}</small></div><button type="button" className="chip-organize-btn" aria-label={`Abrir e organizar: ${note.title || 'Sem título'}`} onClick={() => openNote(note.id)}>Abrir e organizar</button></div>)}</div>
+            </section>}
 
             {/* DASHBOARD SPLIT GRID */}
             <div className="dashboard-grid">
               <div className="dashboard-primary">
-                {/* PRIORIDADES */}
-                <section className="panel priorities">
-                  <div className="section-heading">
-                    <div><h2>Um passo de cada vez</h2><p>Até três prioridades. O resto pode esperar.</p></div>
-                    <button className="icon-button" aria-label="Adicionar tarefa" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={18} aria-hidden="true" /></button>
-                  </div>
-                  <ul className="task-list" role="list">{priorities.map(taskRow)}{dueToday.filter((task) => task.done).slice(0, 1).map(taskRow)}</ul>
-                  {!priorities.length && !doneToday && <div className="empty-inline"><CheckCheck size={22} aria-hidden="true" /><p>Nenhuma prioridade pendente por aqui.<br /><button className="text-button" onClick={() => openForm({ kind: 'task' })}>Escolher meu próximo passo</button></p></div>}
-                  <div className="panel-footer"><span>{pending.length} {pending.length === 1 ? 'tarefa pendente' : 'tarefas pendentes'} no seu espaço</span><button className="text-button" onClick={() => navigate('agenda')}>Ver minha agenda <ArrowRight size={13} aria-hidden="true" /></button></div>
-                </section>
-
                 {/* STUDY PLANNER COMPACT */}
                 <StudyPlanner data={data} update={update} blocked={blocked} compact onAgenda={() => navigate('agenda')} />
 
@@ -630,11 +628,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 </section>
 
 
-                {/* PROGRESS RING */}
-                <section className="panel daily-progress">
-                  <span className="progress-ring" style={{ '--progress': `${progress}%` } as React.CSSProperties}><span>{progress}%</span></span>
-                  <div><h2>Ritmo do dia</h2><p>{doneToday ? `${doneToday} ${doneToday === 1 ? 'passo concluído' : 'passos concluídos'} hoje. Bom trabalho!` : 'Seu progresso começa com uma pequena escolha.'}</p></div>
-                </section>
+
               </aside>
             </div>
           </>}
