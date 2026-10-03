@@ -4,6 +4,7 @@ import { BrainCircuit, CheckCircle2, KeyRound, ListChecks, Plug, PlugZap } from 
 import { aiCatalog, aiTaskLabels, type AiAdminState, type AiProviderId, type AiTaskId } from '@/lib/ai/catalog';
 import { autoCapable, autoModes, isAuto, modelNote, type AutoMode } from '@/lib/ai/models';
 import { api } from './client';
+import { UsageSettings } from './usage-settings';
 
 type Provider = AiAdminState['providers'][number];
 type Task = AiAdminState['tasks'][number];
@@ -82,6 +83,8 @@ export function AiSettings() {
     <div className="section-heading"><h2 id="ai-settings-title"><BrainCircuit size={16} aria-hidden="true" /> Inteligência artificial</h2><span className="muted small">Só a sua conta de proprietário vê e altera</span></div>
     <p className={state.secretReady ? 'ai-status ok' : 'ai-status'}>{state.secretReady ? <><CheckCircle2 size={15} aria-hidden="true" /> Cofre de chaves pronto: as chaves ficam cifradas e nunca voltam para a tela.</> : <><KeyRound size={15} aria-hidden="true" /> Falta o segredo do cofre de chaves no servidor (AI_KEYS_SECRET).</>}</p>
     {message && <p className="cm-message" role="status">{message}</p>}
+
+    <UsageSettings />
 
     <h3><ListChecks size={15} aria-hidden="true" /> Tarefas</h3>
     <div className="ai-grid">{state.tasks.map(task => <TaskForm key={`${task.id}-${task.updated_at}`} task={task} providers={state.providers} models={models} loading={loadingModels}

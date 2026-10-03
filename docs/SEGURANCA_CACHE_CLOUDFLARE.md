@@ -25,7 +25,15 @@ Migração `20261003185709_jornada_request_limits.sql`, aplicada ao projeto corr
 | Preparação de upload pelo site | 20 pedidos | 100 pedidos |
 | Mídia transferida pela rota do site | 100 MiB | 1 GiB |
 
-Reabrir uma cópia validada com 304 não consome a cota de bytes. Um download iniciado reserva o trecho inteiro; encerrar antes não devolve a reserva. Ao exceder um limite, a API retorna 429 com Retry-After. Os limites protegem as rotas do aplicativo e não são um limite financeiro global: acesso direto autorizado ao Storage, contas adicionais, chamadas já abertas, Telegram e tráfego sem autenticação precisam de controles próprios. Ajustar limites com evidência de uso real e configurar alertas de gasto nos provedores é a próxima etapa.
+Reabrir uma cópia validada com 304 não consome a cota de bytes. Um download iniciado reserva o trecho inteiro; encerrar antes não devolve a reserva. Ao exceder um limite, a API retorna 429 com Retry-After.
+
+### Limites compartilhados e consumo visível
+
+A migração `20261003215642_jornada_global_budgets.sql` acrescenta reservas compartilhadas entre contas: mídia de 4 GB, 6.000 pedidos lógicos de IA, 300 novas chamadas e 1.000 preparações de upload nos últimos 31 dias, além dos limites por minuto/dia. Pedidos de IA e fotos no Telegram participam dos mesmos contadores e da cota da conta vinculada. O banco reserva as cotas individual e compartilhada na mesma transação curta; negativas não gastam nenhuma das duas. Somente o servidor, com prova verificada, admite consumo compartilhado; clientes autenticados não podem zerar contadores, escolher outra conta ou consumir a cota compartilhada diretamente pela RPC antiga.
+
+O verificador da aplicação é independente da configuração do Telegram. Apenas o proprietário pode estabelecê-lo/rotacioná-lo, usando o hash derivado pelo servidor. Em **Administração → Inteligência artificial → Consumo e proteção**, o proprietário vê agregados e avisos a partir de 75%/90%, com atualização manual. Não há polling nem notificação por e-mail nesta etapa. Áudio e vídeo do caderno usam `preload="none"` para adiar transferência até reproduzir.
+
+Os limites protegem reservas das rotas do aplicativo e não são o egress total nem um teto financeiro dos provedores. Acesso direto autorizado ao Storage, chamadas já abertas, múltiplas tentativas de modelo dentro do mesmo pedido, dados do banco/Auth, Storage acumulado e tráfego sem autenticação ainda têm consumo próprio. Os contadores novos começam na ativação, sem importar gastos anteriores. Detalhes e decisões de tecnologia estão em [OTIMIZACAO_CONSUMO_2026-10-03.md](./OTIMIZACAO_CONSUMO_2026-10-03.md).
 
 ### Fotos, comandos e arquivos
 
@@ -57,7 +65,7 @@ DNS only oferece o serviço de DNS; o proxy é necessário para aplicar as prote
 ## Fila de segurança após a publicação da voz
 
 1. **Scanner de anexos:** quarentena privada, detecção completa/reprocessamento de imagens, status limpo/rejeitado, liberação só após inspeção. Avaliar serviço/região, custo e privacidade antes de enviar arquivos pessoais a terceiros.
-2. **Limites dos canais externos e armazenamento:** orçamento por conta vinculada no Telegram/WhatsApp, limite acumulado de Storage e eventos idempotentes. Limites na aplicação não impedem todo acesso direto à infraestrutura.
+2. **Limites dos canais externos e armazenamento:** Telegram já compartilha a cota da conta vinculada e a reserva global. Ainda faltam orçamento do WhatsApp, limite acumulado de Storage e medição das tentativas/minutos/tokens reais. Limites na aplicação não impedem todo acesso direto à infraestrutura.
 3. **Proteção de ações e memória:** testes adversariais com documentos/notas antigas, plano comparado com pedido autorizado, escopos específicos para futuras integrações e revisão de memórias com fonte. A leitura isolada de fotos é a primeira etapa.
 4. **Backup e restauração:** conferir recursos disponíveis no plano, exportação separada, retenção e testar recuperação em ambiente isolado. Proteção contra destruição também depende de conseguir restaurar; não há restauração comprovada nesta etapa.
 5. **WAF e custos:** regras graduais, alertas de gasto/egress e acompanhamento dos resultados. Auditoria atual da CLI encontrou zero regras próprias e nenhum rascunho no projeto Vercel. DDoS da plataforma não equivale a todas as proteções da aplicação.
@@ -66,6 +74,6 @@ O advisor Supabase continua apontando as funções de bot com autorização por 
 
 ## Verificação
 
-Testes de mídia cobrem 304 sem novo download, outra conta, versão nova, ranges, arquivo falso, tamanho e limites de transferência. Teste de foto força retorno de uma ação válida do modelo e confere que nenhuma chega ao executor. SQL com rollback verifica limites minuto/dia, unidades negativas/zero, conta inexistente e impossibilidade de zerar a cota como usuário. Gates de produção verificam bloqueio anônimo inclusive antes de 304.
+Testes de mídia cobrem 304 sem novo download, outra conta, versão nova, ranges, arquivo falso, tamanho e limites de transferência. Teste de foto força retorno de uma ação válida do modelo e confere que nenhuma chega ao executor. SQL com rollback verifica limites individuais/compartilhados, janela de 31 dias, bytes acima de int32, autorização do servidor, painel exclusivo do proprietário e bot vinculado. CI também verifica concorrência real: 20 pedidos simultâneos de duas contas disputando cinco vagas. Gates de produção verificam bloqueio anônimo inclusive antes de 304; o teste do caderno confere que abrir/reabrir mídia não inicia download de áudio/vídeo.
 
 Ainda testar no aparelho: abrir a mesma nota duas vezes e conferir mídia; reproduzir e avançar áudio/vídeo; sair/trocar conta; testar chamada real. Medir downloads e volume nas duas hospedagens para confirmar economia, antes de aumentar uso público.

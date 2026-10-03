@@ -12,6 +12,7 @@ import { applyCommands, commandContext, commandSystem, executionSummary, parseCo
 import { demoRequested } from '@/lib/config';
 import { botDatabase } from '@/lib/supabase/bot';
 import { CURRENT_EDITOR_GENERATION, parseWorkspace, type Workspace } from '@/lib/workspace';
+import { budgetPausedMessage } from '@/lib/usage';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -73,6 +74,13 @@ export async function POST(request: Request) {
   const claimed = await db.rpc('bot_log', { server_secret: serverSecret, channel_id: CHANNEL, chat, update_ref: String(update.update_id),
     message_role: 'user', message_body: intent.kind === 'text' && intent.text ? intent.text : photo ? '[foto enviada]' : '[mensagem de voz]', message_applied: null });
   if (!claimed.data) return ok();
+  const reserve = async (scope: 'ai' | 'upload') => {
+    const { data, error } = await db.rpc('bot_consume_jornada_budget', { server_secret: serverSecret, channel_id: CHANNEL, chat, budget_scope: scope });
+    if (!error && data?.allowed === true) return true;
+    await say(error ? 'Não consegui verificar o limite de uso agora. Tente novamente mais tarde.'
+      : data?.limited_by === 'application' ? budgetPausedMessage : 'Você chegou ao limite temporário de uso. Tente novamente mais tarde.');
+    return false;
+  };
   void sendTyping(token, chat);
 
   const today = todayIn();
@@ -87,6 +95,7 @@ export async function POST(request: Request) {
   let revision = context.workspace?.revision ?? 0;
   let image: AiImage | undefined, photoNoteId = '';
   if (photo) {
+    if (!await reserve('upload')) return ok();
     try {
       const attachment = await storeTelegramPhoto(await downloadFile(token, photo.file_id), serverSecret, chat, update.update_id, (message.caption || '').slice(0, 2000));
       const append = (previous: Workspace) => ({ ...previous, notes: previous.notes.some(note => note.id === attachment.note.id) ? previous.notes : [attachment.note, ...previous.notes] });
@@ -119,11 +128,13 @@ export async function POST(request: Request) {
     let heard = '';
     if (voice) {
       if (voice.duration > 240) { await say('Áudio longo demais: mande mensagens de voz de até 4 minutos.'); return ok(); }
+      if (!await reserve('ai')) return ok();
       const audio = { mimeType: voice.mime_type || 'audio/ogg', base64: await downloadFile(token, voice.file_id) };
       heard = (await generateResilient(config, { system: 'Transcreva fielmente o áudio, em português do Brasil. Devolva só o texto falado, sem comentários.', prompt: 'Transcreva este áudio.', audio, maxTokens: 800 })).text.trim();
       said = [said, heard].filter(Boolean).join('\n');
       if (!said) { await say('Não consegui entender o áudio. Pode repetir ou escrever?'); return ok(); }
     }
+    if (!await reserve('ai')) { if (photoNoteId) await say('A foto original está guardada em Para organizar; a leitura poderá ser feita depois.'); return ok(); }
     const raw = (await generateResilient(config, { system: photo ? imageReviewSystem : `${commandSystem}\n\nA conversa acontece pelo Telegram.\n\nContexto da pessoa:\n${commandContext(workspace, today)}`,
       prompt: said || 'Leia a foto, descreva os dados legíveis e pergunte o que quero organizar.', history: photo ? [] : context.history.slice(-12), image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(40_000) })).text;
     const result = photo ? imageReview(raw) : parseCommand(raw);

@@ -67,6 +67,7 @@ jobs:
             createdb "$db"
             psql -d "$db" -v ON_ERROR_STOP=1 -q -f "$test"
           done
+          node tests/sql/budget-concurrency.mjs
 
       - name: Verificar bloqueios de produção
         run: npm run test:gate
