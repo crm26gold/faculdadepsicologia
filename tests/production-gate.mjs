@@ -101,7 +101,7 @@ for (const scenario of cases) {
     const media = await request('/api/note-media/11111111-1111-4111-8111-111111111111.png', { headers: { 'If-None-Match': '*' } });
     assert.equal(media.status, demoRequested ? 404 : 401, 'Mídia em cache exige autenticação antes de responder 304');
     assert.match(media.headers.get('cache-control') ?? '', /no-store/);
-    for (const path of ['/api/conversations', '/api/assistant/jobs']) {
+    for (const path of ['/api/conversations', '/api/assistant/jobs', '/api/admin/usage']) {
       const response = await request(path);
       assert.equal(response.status, demoRequested ? 404 : 401, `${path} exige uma conta autenticada`);
       assert.match(response.headers.get('cache-control') ?? '', /no-store/);

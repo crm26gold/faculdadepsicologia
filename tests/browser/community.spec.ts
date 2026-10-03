@@ -72,7 +72,7 @@ const admin = {
 };
 
 type Posted = { url: string; body: Record<string, unknown> };
-async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown } = {}) {
+async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown; usage?: unknown } = {}) {
   const posted: Posted[] = [];
   let home = options.home ?? homeFixture();
   const conversations = new Map<string, Record<string, unknown>>();
@@ -108,6 +108,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
     if (url.pathname === '/api/work') return json(route, { ok: true, data: detail });
     if (url.pathname === '/api/admin') return json(route, { ok: true, data: admin });
     if (url.pathname === '/api/ai/admin' && options.ai) return json(route, { ok: true, data: options.ai });
+    if (url.pathname === '/api/admin/usage' && options.usage) return json(route, { ok: true, data: options.usage });
     return json(route, { error: 'não simulado' }, 404);
   });
   return posted;
@@ -279,11 +280,19 @@ test('conectado no celular, a barra tem o Registrar no centro e o primeiro curso
 test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa e teste de conexão', async ({ page }) => {
   const providers = ['anthropic', 'compatible', 'gemini', 'openai', 'vertex'].map(id => ({ id, enabled: id === 'gemini', label: '', base_url: '', gcp_project: '', gcp_location: '', has_key: id === 'gemini', key_hint: id === 'gemini' ? 'abcd' : '', updated_at: '2026-10-01T12:00:00Z' }));
   const ai = { secretReady: true, providers, tasks: [{ id: 'assistente', provider: 'gemini', model: 'modelo-teste', enabled: true, updated_at: '' }, { id: 'organizar', provider: null, model: '', enabled: false, updated_at: '' }] };
-  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, onPost: post => post.body.action === 'test' ? { text: 'Conexão funcionou', ms: 820, model: 'modelo-teste' } : post.body.action === 'models' ? { ids: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], auto: { 'auto:melhor': 'gemini-3.8-flash', 'auto:rapido': 'gemini-3.8-flash', 'auto:economico': 'gemini-3.5-flash-lite' } } : null });
+  const usage = { window_days: 31, day_resets_at: '2026-10-04T00:00:00Z', items: [{ scope: 'media', day_used: 0, day_limit: 300000000, window_used: 3100000000, window_limit: 4000000000, observed_since: '2026-10-03T00:00:00Z', level: 'warning' }] };
+  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, usage, onPost: post => post.body.action === 'test' ? { text: 'Conexão funcionou', ms: 820, model: 'modelo-teste' } : post.body.action === 'models' ? { ids: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], auto: { 'auto:melhor': 'gemini-3.8-flash', 'auto:rapido': 'gemini-3.8-flash', 'auto:economico': 'gemini-3.5-flash-lite' } } : null });
   await page.goto('/');
   await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Inteligência artificial' });
   await expect(panel.getByText(/Cofre de chaves pronto/)).toBeVisible();
+  const consumption = panel.getByRole('region', { name: 'Consumo e proteção' });
+  await expect(consumption.getByText('Atenção: consumo acima de 75%')).toBeVisible();
+  await expect(consumption.getByText('Últimos 31 dias: 3,1 GB de 4 GB')).toBeVisible();
+  usage.items[0].window_used = 4000000000; usage.items[0].level = 'blocked';
+  await consumption.getByRole('button', { name: 'Atualizar consumo' }).click();
+  await expect(consumption.getByText('Limite atingido: função pausada')).toBeVisible();
+  await expect(consumption.getByText(/Não é a fatura dos provedores/)).toBeVisible();
   const gemini = panel.locator('form').filter({ hasText: 'Google Gemini (AI Studio)' }).filter({ hasText: 'aistudio' });
   await expect(gemini.getByText(/chave …abcd/)).toBeVisible();
   await gemini.getByRole('button', { name: 'Ver modelos' }).click();
@@ -305,6 +314,10 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   await task.getByRole('button', { name: 'Salvar' }).click();
   await expect.poll(() => posted.find(item => item.body.action === 'save_task')?.body).toMatchObject({ task: 'assistente', provider: 'gemini', model: 'gemini-3.5-flash-lite' });
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await consumption.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: 'test-results/usage-mobile.png', fullPage: true });
 });
 
 test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Para organizar', async ({ page }) => {

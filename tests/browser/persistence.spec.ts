@@ -192,9 +192,11 @@ test('áreas e cadernos pessoais organizam notas e agenda sem exigir matéria', 
 
 test('caderno completo preserva mídia, marcas e correções manuais ao reabrir', async ({ page }) => {
   const errors: string[] = [];
+  const mediaDownloads: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
+  page.on('request', request => { if (/\/api\/note-media\/.*\.(mp3|webm)/.test(request.url())) mediaDownloads.push(request.url()); });
   const media = '/api/note-media/11111111-1111-4111-8111-111111111111';
-  const raw = JSON.stringify({ version: 1, subjects: [], tasks: [], sessions: [], notes: [{ id: 'editor-test', title: 'Caderno de teste', subjectId: '', content: `<p><strong>imbigo</strong> para revisar.</p><p><span style="color: #123456; font-size: 24px">Texto colorido</span></p><img src="${media}.png" alt="Lousa de teste" width="75%"><audio src="${media}.mp3" title="Áudio de teste" controls></audio>`, updatedAt: '2026-09-22T12:00:00Z' }] });
+  const raw = JSON.stringify({ version: 1, subjects: [], tasks: [], sessions: [], notes: [{ id: 'editor-test', title: 'Caderno de teste', subjectId: '', content: `<p><strong>imbigo</strong> para revisar.</p><p><span style="color: #123456; font-size: 24px">Texto colorido</span></p><img src="${media}.png" alt="Lousa de teste" width="75%"><audio src="${media}.mp3" title="Áudio de teste" controls></audio><video src="${media}.webm" title="Vídeo de teste" controls></video>`, updatedAt: '2026-09-22T12:00:00Z' }] });
   await page.route('**/api/note-media/*.png', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64') }));
   await page.addInitScript(value => { if (!localStorage.getItem('faculdade-psi:personal:v1')) localStorage.setItem('faculdade-psi:personal:v1', value); }, raw);
   await page.goto('/');
@@ -228,6 +230,8 @@ test('caderno completo preserva mídia, marcas e correções manuais ao reabrir'
   await expect(editor.locator('strong')).toHaveText('umbigo');
   await expect(editor.locator('img')).toHaveAttribute('src', `${media}.png`);
   await expect(editor.locator('audio')).toHaveAttribute('controls', '');
+  await expect(editor.locator('video')).toHaveAttribute('controls', '');
+  expect(mediaDownloads).toEqual([]); // Opening and editing a note must not download its recordings.
   await expect(editor.locator('a')).toHaveAttribute('href', 'https://example.com/aula');
   await expect(editor.locator('table')).toHaveCount(1);
   await expect(editor).toHaveCSS('font-size', '18px');

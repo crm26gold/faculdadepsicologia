@@ -45,5 +45,5 @@ export const NoteVideo = Node.create({
     title: { default: 'Vídeo da anotação' },
   }; },
   parseHTML() { return [{ tag: 'video[src]', getAttrs: el => safeMediaSource((el as HTMLElement).getAttribute('src')) ? {} : false }]; },
-  renderHTML({ node }) { return ['video', { src: safeMediaSource(node.attrs.src), title: node.attrs.title, 'aria-label': node.attrs.title, controls: '', playsinline: '', preload: 'metadata', class: 'note-inline-video', contenteditable: 'false' }]; },
+  renderHTML({ node }) { return ['video', { src: safeMediaSource(node.attrs.src), title: node.attrs.title, 'aria-label': node.attrs.title, controls: '', playsinline: '', preload: 'none', class: 'note-inline-video', contenteditable: 'false' }]; },
 });

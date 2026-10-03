@@ -218,4 +218,6 @@ select expect(bot_unlink('segredo-do-servidor-com-mais-de-32-caracteres', 'teleg
 select expect(bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555') is null, 'depois de desvincular não vê nada');
 reset role;
 \ir ../../tests/sql/workspace-conflicts.sql
+\ir ../../tests/sql/jornada-request-limits.sql
+\ir ../../tests/sql/jornada-global-budgets.sql
 \echo 'OK: funções da aplicação passaram.'
