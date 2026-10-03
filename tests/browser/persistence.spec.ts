@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+// Calendar day in Brazil (the browser runs in America/Sao_Paulo; CI runs in UTC, which is already tomorrow after 21h).
+const spDay = (offset = 0) => { const base = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()); const date = new Date(`${base}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 
 test('edição do workspace preserva metas e projetos após recarregar', async ({ page }) => {
   const data = { version: 1, editorGeneration: 5, subjects: [], tasks: [], sessions: [],
@@ -1234,7 +1236,7 @@ test('meu dia mostra o dia, as semanas do mês, a agenda de hoje e os avisos sem
 });
 
 test('finanças: saldo inicial, parcelas agrupadas, projeção, aviso do Meu dia e "Paguei"', async ({ page }) => {
-  const day = (offset: number) => { const date = new Date(); date.setDate(date.getDate() + offset); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; };
+  const day = spDay;
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/#finances');
   await expect(page.getByRole('heading', { name: 'Quanto você tem hoje?' })).toBeVisible();

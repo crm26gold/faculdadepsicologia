@@ -1,5 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+// Calendar day in Brazil (the browser runs in America/Sao_Paulo; CI runs in UTC, which is already tomorrow after 21h).
+const spDay = (offset = 0) => { const base = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()); const date = new Date(`${base}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 
 // Telas conectadas com dados fictícios: as rotas /api são simuladas no navegador.
 // As permissões reais são testadas no banco (supabase/tests); aqui validamos a interface.
@@ -89,7 +91,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
       return json(route, { data: { version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} }, revision: 1 });
     }
     if (url.pathname === '/api/me') return json(route, { ok: true, data: home });
-    if (url.pathname === '/api/contacts') return json(route, { ok: true, data: [{ id: 'c1', name: 'Amiga da turma', email: '', phone: '', birthdate: `2000-${new Date().toISOString().slice(5, 10)}`, notes: '', created_at: '' }] });
+    if (url.pathname === '/api/contacts') return json(route, { ok: true, data: [{ id: 'c1', name: 'Amiga da turma', email: '', phone: '', birthdate: `2000-${spDay().slice(5, 10)}`, notes: '', created_at: '' }] });
     if (url.pathname === '/api/spaces') return json(route, { ok: true, data: groupOverview });
     if (url.pathname === '/api/work') return json(route, { ok: true, data: detail });
     if (url.pathname === '/api/admin') return json(route, { ok: true, data: admin });
@@ -294,12 +296,12 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
 });
 
 test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Para organizar', async ({ page }) => {
-  const tomorrow = (() => { const date = new Date(); date.setDate(date.getDate() + 1); return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`; })();
+  const tomorrow = spDay(1);
   let configured = true;
   const posted = await mockApi(page, { onPost: post => post.url === '/api/ai/command' ? (configured
     ? { configured: true, model: 'gemini-3.8-flash', reply: 'Pronto: dentista amanhã às 15h e o mercado anotado.', actions: [
       { type: 'compromisso', title: 'Dentista', date: tomorrow, time: '15:00', kind: 'Consulta', area: 'Saúde física' },
-      { type: 'financeiro', flow: 'expense', description: 'Mercado', amount: 32, category: 'Alimentação', date: new Date().toISOString().slice(0, 10) }] }
+      { type: 'financeiro', flow: 'expense', description: 'Mercado', amount: 32, category: 'Alimentação', date: spDay() }] }
     : { configured: false }) : null });
   const saves: { data: { tasks: { title: string }[]; transactions?: { description: string }[] } }[] = [];
   page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith('/api/workspace')) saves.push(request.postDataJSON()); });
