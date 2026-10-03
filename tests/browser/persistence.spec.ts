@@ -220,6 +220,8 @@ test('caderno completo preserva mídia, marcas e correções manuais ao reabrir'
   await page.getByRole('button', { name: 'Tabela', exact: true }).click();
   await expect(editor.locator('table')).toHaveCount(1);
   await page.getByLabel('Título da anotação', { exact: true }).fill('Caderno revisado');
+  // A completed fill is not a persistence acknowledgment. Assert the saved record before reloading.
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1') ?? '{}').notes?.find((item: { id: string }) => item.id === 'editor-test')?.title)).toBe('Caderno revisado');
   await page.reload();
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Caderno', exact: true }).click();
   await page.getByRole('button', { name: new RegExp('^Caderno revisado') }).first().click();
