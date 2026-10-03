@@ -15,6 +15,8 @@ export default defineConfig({
       { name: 'private', testMatch: /login\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3005' } },
       { name: 'local-data', testMatch: /persistence\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3006' } },
       { name: 'community', testMatch: /community\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3007' } },
+      { name: 'voice-desktop', testMatch: /voice\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3007', viewport: { width: 1366, height: 1000 }, permissions: ['microphone'], launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] } } },
+      { name: 'voice-android', testMatch: /voice\.spec\.ts/, use: { ...devices['Pixel 7'], baseURL: 'http://127.0.0.1:3007', permissions: ['microphone'], launchOptions: { args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream'] } } },
     ] : []),
   ],
   webServer: process.env.PLAYWRIGHT_BASE_URL ? undefined : [

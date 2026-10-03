@@ -1,14 +1,19 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
+import { z } from 'zod';
 import { ArrowRight, AudioLines, Check, History, MessageSquarePlus, Mic, Paperclip, RotateCcw, Send, Square, Trash2, Undo2, X } from 'lucide-react';
 import { validMedia } from '@/lib/note-media';
 import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
 import { dateKey, type Workspace } from '@/lib/workspace';
-import { applyCommands, commandContext, undoApplied, type Applied, type CommandAction } from '@/lib/commands';
+import { commandContext, type Applied, type CommandAction } from '@/lib/commands';
+import { confirmationIntent, queryWorkspace } from '@/lib/assistant-query';
+import type { LiveCredentials, VoiceTool, VoiceTranscript } from '@/lib/voice/protocol';
 import { Modal } from './modal';
+import { VoiceCall } from './voice-call';
+import { useAssistantExecutor, type Execution } from './use-assistant-executor';
 
-export type AssistantMessage = { id: string; from: 'me' | 'assistant'; text: string; noteId?: string; applied?: Applied[]; retry?: string };
+export type AssistantMessage = { id: string; from: 'me' | 'assistant'; text: string; noteId?: string; applied?: Applied[]; retry?: string; saved?: boolean };
 // Past conversations stay on this device only (the AI provider sees each message when it is sent; nothing is kept on our servers).
 const ARCHIVE_KEY = 'jornada-assistente-historico';
 type Archived = { id: string; title: string; updatedAt: string; messages: AssistantMessage[] };
@@ -88,7 +93,7 @@ export function AssistantBubble({ onOpen, onHide, persist }: { onOpen: () => voi
   const style = drag ? { left: drag.x - 28, top: drag.y - 28 } : position.side === 'left' ? { left: 18, top: position.top } : { right: 18, top: position.top };
   return <div className={`assistant-dock side-${drag ? (drag.x < window.innerWidth / 2 ? 'left' : 'right') : position.side} ${intro ? 'introducing' : ''} ${drag ? 'dragging' : ''}`} style={style}>
     {intro && <div className={`assistant-intro${position.top < window.innerHeight / 2 ? ' below' : ''}`} role="status">
-      <p><strong>Oi! Eu sou o assistente da Jornada Plena.</strong> Fale ou escreva o que precisa: uma ideia, um compromisso, uma foto da lousa. Eu guardo em Para organizar e, em breve, vou organizar tudo sozinho.</p>
+      <p><strong>Oi! Eu sou o assistente da Jornada Plena.</strong> Fale ou escreva o que precisa. Podemos conversar por voz, organizar sua agenda, cuidar dos registros e planejar seus próximos passos.</p>
       <button type="button" className="button primary" onClick={introDone}>Entendi</button>
     </div>}
     <button type="button" className={`assistant-bubble ${drag ? 'dragging' : ''}`} aria-label="Abrir assistente"
@@ -117,13 +122,17 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [listening, setListening] = useState(false);
-  const [talking, setTalking] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
   const [heard, setHeard] = useState('');
   const [problem, setProblem] = useState('');
   const [ai, setAi] = useState<{ ready: boolean; model?: string } | null>(null);
   const [history, setHistory] = useState<Archived[] | null>(null);
-  function stopVoice() { conversation.current = false; setTalking(false); try { recognizer.current?.stop(); } catch {} window.speechSynthesis?.cancel(); setSpeaking(false); }
+  function stopVoice() {
+    const active = recognizer.current;
+    if (active) { active.onend = null; active.onresult = null; active.onerror = null; try { active.stop(); } catch {} }
+    recognizer.current = null; setListening(false); setHeard(''); window.speechSynthesis?.cancel(); setSpeaking(false); setCallOpen(false);
+  }
   // "Nova conversa" archives the current one instead of throwing it away.
   function archiveCurrent() {
     if (demo || !messages.length) return readArchive();
@@ -131,30 +140,31 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
     writeArchive(list);
     return list;
   }
-  function startNew() { stopVoice(); const list = archiveCurrent(); setMessages(() => []); if (history) setHistory(list); }
+  function startNew() { stopVoice(); executor.reset(); const list = archiveCurrent(); setMessages(() => []); if (history) setHistory(list); }
   function reopen(item: Archived) {
-    stopVoice();
+    stopVoice(); executor.reset(item.messages.toReversed().find(message => message.applied?.length)?.applied);
     const list = [...(messages.length ? [{ id: crypto.randomUUID(), title: conversationTitle(messages), updatedAt: new Date().toISOString(), messages }] : []), ...readArchive().filter(entry => entry.id !== item.id)];
     writeArchive(list); setMessages(() => item.messages); setHistory(null);
   }
   function forget(id: string) { const list = readArchive().filter(entry => entry.id !== id); writeArchive(list); setHistory(list); }
   const recognizer = useRef<Recognition | null>(null);
-  const conversation = useRef(false);
   const list = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const draft = useRef<CaptureDraft>({ id: '', src: '' });
   const latest = useRef(data);
-  useEffect(() => { latest.current = data; }, [data]);
-  const [voice] = useState(() => !!recognition());
-  useEffect(() => () => { conversation.current = false; try { recognizer.current?.stop(); } catch {} window.speechSynthesis?.cancel(); }, []);
+  latest.current = data;
+  const currentMessages = useRef(messages); currentMessages.current = messages;
+  const executor = useAssistantExecutor({ data, blocked, update, ensureSaved });
+  const [voice, setVoice] = useState(false);
+  useEffect(() => { setVoice(!!recognition()); return () => { if (recognizer.current) { recognizer.current.onend = null; try { recognizer.current.stop(); } catch {} } window.speechSynthesis?.cancel(); }; }, []);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [messages, heard]);
 
-  // Speaks the answer; in conversation mode, listening starts again only after the voice finishes.
+  // A short spoken answer remains available for dictation. Live calls own their native audio.
   function speak(value: string) {
-    if (!('speechSynthesis' in window) || !value) { if (conversation.current) listen(); return; }
+    if (!('speechSynthesis' in window) || !value) return;
     const utterance = new SpeechSynthesisUtterance(value);
     utterance.lang = 'pt-BR';
-    const next = () => { setSpeaking(false); if (conversation.current) listen(); };
+    const next = () => setSpeaking(false);
     utterance.onend = next; utterance.onerror = next;
     window.speechSynthesis.cancel(); setSpeaking(true); window.speechSynthesis.speak(utterance);
   }
@@ -171,18 +181,23 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   }
   async function send(value: string, spoken = false) {
     const said = value.trim();
-    if ((!said && !file) || blocked || busy) return;
+    if ((!said && !file) || blocked || busy || executor.executing || callOpen) return;
     setBusy(true); setProblem('');
     const id = crypto.randomUUID();
     setMessages(previous => [...previous, { id: `${id}:eu`, from: 'me', text: said || `Anexo: ${file!.name}` }]);
     setText('');
     let voiceAnswer = '';
     try {
+      if (executor.pending.length && !file) {
+        const intent = confirmationIntent(said);
+        if (intent === 'cancel') { executor.cancel(); voiceAnswer = 'Alteração cancelada. Nenhum item pendente foi removido.'; setMessages(previous => [...previous, { id, from: 'assistant', text: voiceAnswer }]); return; }
+        if (intent === 'confirm') { const done = await executor.confirm({ text: said, startedAt: Date.now() }); recordExecution(id, done); voiceAnswer = done.reply; return; }
+      }
       let result: CommandReply = { configured: false };
       if (cloud && said && !file) {
         // The last exchanges go along, so "e aquela de ontem?" or "muda para as 16h" make sense to the model.
-        const history = messages.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' as const : 'assistant' as const, text: item.text.slice(0, 3000) }));
-        try { result = await api<CommandReply>('/api/ai/command', { message: said, context: commandContext(latest.current, dateKey()), history }); }
+        const history = currentMessages.current.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' as const : 'assistant' as const, text: item.text.slice(0, 3000) }));
+        try { result = await api<CommandReply>('/api/ai/command', { message: said, context: commandContext(latest.current, dateKey(), 20_000, said), history }); }
         catch (error) {
           // A question must never turn into a note: offer to try again, and saving only if the person wants.
           setAi(previous => previous ?? { ready: true });
@@ -199,13 +214,8 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
         voiceAnswer = 'Não entendi bem. Pode dizer de outro jeito?';
         return;
       }
-      let outcome: ReturnType<typeof applyCommands> | null = null;
-      const saved = !actions.length || update(previous => { outcome = applyCommands(previous, actions, { today: dateKey(), now: Date.now() }); return outcome.data; });
-      const done = saved ? (outcome as ReturnType<typeof applyCommands> | null) : null;
-      const failed = !saved ? 'Não consegui salvar agora. Confira o aviso de salvamento.' : done?.failed.length ? `Não consegui: ${done.failed.join('; ')}.` : '';
-      const reply = [result.reply, failed].filter(Boolean).join(' ');
-      setMessages(previous => [...previous, { id, from: 'assistant', text: reply || 'Feito.', applied: done?.applied.length ? done.applied : undefined }]);
-      voiceAnswer = reply || 'Feito.';
+      if (actions.length) { const done = await executor.run(actions); recordExecution(id, done); voiceAnswer = done.reply; }
+      else { voiceAnswer = result.reply || 'Pode dizer de outro jeito?'; setMessages(previous => [...previous, { id, from: 'assistant', text: voiceAnswer }]); }
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'Não consegui agora. Confira o aviso de salvamento e tente de novo.');
     } finally {
@@ -213,13 +223,55 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
       if (spoken) speak(voiceAnswer);
     }
   }
-  function undo(message: AssistantMessage) {
+  function recordExecution(id: string, done: Execution) {
+    setMessages(previous => [...previous, { id, from: 'assistant', text: done.reply, saved: done.saved, applied: done.applied.length ? done.applied : undefined }]);
+  }
+  async function undo(message: AssistantMessage) {
     if (!message.applied?.length || blocked) return;
-    if (update(previous => undoApplied(previous, message.applied!))) setMessages(previous => previous.map(item => item.id === message.id ? { ...item, applied: undefined, text: `${item.text} (desfeito)` } : item));
+    try { await executor.undo(message.applied); setMessages(previous => previous.map(item => item.id === message.id ? { ...item, applied: undefined, text: `${item.text} (desfeito e salvo)` } : item)); }
+    catch (error) { setProblem(error instanceof Error ? error.message : 'Não consegui desfazer.'); }
+  }
+  async function confirmPending() {
+    const done = await executor.confirm(); recordExecution(crypto.randomUUID(), done); return done.reply;
+  }
+  async function voiceCredentials(signal: AbortSignal): Promise<LiveCredentials> {
+    const response = await fetch('/api/ai/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, body: JSON.stringify({
+      context: commandContext(executor.current(), dateKey()),
+      history: currentMessages.current.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' : 'assistant', text: item.text.slice(0, 2000) })),
+    }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Não consegui preparar a chamada.');
+    return result.data;
+  }
+  async function voiceTool(call: VoiceTool, signal: AbortSignal, transcript: VoiceTranscript) {
+    signal.throwIfAborted();
+    if (call.name === 'consultar_jornada') return queryWorkspace(executor.current(), call.args, dateKey());
+    if (call.name === 'cancelar_alteracao') { executor.cancel(); return { saved: true, reply: 'Alteração pendente cancelada.' }; }
+    if (call.name === 'desfazer_ultima_acao') {
+      const result = await executor.undo(); setMessages(previous => [...previous, { id: `voice-action:${call.id}`, from: 'assistant', text: result.reply }]); return result;
+    }
+    let done: Execution;
+    if (call.name === 'confirmar_alteracao') done = await executor.confirm(transcript, signal);
+    else if (call.name === 'organizar_jornada') {
+      const { instruction } = z.object({ instruction: z.string().trim().min(1).max(2000) }).parse(call.args);
+      const response = await fetch('/api/ai/command', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, body: JSON.stringify({
+        message: instruction, context: commandContext(executor.current(), dateKey(), 20_000, instruction),
+        history: currentMessages.current.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' : 'assistant', text: item.text.slice(0, 3000) })),
+      }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Não consegui organizar esse pedido.');
+      const answer = result.data as CommandReply;
+      if (!answer.configured) throw new Error('A tarefa do assistente foi desativada. Confira a configuração da IA.');
+      signal.throwIfAborted();
+      if (!answer.actions?.length) return { saved: true, applied: [], reply: answer.reply || 'Preciso de mais detalhes para executar.' };
+      done = await executor.run(answer.actions, signal);
+    } else throw new Error('Este comando de voz não está disponível.');
+    recordExecution(`voice-action:${call.id}`, done);
+    return { saved: done.saved, reply: done.reply, applied: done.applied.map(item => item.label), pending: done.pending.map(item => item.label), failed: done.failed };
   }
   function listen() {
     const recognize = recognition();
-    if (!recognize) { setProblem('Este navegador não reconhece fala. Escreva sua mensagem ou use o Áudio do Registro rápido.'); conversation.current = false; setTalking(false); return; }
+    if (!recognize) { setProblem('Este navegador não oferece ditado. Use a chamada ao vivo ou escreva sua mensagem.'); return; }
     recognize.lang = 'pt-BR'; recognize.interimResults = true; recognize.continuous = false;
     let final = '';
     recognize.onresult = event => {
@@ -231,36 +283,29 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
       setHeard(`${final} ${partial}`.trim());
     };
     recognize.onerror = event => {
-      if (event.error === 'no-speech' && conversation.current) return;
-      conversation.current = false; setTalking(false);
       setProblem(event.error === 'not-allowed' || event.error === 'service-not-allowed'
         ? 'O microfone não foi autorizado. Toque em Permitir quando o navegador perguntar, ou libere em Configurações do site › Microfone.'
         : event.error === 'no-speech' ? 'Não ouvi nada. Toque no microfone e fale de novo.' : 'Não consegui ouvir agora. Tente de novo ou escreva.');
     };
     recognize.onend = () => {
       setListening(false); setHeard(''); recognizer.current = null;
-      if (final.trim()) void send(final, true);
-      else if (conversation.current) listen();
+      if (final.trim()) setText(final.trim().slice(0, 2000));
     };
     recognizer.current = recognize;
     setProblem(''); setHeard(''); setListening(true);
     try { recognize.start(); } catch { setListening(false); setProblem('Não consegui abrir o microfone. Tente de novo.'); }
   }
   function toggleOnce() { if (listening) { recognizer.current?.stop(); return; } listen(); }
-  function toggleConversation() {
-    if (talking) { conversation.current = false; setTalking(false); try { recognizer.current?.stop(); } catch {} window.speechSynthesis?.cancel(); setSpeaking(false); return; }
-    conversation.current = true; setTalking(true); listen();
-  }
   function submit(event: FormEvent) { event.preventDefault(); void send(text); }
-  const locked = blocked || busy;
-  const state = talking ? speaking ? 'Respondendo…' : busy ? 'Executando…' : listening ? 'Ouvindo… pode falar' : 'Um instante…' : '';
+  const locked = blocked || busy || executor.executing || callOpen;
+  const state = executor.executing || busy ? 'Organizando e salvando…' : listening ? 'Ouvindo seu ditado…' : speaking ? 'Respondendo…' : '';
 
   return <div className="assistant-panel">
     <div className="assistant-top">
-      <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? `Inteligência artificial ligada${ai.model ? ` · ${ai.model}` : ''}` : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Converse comigo: eu respondo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
+      <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? 'Pronto para conversar e organizar' : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Converse comigo: eu respondo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
       <span className="assistant-top-actions">
         {!demo && <button type="button" className="text-button" aria-expanded={history !== null} onClick={() => setHistory(history ? null : readArchive())}><History size={15} aria-hidden="true" />Conversas anteriores</button>}
-        {messages.length > 0 && <button type="button" className="text-button" disabled={busy} onClick={startNew}><MessageSquarePlus size={15} aria-hidden="true" />Nova conversa</button>}
+        {messages.length > 0 && <button type="button" className="text-button" disabled={locked} onClick={startNew}><MessageSquarePlus size={15} aria-hidden="true" />Nova conversa</button>}
       </span>
     </div>
     {history && <div className="assistant-history" role="region" aria-label="Conversas anteriores">
@@ -273,13 +318,13 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
     {ai && !ai.ready && <p className="assistant-setup">Para eu conversar e organizar sozinho, a IA precisa estar ligada: em <strong>Administração › Inteligência artificial</strong>, na tarefa “Conversa do assistente”, escolha o provedor e um modelo (o “Automático · rápido” serve) e toque em Salvar.</p>}
     <div className="assistant-messages" ref={list} aria-live="polite">
       {!messages.length && <div className="assistant-message assistant">
-        <p>Olá! Diga, por exemplo: “amanhã às 15h dentista”, “gastei 32 reais no mercado”, “conta de luz de 210 vence dia 10”, “começa um foco de 25 minutos em leitura” ou “o que eu tenho hoje?”.</p>
-        <p>Toque em <strong>Conversar</strong> para falar à vontade: eu executo, respondo e volto a ouvir. O que eu não souber organizar fica em <strong>Para organizar</strong>.</p>
+        <p>Vamos cuidar da sua jornada? Posso consultar a agenda, reagendar compromissos, organizar anotações, registrar finanças, criar rotinas e acompanhar seus planos.</p>
+        <p>Toque em <strong>Conversar ao vivo</strong> para começar uma chamada. Fale naturalmente e interrompa quando quiser. Para excluir algo, vou pedir sua confirmação.</p>
       </div>}
       {messages.map(message => <div key={message.id} className={`assistant-message ${message.from}`}>
         <p>{message.text}</p>
-        {message.applied?.length ? <ul className="assistant-applied">{message.applied.map((item, index) => <li key={index}><Check size={14} aria-hidden="true" /><span>{item.label}</span><button type="button" className="text-button" onClick={() => onNavigate(item.view)}>Ver</button></li>)}</ul> : null}
-        {message.applied?.length ? <button type="button" className="text-button assistant-undo" disabled={blocked} onClick={() => undo(message)}><Undo2 size={14} aria-hidden="true" />Desfazer</button> : null}
+        {message.applied?.length ? <ul className={`assistant-applied${message.saved === false ? ' unsaved' : ''}`}>{message.applied.map((item, index) => <li key={index}>{message.saved === false ? <Square size={14} aria-hidden="true" /> : <Check size={14} aria-hidden="true" />}<span>{item.label}{message.saved === false ? ' · salvamento não confirmado' : ''}</span><button type="button" className="text-button" onClick={() => onNavigate(item.view)}>Ver</button></li>)}</ul> : null}
+        {message.applied?.length ? <button type="button" className="text-button assistant-undo" disabled={locked} onClick={() => void undo(message)}><Undo2 size={14} aria-hidden="true" />Desfazer</button> : null}
         {message.noteId && <button type="button" className="text-button" onClick={() => onOpenNote(message.noteId!)}>Ver anotação <ArrowRight size={13} aria-hidden="true" /></button>}
         {message.retry && <span className="assistant-retry">
           <button type="button" className="button primary" disabled={locked} onClick={() => { const again = message.retry!; setMessages(previous => previous.filter(item => item.id !== message.id && item.id !== `${message.id}:eu`)); void send(again); }}><RotateCcw size={14} aria-hidden="true" />Tentar de novo</button>
@@ -289,12 +334,15 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
       {listening && <div className="assistant-message me listening"><p>{heard || 'Ouvindo…'}</p></div>}
     </div>
     {problem && <p className="assistant-problem" role="alert">{problem}</p>}
+    {executor.pending.length > 0 && !callOpen && <section className="assistant-confirmation" aria-label="Confirmar alteração">
+      <strong>Confirme a alteração</strong><ul>{executor.pending.map((item, index) => <li key={index}>{item.label}</li>)}</ul>
+      <div><button type="button" className="button danger" disabled={locked} onClick={() => { void confirmPending().catch(error => setProblem(error instanceof Error ? error.message : 'Não consegui confirmar.')); }}>Confirmar</button><button type="button" className="button outline" disabled={locked} onClick={executor.cancel}>Cancelar</button></div>
+    </section>}
     <div className="assistant-voice">
-      <button type="button" className={`assistant-mic ${talking ? 'listening' : ''}`} disabled={blocked || !voice || (listening && !talking)} aria-pressed={talking} onClick={toggleConversation}>
-        {talking ? <Square size={22} fill="currentColor" aria-hidden="true" /> : <AudioLines size={24} aria-hidden="true" />}
-        <span>{talking ? 'Encerrar conversa' : voice ? 'Conversar' : 'Voz indisponível neste navegador'}</span>
+      <button type="button" className="assistant-mic assistant-call-entry" disabled={locked} onClick={() => { stopVoice(); setCallOpen(true); }}>
+        <AudioLines size={26} aria-hidden="true" /><span>Conversar ao vivo<small>Uma chamada para organizar sua jornada</small></span>
       </button>
-      {!talking && voice && <button type="button" className={`assistant-once ${listening ? 'listening' : ''}`} disabled={locked} aria-pressed={listening} onClick={toggleOnce} aria-label={listening ? 'Parar e enviar' : 'Falar uma vez'}>{listening ? <Square size={18} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}</button>}
+      {voice && <button type="button" className={`assistant-once ${listening ? 'listening' : ''}`} disabled={locked} aria-pressed={listening} onClick={toggleOnce} aria-label={listening ? 'Encerrar ditado' : 'Ditar mensagem'} title="Ditar uma mensagem para revisar antes de enviar">{listening ? <Square size={18} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}</button>}
     </div>
     {state && <p className="assistant-live" role="status">{state}</p>}
     {file && <p className="assistant-attachment"><Paperclip size={14} aria-hidden="true" /><span>{file.name} ({Math.ceil(file.size / 1024)} KB)</span><button type="button" className="text-button" disabled={locked} onClick={() => setFile(null)}>Remover</button></p>}
@@ -305,7 +353,9 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
       <button className="button primary" aria-label="Enviar mensagem" disabled={locked || listening || (!text.trim() && !file)}><Send size={16} aria-hidden="true" /></button>
     </form>
     {!demo && <input hidden ref={fileInput} type="file" aria-label="Anexar arquivo ao assistente" accept="image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm,video/mp4,video/webm,video/quicktime" onChange={event => { attach(event.target.files?.[0]); event.target.value = ''; }} />}
-    <p className="assistant-privacy">{demo ? 'Demonstração: nada é guardado de verdade.' : busy ? 'Guardando… aguarde antes de fechar.' : 'A voz usa o reconhecimento de fala do navegador (no Chrome, processado pelo Google). O que você diz vai para o provedor de IA escolhido no painel.'}</p>
+    <p className="assistant-privacy">{demo ? 'Demonstração: nada é guardado de verdade.' : busy || executor.executing ? 'Salvando… aguarde a confirmação antes de fechar.' : 'Na chamada, seu áudio é processado pelo Gemini. O ditado usa o reconhecimento do navegador. As ações ficam no seu espaço; as conversas arquivadas ficam neste aparelho.'}</p>
+    {callOpen && <VoiceCall available={cloud && !demo} blocked={blocked} pending={executor.pending} executing={executor.executing} onClose={() => setCallOpen(false)} credentials={voiceCredentials} onTool={voiceTool} onConfirm={confirmPending} onCancel={executor.cancel}
+      onTranscript={(id, from, text) => setMessages(previous => previous.some(item => item.id === id) ? previous.map(item => item.id === id ? { ...item, text: text.slice(0, 10_000) } : item) : [...previous, { id, from, text: text.slice(0, 10_000) }])} />}
   </div>;
 }
 

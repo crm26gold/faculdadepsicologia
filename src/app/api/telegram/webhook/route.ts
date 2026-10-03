@@ -5,7 +5,7 @@ import type { Turn } from '@/lib/ai/turns';
 import { botIntent, botReply, helpText, notLinkedText, todayIn } from '@/lib/bot/core';
 import { botServerSecret, telegramWebhookSecret } from '@/lib/bot/secrets';
 import { downloadFile, sendMessage, sendTyping, TelegramError, type TelegramUpdate } from '@/lib/bot/telegram';
-import { applyCommands, commandContext, commandSystem, parseCommand, undoApplied, type Applied } from '@/lib/commands';
+import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand, undoApplied, type Applied } from '@/lib/commands';
 import { demoRequested } from '@/lib/config';
 import { botDatabase } from '@/lib/supabase/bot';
 import { CURRENT_EDITOR_GENERATION, parseWorkspace, type Workspace } from '@/lib/workspace';
@@ -113,7 +113,9 @@ export async function POST(request: Request) {
       }
       if (saved.error) { await say('Entendi, mas não consegui salvar agora. Tente de novo em instantes.'); return ok(); }
     }
-    const text = botReply(`${heard ? `🎙️ “${heard.slice(0, 300)}”\n\n` : ''}${result.reply || (outcome.applied.length ? 'Feito.' : 'Não entendi bem. Pode dizer de outro jeito?')}`, outcome.applied, outcome.failed);
+    const pending = outcome.pending.length ? `Para excluir ou substituir conteúdo, abra o Assistente na Jornada Plena e confirme os itens lá. Pendentes: ${outcome.pending.map(item => item.label).join('; ')}.` : '';
+    const actualReply = result.actions.length ? executionSummary({ ...outcome, pending: [] }) : result.reply || 'Não entendi bem. Pode dizer de outro jeito?';
+    const text = botReply(`${heard ? `🎙️ “${heard.slice(0, 300)}”\n\n` : ''}${actualReply}${pending ? ` ${pending}` : ''}`, outcome.applied, []);
     await log(text, outcome.applied.length ? outcome.applied : null);
     await say(text);
   } catch (error) {

@@ -28,7 +28,8 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | Planos | Infraestrutura | Acadêmico (grátis) e Pro; fase de lançamento com tudo liberado, controlada no painel master. Pagamento ainda não integrado. |
 | Vários cursos | Roadmap | Ainda não existe entidade de curso nem separação de dados por curso. |
 | Finanças, saúde, rotina, social, inventário e metas | Roadmap | Módulos próprios ainda não implementados; tarefas e foco não equivalem a esses módulos. |
-| IA e WhatsApp Oráculo | Roadmap | Sem IA conectada ainda: a padronização do documento final é feita por regras, sem enviar texto a terceiros. IA exigirá chave do provedor e aviso aos usuários. |
+| Assistente por texto e voz | Implementado; chamada real a validar | Conversa com ações pessoais validadas, salvamento, desfazer e confirmação de exclusão. Voz contínua pelo Gemini Live, com autorização temporária; depende da configuração e cota do provedor. [Uso e limites](docs/ASSISTENTE_VOZ.md). |
+| WhatsApp Oráculo | Roadmap | Integração externa depende de configuração, vinculação e consentimento próprios. |
 
 Detalhes desta evolução: [áreas e cadernos](docs/AREAS_E_CADERNOS_2026-09-27.md) e [editor multimídia](docs/CADERNO_MULTIMIDIA_2026-09-27.md).
 

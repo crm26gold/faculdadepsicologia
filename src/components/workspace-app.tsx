@@ -68,7 +68,7 @@ const subtitles: Record<View, string> = {
   today: '', studies: 'Graduação, pós, cursos livres e extensões, cada um no seu lugar.', community: 'Seus grupos, salas e trabalhos em conjunto.',
   notes: 'Ideias, aulas e reflexões, organizadas do seu jeito.', agenda: 'Compromissos, aulas e prazos de todas as áreas da vida.', focus: 'Para onde vai o seu tempo, dia após dia.',
   planning: 'Metas apontam a direção; projetos organizam os passos.', finances: 'O que entra, o que sai e o que está por vir.', routine: 'Seus hábitos, por período do dia.',
-  flashcards: 'Cartões de pergunta e resposta para fixar o que você aprende.', assistant: 'Fale ou escreva: ele guarda e ajuda a organizar.', contacts: 'Sua agenda de pessoas. Só você vê.',
+  flashcards: 'Cartões de pergunta e resposta para fixar o que você aprende.', assistant: 'Converse por voz ou escreva para cuidar da sua jornada.', contacts: 'Sua agenda de pessoas. Só você vê.',
   admin: 'Pessoas, papéis e planos, com histórico de tudo.', settings: 'Seu perfil, suas áreas da vida e seus dados.',
 };
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
