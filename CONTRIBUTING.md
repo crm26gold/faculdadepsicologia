@@ -45,10 +45,13 @@ Inclua testes proporcionais ao risco: preservação de dados, autorização e re
 | 3004 | Demo em desktop e celular | `APP_MODE=demo`, sem credenciais privadas. |
 | 3005 | Acesso privado fechado | `APP_MODE=private`, Google desligado, sem prévia local. |
 | 3006 | Preservação dos dados locais | `APP_MODE=private`, prévia local de teste habilitada. |
+| 3007 | Comunidade, assistente e voz | Prévia de nuvem com APIs simuladas e dados inventados; sem conta ou Gemini reais. |
 
 No CI, `CI=true` remove o canal `msedge` e permite usar Chromium. O workflow instala o navegador e as dependências do sistema com `npx playwright install --with-deps chromium`. Localmente, o padrão usa Edge; para usar Chromium, instale-o e defina `CI=true` apenas no processo de teste.
 
 Não defina `PLAYWRIGHT_BASE_URL` para executar a suíte completa: esse override desliga os servidores gerenciados e exclui os cenários privado e de dados locais. Ele serve para uma verificação deliberadamente parcial de um servidor já iniciado.
+
+Os projetos `voice-desktop` e `voice-android` usam microfone sintético e WebSocket simulado para testar o fluxo da chamada, inclusive captura pelo AudioWorklet e liberação do microfone. Eles não comprovam acesso ao Gemini real. Consulte [o guia da voz](docs/ASSISTENTE_VOZ.md) para validar a integração autenticada.
 
 O script `npm run test:gate` também depende de build, usa a porta 3001 e exercita restrições de produção. O passo correspondente no CI define `APP_MODE=private` para não herdar o modo demo do job. Não execute esses testes com contas reais, segredos ou dados pessoais. Eles não comprovam login real ou RLS remota.
 

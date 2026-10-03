@@ -1,0 +1,71 @@
+'use client';
+import { useRef, useState } from 'react';
+import { applyCommands, executionSummary, undoApplied, type Applied, type CommandAction, type PendingCommand } from '@/lib/commands';
+import { dateKey, type Workspace } from '@/lib/workspace';
+import { confirmationIntent } from '@/lib/assistant-query';
+import type { VoiceTranscript } from '@/lib/voice/protocol';
+
+export type Execution = ReturnType<typeof applyCommands> & { saved: boolean; reply: string };
+type Options = { data: Workspace; blocked: boolean; update: (change: (previous: Workspace) => Workspace) => boolean; ensureSaved: () => Promise<void> };
+export function useAssistantExecutor(options: Options) {
+  const latest = useRef(options); latest.current = options;
+  const running = useRef(false);
+  const pendingRef = useRef<{ items: PendingCommand[]; createdAt: number }>({ items: [], createdAt: 0 });
+  const [pending, setPending] = useState<PendingCommand[]>([]);
+  const [executing, setExecuting] = useState(false);
+  const lastApplied = useRef<Applied[]>([]);
+
+  function cancel() { pendingRef.current = { items: [], createdAt: 0 }; setPending([]); }
+  function reset(applied: Applied[] = []) { cancel(); lastApplied.current = applied; }
+  async function run(actions: CommandAction[], signal?: AbortSignal, confirmed?: PendingCommand[]): Promise<Execution> {
+    if (running.current) throw new Error('Estou salvando o pedido anterior. Aguarde um instante.');
+    if (latest.current.blocked) throw new Error('O salvamento está bloqueado. Confira o aviso na página antes de continuar.');
+    signal?.throwIfAborted();
+    running.current = true; setExecuting(true);
+    let outcome: ReturnType<typeof applyCommands> | undefined;
+    try {
+      const accepted = latest.current.update(previous => {
+        signal?.throwIfAborted();
+        outcome = applyCommands(previous, actions, { today: dateKey(), now: Date.now(), confirmed });
+        return outcome.data;
+      });
+      if (!accepted || !outcome) throw new Error('A alteração não foi aceita. Confira os dados e o aviso de salvamento.');
+      const result = outcome as ReturnType<typeof applyCommands>;
+      // Subsequent voice queries see this change even before React has painted it.
+      latest.current = { ...latest.current, data: result.data };
+      if (result.pending.length) {
+        pendingRef.current = { items: result.pending, createdAt: Date.now() }; setPending(result.pending);
+      } else cancel();
+      if (result.applied.length) {
+        lastApplied.current = result.applied;
+        try { await latest.current.ensureSaved(); }
+        catch (error) { return { ...result, saved: false, reply: `A alteração foi feita neste aparelho, mas o salvamento não foi confirmado. ${error instanceof Error ? error.message : 'Confira o aviso de sincronização.'} Não repita o pedido; confira os dados primeiro.` }; }
+      }
+      return { ...result, saved: true, reply: executionSummary(result) };
+    } finally { running.current = false; setExecuting(false); }
+  }
+  async function confirm(transcript?: VoiceTranscript, signal?: AbortSignal) {
+    const current = pendingRef.current;
+    if (!current.items.length) throw new Error('Não há uma alteração aguardando confirmação.');
+    if (transcript && (transcript.startedAt <= current.createdAt || confirmationIntent(transcript.text) !== 'confirm')) throw new Error('Para confirmar por voz, diga “confirmo a exclusão” ou “confirmo a substituição”. Você também pode tocar em Confirmar.');
+    // The engine compares both the exact action and the item's pre-confirmation fingerprint.
+    return run(current.items.map(item => item.action), signal, current.items);
+  }
+  async function undo(applied = lastApplied.current) {
+    if (running.current || latest.current.blocked) throw new Error('Aguarde o salvamento antes de desfazer.');
+    if (!applied.length) throw new Error('Não há uma ação desta conversa para desfazer.');
+    running.current = true; setExecuting(true);
+    try {
+      const accepted = latest.current.update(previous => {
+        const data = undoApplied(previous, applied);
+        if (JSON.stringify(previous) === JSON.stringify(data)) throw new Error('Esses itens foram alterados depois. Confira os registros antes de desfazer.');
+        latest.current = { ...latest.current, data };
+        return data;
+      });
+      if (!accepted) throw new Error('Não consegui desfazer. Os itens podem ter mudado ou recebido vínculos depois.');
+      await latest.current.ensureSaved(); lastApplied.current = []; cancel();
+      return { saved: true, reply: 'Última ação desfeita e alteração salva.' };
+    } finally { running.current = false; setExecuting(false); }
+  }
+  return { run, confirm, cancel, reset, undo, pending, executing, current: () => latest.current.data };
+}
