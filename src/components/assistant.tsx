@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
 import { z } from 'zod';
-import { ArrowRight, AudioLines, Check, History, MessageSquarePlus, Mic, Paperclip, RotateCcw, Send, Square, Trash2, Undo2, X } from 'lucide-react';
+import { ArrowRight, AudioLines, CalendarDays, Check, History, MessageSquarePlus, Mic, NotebookPen, Paperclip, RotateCcw, Send, Square, Trash2, Undo2, X } from 'lucide-react';
 import { validMedia } from '@/lib/note-media';
 import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
@@ -29,10 +29,13 @@ const POSITION_KEY = 'jornada-assistente-posicao';
 const INTRO_KEY = 'jornada-assistente-apresentado';
 const recognition = () => {
   if (typeof window === 'undefined') return null;
-  const Speech = (window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition }).SpeechRecognition
-    ?? (window as unknown as { webkitSpeechRecognition?: new () => Recognition }).webkitSpeechRecognition;
-  return Speech ? new Speech() : null;
+  try {
+    const Speech = (window as unknown as { SpeechRecognition?: new () => Recognition; webkitSpeechRecognition?: new () => Recognition }).SpeechRecognition
+      ?? (window as unknown as { webkitSpeechRecognition?: new () => Recognition }).webkitSpeechRecognition;
+    return Speech ? new Speech() : null;
+  } catch { return null; }
 };
+function cancelSpeech() { try { window.speechSynthesis?.cancel(); } catch {} }
 const limits = () => ({ min: 72, max: window.innerHeight - 84 });
 
 // Computer only (hidden on phones, where the center Registrar button already does this job).
@@ -128,11 +131,14 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   const [problem, setProblem] = useState('');
   const [ai, setAi] = useState<{ ready: boolean; model?: string } | null>(null);
   const [history, setHistory] = useState<Archived[] | null>(null);
-  function stopVoice() {
+  function stopVoice(closeCall = true) {
     const active = recognizer.current;
-    if (active) { active.onend = null; active.onresult = null; active.onerror = null; try { active.stop(); } catch {} }
-    recognizer.current = null; setListening(false); setHeard(''); window.speechSynthesis?.cancel(); setSpeaking(false); setCallOpen(false);
+    recognizer.current = null;
+    if (active) try { active.onend = null; active.onresult = null; active.onerror = null; active.stop(); } catch {}
+    setListening(false); setHeard(''); cancelSpeech(); setSpeaking(false);
+    if (closeCall) setCallOpen(false);
   }
+  function openCall() { setProblem(''); stopVoice(false); setCallOpen(true); }
   // "Nova conversa" archives the current one instead of throwing it away.
   function archiveCurrent() {
     if (demo || !messages.length) return readArchive();
@@ -150,13 +156,14 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   const recognizer = useRef<Recognition | null>(null);
   const list = useRef<HTMLDivElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
+  const textInput = useRef<HTMLInputElement>(null);
   const draft = useRef<CaptureDraft>({ id: '', src: '' });
   const latest = useRef(data);
   latest.current = data;
   const currentMessages = useRef(messages); currentMessages.current = messages;
   const executor = useAssistantExecutor({ data, blocked, update, ensureSaved });
   const [voice, setVoice] = useState(false);
-  useEffect(() => { setVoice(!!recognition()); return () => { if (recognizer.current) { recognizer.current.onend = null; try { recognizer.current.stop(); } catch {} } window.speechSynthesis?.cancel(); }; }, []);
+  useEffect(() => { setVoice(!!recognition()); return () => { if (recognizer.current) try { recognizer.current.onend = null; recognizer.current.stop(); } catch {} cancelSpeech(); }; }, []);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [messages, heard]);
 
   // A short spoken answer remains available for dictation. Live calls own their native audio.
@@ -301,6 +308,19 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
   const state = executor.executing || busy ? 'Organizando e salvando…' : listening ? 'Ouvindo seu ditado…' : speaking ? 'Respondendo…' : '';
 
   return <div className="assistant-panel">
+    <section className="assistant-call-home" aria-label="Conversa ao vivo">
+      <div className="assistant-home-orb" aria-hidden="true"><span /><AudioLines size={44} strokeWidth={1.5} /></div>
+      <div className="assistant-call-welcome">
+        <span className="assistant-home-eyebrow">Assistente de voz</span>
+        <h2>Sua jornada, em uma conversa</h2>
+        <p>Fale naturalmente para consultar, criar e organizar. Eu acompanho seus pedidos e você pode me interromper.</p>
+        <button type="button" className="assistant-mic assistant-call-entry" disabled={busy || executor.executing || callOpen} aria-haspopup="dialog" onClick={openCall}>
+          <AudioLines size={24} aria-hidden="true" /><span>Conversar ao vivo<small>Abrir uma chamada com o assistente</small></span><ArrowRight size={19} aria-hidden="true" />
+        </button>
+        <button type="button" className="text-button assistant-write-entry" disabled={locked} onClick={() => textInput.current?.focus()}>Prefiro escrever <ArrowRight size={14} aria-hidden="true" /></button>
+      </div>
+      <ul className="assistant-home-capabilities" aria-label="O que podemos organizar"><li><CalendarDays size={15} aria-hidden="true" />Agenda e tarefas</li><li><NotebookPen size={15} aria-hidden="true" />Notas e estudos</li><li><Check size={15} aria-hidden="true" />Rotina e planos</li></ul>
+    </section>
     <div className="assistant-top">
       <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? 'Pronto para conversar e organizar' : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Converse comigo: eu respondo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
       <span className="assistant-top-actions">
@@ -338,18 +358,13 @@ export function AssistantChat({ cloud, blocked, demo, data, update, ensureSaved,
       <strong>Confirme a alteração</strong><ul>{executor.pending.map((item, index) => <li key={index}>{item.label}</li>)}</ul>
       <div><button type="button" className="button danger" disabled={locked} onClick={() => { void confirmPending().catch(error => setProblem(error instanceof Error ? error.message : 'Não consegui confirmar.')); }}>Confirmar</button><button type="button" className="button outline" disabled={locked} onClick={executor.cancel}>Cancelar</button></div>
     </section>}
-    <div className="assistant-voice">
-      <button type="button" className="assistant-mic assistant-call-entry" disabled={locked} onClick={() => { stopVoice(); setCallOpen(true); }}>
-        <AudioLines size={26} aria-hidden="true" /><span>Conversar ao vivo<small>Uma chamada para organizar sua jornada</small></span>
-      </button>
-      {voice && <button type="button" className={`assistant-once ${listening ? 'listening' : ''}`} disabled={locked} aria-pressed={listening} onClick={toggleOnce} aria-label={listening ? 'Encerrar ditado' : 'Ditar mensagem'} title="Ditar uma mensagem para revisar antes de enviar">{listening ? <Square size={18} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}</button>}
-    </div>
     {state && <p className="assistant-live" role="status">{state}</p>}
     {file && <p className="assistant-attachment"><Paperclip size={14} aria-hidden="true" /><span>{file.name} ({Math.ceil(file.size / 1024)} KB)</span><button type="button" className="text-button" disabled={locked} onClick={() => setFile(null)}>Remover</button></p>}
     <form className="assistant-form" onSubmit={submit}>
       {!demo && <button type="button" className="icon-button assistant-clip" aria-label="Anexar foto, áudio ou vídeo" disabled={locked || listening} onClick={() => fileInput.current?.click()}><Paperclip size={18} aria-hidden="true" /></button>}
+      {voice && <button type="button" className={`assistant-once ${listening ? 'listening' : ''}`} disabled={locked} aria-pressed={listening} onClick={toggleOnce} aria-label={listening ? 'Encerrar ditado' : 'Ditar mensagem'} title="Ditar uma mensagem para revisar antes de enviar">{listening ? <Square size={18} fill="currentColor" aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}</button>}
       <label className="sr-only" htmlFor="assistant-text">Mensagem para o assistente</label>
-      <input id="assistant-text" value={text} maxLength={2000} disabled={locked || listening} onChange={event => setText(event.target.value)} placeholder="Ou escreva aqui…" />
+      <input ref={textInput} id="assistant-text" value={text} maxLength={2000} disabled={locked || listening} onChange={event => setText(event.target.value)} placeholder="Escreva sua mensagem…" />
       <button className="button primary" aria-label="Enviar mensagem" disabled={locked || listening || (!text.trim() && !file)}><Send size={16} aria-hidden="true" /></button>
     </form>
     {!demo && <input hidden ref={fileInput} type="file" aria-label="Anexar arquivo ao assistente" accept="image/jpeg,image/png,image/webp,image/gif,audio/mpeg,audio/mp4,audio/wav,audio/ogg,audio/webm,video/mp4,video/webm,video/quicktime" onChange={event => { attach(event.target.files?.[0]); event.target.value = ''; }} />}

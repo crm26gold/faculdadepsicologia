@@ -4,6 +4,8 @@
 
 Entre com sua conta, abra **Assistente**, toque em **Conversar ao vivo** e em **Iniciar chamada**. Autorize o microfone no navegador. A conversa usa áudio contínuo: não é necessário enviar cada fala. O assistente pode ser interrompido enquanto responde.
 
+A entrada da chamada fica no topo do Assistente, no cartão **Sua jornada, em uma conversa**. **Prefiro escrever** leva ao campo do chat, preservando a conversa e seus anexos. Falhas no ditado ou na síntese de voz do navegador não bloqueiam a abertura da chamada. Se o navegador não conseguir abrir o diálogo, os mesmos controles aparecem na página; o microfone continua desligado até tocar em **Iniciar chamada**. Um conflito de sincronização permite abrir a tela e ler a orientação, mas impede iniciar uma chamada até resolver o conflito.
+
 Os controles permitem desligar o microfone, silenciar a resposta, interromper a fala e encerrar a chamada. A transcrição acompanha a conversa escrita. Cada chamada dura até 20 minutos; outra chamada pode ser iniciada depois. Fechar a tela, sair da página ou encerrar libera o microfone e interrompe a conexão.
 
 O botão de microfone do chat continua servindo para **ditar uma mensagem** e revisá-la antes de enviar.
