@@ -19,7 +19,7 @@ begin
   if public.claim_assistant_job(j,r) is null then raise exception 'Claim failed'; end if;
   if public.claim_assistant_job(j,gen_random_uuid()) is not null then raise exception 'Duplicate claim'; end if;
   begin perform public.finish_assistant_job(j,gen_random_uuid(),w,rev,answer); raise exception 'Wrong lease accepted'; exception when sqlstate 'PT409' then null; end;
-  begin perform public.finish_assistant_job(j,r,w,rev+1000,answer); raise exception 'Conflict accepted'; exception when sqlstate 'PT409' or serialization_failure then null; end;
+  begin perform public.finish_assistant_job(j,r,w,rev+1000,answer); raise exception 'Conflict accepted'; exception when sqlstate 'PT409' then null; end;
   if (select revision from public.personal_workspaces where owner_id=owner)<>rev or (select status from public.assistant_jobs where id=j)<>'working' then raise exception 'Conflict wrote data'; end if;
   perform public.finish_assistant_job(j,r,w,rev,answer);
   perform public.finish_assistant_job(j,r,w,rev,answer);
