@@ -16,6 +16,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const baseline = useRef<string | null>(null);
   const key = useRef(LOCAL_KEY);
   const revision = useRef(0);
+  const owner = useRef<string | undefined>(undefined);
   const saving = useRef(false);
   const stop = useRef(false);
 
@@ -38,6 +39,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
           if (!response.ok) throw new Error(result.error);
           initial = parseWorkspace(JSON.stringify(result.data));
           revision.current = result.revision;
+          owner.current = result.accountId;
         }
         // Held in memory only; the next accepted update() persists it.
         initial = ensureCourses(initial);
@@ -79,7 +81,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
           localStorage.setItem(key.current, raw);
           baseline.current = raw;
         } else {
-          const response = await fetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: snapshot, revision: revision.current }) });
+          const response = await fetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: snapshot, revision: revision.current, accountId: owner.current }) });
           const result = await response.json();
           if (!response.ok) throw new Error(result.error);
           revision.current = result.revision;
@@ -113,6 +115,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   }
 
   async function ensureSaved() {
+    if (stop.current) throw new Error('A sincronização está bloqueada. Confira o aviso antes de continuar.');
     const deadline = Date.now() + 30_000;
     while (saved.current !== current.current) {
       if (stop.current) throw new Error('Salvamento interrompido. Exporte seus dados antes de sair.');
@@ -120,5 +123,21 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
-  return { data, ready, demo, status, error, blocked, update, resetDemo, ensureSaved };
+  async function refresh(expectedAccount = owner.current) {
+    await ensureSaved();
+    if (mode !== 'cloud') return current.current;
+    const snapshot = current.current;
+    const response = await fetch(`/api/workspace${expectedAccount ? `?accountId=${encodeURIComponent(expectedAccount)}` : ''}`, { cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Não consegui atualizar seu espaço.');
+    if (expectedAccount && result.accountId !== expectedAccount) throw new Error('A conta mudou. Recarregue antes de recuperar o pedido.');
+    const next = parseWorkspace(JSON.stringify(result.data));
+    // A server result must never erase changes accepted locally while fetching.
+    if (stop.current || saving.current || current.current !== snapshot || saved.current !== snapshot) throw new Error('Seu espaço mudou neste aparelho. Aguarde a sincronização antes de recuperar o pedido.');
+    if (result.revision < revision.current) throw new Error('Recebi uma versão anterior do espaço. Tente atualizar novamente.');
+    revision.current = result.revision;
+    current.current = next; saved.current = next; setData(next); setStatus('Sincronizado');
+    return next;
+  }
+  return { data, ready, demo, status, error, blocked, update, resetDemo, ensureSaved, refresh };
 }

@@ -7,14 +7,16 @@ import { demoRequested } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { 'Cache-Control': 'private, no-store' } });
-export async function GET() {
+export async function GET(request: Request) {
   if (demoRequested(process.env)) return response({ error: 'Indisponível na demonstração.' }, 404);
   const session = await userSession();
   if (!session) return response({ error: 'Acesso não autorizado.' }, 401);
+  const accountId = new URL(request.url).searchParams.get('accountId');
+  if (accountId && accountId !== session.user.id) return response({ error: 'A conta mudou. Recarregue antes de continuar.' }, 409);
   if (process.env.FACULDADE_CLOUD_WORKSPACE !== 'true') return response({ error: 'Sincronização ainda não ativada.' }, 503);
   const { data, error } = await session.client.from('personal_workspaces').select('data,revision').eq('owner_id', session.user.id).maybeSingle();
   if (error) return response({ error: 'Não foi possível carregar. Verifique a configuração do banco.' }, 503);
-  return response(data ?? { data: emptyWorkspace(), revision: 0 });
+  return response({ ...(data ?? { data: emptyWorkspace(), revision: 0 }), accountId: session.user.id });
 }
 export async function PUT(request: Request) {
   if (demoRequested(process.env)) return response({ error: 'Indisponível na demonstração.' }, 404);
@@ -40,8 +42,9 @@ export async function PUT(request: Request) {
   }
   raw += decoder.decode();
   let body;
-  try { body = z.object({ data: workspaceSchema, revision: z.number().int().nonnegative() }).parse(JSON.parse(raw)); }
+  try { body = z.object({ data: workspaceSchema, revision: z.number().int().nonnegative(), accountId: z.string().uuid().optional() }).parse(JSON.parse(raw)); }
   catch { return response({ error: 'Dados inválidos. Nada foi alterado.' }, 400); }
+  if (body.accountId && body.accountId !== session.user.id) return response({ error: 'A conta mudou. Recarregue antes de salvar.' }, 409);
   const { data, error } = await session.client.rpc('save_personal_workspace', { next_data: body.data, expected_revision: body.revision });
   if (error?.code === 'PT409' || error?.code === '40001') return response({ error: 'Outra sessão alterou os dados. Exporte suas alterações e recarregue antes de continuar.' }, 409);
   if (error) return response({ error: 'Não foi possível salvar. Suas alterações continuam nesta tela; exporte uma cópia.' }, 503);

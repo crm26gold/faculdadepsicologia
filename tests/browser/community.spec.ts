@@ -75,10 +75,22 @@ type Posted = { url: string; body: Record<string, unknown> };
 async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown } = {}) {
   const posted: Posted[] = [];
   let home = options.home ?? homeFixture();
+  const conversations = new Map<string, Record<string, unknown>>();
   const json = (route: Route, data: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
   await page.route('**/api/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
+    if (url.pathname === '/api/conversations') {
+      if (request.method() === 'GET') return json(route, { ok: true, data: { accountId: ME, items: [...conversations.values()], hasMore: false } });
+      const body = request.postDataJSON();
+      if (body.action === 'save') {
+        const item = { ...body.conversation, revision: body.conversation.revision + 1 };
+        conversations.set(item.id, item);
+        return json(route, { ok: true, data: { revision: item.revision, updatedAt: item.updatedAt } });
+      }
+      conversations.delete(body.id); return json(route, { ok: true, data: null });
+    }
+    if (url.pathname === '/api/assistant/jobs') return json(route, { ok: true, data: { accountId: ME, jobs: [] } });
     if (request.method() === 'POST') {
       const body = request.postDataJSON() as Record<string, unknown>;
       posted.push({ url: url.pathname, body });
@@ -88,7 +100,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
     }
     if (url.pathname === '/api/workspace') {
       if (request.method() === 'PUT') return json(route, { revision: 2 });
-      return json(route, { data: { version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} }, revision: 1 });
+      return json(route, { data: { version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} }, revision: 1, accountId: ME });
     }
     if (url.pathname === '/api/me') return json(route, { ok: true, data: home });
     if (url.pathname === '/api/contacts') return json(route, { ok: true, data: [{ id: 'c1', name: 'Amiga da turma', email: '', phone: '', birthdate: `2000-${spDay().slice(5, 10)}`, notes: '', created_at: '' }] });
@@ -365,13 +377,13 @@ test('assistente: falha da IA oferece tentar de novo (pergunta não vira anotaç
   await expect(page.locator('.assistant-message.me')).toHaveCount(1);
   await page.getByRole('button', { name: 'Nova conversa' }).click();
   await expect(page.getByText('Seu saldo agora é R$ 1.200,00.')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Conversas anteriores' }).click();
-  const archived = page.getByRole('region', { name: 'Conversas anteriores' });
+  await page.getByRole('button', { name: 'Conversas', exact: true }).click();
+  const archived = page.getByRole('dialog', { name: 'Suas conversas' });
   await expect(archived.getByRole('button', { name: /^qual o meu saldo hoje/ })).toBeVisible();
   await page.reload();
   await nav(page).getByRole('button', { name: 'Assistente', exact: true }).click();
-  await page.getByRole('button', { name: 'Conversas anteriores' }).click();
-  await page.getByRole('region', { name: 'Conversas anteriores' }).getByRole('button', { name: /^qual o meu saldo hoje/ }).click();
+  await page.getByRole('button', { name: 'Conversas', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Suas conversas' }).getByRole('button', { name: /^qual o meu saldo hoje/ }).click();
   await expect(page.getByText('Seu saldo agora é R$ 1.200,00.')).toBeVisible();
   expect((await new AxeBuilder({ page }).include('.assistant-panel').analyze()).violations).toEqual([]);
 });

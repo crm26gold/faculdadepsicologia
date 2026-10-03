@@ -360,6 +360,14 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .assistant-retry .button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
 /* Chamada ao vivo: espaço para respirar, controles acessíveis e transcrição opcional. */
 .assistant-call-home { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 20px; padding: 28px 24px 22px; border-radius: 20px; border: 1px solid var(--line); background: radial-gradient(ellipse at top left, var(--sage), var(--surface) 65%); text-align: start; }
+.has-conversation .assistant-call-home { grid-template-columns: minmax(0, 1fr); padding: 18px; }
+.has-conversation .assistant-home-orb, .has-conversation .assistant-home-capabilities, .has-conversation .assistant-call-welcome > p, .has-conversation .assistant-write-entry { display: none; }
+.has-conversation .assistant-call-welcome h2 { font-size: 1.6rem; margin: .25rem 0 .75rem; }
+@media (max-width: 600px) {
+  .assistant-conversation-bar strong { max-width: 20ch; }
+  .assistant-conversation-bar { flex-wrap: wrap; }
+  .conversation-filters .button { min-height: 44px; }
+}
 .assistant-home-orb { inline-size: 150px; block-size: 150px; display: grid; place-items: center; position: relative; border: 1px solid var(--line); border-radius: 50%; color: white; }
 .assistant-home-orb > span { position: absolute; inset: 14px; border: 1px solid var(--line); border-radius: 50%; }
 .assistant-home-orb > svg { position: relative; box-sizing: content-box; padding: 26px; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #427662, var(--brand-forest) 75%); box-shadow: 0 10px 25px #0a2a2020; }
@@ -418,7 +426,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .voice-call-footer { flex-shrink: 0; padding: 16px 24px 20px; border-block-start: 1px solid var(--line); background: var(--surface); text-align: center; }
 .voice-start { min-block-size: 54px; inline-size: 100%; border-radius: 999px; display: flex; justify-content: center; align-items: center; gap: 10px; }
 .voice-call-footer > p { font-size: .72rem; margin: 12px 0 0; line-height: 1.5; }
-.voice-controls { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.voice-controls { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
 .voice-controls > button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--line); border-radius: 18px; min-block-size: 76px; background: var(--canvas); }
 .voice-controls > button > span { font-size: .7rem; }
 .voice-controls > button[aria-pressed='true'] { background: var(--sand); }

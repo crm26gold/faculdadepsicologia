@@ -1,0 +1,3 @@
+[functions.telegram-photo]
+# x-jornada-server-secret is verified by bot_attachment_owner before using privileged storage.
+verify_jwt = false

@@ -4,6 +4,7 @@ import { applyCommands, executionSummary, undoApplied, type Applied, type Comman
 import { dateKey, type Workspace } from '@/lib/workspace';
 import { confirmationIntent } from '@/lib/assistant-query';
 import type { VoiceTranscript } from '@/lib/voice/protocol';
+import type { JobOutcome } from '@/lib/assistant-jobs';
 
 export type Execution = ReturnType<typeof applyCommands> & { saved: boolean; reply: string };
 type Options = { data: Workspace; blocked: boolean; update: (change: (previous: Workspace) => Workspace) => boolean; ensureSaved: () => Promise<void> };
@@ -17,6 +18,12 @@ export function useAssistantExecutor(options: Options) {
 
   function cancel() { pendingRef.current = { items: [], createdAt: 0 }; setPending([]); }
   function reset(applied: Applied[] = []) { cancel(); lastApplied.current = applied; }
+  function adopt(outcome: JobOutcome, data: Workspace) {
+    latest.current = { ...latest.current, data };
+    lastApplied.current = outcome.applied;
+    pendingRef.current = { items: outcome.pending, createdAt: Date.now() };
+    setPending(outcome.pending);
+  }
   async function run(actions: CommandAction[], signal?: AbortSignal, confirmed?: PendingCommand[]): Promise<Execution> {
     if (running.current) throw new Error('Estou salvando o pedido anterior. Aguarde um instante.');
     if (latest.current.blocked) throw new Error('O salvamento está bloqueado. Confira o aviso na página antes de continuar.');
@@ -67,5 +74,5 @@ export function useAssistantExecutor(options: Options) {
       return { saved: true, reply: 'Última ação desfeita e alteração salva.' };
     } finally { running.current = false; setExecuting(false); }
   }
-  return { run, confirm, cancel, reset, undo, pending, executing, current: () => latest.current.data };
+  return { run, confirm, cancel, reset, adopt, undo, pending, executing, current: () => latest.current.data };
 }

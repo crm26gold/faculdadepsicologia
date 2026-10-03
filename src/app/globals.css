@@ -26,6 +26,30 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--canvas); color: var(--ink); font-size: 1rem; line-height: 1.6; }
+.assistant-conversation-bar { display: flex; align-items: center; justify-content: space-between; gap: .8rem; padding-bottom: 1rem; margin-bottom: 1rem; border-bottom: 1px solid var(--line); }
+.assistant-conversation-bar > div:first-child { min-width: 0; display: grid; gap: .2rem; }
+.assistant-conversation-bar strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 32ch; }
+.assistant-conversation-bar .button-row { flex-shrink: 0; }
+.assistant-install { display: grid; justify-items: center; gap: .4rem; margin: 1rem 0; text-align: center; }
+.assistant-install p { margin: 0; }
+.conversation-manager { display: grid; gap: 1rem; }
+.conversation-manager p { margin: 0; }
+.conversation-search { display: flex; align-items: center; gap: .5rem; }
+.conversation-search input { width: 100%; min-width: 0; }
+.conversation-filters { display: flex; flex-wrap: wrap; gap: .5rem; }
+.conversation-list { list-style: none; padding: 0; margin: 0; display: grid; gap: .75rem; }
+.conversation-list > li { border: 1px solid var(--line); border-radius: 16px; padding: 1rem; background: var(--surface); }
+.conversation-list > li.current { border-color: var(--accent-text); background: var(--sage); }
+.conversation-open { display: grid; gap: .3rem; width: 100%; padding: 0; text-align: start; overflow-wrap: anywhere; }
+.conversation-open strong { display: flex; align-items: center; gap: .4rem; }
+.conversation-open small, .conversation-open span { color: var(--muted); }
+.conversation-open span { font-size: .85rem; }
+.conversation-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; margin-top: .7rem; }
+.conversation-actions .icon-button { min-width: 44px; min-height: 44px; }
+.conversation-actions small { margin-inline-start: auto; color: var(--muted); }
+.conversation-rename { display: grid; gap: .5rem; }
+.conversation-delete { display: grid; gap: .7rem; background: var(--danger-bg); border-radius: 12px; padding: 1rem; }
+.conversation-empty { padding: 2rem 1rem; text-align: center; }
 button, input, select, textarea { font: inherit; }
 button, a, input, select { -webkit-tap-highlight-color: transparent; }
 button { cursor: pointer; color: inherit; }

@@ -4,6 +4,7 @@ import { aiSecretReady, keyHint, openKey, sealKey } from '@/lib/ai/crypto';
 import { AiError, generate, listModels, resolveModel, type AiConfig } from '@/lib/ai/providers';
 import { autoCapable, autoModes, pickModel, sortModels, type AutoMode } from '@/lib/ai/models';
 import type { userSession } from '@/lib/supabase/server';
+import { requestBudget } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
       return error ? dbError(error) : reply({ ok: true, data: null });
     }
     case 'save_task': {
+      if (body.task === 'voz' && body.provider && (body.provider === 'openai' ? body.model !== 'gpt-live-1' : body.provider !== 'gemini' || (body.model !== 'auto:rapido' && !/^gemini-[a-z0-9.-]*live[a-z0-9.-]*$/.test(body.model)))) {
+        return reply({ error: 'Chamada ao vivo: escolha Gemini com modelo Live ou OpenAI com gpt-live-1.' }, 400);
+      }
       const { error } = await session.client.rpc('ai_save_task', { task_id: body.task, next_provider: body.provider, next_model: body.model, next_enabled: body.enabled });
       return error ? dbError(error) : reply({ ok: true, data: null });
     }
@@ -50,6 +54,8 @@ export async function POST(request: Request) {
     case 'models': {
       const config = await providerConfig(session, body.provider, body.action === 'test' ? body.model : '');
       if (config instanceof Response) return config;
+      const limited = await requestBudget(session, 'ai');
+      if (limited) return limited;
       const started = Date.now();
       try {
         if (body.action === 'models') {
@@ -57,6 +63,7 @@ export async function POST(request: Request) {
           const auto = autoCapable.includes(config.provider) ? Object.fromEntries((Object.keys(autoModes) as AutoMode[]).map(mode => [mode, pickModel(config.provider, ids, mode)])) : {};
           return reply({ ok: true, data: { ids: sortModels(config.provider, ids), auto } });
         }
+        if (/live|realtime/.test(config.model)) return reply({ error: 'Modelos de voz devem ser testados em Assistente › Conversar ao vivo, com a tarefa Chamada ao vivo salva.' }, 400);
         const resolved = await resolveModel(config);
         const text = await generate(resolved, { system: 'Você está testando a conexão do aplicativo Jornada Plena. Responda em português do Brasil, em no máximo oito palavras.', prompt: 'Confirme que a conexão funcionou.', maxTokens: 60 });
         return reply({ ok: true, data: { text: text.slice(0, 300), ms: Date.now() - started, model: resolved.model } });

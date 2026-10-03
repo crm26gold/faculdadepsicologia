@@ -1,10 +1,13 @@
 import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
-import { demoWorkspace, dateKey, type Workspace } from '../../src/lib/workspace';
+import { demoWorkspace, dateKey, parseWorkspace, type Workspace } from '../../src/lib/workspace';
+import { applyCommands, executionSummary, type CommandAction } from '../../src/lib/commands';
+import type { AssistantJob } from '../../src/lib/assistant-jobs';
 
-type Fixture = { workspace: Workspace; saves: Workspace[]; socket?: WebSocketRoute; sent: Record<string, unknown>[]; delaySave?: () => Promise<void> };
+type Fixture = { workspace: Workspace; saves: Workspace[]; revision: number; jobs: Map<string, AssistantJob>; socket?: WebSocketRoute; sent: Record<string, unknown>[]; delaySave?: () => Promise<void> };
 async function fixture(page: Page) {
-  const state: Fixture = { workspace: demoWorkspace(dateKey()), saves: [], sent: [] };
+  const state: Fixture = { workspace: demoWorkspace(dateKey()), saves: [], sent: [], revision: 1, jobs: new Map() };
+  const conversations = new Map<string, Record<string, unknown>>();
   await page.route('**/api/**', async route => {
     const request = route.request(), path = new URL(request.url()).pathname;
     let body: unknown = { ok: true, data: [] };
@@ -13,8 +16,36 @@ async function fixture(page: Page) {
       settings: { open_access: true }, spaces: [], my_parts: [], to_review: [], consents: [{ document: 'terms', version: '2026-09-30' }, { document: 'privacy', version: '2026-09-30' }],
     } };
     if (path === '/api/workspace') {
-      if (request.method() === 'PUT') { const value = request.postDataJSON(); state.workspace = value.data; state.saves.push(value.data); await state.delaySave?.(); body = { revision: value.revision + 1 }; }
-      else body = { data: state.workspace, revision: 1 };
+      if (request.method() === 'PUT') { const value = request.postDataJSON(); state.saves.push(value.data); await state.delaySave?.(); state.workspace = value.data; state.revision = value.revision + 1; body = { revision: state.revision }; }
+      else body = { data: state.workspace, revision: state.revision, accountId: '11111111-1111-4111-8111-111111111111' };
+    }
+    if (path === '/api/conversations') {
+      if (request.method() === 'GET') body = { ok: true, data: { accountId: '11111111-1111-4111-8111-111111111111', items: [...conversations.values()], hasMore: false } };
+      else {
+        const value = request.postDataJSON();
+        if (value.action === 'save') { const item = { ...value.conversation, dirty: false, revision: value.conversation.revision + 1 }; conversations.set(item.id, item); body = { ok: true, data: { revision: item.revision, updatedAt: item.updatedAt } }; }
+        else { conversations.delete(value.id); body = { ok: true, data: null }; }
+      }
+    }
+    if (path === '/api/assistant/jobs') {
+      if (request.method() === 'GET') {
+        const query = new URL(request.url()).searchParams;
+        body = { ok: true, data: { accountId: '11111111-1111-4111-8111-111111111111', jobs: [...state.jobs.values()].filter(job => query.get('id') ? job.id === query.get('id') : job.conversation_id === query.get('conversation')).toReversed() } };
+      } else {
+        const value = request.postDataJSON();
+        if (value.action === 'settle') { const job = state.jobs.get(value.id); if (job?.result) { job.status = 'done'; job.result.pending = []; } body = { ok: true, data: {} }; }
+        else {
+          const id = crypto.randomUUID();
+          const job: AssistantJob = { id, conversation_id: value.conversationId, input: value.input, status: 'working', result: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
+          state.jobs.set(id, job);
+          await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id, status: 'working' } }) });
+          const actions: CommandAction[] = value.input.message.includes('excluir') ? [{ type: 'excluir', entity: 'compromisso', target: 't1' }] : [{ type: 'compromisso', title: 'Dentista por voz', date: dateKey(), time: '15:00' }];
+          const result = applyCommands(parseWorkspace(JSON.stringify(state.workspace)), actions, { today: dateKey(), now: Date.now() });
+          if (result.applied.length) { state.saves.push(result.data); await state.delaySave?.(); state.workspace = result.data; state.revision++; }
+          job.status = result.pending.length ? 'needs_confirmation' : 'done'; job.result = { saved: true, reply: executionSummary(result), applied: result.applied, pending: result.pending, failed: result.failed };
+          return;
+        }
+      }
     }
     if (path === '/api/ai/live') body = { ok: true, data: { token: 'test-ephemeral-not-a-secret', model: 'gemini-test-live', expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), maxSeconds: 1200 } };
     if (path === '/api/ai/command') {
@@ -180,7 +211,7 @@ test('ações por voz aguardam o banco, não duplicam tool calls e confirmam exc
   await expect(call).toContainText('Chamada encerrada');
 });
 
-test('confirmação falada é verificada pela transcrição e pedido cancelado não executa', async ({ page }) => {
+test('confirmação falada é verificada; encerrar uma chamada preserva um pedido já aceito', async ({ page }) => {
   const state = await fixture(page); const call = await start(page);
   tool(state, 'delete-voice', 'organizar_jornada', { instruction: 'excluir t1' });
   await expect(call.getByRole('region', { name: 'Confirmar alteração' })).toBeVisible();
@@ -190,12 +221,16 @@ test('confirmação falada é verificada pela transcrição e pedido cancelado n
   await expect.poll(() => state.workspace.tasks.some(item => item.id === 't1')).toBe(false);
   const before = state.workspace.tasks.length;
   let release!: () => void;
-  await page.route('**/api/ai/command', async route => { await new Promise<void>(resolve => { release = resolve; }); await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { configured: true, actions: [{ type: 'compromisso', title: 'Não criar', date: dateKey() }] } }) }); });
-  tool(state, 'cancelled', 'organizar_jornada', { instruction: 'crie uma tarefa' });
+  state.delaySave = () => new Promise<void>(resolve => { release = resolve; });
+  tool(state, 'continue-after-close', 'organizar_jornada', { instruction: 'agende dentista hoje às 15h' });
   await expect.poll(() => !!release).toBe(true);
-  state.socket!.send(JSON.stringify({ toolCallCancellation: { ids: ['cancelled'] } })); release();
   await call.getByRole('button', { name: 'Encerrar chamada', exact: true }).click();
   expect(state.workspace.tasks.length).toBe(before);
+  state.delaySave = undefined; release();
+  await expect.poll(() => state.workspace.tasks.length).toBe(before + 1);
+  await call.getByRole('button', { name: 'Fechar chamada' }).click();
+  await expect(page.locator('.assistant-messages')).toContainText('Dentista por voz');
+  expect(state.workspace.tasks.filter(item => item.title === 'Dentista por voz')).toHaveLength(1);
 });
 
 test('negar microfone mostra uma orientação e permite tentar novamente', async ({ page }) => {
@@ -242,4 +277,113 @@ test('fechar enquanto o microfone aguarda permissão libera a captura quando ela
   await page.evaluate(() => (window as unknown as { releaseMicrophone: () => void }).releaseMicrophone());
   await expect.poll(() => page.evaluate(() => (window as unknown as { lateStream: MediaStream }).lateStream.getTracks().every(track => track.readyState === 'ended'))).toBe(true);
   expect(state.sent).toEqual([]);
+});
+
+test('gerenciador permite renomear, buscar, fixar e retomar depois de recarregar', async ({ page }, info) => {
+  await fixture(page);
+  await page.getByLabel('Mensagem para o assistente').fill('agende dentista hoje às 15h');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.locator('.assistant-messages')).toContainText('Dentista por voz');
+  await page.getByRole('button', { name: 'Conversas', exact: true }).click();
+  const history = page.getByRole('dialog', { name: 'Suas conversas' });
+  await history.getByRole('button', { name: /^Renomear:/ }).click();
+  await history.getByLabel('Nome da conversa').fill('Agenda e saúde');
+  await history.getByRole('button', { name: 'Salvar nome' }).click();
+  await history.getByRole('button', { name: 'Fixar: Agenda e saúde', exact: true }).click();
+  await history.getByRole('button', { name: 'Fixadas', exact: true }).click();
+  await history.getByLabel('Buscar nas conversas').fill('dentista');
+  await expect(history.getByRole('button', { name: /Agenda e saúde.*Texto/ })).toBeVisible();
+  const audit = await new AxeBuilder({ page }).include('.conversation-manager').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(audit.violations).toEqual([]);
+  if (info.project.name === 'voice-android') {
+    expect(await history.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+    await page.screenshot({ path: 'test-results/jornada-conversas-android.png' });
+  }
+  await history.getByRole('button', { name: /Agenda e saúde.*Texto/ }).click();
+  await page.reload();
+  await expect(page.locator('.assistant-conversation-bar')).toContainText('Agenda e saúde');
+  await expect(page.locator('.assistant-messages')).toContainText('Dentista por voz');
+});
+
+test('foto na chamada preserva o original e reutiliza o anexo ao tentar a leitura novamente, sem criar gasto', async ({ page }) => {
+  const state = await fixture(page), originalNotes = state.workspace.notes.length, originalMoney = JSON.stringify(state.workspace.transactions);
+  const src = '/api/note-media/22222222-2222-4222-8222-222222222222.jpg';
+  let uploads = 0, readings = 0;
+  await page.route('**/api/note-media', route => { uploads++; return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ uploadUrl: 'https://storage.example.invalid/photo-test', src }) }); });
+  await page.route('https://storage.example.invalid/photo-test', route => route.fulfill({ status: 200, body: '{}' }));
+  await page.route('**/api/ai/command', async route => {
+    readings++;
+    const image = route.request().postDataJSON().image;
+    expect(image.src).toBe(src);
+    expect(state.workspace.notes.find(note => note.id === image.noteId)?.content).toContain(src);
+    await route.fulfill({ status: readings === 1 ? 503 : 200, contentType: 'application/json', body: JSON.stringify(readings === 1 ? { error: 'A leitura não respondeu. A foto permanece guardada.' } : { ok: true, data: { configured: true, actions: [], reply: 'Total informado: R$50. Preços individuais não informados. O que você quer organizar?' } }) });
+  });
+  const call = await start(page);
+  await call.getByLabel('Foto para a chamada').setInputFiles({ name: 'nota.jpg', mimeType: 'image/jpeg', buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) });
+  await expect(call.getByRole('button', { name: 'Tentar enviar a foto novamente' })).toBeVisible();
+  expect(state.workspace.notes).toHaveLength(originalNotes + 1);
+  await call.getByRole('button', { name: 'Tentar enviar a foto novamente' }).click();
+  await expect(call.getByRole('status').filter({ hasText: 'Foto guardada e conferida.' })).toBeVisible();
+  await expect.poll(() => state.workspace.notes[0].content).toContain('Preços individuais não informados');
+  expect(state.workspace.notes).toHaveLength(originalNotes + 1);
+  expect(state.workspace.notes[0].content).toContain(src);
+  expect(JSON.stringify(state.workspace.transactions)).toBe(originalMoney);
+  expect(uploads).toBe(1); expect(readings).toBe(2);
+});
+
+test('histórico antigo exige recuperação e envio explícitos antes de ir para a conta', async ({ page }) => {
+  await page.addInitScript(() => {
+    const messages = Array.from({ length: 70 }, (_, i) => ({ id: `old-${i}`, from: 'me', text: `Meu registro antigo ${i}` }));
+    localStorage.setItem('jornada-assistente-conversa', JSON.stringify(messages));
+  });
+  let uploadedOld = false;
+  page.on('request', request => { if (new URL(request.url()).pathname === '/api/conversations' && request.method() === 'POST' && request.postData()?.includes('Meu registro antigo')) uploadedOld = true; });
+  await fixture(page);
+  await page.getByRole('button', { name: 'Conversas', exact: true }).click();
+  const history = page.getByRole('dialog', { name: 'Suas conversas' });
+  await history.getByRole('button', { name: 'Recuperar histórico deste aparelho' }).click();
+  expect(uploadedOld).toBe(false);
+  await history.getByRole('button', { name: 'Salvar na minha conta' }).click();
+  await expect.poll(() => uploadedOld).toBe(true);
+  await history.getByRole('button', { name: /Meu registro antigo 0.*Texto/ }).click();
+  await expect(page.locator('.assistant-messages .assistant-message')).toHaveCount(70);
+});
+
+test('GPT-Live usa sessão HTTP e delegação client, sem enviar session.start nem duplicar o pedido', async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = window as unknown as { liveSent: Record<string, unknown>[]; emitLive: (value: object) => void };
+    state.liveSent = [];
+    class Channel {
+      readyState = 'open'; onmessage: ((event: { data: string }) => void) | null = null; onclose: (() => void) | null = null;
+      send(text: string) { const value = JSON.parse(text); state.liveSent.push(value); if (value.type === 'session.close') queueMicrotask(() => state.emitLive({ type: 'session.closed' })); }
+      close() { this.readyState = 'closed'; }
+    }
+    class Peer extends EventTarget {
+      iceGatheringState = 'complete'; connectionState = 'connected'; localDescription: { type: string; sdp: string } | null = null;
+      ontrack = null; onconnectionstatechange = null; channel = new Channel();
+      createDataChannel() { state.emitLive = value => this.channel.onmessage?.({ data: JSON.stringify(value) }); return this.channel; }
+      addTrack() {} close() {}
+      async createOffer() { return { type: 'offer', sdp: 'v=0\r\ns=Jornada test\r\n' }; }
+      async setLocalDescription(value: { type: string; sdp: string }) { this.localDescription = value; }
+      async setRemoteDescription() { setTimeout(() => state.emitLive({ type: 'session.started' }), 20); }
+    }
+    Object.defineProperty(window, 'RTCPeerConnection', { value: Peer });
+  });
+  const state = await fixture(page);
+  await page.route('**/api/ai/live', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { provider: 'openai', token: '', model: 'gpt-live-1', maxSeconds: 1200, expiresAt: new Date(Date.now() + 1200_000).toISOString() } }) }));
+  await page.route('**/api/ai/live/session', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: 'live-test', sdp: 'v=0\r\ns=Jornada test\r\n' } }) }));
+  const call = await start(page);
+  await page.evaluate(() => {
+    const state = window as unknown as { emitLive: (value: object) => void };
+    state.emitLive({ type: 'session.input_transcript.delta', delta: 'Agende um dentista hoje às 15h', start_ms: 0, end_ms: 1000 });
+    state.emitLive({ type: 'session.delegation.created', offset_ms: 1000, delegation: { id: 'delegate-1', target: 'client' } });
+    state.emitLive({ type: 'session.delegation.created', offset_ms: 1000, delegation: { id: 'delegate-1', target: 'client' } });
+  });
+  await expect.poll(() => state.workspace.tasks.filter(item => item.title === 'Dentista por voz').length).toBe(1);
+  await expect.poll(() => page.evaluate(() => (window as unknown as { liveSent: Record<string, unknown>[] }).liveSent.some(event => event.type === 'session.commentary.append' && event.delegation_id === 'delegate-1'))).toBe(true);
+  expect(state.jobs.size).toBe(1);
+  await call.getByRole('button', { name: 'Encerrar chamada', exact: true }).click();
+  const events = await page.evaluate(() => (window as unknown as { liveSent: Record<string, unknown>[] }).liveSent);
+  expect(events.some(event => event.type === 'session.start')).toBe(false);
+  expect(events.some(event => event.type === 'session.close')).toBe(true);
 });

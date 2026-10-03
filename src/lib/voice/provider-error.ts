@@ -1,6 +1,6 @@
 const statuses = new Set(['INVALID_ARGUMENT', 'FAILED_PRECONDITION', 'UNAUTHENTICATED', 'PERMISSION_DENIED', 'NOT_FOUND', 'RESOURCE_EXHAUSTED', 'INTERNAL', 'UNAVAILABLE', 'DEADLINE_EXCEEDED']);
 const reasons = new Set(['API_KEY_INVALID', 'API_KEY_EXPIRED', 'API_KEY_NOT_FOUND', 'API_KEY_SERVICE_BLOCKED', 'API_KEY_HTTP_REFERRER_BLOCKED', 'API_KEY_IP_ADDRESS_BLOCKED', 'SERVICE_DISABLED', 'BILLING_DISABLED', 'BILLING_REQUIRED', 'INSUFFICIENT_CREDITS', 'RATE_LIMIT_EXCEEDED']);
-const fields = new Set(['model', 'generationConfig', 'systemInstruction', 'tools', 'realtimeInputConfig', 'inputAudioTranscription', 'outputAudioTranscription', 'contextWindowCompression', 'sessionResumption', 'fieldMask', 'expireTime', 'newSessionExpireTime', 'uses']);
+const fields = new Set(['model', 'generationConfig', 'systemInstruction', 'tools', 'realtimeInputConfig', 'inputAudioTranscription', 'outputAudioTranscription', 'contextWindowCompression', 'sessionResumption', 'fieldMask', 'expireTime', 'newSessionExpireTime', 'uses', 'bidiGenerateContentSetup', 'liveConnectConstraints']);
 const record = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
 // Provider messages can echo keys, instructions and user data. Extract only known

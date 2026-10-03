@@ -1,6 +1,8 @@
 import { LIVE_SOCKET, type CallState, type LiveCredentials, type VoiceTool, type VoiceTranscript } from './protocol';
+import { GptLivePeer } from './gpt-live';
 
-type Options = {
+export type VoiceOptions = {
+  context?: () => { context: string; history: { role: 'user' | 'assistant'; text: string }[] };
   credentials: (signal: AbortSignal) => Promise<LiveCredentials>;
   state: (state: CallState) => void; level: (level: number) => void;
   transcript: (id: string, from: 'me' | 'assistant', text: string) => void;
@@ -61,8 +63,9 @@ export class LiveVoiceConnection {
   private outputId = ''; private outputText = '';
   private lastInput: VoiceTranscript = { text: '', startedAt: 0 };
   private callState: CallState = 'idle';
+  private rtc: GptLivePeer | null = null;
 
-  constructor(private options: Options) {}
+  constructor(private options: VoiceOptions) {}
   private state(state: CallState) { this.callState = state; this.options.state(state); }
   private later(action: () => void, milliseconds: number) {
     const timer = setTimeout(() => { this.timers.delete(timer); if (!this.ended) action(); }, milliseconds);
@@ -72,7 +75,7 @@ export class LiveVoiceConnection {
 
   async start() {
     try {
-      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.AudioContext || !window.AudioWorkletNode) throw new Error('Este navegador não oferece áudio ao vivo. Abra o site em uma versão atual do Chrome, Edge ou Safari, usando HTTPS.');
+      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || !window.AudioContext) throw new Error('Este navegador não oferece áudio ao vivo. Abra o site em uma versão atual do Chrome, Edge ou Safari, usando HTTPS.');
       this.state('permission');
       // Created/resumed in the click gesture, before awaiting permission or the network.
       this.audio = new AudioContext({ latencyHint: 'interactive' });
@@ -85,6 +88,14 @@ export class LiveVoiceConnection {
       this.state('connecting');
       this.credentials = await this.options.credentials(this.abort.signal);
       if (this.ended) return;
+      if (this.credentials.provider === 'openai') {
+        if (!window.RTCPeerConnection) throw new Error('Este navegador não oferece a conexão de áudio da OpenAI. Abra no Chrome, Edge ou Safari atualizado.');
+        this.rtc = new GptLivePeer({ ...this.options, state: value => { if (value === 'ended' || value === 'error') this.end(value); else this.state(value); } }, stream, this.abort.signal);
+        await this.rtc.start();
+        this.later(() => this.end(), this.credentials.maxSeconds * 1000);
+        return;
+      }
+      if (!window.AudioWorkletNode || !this.audio?.audioWorklet) throw new Error('Este navegador não oferece a captura de áudio do Gemini. Abra no Chrome, Edge ou Safari atualizado.');
       await this.audio!.audioWorklet.addModule('/voice-capture.worklet.js');
       if (this.ended) return;
       this.capture = new AudioWorkletNode(this.audio!, 'jornada-voice-capture');
@@ -178,10 +189,11 @@ export class LiveVoiceConnection {
     if (duplicate) { void duplicate.then(result => this.respond(call, result)); return; }
     if (this.toolResults.size >= 100) { this.fail('Esta chamada atingiu o limite de ações. Inicie outra para continuar.'); return; }
     const controller = new AbortController(); this.tools.set(call.id, controller);
+    const transcript = { ...this.lastInput };
     const result = this.toolQueue.then(async () => {
       if (this.ended || controller.signal.aborted) { this.tools.delete(call.id); return { cancelled: true }; }
       this.state('working');
-      try { return await this.options.tool(call, controller.signal, { ...this.lastInput }); }
+      try { return await this.options.tool(call, controller.signal, transcript); }
       catch (error) { return { saved: false, error: controller.signal.aborted ? 'Pedido interrompido antes da execução.' : error instanceof Error ? error.message : 'Não consegui executar o pedido.' }; }
       finally { this.tools.delete(call.id); if (!this.ended && !this.sources.size) this.state(this.tools.size ? 'working' : 'listening'); }
     });
@@ -210,6 +222,7 @@ export class LiveVoiceConnection {
     this.sources.clear(); this.scheduledAt = 0;
   }
   interrupt() {
+    if (this.rtc) { this.rtc.interrupt(); return; }
     this.stopPlayback(); this.state(this.tools.size ? 'working' : 'listening');
     this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'Pare de falar e aguarde meu próximo pedido.' }] }], turnComplete: false } });
   }
@@ -218,12 +231,13 @@ export class LiveVoiceConnection {
     this.stream?.getAudioTracks().forEach(track => { track.enabled = !value; });
     if (value) this.send({ realtimeInput: { audioStreamEnd: true } });
   }
-  volume(value: boolean) { if (this.output) this.output.gain.value = value ? 1 : 0; }
-  notify(text: string) { this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }); }
+  volume(value: boolean) { if (this.rtc) this.rtc.volume(value); if (this.output) this.output.gain.value = value ? 1 : 0; }
+  notify(text: string) { if (this.rtc) this.rtc.notify(text); else this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }); }
   private fail(message: string) { this.options.notice(message); this.end('error'); }
   end(state: CallState = 'ended') {
     if (this.ended) return;
     this.ended = true; this.ready = false; this.abort.abort();
+    this.rtc?.end(state); this.rtc = null;
     this.timers.forEach(clearTimeout); this.timers.clear();
     for (const controller of this.tools.values()) controller.abort(); this.tools.clear();
     this.capture?.disconnect(); if (this.capture) this.capture.port.onmessage = null;
