@@ -205,6 +205,10 @@ select expect(jsonb_array_length(bot_context('segredo-do-servidor-com-mais-de-32
 select expect(bot_save('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555',
   (bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555')->'workspace'->'data') || '{"tasks": []}',
   (bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555')->'workspace'->>'revision')::integer) > 0, 'robô salva o espaço da conta vinculada');
+-- Conflito de revisão usa PT409: 40001 faria o PostgREST repetir a transação sem parar.
+do $$ begin perform bot_save('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555', '{"version": "1", "subjects": [], "notes": [], "tasks": [], "sessions": []}', 1);
+  raise exception 'FALHA: aceitou revisão antiga';
+exception when sqlstate 'PT409' then null; end $$;
 do $$ begin perform bot_save('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '999', '{"version": "1", "subjects": [], "notes": [], "tasks": [], "sessions": []}', 1);
   raise exception 'FALHA: robô salvou numa conversa sem vínculo';
 exception when insufficient_privilege then null; end $$;

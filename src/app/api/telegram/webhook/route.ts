@@ -104,7 +104,7 @@ export async function POST(request: Request) {
     let outcome = applyCommands(workspace, result.actions, { today, now });
     if (outcome.applied.length) {
       let saved = await save(outcome.data, revision);
-      if (saved.error?.code === '40001') {
+      if (saved.error?.code === 'PT409' || saved.error?.code === '40001') {
         // The app saved something meanwhile: apply the same actions on the fresh copy.
         const fresh = await db.rpc('bot_context', { server_secret: serverSecret, channel_id: CHANNEL, chat });
         const again = parseWorkspace(JSON.stringify((fresh.data as Context).workspace?.data));
