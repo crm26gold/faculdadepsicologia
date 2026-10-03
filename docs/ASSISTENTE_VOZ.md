@@ -34,6 +34,12 @@ A rota autenticada `/api/ai/live` mantém a chave permanente no servidor e emite
 
 Não há nova migração de banco. As ações reutilizam o workspace, a validação do formato, a revisão de salvamento e a autorização existentes. A demo não recebe credenciais nem acesso ao áudio ao vivo.
 
+## Diagnóstico de conexão
+
+Uma falha ao preparar a chamada mostra um código de referência e, quando disponível, o status HTTP recebido do Gemini. Configuração inválida, autorização recusada, limite de cota e problema explícito de faturamento têm mensagens distintas. Uma resposta 400 ou 403 não é suficiente, por si só, para afirmar que falta faturamento.
+
+Os logs `[voice-live]` correlacionam a referência com a etapa `models` ou `token`. Registram apenas status, motivos conhecidos e nomes de campos permitidos. Não registram chave, token temporário, usuário, transcrição, contexto, conteúdo de anotações ou mensagem bruta do provedor. Para investigar uma tentativa real, procure a referência nos logs da Vercel depois de iniciar a chamada com a conta autenticada.
+
 ## Validação
 
 - Testes de domínio cobrem seleção inequívoca, confirmação, preservação de notas/vínculos, desfazer, consultas, datas, finanças e PCM.
