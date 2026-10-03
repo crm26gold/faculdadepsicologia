@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { createPortal } from 'react-dom';
 import { AudioLines, Check, ChevronDown, Mic, MicOff, Phone, PhoneOff, RotateCcw, Square, Volume2, VolumeX, X } from 'lucide-react';
 import { LiveVoiceConnection } from '@/lib/voice/client';
 import type { CallState, LiveCredentials, VoiceTool, VoiceTranscript } from '@/lib/voice/protocol';
@@ -20,6 +21,9 @@ const states: Record<CallState, string> = { idle: 'Sua jornada, em uma conversa'
 export function VoiceCall(props: Props) {
   const current = useRef(props); current.current = props;
   const dialog = useRef<HTMLDialogElement>(null);
+  const inlineRegion = useRef<HTMLElement>(null);
+  const [portal, setPortal] = useState<HTMLElement | null>(null);
+  const [inline, setInline] = useState(false);
   const id = useId();
   const connection = useRef<LiveVoiceConnection | null>(null);
   const [state, setState] = useState<CallState>('idle');
@@ -38,11 +42,23 @@ export function VoiceCall(props: Props) {
 
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
-    dialog.current?.showModal();
+    setPortal(document.body);
     const unload = () => connection.current?.end();
     window.addEventListener('pagehide', unload);
     return () => { connection.current?.end(); window.removeEventListener('pagehide', unload); previous?.focus(); };
   }, []);
+  useEffect(() => {
+    if (!portal || inline || !dialog.current) return;
+    try {
+      dialog.current.showModal();
+      if (!dialog.current.open) setInline(true);
+    } catch { setInline(true); }
+  }, [portal, inline]);
+  useEffect(() => {
+    if (!inline) return;
+    inlineRegion.current?.scrollIntoView({ block: 'start' });
+    inlineRegion.current?.focus();
+  }, [inline]);
   useEffect(() => { if (props.blocked) connection.current?.end(); }, [props.blocked]);
   useEffect(() => {
     if (!active) return;
@@ -77,12 +93,12 @@ export function VoiceCall(props: Props) {
   }
   function cancel() { props.onCancel(); connection.current?.notify('A pessoa cancelou a alteração pendente no aplicativo. Nenhum item dessa confirmação foi removido.'); }
 
-  return <dialog ref={dialog} className="voice-call" aria-labelledby={id} onCancel={event => { event.preventDefault(); close(); }}>
+  const content = <>
     <header className="voice-call-header">
       <span className="voice-call-brand"><img src="/brand/simbolo-revertido.svg" width={32} height={32} alt="" /><span>Jornada Plena<small>Assistente de voz</small></span></span>
       <button type="button" className="icon-button" onClick={close} aria-label="Fechar chamada"><X size={21} aria-hidden="true" /></button>
     </header>
-    <div className="voice-call-body">
+    <div className="voice-call-body" tabIndex={0}>
       <div className="voice-call-meta"><span className={`voice-call-dot ${active ? 'on' : ''}`} aria-hidden="true" /><span>{active ? 'Ao vivo' : 'Conversa por voz'}</span><time aria-label="Duração da chamada">{String(Math.floor(seconds / 60)).padStart(2, '0')}:{String(seconds % 60).padStart(2, '0')}</time></div>
       <div className={`voice-orb ${state} ${muted ? 'muted' : ''}`} style={{ '--voice-level': level } as CSSProperties} aria-hidden="true">
         <div className="voice-orb-halo" /><div className="voice-orb-core"><AudioLines size={48} strokeWidth={1.5} /></div>
@@ -92,6 +108,7 @@ export function VoiceCall(props: Props) {
       {!active && !captions.length && <div className="voice-call-examples"><p>“Reagende o dentista para amanhã às 15h.”</p><p>“Crie uma rotina de leitura e organize meus estudos.”</p><p>“O que tenho esta semana? Quanto falta pagar?”</p></div>}
       {problem && <p className="voice-call-problem" role="alert">{problem}</p>}
       {!props.available && <p className="voice-call-problem">A chamada ao vivo está disponível ao entrar com sua conta. Neste modo você pode experimentar os registros pelo chat.</p>}
+      {props.blocked && <p className="voice-call-problem" role="alert">A sincronização do seu espaço precisa ser resolvida antes da chamada. Feche esta tela e confira o aviso no topo da página.</p>}
       {props.pending.length > 0 && <section className="assistant-confirmation" aria-label="Confirmar alteração">
         <strong>Confirme antes de continuar</strong><ul>{props.pending.map((item, index) => <li key={index}>{item.label}</li>)}</ul>
         <p>Diga “confirmo a exclusão” ou “confirmo a substituição”. Você também pode tocar abaixo.</p>
@@ -116,5 +133,9 @@ export function VoiceCall(props: Props) {
         <p>Ao iniciar, seu áudio será enviado ao Gemini para responder e executar seus pedidos. A Jornada não guarda a gravação. A transcrição fica nesta conversa. Cada chamada dura até 20 minutos.</p>
       </>}
     </footer>
-  </dialog>;
+  </>;
+  // Native dialogs escape scrolling containers through the top layer. If opening fails,
+  // keep the same call in the document flow so the person can still start and close it.
+  if (inline) return <section ref={inlineRegion} className="voice-call voice-call-inline" aria-labelledby={id} tabIndex={-1}>{content}</section>;
+  return portal && createPortal(<dialog ref={dialog} className="voice-call" aria-labelledby={id} onClose={() => current.current.onClose()} onCancel={event => { event.preventDefault(); event.stopPropagation(); close(); }}>{content}</dialog>, portal);
 }

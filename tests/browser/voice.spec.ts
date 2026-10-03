@@ -44,6 +44,83 @@ async function start(page: Page) {
 }
 const tool = (state: Fixture, id: string, name: string, args: unknown = {}) => state.socket!.send(JSON.stringify({ toolCall: { functionCalls: [{ id, name, args }] } }));
 
+test('uma falha na voz do navegador não impede abrir a chamada', async ({ page }, info) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await page.addInitScript(() => {
+    Object.defineProperty(window.speechSynthesis, 'cancel', { value: () => { throw new Error('Speech engine unavailable'); } });
+  });
+  await fixture(page);
+  const entry = page.getByRole('button', { name: 'Conversar ao vivo', exact: false });
+  if (info.project.name === 'voice-android') await entry.tap(); else await entry.click();
+  const call = page.getByRole('dialog');
+  await expect(call).toContainText('Vamos conversar?');
+  await call.getByRole('button', { name: 'Fechar chamada' }).click();
+  await expect(call).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('um conflito de sincronização abre a chamada com uma explicação e bloqueia iniciar', async ({ page }) => {
+  await fixture(page);
+  await page.route('**/api/workspace', async route => {
+    if (route.request().method() === 'PUT') await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ error: 'Alteração concorrente de teste. Confira seus dados antes de continuar.' }) });
+    else await route.fallback();
+  });
+  await page.getByLabel('Mensagem para o assistente').fill('agende dentista hoje às 15h');
+  await page.getByRole('button', { name: 'Enviar mensagem' }).click();
+  await expect(page.locator('.error-banner')).toContainText('Alteração concorrente de teste');
+  const entry = page.getByRole('button', { name: 'Conversar ao vivo', exact: false });
+  await expect(entry).toBeEnabled();
+  await entry.click();
+  const call = page.getByRole('dialog');
+  await expect(call.getByRole('alert')).toContainText('sincronização do seu espaço');
+  await expect(call.getByRole('button', { name: 'Iniciar chamada', exact: true })).toBeDisabled();
+  await call.getByRole('button', { name: 'Fechar chamada' }).click();
+});
+
+test('abrir a chamada pela bolinha preserva a janela do assistente ao fechar', async ({ page }, info) => {
+  test.skip(info.project.name === 'voice-android', 'A bolinha só aparece no computador.');
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  await fixture(page);
+  await page.goto('/#today');
+  await page.getByRole('button', { name: 'Abrir assistente', exact: true }).click();
+  const panel = page.getByRole('dialog', { name: 'Assistente Jornada Plena', exact: true });
+  await panel.getByRole('button', { name: 'Conversar ao vivo', exact: false }).click();
+  const call = page.getByRole('dialog', { name: 'Vamos conversar?', exact: true });
+  await expect(call).toBeVisible();
+  await call.getByRole('button', { name: 'Fechar chamada' }).click();
+  await expect(call).toBeHidden();
+  await expect(panel.getByLabel('Mensagem para o assistente')).toBeEnabled();
+  await panel.getByRole('button', { name: 'Fechar janela' }).click();
+  await expect(panel).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
+test('a chamada continua acessível quando o diálogo nativo falha, sem ligar o microfone sozinha', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  let captures = 0; page.on('request', request => { if (new URL(request.url()).pathname === '/api/ai/live') captures++; });
+  await page.addInitScript(() => {
+    const original = HTMLDialogElement.prototype.showModal;
+    HTMLDialogElement.prototype.showModal = function () {
+      if (this.classList.contains('voice-call')) throw new DOMException('Dialog unavailable', 'InvalidStateError');
+      original.call(this);
+    };
+  });
+  await fixture(page);
+  await page.getByRole('button', { name: 'Conversar ao vivo', exact: false }).click();
+  const call = page.locator('section.voice-call-inline');
+  await expect(call).toBeVisible();
+  await expect(call).toHaveAccessibleName('Vamos conversar?');
+  await expect(call).toBeFocused();
+  expect(captures).toBe(0);
+  const audit = await new AxeBuilder({ page }).include('.voice-call').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(audit.violations.map(issue => issue.id)).toEqual([]);
+  await call.getByRole('button', { name: 'Iniciar chamada', exact: true }).click();
+  await expect(call).toContainText('Pode falar. Estou ouvindo.');
+  await call.getByRole('button', { name: 'Fechar chamada' }).click();
+  await expect(call).toBeHidden();
+  expect(errors).toEqual([]);
+});
+
 test('chamada responsiva, acessível, microfone e áudio controláveis; fechar libera o microfone', async ({ page }, info) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.addInitScript(() => {
@@ -52,6 +129,9 @@ test('chamada responsiva, acessível, microfone e áudio controláveis; fechar l
     navigator.mediaDevices.getUserMedia = async constraints => { const stream = await original(constraints); (window as unknown as { callStreams: MediaStream[] }).callStreams.push(stream); return stream; };
   });
   const state = await fixture(page);
+  await page.screenshot({ path: `test-results/voice-home-${info.project.name}.png` });
+  const homeAudit = await new AxeBuilder({ page }).include('.assistant-call-home').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(homeAudit.violations.map(issue => ({ id: issue.id, targets: issue.nodes.map(node => node.target) }))).toEqual([]);
   const call = await start(page);
   const audit = await new AxeBuilder({ page }).include('.voice-call').withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(audit.violations.map(issue => ({ id: issue.id, targets: issue.nodes.map(node => node.target) }))).toEqual([]);

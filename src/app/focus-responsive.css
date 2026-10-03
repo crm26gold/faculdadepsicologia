@@ -359,6 +359,19 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .assistant-retry { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-block-start: 8px; }
 .assistant-retry .button { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; }
 /* Chamada ao vivo: espaço para respirar, controles acessíveis e transcrição opcional. */
+.assistant-call-home { display: grid; grid-template-columns: 150px minmax(0, 1fr); align-items: center; gap: 20px; padding: 28px 24px 22px; border-radius: 20px; border: 1px solid var(--line); background: radial-gradient(ellipse at top left, var(--sage), var(--surface) 65%); text-align: start; }
+.assistant-home-orb { inline-size: 150px; block-size: 150px; display: grid; place-items: center; position: relative; border: 1px solid var(--line); border-radius: 50%; color: white; }
+.assistant-home-orb > span { position: absolute; inset: 14px; border: 1px solid var(--line); border-radius: 50%; }
+.assistant-home-orb > svg { position: relative; box-sizing: content-box; padding: 26px; border-radius: 50%; background: radial-gradient(circle at 30% 25%, #427662, var(--brand-forest) 75%); box-shadow: 0 10px 25px #0a2a2020; }
+.assistant-home-eyebrow { font-size: .73rem; color: var(--muted); font-weight: 600; }
+.assistant-call-welcome h2 { font-family: var(--serif); font-size: clamp(1.8rem, 3vw, 2.2rem); margin-block: 6px 12px; text-wrap: balance; }
+.assistant-call-welcome > p { font-size: .86rem; margin-block-end: 18px; max-inline-size: 440px; }
+.assistant-call-welcome .assistant-call-entry { inline-size: 100%; padding: 12px 18px; }
+.assistant-call-entry > svg:last-child { margin-inline-start: auto; }
+.assistant-write-entry { min-block-size: 44px; margin-block-start: 4px; }
+.assistant-home-capabilities { grid-column: 1 / -1; display: flex; gap: 12px 18px; flex-wrap: wrap; justify-content: center; list-style: none; padding: 16px 0 0; margin: 0; border-block-start: 1px solid var(--line); }
+.assistant-home-capabilities li { display: flex; align-items: center; gap: 6px; font-size: .74rem; color: var(--muted); }
+.assistant-form .assistant-once { inline-size: 44px; min-block-size: 44px; border-radius: 10px; }
 .assistant-call-entry { gap: 12px; text-align: start; min-block-size: 76px; }
 .assistant-call-entry > span { display: flex; flex-direction: column; line-height: 1.35; }
 .assistant-call-entry small { font-size: .76rem; font-weight: 400; opacity: .85; margin-block-start: 4px; }
@@ -370,6 +383,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .assistant-applied.unsaved li { background: var(--sand); color: var(--ink); }
 .voice-call { inline-size: min(600px, calc(100vw - 32px)); max-inline-size: none; block-size: min(850px, calc(100dvh - 32px)); max-block-size: none; padding: 0; border: 1px solid var(--line); border-radius: 28px; background: var(--canvas); color: var(--ink); box-shadow: 0 24px 100px #0a2a2050; overflow: hidden; }
 .voice-call[open] { display: flex; flex-direction: column; }
+.voice-call.voice-call-inline { display: flex; flex-direction: column; inline-size: 100%; block-size: min(850px, calc(100dvh - 160px)); min-block-size: 480px; margin: 0 0 80px; scroll-margin-block-start: 80px; }
 .voice-call::backdrop { background: #0a2a20b3; backdrop-filter: blur(6px); }
 .voice-call-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 24px; border-block-end: 1px solid var(--line); flex-shrink: 0; }
 .voice-call-brand { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: .95rem; }
@@ -410,6 +424,13 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .voice-controls > button[aria-pressed='true'] { background: var(--sand); }
 .voice-controls > .voice-hangup { background: #b91c1c; color: white; border-color: #b91c1c; }
 @media (max-width: 600px) {
+  .assistant-call-home { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 22px 18px 18px; text-align: center; }
+  .assistant-home-orb { inline-size: 110px; block-size: 110px; margin-inline: auto; }
+  .assistant-home-orb > svg { padding: 18px; }
+  .assistant-call-welcome h2 { font-size: 1.9rem; }
+  .assistant-call-welcome > p { margin-inline: auto; }
+  .assistant-call-welcome .assistant-call-entry { min-block-size: 64px; }
+  .assistant-home-capabilities { gap: 10px 12px; }
   .voice-call { inline-size: 100vw; block-size: 100dvh; border: 0; border-radius: 0; margin: 0; max-inline-size: 100vw; max-block-size: 100dvh; }
   .voice-call-header { padding: max(16px, env(safe-area-inset-top)) 18px 16px; }
   .voice-call-body { padding: 18px 18px 14px; }
