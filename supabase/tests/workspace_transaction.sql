@@ -19,7 +19,7 @@ begin
   begin
     perform public.save_personal_workspace(payload,1);
     raise exception 'Stale revision accepted';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
   begin
     perform public.save_personal_workspace('{}',2);

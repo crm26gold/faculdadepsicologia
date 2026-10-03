@@ -15,6 +15,7 @@ const messages: Record<string, [number, string]> = {
   '23514': [400, 'Algum campo está fora do formato permitido.'],
   '23505': [409, 'Isso já existe.'],
   '40001': [409, 'Outra pessoa alterou isto agora. Recarregue e tente de novo.'],
+  PT409: [409, 'Outra sessão alterou isto agora. Recarregue e tente de novo.'],
 };
 export function dbError(error: { code?: string } | null) {
   const [status, message] = messages[error?.code ?? ''] ?? [503, 'Não foi possível concluir agora. Tente novamente.'];

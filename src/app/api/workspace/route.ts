@@ -43,7 +43,7 @@ export async function PUT(request: Request) {
   try { body = z.object({ data: workspaceSchema, revision: z.number().int().nonnegative() }).parse(JSON.parse(raw)); }
   catch { return response({ error: 'Dados inválidos. Nada foi alterado.' }, 400); }
   const { data, error } = await session.client.rpc('save_personal_workspace', { next_data: body.data, expected_revision: body.revision });
-  if (error?.code === '40001') return response({ error: 'Outra sessão alterou os dados. Exporte suas alterações e recarregue antes de continuar.' }, 409);
+  if (error?.code === 'PT409' || error?.code === '40001') return response({ error: 'Outra sessão alterou os dados. Exporte suas alterações e recarregue antes de continuar.' }, 409);
   if (error) return response({ error: 'Não foi possível salvar. Suas alterações continuam nesta tela; exporte uma cópia.' }, 503);
   return response({ revision: data });
 }
