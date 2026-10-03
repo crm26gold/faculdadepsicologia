@@ -2,6 +2,7 @@ import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { assistantRequest } from '@/lib/ai/catalog';
 import { openKey } from '@/lib/ai/crypto';
 import { AiError, generateResilient } from '@/lib/ai/providers';
+import { requestBudget } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,6 +19,8 @@ export async function POST(request: Request) {
   const { data, error } = await session.client.rpc('ai_runtime', { task_id: 'assistente' });
   if (error) return dbError(error);
   if (!data) return reply({ ok: true, data: { configured: false } });
+  const limited = await requestBudget(session, 'ai');
+  if (limited) return limited;
   try {
     const config = ({ provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) });
     const { text } = await generateResilient(config,

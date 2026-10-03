@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { openKey } from '@/lib/ai/crypto';
 import { AiError, generateResilient } from '@/lib/ai/providers';
+import { requestBudget } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 const organizeRequest = z.object({
@@ -23,6 +24,8 @@ export async function POST(request: Request) {
   if (runtime.error) return dbError(runtime.error);
   const data = runtime.data;
   if (!data) return reply({ ok: true, data: { configured: false } });
+  const limited = await requestBudget(session, 'ai');
+  if (limited) return limited;
   try {
     const config = { provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) };
     const prompt = `Anotação:\nTítulo: ${body.title || '(sem título)'}\nTexto: ${body.text || '(vazio)'}\n\nLugares possíveis:\n${body.options.map(option => `- ${option.key}: ${option.label}`).join('\n')}`;

@@ -3,25 +3,23 @@ import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { openKey } from '@/lib/ai/crypto';
 import { chooseLiveModel, liveTokenRequest, MAX_CALL_SECONDS } from '@/lib/voice/protocol';
 import { liveProviderFailure } from '@/lib/voice/provider-error';
+import { requestBudget } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 const requestSchema = z.object({ context: z.string().max(6000), history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(2000) })).max(12).default([]) });
-const starts = new Map<string, number[]>();
 
 export async function POST(request: Request) {
   const input = await writeRequest(request, requestSchema, 128_000);
   if (input instanceof Response) return input;
   const { session, body } = input;
   const now = Date.now();
-  const recent = (starts.get(session.user.id) ?? []).filter(time => now - time < 60_000);
-  if (recent.length >= 4) return reply({ error: 'Aguarde um minuto antes de iniciar outra chamada.' }, 429);
-  if (starts.size > 1000) starts.clear();
-  starts.set(session.user.id, [...recent, now]);
   const { data, error } = await session.client.rpc('ai_runtime', { task_id: 'voz' });
   if (error) return dbError(error);
   if (!data || !['gemini', 'openai'].includes(data.provider)) return reply({ error: 'Configure a tarefa “Chamada ao vivo” com Gemini ou OpenAI em Administração › Inteligência artificial.' }, 409);
   if (data.provider === 'openai') return data.model !== 'gpt-live-1' ? reply({ error: 'Escolha gpt-live-1 na tarefa Chamada ao vivo e salve antes de iniciar.' }, 409) : reply({ ok: true, data: { provider: 'openai', token: '', model: 'gpt-live-1', expiresAt: new Date(now + MAX_CALL_SECONDS * 1000).toISOString(), maxSeconds: MAX_CALL_SECONDS } });
+  const limited = await requestBudget(session, 'live');
+  if (limited) return limited;
   const reference = crypto.randomUUID().slice(0, 8);
   let stage = 'key';
   const failed = async (response: Response) => {

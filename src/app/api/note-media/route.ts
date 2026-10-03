@@ -3,6 +3,7 @@ import { userSession } from '@/lib/supabase/server';
 import { applicationOrigin } from '@/lib/auth-input';
 import { demoRequested } from '@/lib/config';
 import { mediaTypes, validMedia, NOTE_BUCKET } from '@/lib/note-media';
+import { requestBudget } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 const reply = (body: unknown, status = 200) => Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
@@ -31,6 +32,8 @@ export async function POST(request: Request) {
   const { data, error } = await session.client.from('personal_workspaces').select('data').eq('owner_id', session.user.id).maybeSingle();
   if (error) return reply({ error: 'Não foi possível verificar sua anotação.' }, 503);
   if (!data?.data?.notes?.some((note: { id: string }) => note.id === body.noteId)) return reply({ error: 'Aguarde a anotação sincronizar antes de anexar.' }, 409);
+  const limited = await requestBudget(session, 'upload');
+  if (limited) return limited;
   const file = `${randomUUID()}.${mediaTypes[body.type]}`;
   const path = `${session.user.id}/${file}`;
   const upload = await session.client.storage.from(NOTE_BUCKET).createSignedUploadUrl(path, { upsert: false });

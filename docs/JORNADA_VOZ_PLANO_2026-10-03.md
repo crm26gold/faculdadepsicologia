@@ -42,6 +42,8 @@ Persistir histórico e regras não treina automaticamente um modelo próprio. Pa
 | Compras com fontes | Regras de perguntas e incerteza; relato original e foto preservados | Estrutura própria de itens, fontes, correções e reconciliação |
 | WhatsApp | Ainda não ativado | Conta/número elegíveis, autorização e regras oficiais aplicáveis |
 | MCP da Jornada | Contratos de consultas e ações reutilizáveis | Conector com autorização por usuário e escopos próprios |
+| Cache e abuso | URL privada estável, revalidação, byte ranges, formato verificado e limites no banco | Medir uso real e testar mídia autenticada no aparelho |
+| Segurança e Cloudflare | Fotos sem autoridade para executar; origem, RLS, limites e confirmação | Domínio próprio, WAF gradual, scanner de anexos e recuperação testada |
 
 Este arquivo descreve código e etapas, não prova publicação na Vercel nem uma chamada real. A entrega deve informar separadamente commit/publicação, testes locais e serviços realmente validados.
 
@@ -102,5 +104,6 @@ Evoluir memória explícita: preferências consentidas, fatos com fonte, pendên
 3. Enviar uma foto de teste ao próprio Telegram já vinculado.
 4. Para WhatsApp Business no celular, preparar a conta de API e concluir as verificações oficiais da Meta.
 5. Para aplicativo Android, testar no aparelho e decidir forma de distribuição quando houver um build concreto.
+6. Após comprar o domínio próprio, informar somente o domínio para configurar Cloudflare, Vercel e acesso Google. A preparação está em [SEGURANCA_CACHE_CLOUDFLARE.md](./SEGURANCA_CACHE_CLOUDFLARE.md).
 
 Detalhes dos controles, configuração e privacidade estão em [ASSISTENTE_VOZ.md](./ASSISTENTE_VOZ.md). Cada etapa precisa produzir algo revisável e um resultado verificável antes de avançar.

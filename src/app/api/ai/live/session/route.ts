@@ -2,25 +2,23 @@ import { z } from 'zod';
 import { openKey } from '@/lib/ai/crypto';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { MAX_CALL_SECONDS } from '@/lib/voice/protocol';
+import { requestBudget } from '@/lib/ai/budget';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const schema = z.object({ sdp: z.string().min(20).max(64_000).refine(value => value.startsWith('v=0'), 'Oferta de áudio inválida.'),
   context: z.string().max(6000), history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(2000) })).max(12).default([]) });
-const starts = new Map<string, number>();
 
 // The browser receives an SDP answer, never an OpenAI project key. The Jornada planner remains independent.
 export async function POST(request: Request) {
   const input = await writeRequest(request, schema, 180_000);
   if (input instanceof Response) return input;
   const { session, body } = input;
-  const now = Date.now();
-  if (now - (starts.get(session.user.id) ?? 0) < 15_000) return reply({ error: 'Aguarde alguns segundos antes de iniciar outra chamada.' }, 429);
-  if (starts.size > 1000) starts.clear();
-  starts.set(session.user.id, now);
   const { data, error } = await session.client.rpc('ai_runtime', { task_id: 'voz' });
   if (error) return dbError(error);
   if (!data || data.provider !== 'openai' || data.model !== 'gpt-live-1') return reply({ error: 'Cadastre uma chave OpenAI e escolha GPT-Live na tarefa Chamada ao vivo.' }, 409);
+  const limited = await requestBudget(session, 'live');
+  if (limited) return limited;
   const reference = crypto.randomUUID().slice(0, 8);
   try {
     const response = await fetch('https://api.openai.com/v1/live/sessions', { method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(20_000),

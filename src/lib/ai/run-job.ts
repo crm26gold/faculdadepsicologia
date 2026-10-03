@@ -4,6 +4,7 @@ import { applyCommands, commandContext, commandSystem, executionSummary, parseCo
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, parseWorkspace } from '../workspace';
 import { openKey } from './crypto';
 import { AiError, generateResilient } from './providers';
+import { requestBudget } from './budget';
 import type { userSession } from '../supabase/server';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
@@ -15,6 +16,8 @@ export async function runAssistantJob(session: Session, id: string) {
     const input = jobInputSchema.parse(claimed.data.input);
     const runtime = await session.client.rpc('ai_runtime', { task_id: 'assistente' });
     if (runtime.error || !runtime.data) throw new Error('A Conversa do assistente está desativada. O pedido continua guardado.');
+    const limited = await requestBudget(session, 'ai');
+    if (limited) throw new Error((await limited.json()).error);
     const load = async () => {
       const result = await session.client.from('personal_workspaces').select('data,revision').eq('owner_id', session.user.id).maybeSingle();
       if (result.error) throw new Error('Não consegui abrir seu espaço. Nenhuma alteração foi feita.');

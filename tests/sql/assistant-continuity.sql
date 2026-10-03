@@ -24,9 +24,13 @@ begin
   perform public.finish_assistant_job(j,r,w,rev,answer);
   perform public.finish_assistant_job(j,r,w,rev,answer);
   if (select revision from public.personal_workspaces where owner_id=owner)<>rev+1 then raise exception 'Replay duplicated update'; end if;
+  if not exists(select 1 from jsonb_array_elements(public.export_my_data()->'assistant_conversations') e where e->>'id'=c::text)
+    or not exists(select 1 from jsonb_array_elements(public.export_my_data()->'assistant_jobs') e where e->>'id'=j::text and e->'result'->>'saved'='true') then raise exception 'Own history missing from export'; end if;
   perform set_config('request.jwt.claim.sub',gen_random_uuid()::text,true);
   if exists(select 1 from public.assistant_jobs where id=j) or exists(select 1 from public.assistant_conversations where id=c) then raise exception 'Other account read'; end if;
   if public.claim_assistant_job(j,r) is not null then raise exception 'Other account claimed'; end if;
+  if exists(select 1 from jsonb_array_elements(public.export_my_data()->'assistant_conversations') e where e->>'id'=c::text)
+    or exists(select 1 from jsonb_array_elements(public.export_my_data()->'assistant_jobs') e where e->>'id'=j::text) then raise exception 'Other account exported history'; end if;
   begin insert into public.assistant_conversations(user_id,id,title) values(owner,gen_random_uuid(),'Cross account'); raise exception 'Other account write'; exception when insufficient_privilege then null; end;
   perform set_config('request.jwt.claim.sub',owner::text,true);
   perform public.delete_assistant_conversation(c,1);

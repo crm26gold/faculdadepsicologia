@@ -98,6 +98,9 @@ for (const scenario of cases) {
     const api = await request('/api/workspace');
     assert.equal(api.status, demoRequested ? 404 : 401);
     assert.match(api.headers.get('cache-control') ?? '', /no-store/);
+    const media = await request('/api/note-media/11111111-1111-4111-8111-111111111111.png', { headers: { 'If-None-Match': '*' } });
+    assert.equal(media.status, demoRequested ? 404 : 401, 'Mídia em cache exige autenticação antes de responder 304');
+    assert.match(media.headers.get('cache-control') ?? '', /no-store/);
     for (const path of ['/api/conversations', '/api/assistant/jobs']) {
       const response = await request(path);
       assert.equal(response.status, demoRequested ? 404 : 401, `${path} exige uma conta autenticada`);
@@ -107,7 +110,7 @@ for (const scenario of cases) {
       const headers = { 'Content-Type': 'application/json', ...(Origin ? { Origin } : {}) };
       assert.equal((await request('/api/workspace', { method: 'PUT', headers, body: '{}' })).status,
         demoRequested ? 404 : Origin === requestOrigin ? 401 : 403);
-      for (const path of ['/api/ai/live', '/api/ai/live/session', '/api/assistant/jobs', '/api/conversations']) {
+      for (const path of ['/api/ai/live', '/api/ai/live/session', '/api/ai/command', '/api/note-media', '/api/assistant/jobs', '/api/conversations']) {
         assert.equal((await request(path, { method: 'POST', headers, body: '{}' })).status,
           demoRequested ? 404 : Origin === requestOrigin ? 401 : 403, `${path} exige sessão autenticada e origem autorizada`);
       }

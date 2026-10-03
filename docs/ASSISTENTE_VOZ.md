@@ -58,7 +58,7 @@ O chat escrito e a interpretação de fotos ainda usam a requisição direta exi
 
 Durante a chamada, toque no clipe para enviar uma imagem. A foto original fica em uma anotação privada da sua conta; a interpretação é acrescentada e identificada como informação do assistente para conferir. A leitura usa a tarefa **Conversa do assistente**. O anexo pode ter até 25 MB para guardar; a leitura de imagem pela IA limita o arquivo a 4 MB e verifica o formato. Só são lidos anexos pertencentes às suas notas. Não são buscadas imagens em endereços arbitrários.
 
-Apenas receber uma foto não autoriza registrar um gasto. O assistente deve perguntar o que você quer organizar. As instruções pedem uma pergunta útil por vez, ritmo calmo, distinção entre relato e comprovante e nenhuma invenção de preço por item.
+A leitura de fotos não recebe contexto financeiro nem histórico pessoal e não produz ações no executor, mesmo quando o modelo tenta devolver uma ação. O original e a interpretação ficam na anotação; você pode então pedir por voz ou texto o registro que deseja fazer. As instruções pedem uma pergunta útil por vez, ritmo calmo, distinção entre relato e comprovante e nenhuma invenção de preço por item.
 
 Exemplo: você informa total de R$50, bolacha, iogurte e pão, sem valores individuais. O total é conhecido; os preços individuais ficam **não informados**. Uma nota daquela mesma compra pode completar o registro existente; uma compra futura serve de referência e não comprova os preços daquela compra antiga. O relato original deve ser preservado em anotação.
 
@@ -66,7 +66,7 @@ Essas regras estão nas instruções e no executor atual. Um modelo próprio de 
 
 ## Telegram
 
-O bot já vinculado continua recebendo texto e mensagens de voz. Fotos agora podem ser guardadas como anexos privados da mesma conta; a legenda explícita orienta o pedido. A integração usa a tarefa **Conversa do assistente** para interpretar a foto. Áudios do Telegram continuam sendo transcritos por Gemini/Vertex configurado.
+O bot já vinculado continua recebendo texto e mensagens de voz. Fotos agora podem ser guardadas como anexos privados da mesma conta; a legenda orienta a leitura. A integração usa a tarefa **Conversa do assistente** para interpretar a foto, sem executar ações vindas da imagem. Para executar, envie o pedido em uma mensagem seguinte. Áudios do Telegram continuam sendo transcritos por Gemini/Vertex configurado.
 
 Envie **/voz** ou **/ligar** ao seu bot para receber um botão que abre a Jornada. A Bot API oficial não fornece chamadas telefônicas diretas para bots; esse botão abre a chamada no site. Não é necessário recriar o bot. O histórico de mensagens do Telegram ainda é separado do gerenciador de conversas do site, mas os registros usam o mesmo workspace.
 
@@ -80,9 +80,11 @@ Há controles de mídia quando o navegador suporta a Media Session API. Instalar
 
 As chaves permanentes são cifradas no servidor. Áudio vai ao provedor escolhido; a Jornada não salva gravação da chamada. Transcrições e resultados das conversas sincronizadas ficam na conta. Fotos ficam no bucket privado `note-attachments` e são acessadas com autorização da conta. Conteúdo completo de uma nota só é consultado quando solicitado.
 
-As migrações `20261003173200_assistant_continuity.sql` e `20261003173935_assistant_attachment_auth.sql` criam conversas, pedidos, transações de conclusão e autorização restrita para anexos do Telegram. A Edge Function `telegram-photo` valida o segredo do servidor, a vinculação ao usuário e o evento recebido antes de escrever. A demo não recebe chaves nem acesso a esses recursos.
+As migrações `20261003173200_assistant_continuity.sql` e `20261003173935_assistant_attachment_auth.sql` criam conversas, pedidos, transações de conclusão e autorização restrita para anexos do Telegram. `20261003182620_assistant_export.sql` inclui conversas e pedidos próprios em “Baixar todos os meus dados”; excluir a conta também os remove pelo vínculo com a conta. A Edge Function `telegram-photo` valida o segredo do servidor, a vinculação ao usuário e o evento recebido antes de escrever. A demo não recebe chaves nem acesso a esses recursos.
 
 Erros de voz exibem um código e, quando disponível, o status do provedor. O caso **d7070d5e · Gemini 400** indica configuração recusada; não comprova falta de faturamento. Logs correlacionam a referência e registram apenas etapa, status e motivos/campos permitidos. Não registram chave, autorização temporária, transcrição, usuário ou mensagem bruta do provedor.
+
+A migração `20261003185709_jornada_request_limits.sql` mantém limites por conta no banco para IA, início de chamadas, uploads e bytes de mídia servidos pelo site. Cache privado, validação de anexos, limites e preparação do Cloudflare estão documentados em [SEGURANCA_CACHE_CLOUDFLARE.md](./SEGURANCA_CACHE_CLOUDFLARE.md).
 
 ## Validação e teste final
 

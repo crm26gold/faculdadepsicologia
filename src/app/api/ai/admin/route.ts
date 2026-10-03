@@ -4,6 +4,7 @@ import { aiSecretReady, keyHint, openKey, sealKey } from '@/lib/ai/crypto';
 import { AiError, generate, listModels, resolveModel, type AiConfig } from '@/lib/ai/providers';
 import { autoCapable, autoModes, pickModel, sortModels, type AutoMode } from '@/lib/ai/models';
 import type { userSession } from '@/lib/supabase/server';
+import { requestBudget } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
@@ -53,6 +54,8 @@ export async function POST(request: Request) {
     case 'models': {
       const config = await providerConfig(session, body.provider, body.action === 'test' ? body.model : '');
       if (config instanceof Response) return config;
+      const limited = await requestBudget(session, 'ai');
+      if (limited) return limited;
       const started = Date.now();
       try {
         if (body.action === 'models') {

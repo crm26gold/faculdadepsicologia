@@ -10,5 +10,9 @@ export async function POST(request: Request) {
     const { error } = await (await serverSupabase()).auth.signOut({ scope: 'local' });
     if (error) return new NextResponse('Não foi possível encerrar a sessão. Tente novamente.', { status: 503 });
   }
-  return NextResponse.redirect(origin, 303);
+  const response = NextResponse.redirect(origin, 303);
+  response.headers.set('Cache-Control', 'private, no-store');
+  // Drop HTTP copies of private attachments on supported browsers; preserve local notes in IndexedDB.
+  response.headers.set('Clear-Site-Data', '"cache"');
+  return response;
 }

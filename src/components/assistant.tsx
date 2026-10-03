@@ -223,11 +223,11 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
     if ((!said && !file) || blocked || busy || executor.executing || callOpen) return;
     setBusy(true); setProblem('');
     const id = crypto.randomUUID();
-    if (!file?.type.startsWith('image/')) setMessages(previous => [...previous, { id: `${id}:eu`, from: 'me', text: said || `Anexo: ${file!.name}` }]);
+    if (!cloud || !file?.type.startsWith('image/')) setMessages(previous => [...previous, { id: `${id}:eu`, from: 'me', text: said || `Anexo: ${file!.name}` }]);
     setText('');
     let voiceAnswer = '';
     try {
-      if (file?.type.startsWith('image/')) { voiceAnswer = await photo(file, said || undefined); setFile(null); return; }
+      if (cloud && file?.type.startsWith('image/')) { voiceAnswer = await photo(file, said || undefined); setFile(null); return; }
       if (executor.pending.length && !file) {
         const intent = confirmationIntent(said);
         if (intent === 'cancel') { await cancelPending(); voiceAnswer = 'Alteração cancelada. Nenhum item pendente foi removido.'; setMessages(previous => [...previous, { id, from: 'assistant', text: voiceAnswer }]); return; }
