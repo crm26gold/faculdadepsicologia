@@ -14,7 +14,8 @@ import { MobileDisclosure } from './mobile-disclosure';
 import { FocusTimer } from './focus-timer';
 import { FocusHistory } from './focus-history';
 import { CaptureSheet } from './capture-sheet';
-import { AssistantBubble, AssistantChat, AssistantPanel, type AssistantMessage } from './assistant';
+import { AssistantBubble, AssistantChat, AssistantPanel } from './assistant';
+import { useConversations } from './use-conversations';
 import { CaptureInbox } from './capture-inbox';
 import { AreaSelect, NoteOrganization, OrganizationPanel } from './life-organization';
 import { areaName, itemArea, lifeAreas } from '@/lib/life';
@@ -74,7 +75,6 @@ const subtitles: Record<View, string> = {
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 const SHORTCUT_KEY = 'jornada-atalho-barra';
 const BUBBLE_KEY = 'jornada-assistente-escondido';
-const CHAT_KEY = 'jornada-assistente-conversa';
 const tabLabel = (id: View, label: string) => id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : id === 'planning' ? 'Metas' : id === 'routine' ? 'Rotina' : label;
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -83,7 +83,7 @@ function download(data: Workspace) {
 }
 
 export function WorkspaceApp({ mode, hostedPreview = false, authenticated = false }: { mode: 'local' | 'cloud' | 'demo'; hostedPreview?: boolean; authenticated?: boolean }) {
-  const { data, ready, demo, status, error, blocked, update, ensureSaved } = useWorkspace(mode);
+  const { data, ready, demo, status, error, blocked, update, ensureSaved, refresh } = useWorkspace(mode);
   const [view, setView] = useState<View>('today');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [form, setForm] = useState<FormState | null>(null);
@@ -96,7 +96,6 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [notice, setNotice] = useState('');
   const [captureOpen, setCaptureOpen] = useState(false);
   const [assistantOpen, setAssistantOpen] = useState(false);
-  const [assistantMessages, setAssistantMessages] = useState<AssistantMessage[]>([]);
   const [shortcut, setShortcut] = useState<View>('studies');
   const [financeRequest, setFinanceRequest] = useState(0);
   const [financeOpen, setFinanceOpen] = useState(0);
@@ -124,10 +123,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const visibleNavigation = navigation.filter(item => item.id !== 'admin' || !!home?.account.is_master);
   const shortcutOptions = navigation.filter(item => !['today', 'agenda', 'admin'].includes(item.id) && (cloud || !serverViews.has(item.id)));
   const tabShortcut = shortcutOptions.find(item => item.id === shortcut) ?? shortcutOptions[0];
-  // The conversation stays on this device (only the last 40 messages), so it continues after a reload.
-  const [chatLoaded, setChatLoaded] = useState(false);
-  useEffect(() => { if (mode === 'demo') return; try { const saved = JSON.parse(localStorage.getItem(CHAT_KEY) ?? '[]'); if (Array.isArray(saved)) setAssistantMessages(saved.slice(-40)); } catch {} setChatLoaded(true); }, [mode]);
-  useEffect(() => { if (mode === 'demo' || !chatLoaded) return; try { if (assistantMessages.length) localStorage.setItem(CHAT_KEY, JSON.stringify(assistantMessages.slice(-40))); else localStorage.removeItem(CHAT_KEY); } catch {} }, [assistantMessages, mode, chatLoaded]);
+  const conversations = useConversations(mode, home?.account.user_id);
+  const { messages: assistantMessages, setMessages: setAssistantMessages } = conversations;
   useEffect(() => { if (mode === 'demo') return; try { const saved = viewOf(localStorage.getItem(SHORTCUT_KEY) ?? ''); if (names[saved]) setShortcut(saved); setBubbleHidden(localStorage.getItem(BUBBLE_KEY) === '1'); } catch {} }, [mode]);
   const today = dateKey();
   const main = useRef<HTMLElement>(null);
@@ -675,7 +672,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'assistant' && <>
             <section className="assistant-inline" aria-label="Conversa com o assistente">
               {bubbleHidden && <button type="button" className="text-button desktop-only assistant-show-bubble" onClick={() => setBubble(false)}>Mostrar a bolinha nas outras telas</button>}
-              <AssistantChat cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => navigate(target)} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onOpenNote={openNote} />
+              <AssistantChat refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => navigate(target)} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onOpenNote={openNote} />
             </section>
           </>}
 
@@ -713,7 +710,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setNotesPlace(null); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
     {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} />}
     {ready && !bubbleHidden && view !== 'assistant' && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} onOpen={openAssistant} onHide={() => setBubble(true)} />}
-    {assistantOpen && <AssistantPanel cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => { closeAssistant(); navigate(target); }} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
+    {assistantOpen && <AssistantPanel refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => { closeAssistant(); navigate(target); }} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
     {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
     {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
   </div>;

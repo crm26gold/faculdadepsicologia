@@ -7,13 +7,14 @@ export function todayIn(timeZone = 'America/Sao_Paulo', at = new Date()) {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
 }
 
-export type BotIntent = { kind: 'link'; code: string } | { kind: 'start' } | { kind: 'help' } | { kind: 'undo' } | { kind: 'unlink' } | { kind: 'text'; text: string };
+export type BotIntent = { kind: 'link'; code: string } | { kind: 'start' } | { kind: 'help' } | { kind: 'live' } | { kind: 'undo' } | { kind: 'unlink' } | { kind: 'text'; text: string };
 export function botIntent(raw: string): BotIntent {
   const text = raw.trim();
   const start = text.match(/^\/start(?:@\w+)?(?:\s+([A-Za-z0-9_-]{4,64}))?$/);
   if (start) return start[1] ? { kind: 'link', code: start[1].toUpperCase() } : { kind: 'start' };
   const plain = text.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[.!]+$/, '');
   if (/^\/(ajuda|help)(@\w+)?$/.test(plain) || plain === 'ajuda') return { kind: 'help' };
+  if (/^\/(voz|ligar)(@\w+)?$/.test(plain)) return { kind: 'live' };
   if (/^\/desfazer(@\w+)?$/.test(plain) || plain === 'desfazer' || plain === 'desfaz' || plain === 'desfaca') return { kind: 'undo' };
   if (/^\/sair(@\w+)?$/.test(plain)) return { kind: 'unlink' };
   return { kind: 'text', text };
@@ -25,7 +26,8 @@ export const helpText = [
   '• "gastei 50 reais de lanche"',
   '• "conta de luz de 210 vence dia 10"',
   '• "o que eu tenho hoje?" ou "qual meu saldo?"',
-  'Também entendo mensagens de voz.',
+  'Também recebo mensagens de voz e fotos. Mande a nota fiscal com o que quer registrar; só a foto não cria um gasto.',
+  '/voz abre a conversa ao vivo na Jornada Plena.',
   '"desfazer" volta o último registro · /sair desconecta este Telegram.',
 ].join('\n');
 

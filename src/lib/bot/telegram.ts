@@ -21,23 +21,25 @@ export const getMe = (token: string) => call<{ id: number; username: string; fir
 export const setWebhook = (token: string, url: string, secret: string) =>
   call<boolean>(token, 'setWebhook', { url, secret_token: secret, allowed_updates: ['message'], drop_pending_updates: true, max_connections: 10 });
 export const deleteWebhook = (token: string) => call<boolean>(token, 'deleteWebhook', { drop_pending_updates: true });
-export const sendMessage = (token: string, chatId: string, text: string) =>
-  call<unknown>(token, 'sendMessage', { chat_id: chatId, text: text.slice(0, 4000), link_preview_options: { is_disabled: true } });
+export const sendMessage = (token: string, chatId: string, text: string, link?: { text: string; url: string }) =>
+  call<unknown>(token, 'sendMessage', { chat_id: chatId, text: text.slice(0, 4000), link_preview_options: { is_disabled: true },
+    ...(link ? { reply_markup: { inline_keyboard: [[{ text: link.text, url: link.url }]] } } : {}) });
 export const sendTyping = (token: string, chatId: string) => call<unknown>(token, 'sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => null);
 
 /** Downloads a voice note (limited in size) and returns it as base64 for the AI to transcribe. */
 export async function downloadFile(token: string, fileId: string, maxBytes = 4_000_000) {
   const file = await call<{ file_path?: string; file_size?: number }>(token, 'getFile', { file_id: fileId });
-  if (!file.file_path || (file.file_size ?? 0) > maxBytes) throw new TelegramError('Áudio grande demais. Mande mensagens de voz de até uns 3 minutos.');
+  if (!file.file_path || (file.file_size ?? 0) > maxBytes) throw new TelegramError('Arquivo grande demais. Envie uma foto ou mensagem de voz de até 4 MB.');
   const response = await fetch(`https://api.telegram.org/file/bot${token}/${file.file_path}`, { signal: AbortSignal.timeout(TIMEOUT), cache: 'no-store' });
-  if (!response.ok) throw new TelegramError('Não consegui baixar o áudio do Telegram.');
+  if (!response.ok) throw new TelegramError('Não consegui baixar o arquivo do Telegram.');
   const data = Buffer.from(await response.arrayBuffer());
-  if (data.length > maxBytes) throw new TelegramError('Áudio grande demais.');
+  if (data.length > maxBytes) throw new TelegramError('Arquivo grande demais.');
   return data.toString('base64');
 }
 
 export type TelegramUpdate = {
   update_id: number;
   message?: { message_id: number; chat: { id: number; type: string }; from?: { id: number }; text?: string; caption?: string;
+    photo?: { file_id: string; width: number; height: number; file_size?: number }[];
     voice?: { file_id: string; duration: number; mime_type?: string; file_size?: number }; audio?: { file_id: string; duration: number; mime_type?: string; file_size?: number } };
 };

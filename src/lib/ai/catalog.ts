@@ -3,7 +3,7 @@ import { z } from 'zod';
 // Everything the panel can switch without code: which provider, which model, for which task.
 export const aiProviderIds = ['gemini', 'vertex', 'openai', 'anthropic', 'compatible'] as const;
 export type AiProviderId = typeof aiProviderIds[number];
-export const aiTaskIds = ['assistente', 'organizar'] as const;
+export const aiTaskIds = ['assistente', 'organizar', 'voz'] as const;
 export type AiTaskId = typeof aiTaskIds[number];
 
 type ProviderInfo = { name: string; keyLabel: string; help: string; fields: ('base_url' | 'gcp_project' | 'gcp_location')[]; models: string[] };
@@ -20,6 +20,7 @@ export const aiCatalog: Record<AiProviderId, ProviderInfo> = {
     help: 'Para serviços que seguem o formato da OpenAI. Informe o endereço base, por exemplo https://api.groq.com/openai/v1 ou https://openrouter.ai/api/v1.' },
 };
 export const aiTaskLabels: Record<AiTaskId, { name: string; help: string }> = {
+  voz: { name: 'Chamada ao vivo', help: 'A voz usa sua própria configuração. O raciocínio e as ações continuam na tarefa Conversa do assistente.' },
   assistente: { name: 'Conversa do assistente', help: 'Responde na bolinha e na aba Assistente.' },
   organizar: { name: 'Organizar registros', help: 'Vai sugerir área, matéria, data e tipo para o que cair em Para organizar.' },
 };

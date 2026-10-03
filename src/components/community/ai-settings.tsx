@@ -131,11 +131,12 @@ function TaskForm({ task, providers, models, loading, ensureModels, busy, onSave
   const [model, setModel] = useState(task.model || (task.provider && autoCapable.includes(task.provider) ? 'auto:rapido' : ''));
   const [custom, setCustom] = useState(false);
   const [enabled, setEnabled] = useState(task.enabled);
+  const voice = task.id === 'voz';
   const list = provider ? models[provider] : undefined;
-  const ids = provider ? [...new Set([...(list?.ids ?? []), ...aiCatalog[provider].models])] : [];
-  const canAuto = !!provider && autoCapable.includes(provider);
+  const ids = voice ? provider === 'openai' ? ['gpt-live-1'] : provider === 'gemini' ? ['gemini-3.8-live'] : [] : provider ? [...new Set([...(list?.ids ?? []), ...aiCatalog[provider].models])] : [];
+  const canAuto = voice ? provider === 'gemini' : !!provider && autoCapable.includes(provider);
   const hasKey = !!providers.find(item => item.id === provider)?.has_key;
-  useEffect(() => { if (provider && hasKey) void ensureModels(provider); }, [provider, hasKey, ensureModels]);
+  useEffect(() => { if (provider && hasKey && !voice) void ensureModels(provider); }, [provider, hasKey, voice, ensureModels]);
   // A saved name that the list does not offer (or a provider that cannot list) opens the free-text field.
   const typed = custom || (!!model && !isAuto(model) && (!!list || !canAuto) && !ids.includes(model));
   const label = aiTaskLabels[task.id as AiTaskId];
@@ -143,26 +144,27 @@ function TaskForm({ task, providers, models, loading, ensureModels, busy, onSave
   return <form className="ai-card" onSubmit={onSave}>
     <strong>{label.name}</strong>
     <span className="muted small">{label.help}</span>
-    <label>Provedor<select name="provider" value={provider} onChange={event => { const next = event.target.value as AiProviderId | ''; setProvider(next); setCustom(false); if (next && !provider) setEnabled(true); setModel(next && autoCapable.includes(next) ? 'auto:rapido' : ''); }}>
+    <label>Provedor<select name="provider" value={provider} onChange={event => { const next = event.target.value as AiProviderId | ''; setProvider(next); setCustom(false); if (next && !provider) setEnabled(true); setModel(voice && next === 'openai' ? 'gpt-live-1' : next && autoCapable.includes(next) ? 'auto:rapido' : ''); }}>
       <option value="">Nenhum</option>
-      {providers.map(item => <option key={item.id} value={item.id} disabled={!item.has_key}>{aiCatalog[item.id].name}{item.has_key ? item.enabled ? '' : ' · desligado' : ' · sem chave'}</option>)}
+      {providers.filter(item => !voice || ['gemini', 'openai'].includes(item.id)).map(item => <option key={item.id} value={item.id} disabled={!item.has_key}>{aiCatalog[item.id].name}{item.has_key ? item.enabled ? '' : ' · desligado' : ' · sem chave'}</option>)}
     </select></label>
     {provider && !typed && <label>Modelo<select aria-label="Modelo" value={model} onChange={event => { if (event.target.value === '__custom') { setCustom(true); setModel(''); } else setModel(event.target.value); }}>
       {!model && <option value="">Escolha um modelo</option>}
-      {canAuto && <optgroup label="Automático: acompanha os lançamentos">{(Object.keys(autoModes) as AutoMode[]).map(mode => <option key={mode} value={mode}>{autoModes[mode].label}{list?.auto?.[mode] ? ` (agora: ${list.auto[mode]})` : ''}</option>)}</optgroup>}
+      {canAuto && (voice ? <option value="auto:rapido">Automático · voz disponível</option> : <optgroup label="Automático: acompanha os lançamentos">{(Object.keys(autoModes) as AutoMode[]).map(mode => <option key={mode} value={mode}>{autoModes[mode].label}{list?.auto?.[mode] ? ` (agora: ${list.auto[mode]})` : ''}</option>)}</optgroup>)}
       {ids.length > 0 && <optgroup label={`Modelos da sua conta (${ids.length})`}>{ids.map(id => <option key={id} value={id}>{id}{modelNote(provider, id) ? ` · ${modelNote(provider, id)}` : ''}</option>)}</optgroup>}
-      <option value="__custom">Outro: digitar o nome…</option>
+      {(!voice || provider === 'gemini') && <option value="__custom">Outro: digitar o nome…</option>}
     </select></label>}
     {provider && typed && <label>Nome do modelo<input value={model} onChange={event => setModel(event.target.value)} maxLength={120} placeholder="Ex.: gemini-3.8-flash" />
       {(canAuto || ids.length > 0) && <button type="button" className="text-button" onClick={() => { setCustom(false); setModel(canAuto ? 'auto:rapido' : ids[0] ?? ''); }}>Voltar para a lista</button>}</label>}
     <input type="hidden" name="model" value={model} />
     {provider && loading[provider] && <span className="muted small" role="status">Buscando os modelos da sua conta…</span>}
-    {isAuto(model) && <span className="muted small">{autoModes[model].hint}{picked ? ` Hoje usaria: ${picked}.` : ''}</span>}
-    {provider === 'gemini' && <span className="muted small">Na chave gratuita do AI Studio, use os modos “rápido” ou “econômico” (Flash e Flash-Lite): os modelos Pro cobram desde o primeiro uso.</span>}
+    {isAuto(model) && <span className="muted small">{voice ? 'Escolhe um modelo de voz autorizado para sua chave, priorizando a conversa sem espera de raciocínio prolongado.' : `${autoModes[model].hint}${picked ? ` Hoje usaria: ${picked}.` : ''}`}</span>}
+    {provider === 'gemini' && !voice && <span className="muted small">Na chave gratuita do AI Studio, use os modos “rápido” ou “econômico” (Flash e Flash-Lite): os modelos Pro cobram desde o primeiro uso.</span>}
+    {voice && <span className="muted small">Salve e teste em Assistente › Conversar ao vivo. A disponibilidade e a cobrança dependem da sua conta de API; a assinatura do ChatGPT ou do Claude não inclui esse uso.</span>}
     <label className="cm-check"><input type="checkbox" name="enabled" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> Ligada</label>
     <div className="button-row">
       <button className="button primary" disabled={!!busy || (!!provider && !model)}>{busy === `t-${task.id}` ? 'Salvando…' : 'Salvar'}</button>
-      <button type="button" className="button outline" disabled={!!busy || !task.provider || !task.model} onClick={onTest}>{busy === `x-${task.id}` ? 'Testando…' : 'Testar'}</button>
+      {!voice && <button type="button" className="button outline" disabled={!!busy || !task.provider || !task.model} onClick={onTest}>{busy === `x-${task.id}` ? 'Testando…' : 'Testar'}</button>}
     </div>
   </form>;
 }

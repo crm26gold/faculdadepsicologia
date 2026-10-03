@@ -98,12 +98,19 @@ for (const scenario of cases) {
     const api = await request('/api/workspace');
     assert.equal(api.status, demoRequested ? 404 : 401);
     assert.match(api.headers.get('cache-control') ?? '', /no-store/);
+    for (const path of ['/api/conversations', '/api/assistant/jobs']) {
+      const response = await request(path);
+      assert.equal(response.status, demoRequested ? 404 : 401, `${path} exige uma conta autenticada`);
+      assert.match(response.headers.get('cache-control') ?? '', /no-store/);
+    }
     for (const Origin of [undefined, 'https://unauthorized.example.invalid', requestOrigin]) {
       const headers = { 'Content-Type': 'application/json', ...(Origin ? { Origin } : {}) };
       assert.equal((await request('/api/workspace', { method: 'PUT', headers, body: '{}' })).status,
         demoRequested ? 404 : Origin === requestOrigin ? 401 : 403);
-      assert.equal((await request('/api/ai/live', { method: 'POST', headers, body: '{}' })).status,
-        demoRequested ? 404 : Origin === requestOrigin ? 401 : 403, 'Chamada de voz exige sessão autenticada e origem autorizada');
+      for (const path of ['/api/ai/live', '/api/ai/live/session', '/api/assistant/jobs', '/api/conversations']) {
+        assert.equal((await request(path, { method: 'POST', headers, body: '{}' })).status,
+          demoRequested ? 404 : Origin === requestOrigin ? 401 : 403, `${path} exige sessão autenticada e origem autorizada`);
+      }
       assert.equal((await request('/auth/google', { method: 'POST', headers })).status,
         demoRequested ? 404 : Origin === requestOrigin ? 503 : 403);
     }
