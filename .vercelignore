@@ -8,6 +8,7 @@
 /.vercel
 /.local
 /node_modules
+/integrations
 /public/spelling
 .env*
 *.md

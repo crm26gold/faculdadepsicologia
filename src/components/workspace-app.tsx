@@ -30,6 +30,7 @@ import { ColorOptions, CourseFields } from './course-form';
 import { SubjectOptions } from './subject-options';
 import { NotesLibrary } from './notes-library';
 import { TelegramAdmin, TelegramLink } from './messenger-settings';
+import { WhatsAppAdmin } from './whatsapp-settings';
 import type { Place } from '@/lib/notebooks';
 import { PlanningPanel } from './planning-panel';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
@@ -637,7 +638,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
-          {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
+          {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><WhatsAppAdmin /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
 
           {view === 'agenda' && <AcademicCalendar focus={agendaFocus} data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); openForm({ kind: 'task' }); }} onEdit={(task) => openForm({ kind: 'task', task })} />}
 

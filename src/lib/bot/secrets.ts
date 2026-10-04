@@ -15,3 +15,5 @@ export const botServerSecret = () => derive('jornada-bot-db-v1');
 export const botServerHash = () => createHash('sha256').update(botServerSecret()).digest('hex');
 /** Telegram repeats it in every webhook call (header X-Telegram-Bot-Api-Secret-Token). */
 export const telegramWebhookSecret = () => derive('jornada-telegram-webhook-v1');
+/** Different scope: the relay never receives this database credential. */
+export const whatsappServerSecret = () => derive('jornada-whatsapp-db-v1');
