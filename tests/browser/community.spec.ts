@@ -1,5 +1,6 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleAnimations } from './axe-ready';
 // Calendar day in Brazil (the browser runs in America/Sao_Paulo; CI runs in UTC, which is already tomorrow after 21h).
 const spDay = (offset = 0) => { const base = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()); const date = new Date(`${base}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 
@@ -419,6 +420,7 @@ test('administração preserva alterações entre seções, atualiza modelos e v
   expect(posted.filter(post => post.body.action === 'save_task')).toHaveLength(0);
   await page.setViewportSize({ width: 390, height: 844 });
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await settleAnimations(page);
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await panel.screenshot({ path: 'test-results/admin-models-mobile-dark.png' });
@@ -457,7 +459,7 @@ test('MCP cadastra token transitório e consulta ferramentas sem executar comand
   const form=panel.locator('form').filter({hasText:'Adicionar servidor MCP'});await form.getByLabel('Nome do conector').fill('Meu MCP');await form.getByLabel('Endpoint MCP').fill('https://more.example.invalid/mcp');await form.getByLabel('Token Bearer (opcional)').fill('synthetic-token');await form.getByRole('button',{name:'Cadastrar conector'}).click();
   await expect(form.getByLabel('Token Bearer (opcional)')).toHaveValue('');await expect.poll(()=>posted.find(row=>row.body.action==='save_connector')?.body).toMatchObject({label:'Meu MCP',url:'https://more.example.invalid/mcp',protocol:'2026-07-28',enabled:false,key:'synthetic-token'});
   expect(JSON.stringify(await page.evaluate(()=>({...localStorage})))).not.toContain('synthetic-token');
-  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));
+  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));await settleAnimations(page);
   expect((await new AxeBuilder({page}).include('.ai-settings').analyze()).violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await panel.screenshot({path:'test-results/admin-integrations-mobile-dark.png'});
 });

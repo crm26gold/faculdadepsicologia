@@ -12,6 +12,7 @@ Escopo: repositório `crm26gold/faculdadepsicologia`, Supabase `uccoaebzmvocqwql
 | Documentação fiel ao sistema + contexto do produto no `AGENTS.md` | No PR #37 |
 | Texto do WhatsApp no painel de IA | No PR #37 |
 | Mensagem de erro do Gemini quando a chave é bloqueada | No [PR #38](https://github.com/crm26gold/faculdadepsicologia/pull/38), CI verde, aguardando merge |
+| Testes de contraste instáveis no CI | Corrigidos no PR #37 |
 | Apagar 37 branches antigos | **Bloqueado** pelo sistema de permissões; nada foi apagado |
 | Alinhar o nome da migração nova à versão remota | **Bloqueado** (leitura do histórico negada) |
 | Assistente de voz | Fora do ar até o proprietário trocar a chave do Gemini |
@@ -91,9 +92,14 @@ Equivalência verificada: o hash MD5 do SQL sem comentários e sem espaços é i
 
 Em `src/components/community/ai-settings.tsx`, "WhatsApp · API da Meta pendente" virou "WhatsApp · ponte por QR disponível". O texto antigo dizia que o recebimento estava fechado, mas a ponte por QR já funciona em Administração › WhatsApp da Jornada.
 
-### 2.8 CI do PR #37
+### 2.8 Testes de contraste instáveis — PR #37
 
-No commit `c30c7a2`, um dos dois jobs falhou em 3 testes de navegador e o outro passou com o mesmo código. A causa é o contraste medido pelo axe no meio de uma transição de CSS (`.button` anima `background-color` por 150 ms durante a troca de tema). O job foi executado de novo uma vez e passou. A explicação está [comentada no PR](https://github.com/crm26gold/faculdadepsicologia/pull/37), e ficou sugerida uma tarefa separada para a correção definitiva (seção 4.3).
+- **Sintoma:** nos commits `c30c7a2` e `cde4312`, um dos dois jobs do CI falhou e o outro passou com o mesmo código. As falhas estavam em `tests/browser/community.spec.ts:391` e `:450` e em `tests/browser/workspace.spec.ts:29`.
+- **Causa:** o axe media o contraste no meio de uma animação de CSS:
+  - `.button` anima `background-color` por 150 ms na troca de tema, então o texto fica claro antes do fundo escurecer (contraste 1,05);
+  - a gaveta mobile entra com `workspace-drawer-enter`, que começa com opacidade 0,7.
+- **Correção:** o auxiliar `tests/browser/axe-ready.ts` (`settleAnimations`) espera as transições e animações finitas terminarem. Ele é chamado antes dessas três auditorias.
+- **Prova:** com as animações alongadas para 3 s, os testes falham sem o auxiliar (o mesmo `color-contrast` do CI) e passam com ele.
 
 ## 3. Validação executada
 
@@ -104,7 +110,9 @@ No commit `c30c7a2`, um dos dois jobs falhou em 3 testes de navegador e o outro 
 | `node scripts/check-publication.mjs` | Sem alertas (384 arquivos) | Local e CI |
 | `git diff --cached --check` | OK | Local |
 | Testes de banco do CI (isolamento, API, concorrência) | OK | Postgres 16 local descartável e CI |
-| Build, `test:gate` e Playwright | Verdes após uma nova execução do job | Apenas CI (não rodados localmente) |
+| `npm run build` | OK | Local e CI |
+| Playwright `community`, `mobile` e `desktop` | 37 aprovados, 3 omitidos pelo dispositivo; os três testes corrigidos, 12/12 em repetição | Local (Chromium pré-instalado) e CI |
+| `test:gate` e demais projetos do Playwright | Verdes | Apenas CI |
 | Advisor de segurança do Supabase após a migração | Alerta crítico removido | Produção |
 | Advisor de desempenho após os índices | **Não confirmado** (leitura bloqueada) | — |
 
@@ -142,9 +150,6 @@ No commit `c30c7a2`, um dos dois jobs falhou em 3 testes de navegador e o outro 
 - **Documento JSON único da vida pessoal** (`personal_workspaces`, até 2 MB, regravado inteiro). Ele impede compartilhar partes, obriga a IA a carregar tudo e gera conflitos entre aparelhos. Módulos que precisem crescer ou ser compartilhados (Networking, finanças) devem ir para tabelas próprias. É a maior decisão técnica antes do Networking.
 - **Pessoal × coletivo:** os prazos das partes de trabalhos em grupo aparecem no Meu dia, mas não na Agenda nem nos alertas.
 - **Áreas sem módulo:** saúde, emocional, espiritualidade, família, casa, lazer e documentos existem só como etiquetas.
-- **Testes de contraste instáveis:**
-  - `tests/browser/community.spec.ts:391` e `:450`, e `tests/browser/workspace.spec.ts:29`.
-  - Correção sugerida: esperar `document.getAnimations()` terminarem antes do axe, ou tirar `background-color` da transição de `.button` em `src/app/globals.css`, como o commit `0015e33` fez na navegação do painel.
 - **Cobertura dos testes de banco:** o stub não carrega as migrações `assistant_continuity`, `assistant_attachment_auth` e `assistant_export`, e `tests/sql/assistant-continuity.sql` não é executado pelo CI.
 - **Integrações pendentes:** Google Agenda e Drive (OAuth próprio); pagamento (Asaas) e Vercel Pro na abertura das vendas.
 - **Aceite real** do WhatsApp com telefone e da chamada de voz com chave válida.
@@ -189,7 +194,7 @@ O proprietário descreveu uma aba nova, **Networking**, dentro do propósito de 
    - mudar a política de privacidade ou os termos;
    - mexer em chaves de provedores;
    - escrever no histórico de migrações remoto.
-8. **CI instável:** uma falha de contraste do axe logo depois de trocar o tema ou abrir a gaveta mobile é o problema da seção 4.3. Rode o job de novo no máximo uma vez; se falhar de novo, corrija a causa, sem pular o teste.
+8. **Auditorias axe:** depois de trocar o tema, abrir uma gaveta ou abrir um diálogo animado, chame `settleAnimations(page)` (`tests/browser/axe-ready.ts`) antes do `AxeBuilder`; ver a seção 2.8. Localmente, o Playwright do projeto pode exigir uma versão do Chromium diferente da instalada; use `launchOptions.executablePath` numa configuração temporária, fora do Git.
 9. **Skills:** estão em `.claude/skills/`, formato do Claude Code. O Codex pode seguir qualquer `SKILL.md` como instrução, ou instalá-las no próprio ambiente com `npx skills@latest add mattpocock/skills`, escolhendo o Codex como agente. A pasta `.agents/` está no `.gitignore` e não vai para o repositório.
 
 ### Skills sugeridas para a próxima sessão
@@ -197,7 +202,7 @@ O proprietário descreveu uma aba nova, **Networking**, dentro do propósito de 
 - `grill-with-docs` e `domain-modeling`: fechar as decisões do Networking e registrar glossário e ADRs.
 - `codebase-design` e `improve-codebase-architecture`: planejar a saída do documento JSON único para tabelas.
 - `to-spec`, `to-tickets` e `implement`: transformar as decisões em entregas.
-- `tdd` e `diagnosing-bugs`: implementar e corrigir com testes primeiro, inclusive os testes de contraste.
+- `tdd` e `diagnosing-bugs`: implementar e corrigir com testes primeiro.
 - `animacao-web`: telas do Networking e da landing.
 - `pr` e `writing-for-agents`: descrições de PR e edições do `AGENTS.md`.
 
