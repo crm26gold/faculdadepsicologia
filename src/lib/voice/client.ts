@@ -224,7 +224,9 @@ export class LiveVoiceConnection {
   interrupt() {
     if (this.rtc) { this.rtc.interrupt(); return; }
     this.stopPlayback(); this.state(this.tools.size ? 'working' : 'listening');
-    this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'Pare de falar e aguarde meu próximo pedido.' }] }], turnComplete: false } });
+    // Gemini 3.8 interrupts active generation only on a completed client turn.
+    // Stopping local playback alone lets subsequent server chunks play again.
+    this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'Pare de falar e aguarde meu próximo pedido.' }] }], turnComplete: true } });
   }
   mute(value: boolean) {
     this.muted = value; this.options.level(0);

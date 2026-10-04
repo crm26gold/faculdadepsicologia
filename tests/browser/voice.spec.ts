@@ -185,6 +185,31 @@ test('chamada responsiva, acessível, microfone e áudio controláveis; fechar l
   expect(errors).toEqual([]);
 });
 
+test('interromper fala cancela geração no Gemini e preserva um pedido já aceito', async ({ page }) => {
+  const state = await fixture(page), call = await start(page);
+  state.socket!.send(JSON.stringify({ serverContent: { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: Buffer.alloc(96_000).toString('base64') } }] } } }));
+  await expect(call).toContainText('Pode me interromper a qualquer momento');
+  await call.getByRole('button', { name: 'Interromper fala do assistente', exact: true }).click();
+  const interruptions = () => state.sent.flatMap(message => {
+    const content = message.clientContent as { turns?: { parts?: { text?: string }[] }[]; turnComplete?: boolean } | undefined;
+    return content?.turns?.[0]?.parts?.[0]?.text === 'Pare de falar e aguarde meu próximo pedido.' ? [content] : [];
+  });
+  await expect.poll(() => interruptions().length).toBe(1);
+  expect(interruptions()[0].turnComplete).toBe(true);
+  state.socket!.send(JSON.stringify({ serverContent: { interrupted: true } }));
+  await expect(call).toContainText('Pode falar. Estou ouvindo.');
+  let release!: () => void;
+  state.delaySave = () => new Promise<void>(resolve => { release = resolve; });
+  tool(state, 'save-after-interruption', 'organizar_jornada', { instruction: 'agende dentista hoje às 15h' });
+  await expect.poll(() => !!release).toBe(true);
+  await call.getByRole('button', { name: 'Interromper fala do assistente', exact: true }).click();
+  await expect.poll(() => interruptions().length).toBe(2);
+  expect(interruptions()[1].turnComplete).toBe(true);
+  state.delaySave = undefined; release();
+  await expect.poll(() => state.workspace.tasks.filter(item => item.title === 'Dentista por voz').length).toBe(1);
+  await call.getByRole('button', { name: 'Encerrar chamada', exact: true }).click();
+});
+
 test('ações por voz aguardam o banco, não duplicam tool calls e confirmam exclusão por toque', async ({ page }) => {
   const state = await fixture(page);
   const call = await start(page);

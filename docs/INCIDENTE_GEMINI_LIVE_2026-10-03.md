@@ -20,6 +20,7 @@ O diagnóstico anterior descartava `error.message` inteiro por privacidade. O pr
 | Três ferramentas sem argumentos declaravam `OBJECT` com `properties` vazio | Omite o campo opcional `parameters` dessas declarações |
 | Gemini 3.8 usa execução assíncrona por padrão | `behavior: BLOCKING` explícito para aguardar a resposta da ferramenta antes de confirmar uma execução |
 | Erros estruturados apresentados somente em `message` não identificavam a configuração rejeitada | Classificador de prefixos conhecidos retorna somente enums e nomes de campos permitidos |
+| O botão de interrupção parava o som local, mas enviava um turno incompleto | Envia `turnComplete: true`, necessário no Gemini 3.8 para interromper a geração ativa; pedidos já aceitos continuam sendo salvos |
 
 Modelo, instruções, ferramentas, geração, transcrições, VAD e compressão fornecidos pelo servidor continuam fixados no token. `sessionResumption` fica fora da máscara para receber um handle na reconexão. Campos opcionais não fornecidos não são abrangidos pela máscara; ela não deve ser descrita como bloqueio de absolutamente todos os campos da API.
 
@@ -34,6 +35,7 @@ Mensagens de configuração somente são classificadas com HTTP 400/422 e `INVAL
 - Conferência dos campos com o documento público de descoberta REST `v1beta`, incluindo `AuthToken`, `BidiGenerateContentSetup`, `FunctionDeclaration` e enum `BLOCKING`.
 - Regressões para formato do recurso, restrição de campos inteiros, validade do token, ausência de schemas vazios, espera pelas ferramentas, classificação segura e dados privados junto de erros.
 - Revisão independente do contrato e da continuidade entre token e cliente WebSocket.
+- Regressão de navegador para interromper a reprodução, enviar o sinal de cancelamento correto e preservar um salvamento já aceito.
 - Build, tipos, testes de domínio, bloqueios de produção e testes de navegador fazem parte dos gates de publicação.
 
 Essas verificações comprovam a construção e a proteção do pedido. **A aceitação pela chave real, `setupComplete`, fala, resposta e retomada no Android exigem validação real depois da publicação.** O navegador integrado deste ambiente não ficou disponível para acessar uma sessão autenticada; nenhum token ou cookie foi copiado para contornar essa limitação.
