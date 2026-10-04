@@ -52,8 +52,8 @@ export async function liveProviderFailure(response: Response) {
   } else if (reason === 'SERVICE_DISABLED') {
     message = 'A Generative Language API está desativada no projeto desta chave. Ative-a no Google Cloud ou gere uma chave pelo Google AI Studio.';
   } else if (response.status === 401 || response.status === 403) {
-    // Without a reason, Google usually revoked the key (e.g. flagged as leaked); the free tier is not the cause.
-    message = 'O Google bloqueou esta chave sem informar o motivo, o que costuma indicar chave revogada. Gere uma nova chave no Google AI Studio e substitua nas configurações de IA.';
+    // An authorization error alone does not identify the cause or prove revocation.
+    message = 'O Gemini recusou a autorização sem informar o motivo. Confira a chave, as permissões e restrições no Google AI Studio. Se a chave estiver inválida ou bloqueada, gere uma nova chave e substitua nas configurações de IA.';
   } else if (response.status === 400 || response.status === 422) {
     message = 'O Gemini recusou a configuração da chamada. A integração de voz precisa ser ajustada.';
   } else if (response.status === 404) {
