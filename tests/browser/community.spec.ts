@@ -119,7 +119,7 @@ test('WhatsApp: painel permite vincular, configurar voz e revogar com confirmaç
   await mockApi(page, { home: homeFixture({ master: true }) });
   let state = { enabled: true, configured: true, state: 'ready', relay: '5511888888888', heartbeat: new Date().toISOString(), qr: null,
     stt_connection: 'gemini:primary', stt_model: 'auto:rapido', voice: 'pt-BR-AntonioNeural', linked: false, peer: null as string | null, queued: 0,
-    connections: [{ id: 'gemini:primary', label: 'Gemini', enabled: true }] };
+    connections: [{ id: 'gemini:primary', label: 'Gemini', provider: 'gemini', enabled: true }] };
   const actions: Record<string, unknown>[] = [];
   await page.route('**/api/whatsapp/admin', route => {
     let data: unknown = state;
@@ -143,6 +143,8 @@ test('WhatsApp: painel permite vincular, configurar voz e revogar com confirmaç
   expect(actions.some(item => item.action === 'unlink')).toBe(false);
   await panel.getByRole('button', { name: 'Confirmar', exact: true }).click();
   expect(actions.some(item => item.action === 'unlink')).toBe(true);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   const audit = await new AxeBuilder({ page }).include('.wa-settings').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(audit.violations).toEqual([]);
 });

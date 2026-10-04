@@ -5,7 +5,7 @@ import { api } from './community/client';
 
 type State = { enabled: boolean; configured: boolean; state: 'offline' | 'qr' | 'connecting' | 'ready'; relay: string; heartbeat: string | null;
   qr: string | null; stt_connection: string; stt_model: string; voice: string; linked: boolean; peer: string | null; queued: number;
-  connections: { id: string; label: string; enabled: boolean }[] };
+  connections: { id: string; label: string; provider: string; enabled: boolean }[] };
 const names = { offline: 'Ponte desconectada', qr: 'Escaneie o QR Code', connecting: 'Conectando ao WhatsApp', ready: 'WhatsApp conectado' };
 export function WhatsAppAdmin() {
   const [state, setState] = useState<State | null>(null);
@@ -79,13 +79,17 @@ export function WhatsAppAdmin() {
         <div className="button-row"><button className="button primary" disabled={busy} onClick={() => void act(confirm)}>Confirmar</button><button className="button" onClick={() => setConfirm(null)}>Voltar</button></div></div>}
       <form key={`${state.stt_connection}:${state.stt_model}:${state.voice}:${state.enabled}`} className="ai-card" onSubmit={save}>
         <h3>Inteligência e voz</h3><p className="muted small">As respostas usam a tarefa “Conversa do assistente” no painel de IA. A leitura de áudio e fotos tem conexão própria, para você poder trocar a inteligência central.</p>
-        <div className="wa-steps"><label>Conexão para entender áudio e fotos<select name="stt_connection" defaultValue={state.stt_connection} required>
+        <div className="wa-steps"><label>Conexão para entender áudio e fotos<select name="stt_connection" defaultValue={state.stt_connection} required onChange={event => {
+          const selected = state.connections.find(item => item.id === event.target.value);
+          const model = event.target.form?.elements.namedItem('stt_model') as HTMLInputElement | null;
+          if (selected?.provider !== 'gemini' && model?.value.startsWith('auto:')) model.value = '';
+        }}>
           {state.connections.map(item => <option key={item.id} value={item.id}>{item.label}{!item.enabled ? ' · desativada' : ''}</option>)}</select></label>
-          <label>Modelo de leitura<input name="stt_model" defaultValue={state.stt_model} required maxLength={160} list="wa-stt-models" /><datalist id="wa-stt-models"><option value="auto:rapido" /><option value="auto:melhor" /><option value="auto:economico" /></datalist></label>
+          <label>Modelo de leitura<input name="stt_model" defaultValue={state.stt_model} required maxLength={160} placeholder="Modelo habilitado nesta conexão" list="wa-stt-models" /><datalist id="wa-stt-models"><option value="auto:rapido" /><option value="auto:melhor" /><option value="auto:economico" /></datalist></label>
           <label>Voz da resposta<select name="voice" defaultValue={state.voice}><option value="pt-BR-AntonioNeural">Antônio · português brasileiro</option><option value="pt-BR-FranciscaNeural">Francisca · português brasileiro</option></select></label></div>
         <label className="cm-check"><input name="enabled" type="checkbox" defaultChecked={state.enabled} disabled={!state.configured} /> Permitir pedidos pelo WhatsApp</label>
         <div className="button-row"><button className="button primary" disabled={busy}>Salvar configuração</button><button className="button" type="button" disabled={busy} onClick={() => void load()}><RefreshCw size={16} /> Atualizar conexão</button></div>
-        <p className="muted small">A voz usa o serviço online de leitura do Edge, em ritmo calmo. Se a síntese falhar, a resposta chega em texto. Áudio e fotos são enviados à conexão escolhida; o texto da resposta vai ao serviço de voz.</p>
+        <p className="muted small">Modelos automáticos de leitura estão disponíveis no Gemini Developer API. Nas conexões Google Cloud, informe o modelo habilitado no seu projeto. A voz usa o serviço online de leitura do Edge, em ritmo calmo. Se a síntese falhar, a resposta chega em texto. Áudio e fotos são enviados à conexão escolhida; o texto da resposta vai ao serviço de voz.</p>
       </form>
       <p className="muted small">{state.queued} pedido(s) aguardando · Sem acesso por grupos · Conexão não oficial: o WhatsApp pode interromper ou bloquear a sessão.</p>
     </>}

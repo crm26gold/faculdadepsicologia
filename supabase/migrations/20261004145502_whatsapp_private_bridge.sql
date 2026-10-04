@@ -79,8 +79,8 @@ begin
     'peer',(select chat_id from public.messenger_links where channel='whatsapp' and user_id=auth.uid()),
     'queued',(select count(*) from private.whatsapp_jobs where status in ('queued','working')),
     'connections',coalesce((select jsonb_agg(c) from (
-      select p.id||':primary' as id,p.label as label,p.enabled and p.key_ciphertext<>'' as enabled from public.ai_providers p where p.id in ('gemini','vertex','google_cloud')
-      union all select c.id::text,p.label||' · '||c.label,c.enabled and p.enabled from private.ai_connections c
+      select p.id||':primary' as id,p.label as label,p.id as provider,p.enabled and p.key_ciphertext<>'' as enabled from public.ai_providers p where p.id in ('gemini','vertex','google_cloud')
+      union all select c.id::text,p.label||' · '||c.label,p.id,c.enabled and p.enabled from private.ai_connections c
         join public.ai_providers p on p.id=c.provider where p.id in ('gemini','vertex','google_cloud')
     )c),'[]')) into result from private.whatsapp_bridge where singleton;
   return result;

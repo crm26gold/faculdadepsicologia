@@ -37,5 +37,11 @@ export async function POST(request: Request) {
     if (saved.error) return dbError(saved.error);
     return reply({ ok: true, data: { code, link: `https://wa.me/${saved.data.relay}?text=${encodeURIComponent(`/vincular ${code}`)}` } });
   }
+  if (body.action === 'save') {
+    const current = await session.client.rpc('whatsapp_admin');
+    if (current.error) return dbError(current.error);
+    const connection = current.data.connections.find((item: { id: string; provider: string }) => item.id === body.stt_connection);
+    if (!connection || body.stt_model.startsWith('auto:') && connection.provider !== 'gemini') return reply({ error: 'Nesta conexão Google Cloud, informe um modelo habilitado no seu projeto. O automático de leitura está disponível na conexão Gemini Developer API.' }, 400);
+  }
   return rpc(session, 'whatsapp_admin', { operation: body.action, payload: body });
 }
