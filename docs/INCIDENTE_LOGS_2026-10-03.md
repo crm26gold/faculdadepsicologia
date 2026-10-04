@@ -37,7 +37,7 @@ Isso explica o fluxo contínuo observado e é compatível com o aviso de CPU. A 
 
 ## Correção aplicada
 
-Aplicada ao banco correto a migração `conflict_without_retry`, registrada remotamente como `20261003205055`, às 17:50:55 em São Paulo. O SQL revisado é [20261003010000_conflict_without_retry.sql](../supabase/migrations/20261003010000_conflict_without_retry.sql); o MCP atribui o timestamp de aplicação remoto.
+Aplicada ao banco correto a migração `conflict_without_retry`, registrada remotamente como `20261003205055`, às 17:50:55 em São Paulo. O SQL revisado é [20261003205055_conflict_without_retry.sql](../supabase/migrations/20261003205055_conflict_without_retry.sql), renomeado em 04/10 para coincidir com a versão remota.
 
 As três funções passaram a usar `PT409`, devolvendo conflito HTTP 409. As verificações de conta, revisão, conteúdo e geração do editor continuam obrigatórias. A aplicação já trata esse código; não foi necessário publicar outro frontend para ativar a correção.
 

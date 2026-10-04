@@ -240,4 +240,9 @@ set role anon;
 do $$ begin perform count(*) from public.spaces; raise exception 'FALHA: anônimo leu espaços';
 exception when insufficient_privilege then null; end $$;
 reset role;
+
+-- Tabelas internas do schema private têm RLS como segunda barreira, sem bloquear as funções donas.
+select expect((select relrowsecurity from pg_class where oid = 'private.trusted_transactions'::regclass), 'RLS em private.trusted_transactions');
+select expect((select relrowsecurity from pg_class where oid = 'private.personal_workspaces_backup_20260930'::regclass), 'RLS na cópia de segurança de 30/09');
+select expect(to_regclass('public.assignment_parts_assignee_id_idx') is not null, 'chave estrangeira de responsável indexada');
 \echo 'OK: todos os cenários de isolamento e permissão passaram.'
