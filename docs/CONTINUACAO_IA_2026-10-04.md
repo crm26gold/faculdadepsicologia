@@ -1,5 +1,7 @@
 # Continuação da Jornada — 4 de outubro de 2026
 
+> Registro histórico da versão `c5aadaf`. A configuração compartilhada das reservas descrita abaixo foi substituída por conexões independentes e rotas explícitas. Consulte [a entrega atual de Administração e conexões](CONEXOES_IA_2026-10-04.md) para os contratos, empresas e limites atuais.
+
 ## Entregas visuais publicadas anteriormente
 
 - Design branco e azul, modo escuro, marca original preservada.

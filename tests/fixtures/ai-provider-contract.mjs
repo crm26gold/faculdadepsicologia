@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { generate,generateResilient,listModelInventory,refreshModels } from '../../src/lib/ai/providers.ts';
+import { discoverMcp } from '../../src/lib/integrations/mcp.ts';
 const config=(provider,model='model-test',key='synthetic-key')=>({ provider,model,key,base_url:'https://ignored.example',gcp_project:'',gcp_location:'' });
 const calls=[];
 globalThis.fetch=async(url,init={})=>{
@@ -40,4 +41,17 @@ await assert.rejects(generateResilient({...primary,key:'quota-key'},input),error
 await assert.rejects(generate(config('deepseek'),{...input,image:{mimeType:'image/png',base64:'AA=='}}),error=>error.status===400);
 await assert.rejects(generate(config('google_cloud','claude-test'),input),error=>error.status===400);
 await assert.rejects(generateResilient(primary,{...input,beforeRetry:async()=>{throw new Error('budget denied');}}),/budget denied/);
+const mcpCalls=[];
+const mcpTransport=async(url,init)=>{
+  const body=JSON.parse(init.body);mcpCalls.push({url,headers:init.headers,body});
+  if(body.method==='initialize') return Response.json({jsonrpc:'2.0',id:body.id,result:{protocolVersion:'2025-11-25',capabilities:{tools:{}}}},{headers:{'Mcp-Session-Id':'synthetic-session'}});
+  if(body.method==='notifications/initialized') return new Response(null,{status:202});
+  return Response.json({jsonrpc:'2.0',id:body.id,result:{tools:[{name:'list',description:'Read-only'}]}});
+};
+await discoverMcp('https://tools.example.invalid/mcp','synthetic-token','2026-07-28',AbortSignal.timeout(5000),mcpTransport);
+assert.deepEqual(mcpCalls.map(item=>item.body.method),['tools/list']);assert.equal(mcpCalls[0].headers['MCP-Protocol-Version'],'2026-07-28');assert.equal(mcpCalls[0].headers.Authorization,'Bearer synthetic-token');
+assert.equal(mcpCalls[0].body.params._meta['io.modelcontextprotocol/protocolVersion'],'2026-07-28');
+mcpCalls.length=0;
+await discoverMcp('https://tools.example.invalid/mcp','','2025-11-25',AbortSignal.timeout(5000),mcpTransport);
+assert.deepEqual(mcpCalls.map(item=>item.body.method),['initialize','notifications/initialized','tools/list']);assert.equal(mcpCalls[2].headers['Mcp-Session-Id'],'synthetic-session');assert.equal(mcpCalls[2].headers.Authorization,undefined);
 console.log('Provider contracts verified without real credentials or network.');

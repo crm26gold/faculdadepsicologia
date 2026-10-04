@@ -65,3 +65,5 @@ Telegram e WhatsApp usam o núcleo próprio da Jornada. A configuração Telegra
 ## Critérios de aceitação
 
 Testes locais e CI precisam confirmar: APIs com contratos próprios; modelos separados por chave; alternativas autorizadas; parada por orçamento/cota; bloqueios de destinos internos; propriedade e isolamento no PostgreSQL; formulários e acessibilidade no desktop/mobile. Esses testes usam dados sintéticos. A aceitação com cada conta real depende de sua chave, acesso, saldo e um teste explícito do proprietário. Não confundir suporte implementado com API autenticada/geração comprovada em produção.
+
+Verificação desta entrega: build e tipos; 179 testes de unidade; duas suítes PostgreSQL de isolamento/permissões e concorrência de orçamento; 13 gates de produção; 101 testes de navegador aprovados, quatro casos condicionais ignorados. Migração aplicada: `20261004133754_ai_independent_routes`, no projeto acima. Chaves e tarefas existentes foram preservadas; nenhum novo fornecedor foi ligado automaticamente.
