@@ -40,22 +40,15 @@ export async function POST(request: Request) {
       return reply({ error: `Esta chave ainda não tem um modelo de voz ao vivo disponível. Confira o acesso à Live API no Google AI Studio. Código da chamada: ${reference}.`, reference }, 409);
     }
     const expiresAt = new Date(now + (MAX_CALL_SECONDS + 120) * 1000).toISOString();
-    // Lock the model, instructions and tools on the server. Only the resumption handle may vary.
+    // Lock the supplied model, instructions and tools on the server; let the
+    // client supply a resumption handle without overriding these restrictions.
     // The long-lived provider key never reaches the browser or application logs.
     stage = 'token';
     console.info('[voice-live]', { reference, stage, outcome: 'started', model });
-    const createToken = (format: 'discovery' | 'rest') => fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
+    const tokenResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
       method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(15_000),
-      body: JSON.stringify(liveTokenRequest(model, body.context, body.history, now, format)),
+      body: JSON.stringify(liveTokenRequest(model, body.context, body.history, now)),
     });
-    let tokenResponse = await createToken('discovery');
-    if (tokenResponse.status === 400) {
-      const rejected = await liveProviderFailure(tokenResponse.clone());
-      if (rejected.diagnostic.upstreamCode === 'INVALID_ARGUMENT' && !rejected.diagnostic.reason) {
-        console.warn('[voice-live]', { reference, stage, outcome: 'constrained_format_retry', format: 'rest', ...rejected.diagnostic });
-        tokenResponse = await createToken('rest');
-      }
-    }
     if (!tokenResponse.ok) return await failed(tokenResponse);
     const token = await tokenResponse.json();
     if (typeof token.name !== 'string' || !token.name) throw new Error('Invalid token');

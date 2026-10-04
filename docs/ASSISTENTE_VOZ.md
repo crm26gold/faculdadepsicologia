@@ -20,7 +20,7 @@ A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A pr
 
 O servidor lista os modelos autorizados para a chave, prioriza modelos regulares e evita escolher raciocínio prolongado quando a alternativa regular da mesma versão está disponível. `GEMINI_LIVE_MODEL`, se configurada na Vercel, fixa um modelo autorizado e prevalece sobre a escolha automática.
 
-A autorização temporária permanece limitada ao modelo, às instruções e às ferramentas. Uma resposta 400 com `INVALID_ARGUMENT` sem motivo específico permite uma tentativa com a outra forma documentada de restrições. Não há tentativa com token irrestrito. Essa correção de integração precisa ser validada com a chave real; testes locais não provam que o Gemini a aceitou.
+A autorização temporária permanece limitada ao modelo, às instruções e às ferramentas. O POST REST usa `bidiGenerateContentSetup`, a forma produzida pelo SDK oficial, com `fieldMask` de campos inteiros. Ferramentas sem argumentos omitem `parameters`; todas aguardam o resultado com `behavior: BLOCKING`. A retomada recebe um handle do cliente, sem substituir a configuração fornecida pelo servidor. Essa correção precisa ser validada com a chave real; testes locais não provam que o Gemini a aceitou. O diagnóstico e as evidências estão em [INCIDENTE_GEMINI_LIVE_2026-10-03.md](./INCIDENTE_GEMINI_LIVE_2026-10-03.md).
 
 ### OpenAI / GPT Live
 
