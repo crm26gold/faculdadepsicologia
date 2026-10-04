@@ -286,6 +286,9 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Inteligência artificial' });
   await expect(panel.getByText(/Cofre de chaves pronto/)).toBeVisible();
+  await expect(panel.getByText('Provedores configurados e ligados')).toBeVisible();
+  expect(posted.filter(item => item.body.action === 'models')).toHaveLength(0);
+  await panel.getByRole('button', { name: 'Consumo e limites', exact: true }).click();
   const consumption = panel.getByRole('region', { name: 'Consumo e proteção' });
   await expect(consumption.getByText('Atenção: consumo acima de 75%')).toBeVisible();
   await expect(consumption.getByText('Últimos 31 dias: 3,1 GB de 4 GB')).toBeVisible();
@@ -293,15 +296,19 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   await consumption.getByRole('button', { name: 'Atualizar consumo' }).click();
   await expect(consumption.getByText('Limite atingido: função pausada')).toBeVisible();
   await expect(consumption.getByText(/Não é a fatura dos provedores/)).toBeVisible();
+  await panel.getByRole('button', { name: 'Conexões e chaves', exact: true }).click();
+  await panel.locator('details.ai-provider').filter({ hasText: 'aistudio' }).locator('summary').click();
   const gemini = panel.locator('form').filter({ hasText: 'Google Gemini (AI Studio)' }).filter({ hasText: 'aistudio' });
-  await expect(gemini.getByText(/chave …abcd/)).toBeVisible();
+  await expect(gemini.getByLabel('Chave de API do Google AI Studio')).toHaveValue('');
   await gemini.getByRole('button', { name: 'Ver modelos' }).click();
   await expect(panel.getByText(/2 modelos de texto/)).toBeVisible();
+  await panel.locator('details.ai-provider').filter({ hasText: 'Credencial da conta de serviço' }).locator('summary').click();
   const vertex = panel.locator('form').filter({ hasText: 'Credencial da conta de serviço' });
   await vertex.getByLabel(/Credencial da conta de serviço/).fill('{"client_email":"robo@projeto.iam.gserviceaccount.com","private_key":"x"}');
   await vertex.getByLabel('Região').fill('us-central1');
   await vertex.getByRole('button', { name: 'Salvar' }).click();
   await expect.poll(() => posted.find(item => item.body.action === 'save_provider')?.body).toMatchObject({ provider: 'vertex', gcp_location: 'us-central1', key: expect.stringContaining('client_email') });
+  await panel.getByRole('button', { name: 'Tarefas e modelos', exact: true }).click();
   const task = panel.locator('form').filter({ hasText: 'Conversa do assistente' });
   await task.getByRole('button', { name: 'Testar' }).click();
   await expect(panel.getByText(/Funcionou com modelo-teste em 0.8 s/)).toBeVisible();
@@ -316,8 +323,71 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await panel.getByRole('button', { name: 'Consumo e limites', exact: true }).click();
   await consumption.scrollIntoViewIfNeeded();
   await page.screenshot({ path: 'test-results/usage-mobile.png', fullPage: true });
+});
+
+test('proprietário cadastra reserva explícita e recebe diagnóstico da conexão de voz', async ({ page }) => {
+  const providers = ['gemini','openai','anthropic','vertex','compatible'].map(id => ({ id, enabled: id === 'gemini', label: '', base_url: '', gcp_project: '', gcp_location: '', has_key: id === 'gemini', key_hint: '1234', updated_at: '' }));
+  const ai = { secretReady: true, providers, connections: [], tasks: [{ id: 'voz', provider: 'gemini', model: 'auto:rapido', enabled: true, updated_at: '' }] };
+  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, onPost: post => post.body.action === 'test_live'
+    ? { connected: false, stage: 'token', reference: 'test1234', ms: 800, message: 'A configuração foi recusada.', diagnostic: { upstreamStatus: 400, upstreamCode: 'INVALID_ARGUMENT', configurationIssue: 'INVALID_FIELD_MASK', invalidFields: ['fieldMask'] } } : null });
+  await page.goto('/');
+  await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Inteligência artificial' });
+  await panel.getByRole('button', { name: 'Tarefas e modelos', exact: true }).click();
+  await panel.getByRole('button', { name: 'Testar conexão de voz' }).click();
+  await expect(panel.getByText(/Código: test1234 · etapa: token/)).toBeVisible();
+  await expect(panel.getByText(/400 · INVALID_ARGUMENT · INVALID_FIELD_MASK · fieldMask/)).toBeVisible();
+  expect(posted.find(item => item.body.action === 'test_live')?.body).toEqual({ action: 'test_live' });
+  await panel.getByRole('button', { name: 'Conexões e chaves', exact: true }).click();
+  const reserve = panel.locator('form').filter({ hasText: 'Adicionar uma reserva' });
+  await reserve.getByLabel('Nome', { exact: true }).fill('Minha reserva');
+  await reserve.getByLabel('Chave', { exact: true }).fill('synthetic-api-key');
+  await reserve.getByLabel('Usar como reserva').check();
+  await reserve.getByRole('button', { name: 'Cadastrar reserva' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'save_connection')?.body).toEqual({ action: 'save_connection', id: null, provider: 'gemini', label: 'Minha reserva', enabled: true, position: 1, key: 'synthetic-api-key' });
+  await expect(reserve.getByLabel('Chave', { exact: true })).toHaveValue('');
+  expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
+test('administração preserva alterações entre seções, atualiza modelos e verifica uma reserva sem reenviar a chave', async ({ page }) => {
+  const reserveId = '00000000-0000-4000-8000-000000000012';
+  let refreshed = false;
+  const providers = [{ id: 'gemini', enabled: true, label: 'Conta principal', base_url: '', gcp_project: '', gcp_location: '', has_key: true, key_hint: 'abcd', updated_at: '' }];
+  const ai = { secretReady: true, providers, connections: [{ id: reserveId, provider: 'gemini', label: 'Conta reserva', enabled: false, position: 1, key_hint: '1234', updated_at: '' }], tasks: [{ id: 'voz', provider: 'gemini', model: 'auto:rapido', enabled: true, updated_at: '' }, { id: 'assistente', provider: 'gemini', model: 'auto:rapido', enabled: true, updated_at: '' }] };
+  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, onPost: post => post.body.action === 'models' ? { ids: [refreshed ? 'gemini-3.9-flash' : 'gemini-3.8-flash'], liveIds: ['gemini-3.8-live'], auto: { 'auto:rapido': refreshed ? 'gemini-3.9-flash' : 'gemini-3.8-flash' }, refreshedAt: '2026-10-04T14:00:00Z' } : null });
+  await page.goto('/');
+  await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Inteligência artificial' });
+  await panel.getByRole('button', { name: 'Tarefas e modelos', exact: true }).click();
+  const assistant = panel.locator('form.ai-task-card').filter({ has: page.getByText('Conversa do assistente', { exact: true }) });
+  const voice = panel.locator('form.ai-task-card').filter({ has: page.getByText('Chamada ao vivo', { exact: true }) });
+  await expect(voice.getByLabel('Modelo', { exact: true }).getByRole('option', { name: 'gemini-3.8-live', exact: true })).toHaveCount(1);
+  await expect(assistant.getByText(/Hoje usaria: gemini-3.8-flash/)).toBeVisible();
+  expect(posted.filter(post => post.body.action === 'models')).toHaveLength(1);
+  refreshed = true;
+  await assistant.getByRole('button', { name: 'Atualizar modelos' }).click();
+  await expect(assistant.getByText(/Hoje usaria: gemini-3.9-flash/)).toBeVisible();
+  await assistant.getByLabel('Modelo', { exact: true }).selectOption('gemini-3.9-flash');
+  await expect(assistant.getByRole('button', { name: 'Testar', exact: true })).toBeDisabled();
+  await panel.getByRole('button', { name: 'Conexões e chaves', exact: true }).click();
+  await panel.locator('details.ai-provider summary').click();
+  const reserve = panel.locator('form.ai-reserve-form');
+  await reserve.getByRole('button', { name: 'Verificar reserva' }).click();
+  await expect(panel.getByText(/Conta reserva: acesso à lista aceito/)).toBeVisible();
+  expect(posted.find(post => post.body.connection_id === reserveId)?.body).toEqual({ action: 'models', provider: 'gemini', connection_id: reserveId });
+  await panel.getByRole('button', { name: 'Tarefas e modelos', exact: true }).click();
+  await expect(assistant.getByLabel('Modelo', { exact: true })).toHaveValue('gemini-3.9-flash');
+  expect(posted.filter(post => post.body.action === 'save_task')).toHaveLength(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await panel.screenshot({ path: 'test-results/admin-models-mobile-dark.png' });
 });
 
 test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Para organizar', async ({ page }) => {

@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
-import { openKey } from '@/lib/ai/crypto';
-import { chooseLiveModel, liveTokenRequest, MAX_CALL_SECONDS } from '@/lib/voice/protocol';
-import { liveProviderFailure } from '@/lib/voice/provider-error';
-import { requestBudget } from '@/lib/ai/budget';
+import { MAX_CALL_SECONDS } from '@/lib/voice/protocol';
+import { requestBudget, retryBudget } from '@/lib/ai/budget';
+import { runtimeConfig } from '@/lib/ai/runtime';
+import { AiError } from '@/lib/ai/providers';
+import { prepareGeminiSession, LiveSessionError } from '@/lib/voice/gemini-session';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+export const maxDuration = 60;
 const requestSchema = z.object({ context: z.string().max(6000), history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(2000) })).max(12).default([]) });
 
 export async function POST(request: Request) {
@@ -21,42 +23,17 @@ export async function POST(request: Request) {
   const limited = await requestBudget(session, 'live');
   if (limited) return limited;
   const reference = crypto.randomUUID().slice(0, 8);
-  let stage = 'key';
-  const failed = async (response: Response) => {
-    const failure = await liveProviderFailure(response);
-    console.warn('[voice-live]', { reference, stage, outcome: 'provider_error', ...failure.diagnostic });
-    return reply({ error: `${failure.message} Código da chamada: ${reference} · Gemini ${response.status}.`, reference }, failure.status);
-  };
   try {
-    const key = openKey(data.key_ciphertext);
-    stage = 'models';
-    console.info('[voice-live]', { reference, stage, outcome: 'started' });
-    const modelsResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { headers: { 'x-goog-api-key': key }, cache: 'no-store', signal: AbortSignal.timeout(12_000) });
-    if (!modelsResponse.ok) return await failed(modelsResponse);
-    const models = await modelsResponse.json();
-    const model = chooseLiveModel(models.models ?? [], process.env.GEMINI_LIVE_MODEL || (data.model?.startsWith('auto:') ? undefined : data.model));
-    if (!model) {
-      console.warn('[voice-live]', { reference, stage, outcome: 'no_live_model' });
-      return reply({ error: `Esta chave ainda não tem um modelo de voz ao vivo disponível. Confira o acesso à Live API no Google AI Studio. Código da chamada: ${reference}.`, reference }, 409);
-    }
-    const expiresAt = new Date(now + (MAX_CALL_SECONDS + 120) * 1000).toISOString();
-    // Lock the supplied model, instructions and tools on the server; let the
-    // client supply a resumption handle without overriding these restrictions.
-    // The long-lived provider key never reaches the browser or application logs.
-    stage = 'token';
-    console.info('[voice-live]', { reference, stage, outcome: 'started', model });
-    const tokenResponse = await fetch('https://generativelanguage.googleapis.com/v1beta/auth_tokens', {
-      method: 'POST', headers: { 'x-goog-api-key': key, 'Content-Type': 'application/json' }, cache: 'no-store', signal: AbortSignal.timeout(15_000),
-      body: JSON.stringify(liveTokenRequest(model, body.context, body.history, now)),
+    const credentials = await prepareGeminiSession(runtimeConfig(data), body.context, body.history, {
+      signal: AbortSignal.timeout(45_000), beforeRetry: retryBudget(session, 'live'),
     });
-    if (!tokenResponse.ok) return await failed(tokenResponse);
-    const token = await tokenResponse.json();
-    if (typeof token.name !== 'string' || !token.name) throw new Error('Invalid token');
-    console.info('[voice-live]', { reference, stage, outcome: 'ready', model });
-    return reply({ ok: true, data: { provider: 'gemini', token: token.name, model, expiresAt, maxSeconds: MAX_CALL_SECONDS } });
+    console.info('[voice-live]', { reference, stage: 'token', outcome: 'ready', model: credentials.model });
+    return reply({ ok: true, data: { provider: 'gemini', ...credentials } });
   } catch (error) {
-    const outcome = stage === 'key' ? 'key_storage_error' : error instanceof Error && error.name === 'TimeoutError' ? 'timeout' : 'request_or_response_error';
-    console.warn('[voice-live]', { reference, stage, outcome });
-    return reply({ error: `Não foi possível preparar a chamada. Confira a configuração da IA e tente novamente. Código da chamada: ${reference}.`, reference }, 502);
+    const diagnostic = error instanceof LiveSessionError ? error.diagnostic : undefined;
+    console.warn('[voice-live]', { reference, stage: error instanceof LiveSessionError ? error.stage : 'preparation', outcome: 'failed', ...diagnostic });
+    const message = error instanceof AiError ? error.message : 'Não foi possível preparar a chamada. Confira o cofre e a configuração da IA.';
+    const status = error instanceof AiError ? error.status : undefined;
+    return reply({ error: `${message} Código da chamada: ${reference}${status ? ` · Gemini ${status}` : ''}.`, reference }, status === 429 ? 429 : 502);
   }
 }

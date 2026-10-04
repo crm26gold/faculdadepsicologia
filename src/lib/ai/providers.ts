@@ -4,10 +4,11 @@ import { aiCatalog, type AiProviderId } from './catalog';
 import { autoCapable, isAuto, pickModel, pickModels } from './models';
 import { conversationTurns, type Turn } from './turns';
 import { chatImageContent, claudeImageContent, type AiImage } from './media';
+import { runAiAttempts } from './attempts';
 
-export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string };
+export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[] };
 /** audio: a voice note sent along with the last message (Gemini and Vertex Gemini only). */
-export type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal };
+export type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void> };
 export class AiError extends Error {
   constructor(message: string, readonly status = 0) { super(message); }
   /** Busy, rate-limited or briefly broken: worth another try, maybe on another model. */
@@ -23,8 +24,11 @@ async function call(provider: AiProviderId, url: string, init: RequestInit) {
   let body: any = null;
   try { body = JSON.parse(raw); } catch {}
   if (!response.ok) {
-    const detail = String(body?.error?.message ?? body?.message ?? raw).replace(/\s+/g, ' ').slice(0, 220);
-    throw new AiError(`${aiCatalog[provider].name} recusou (${response.status}): ${detail}`, response.status);
+    const reason = response.status === 401 || response.status === 403 ? 'Confira a chave e as permissões da API.'
+      : response.status === 429 ? 'O provedor atingiu a cota ou está sem créditos. Aguarde ou confira o painel da API.'
+      : response.status === 402 ? 'Confira os créditos e o faturamento da API.'
+      : response.status === 400 || response.status === 404 ? 'Confira o modelo e a configuração desta tarefa.' : 'O serviço está indisponível agora.';
+    throw new AiError(`${aiCatalog[provider].name} recusou (${response.status}). ${reason}`, response.status);
   }
   return body;
 }
@@ -111,11 +115,14 @@ export async function generate(config: AiConfig, input: Prompt): Promise<string>
 }
 
 /** Models the account can use, straight from the provider (Vertex has no simple listing: type the name). */
-export async function listModels(config: AiConfig, signal?: AbortSignal): Promise<string[]> {
+export async function listModelInventory(config: AiConfig, signal?: AbortSignal): Promise<{ ids: string[]; liveIds: string[] }> {
   let ids: string[] = [];
+  let liveIds: string[] = [];
   switch (config.provider) {
     case 'gemini': {
-      const body = await call('gemini', 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', { signal, headers: { 'x-goog-api-key': config.key } });
+      const body = await call('gemini', 'https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000', { signal, headers: { 'x-goog-api-key': config.key } });
+      liveIds = (body?.models ?? []).filter((model: { supportedGenerationMethods?: string[] }) => model.supportedGenerationMethods?.some(method => /bidiGenerateContent/i.test(method)))
+        .map((model: { name: string }) => model.name.replace(/^models\//, ''));
       ids = (body?.models ?? []).filter((model: { supportedGenerationMethods?: string[] }) => model.supportedGenerationMethods?.includes('generateContent'))
         .map((model: { name: string }) => model.name.replace(/^models\//, ''));
       break;
@@ -128,18 +135,26 @@ export async function listModels(config: AiConfig, signal?: AbortSignal): Promis
       break;
     case 'vertex': ids = []; break;
   }
-  return [...new Set(ids.filter(id => typeof id === 'string'))].sort().slice(0, 200);
+  const clean = (items: string[]) => [...new Set(items.filter(id => typeof id === 'string'))].sort().slice(0, 200);
+  return { ids: clean(ids), liveIds: clean(liveIds) };
 }
+
+export async function listModels(config: AiConfig, signal?: AbortSignal) { return (await listModelInventory(config, signal)).ids; }
 
 // "auto:*" models resolve against the account's live list, cached per key for an hour.
 const listed = new Map<string, { ids: string[]; until: number }>();
+const modelCacheKey = (config: AiConfig) => `${config.provider}:${createHash('sha256').update(`${config.key}:${config.base_url}:${config.gcp_project}:${config.gcp_location}`).digest('hex')}`;
+export async function refreshModels(config: AiConfig, signal?: AbortSignal) {
+  const inventory = await listModelInventory(config, signal);
+  if (listed.size >= 100) listed.delete(listed.keys().next().value!);
+  listed.set(modelCacheKey(config), { ids: inventory.ids, until: Date.now() + 3_600_000 });
+  return inventory;
+}
 async function cachedModels(config: AiConfig, signal?: AbortSignal) {
-  const cacheKey = `${config.provider}:${createHash('sha256').update(config.key).digest('hex').slice(0, 16)}`;
+  const cacheKey = modelCacheKey(config);
   const hit = listed.get(cacheKey);
   if (hit && hit.until > Date.now()) return hit.ids;
-  const ids = await listModels(config, signal);
-  listed.set(cacheKey, { ids, until: Date.now() + 3_600_000 });
-  return ids;
+  return (await refreshModels(config, signal)).ids;
 }
 export async function resolveModel(config: AiConfig): Promise<AiConfig> {
   if (!isAuto(config.model)) return config;
@@ -149,31 +164,27 @@ export async function resolveModel(config: AiConfig): Promise<AiConfig> {
   return { ...config, model };
 }
 
-// When a model is overloaded (503) or rate-limited (429), wait a moment and retry, then fall back to the next
-// candidate of the same kind (e.g. the previous Flash, then Flash-Lite) instead of failing the person.
+// Reserves belong to the selected provider; switching company is a separate owner choice.
+// A single four-attempt bound applies across all keys and models, with a budget reservation per retry.
 export async function generateResilient(config: AiConfig, input: Prompt): Promise<{ text: string; model: string }> {
-  let candidates: string[] = [config.model];
-  if (autoCapable.includes(config.provider)) {
-    try {
-      const ids = await cachedModels(config, input.signal);
-      const mode = isAuto(config.model) ? config.model : 'auto:rapido';
-      candidates = isAuto(config.model) ? pickModels(config.provider, ids, mode, 3) : [config.model, ...pickModels(config.provider, ids, 'auto:rapido', 2)];
-      if (isAuto(config.model) && !candidates.length) throw new AiError(`Nenhum modelo de texto encontrado em ${aiCatalog[config.provider].name} para o modo automático.`, 404);
-    } catch (error) { if (isAuto(config.model)) throw error; }
-  } else if (isAuto(config.model)) throw new AiError(`${aiCatalog[config.provider].name} não lista modelos: escolha um modelo pelo nome.`, 400);
-  let last: unknown = null;
-  for (const model of [...new Set(candidates)]) {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      input.signal?.throwIfAborted();
-      try { return { text: await generate({ ...config, model }, input), model }; }
-      catch (error) {
-        input.signal?.throwIfAborted();
-        last = error;
-        if (!(error instanceof AiError) || !(error.transient || error.status === 404)) throw error;
-        if (error.status === 404) break;
-        if (attempt === 0) await new Promise(resolve => setTimeout(resolve, 900));
-      }
+  const seen = new Set<string>();
+  const connections = [config, ...(config.alternatives ?? []).slice(0, 2)].filter(candidate => {
+    const id = createHash('sha256').update(`${candidate.provider}:${candidate.key}:${candidate.base_url}`).digest('hex');
+    if (candidate.provider !== config.provider || seen.has(id)) return false;
+    seen.add(id); return true;
+  });
+  const attempts = new Map<AiConfig, number>();
+  return runAiAttempts(connections.length ? [...connections, connections[0]] : [], async candidate => {
+    const attempt = attempts.get(candidate) ?? 0;
+    attempts.set(candidate, attempt + 1);
+    let model = candidate.model;
+    if (isAuto(model)) {
+      if (!autoCapable.includes(candidate.provider)) throw new AiError('Escolha um modelo pelo nome para este provedor.', 400);
+      const ids = await cachedModels(candidate, input.signal);
+      const choices = pickModels(candidate.provider, ids, model, 2);
+      model = choices[Math.min(attempt, choices.length - 1)] ?? '';
+      if (!model) throw new AiError('Nenhum modelo compatível encontrado para esta conexão.', 404);
     }
-  }
-  throw last instanceof AiError ? new AiError(`${last.message} Tentei outros modelos e também não deu agora.`, last.status) : last;
+    return { text: await generate({ ...candidate, model }, input), model };
+  }, input);
 }

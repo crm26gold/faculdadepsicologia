@@ -8,6 +8,7 @@ out/
 *.log
 test-results/
 .local/
+/supabase/.temp/
 
 # Contexto local e notas privadas: não publicar no repositório.
 /ATUALIZACAO_AGENDA.md

@@ -4,6 +4,7 @@ import type { userSession } from '../supabase/server';
 import { dbError } from '../api-route';
 import { budgetPausedMessage } from '../usage';
 import { botServerSecret } from '../bot/secrets';
+import { AiError } from './providers';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
 const unavailable = () => Response.json({ error: 'Não foi possível verificar o controle de uso agora.' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
@@ -32,3 +33,8 @@ export async function requestBudget(session: Session, scope: 'ai' | 'live' | 'up
   return Response.json({ error: data?.limited_by === 'application' ? budgetPausedMessage : 'Você chegou ao limite temporário de uso. Seus registros continuam guardados; tente novamente mais tarde.' },
     { status: 429, headers: { 'Cache-Control': 'private, no-store', 'Retry-After': String(retry) } });
 }
+
+export const retryBudget = (session: Session, scope: 'ai' | 'live') => async () => {
+  const limited = await requestBudget(session, scope);
+  if (limited) throw new AiError((await limited.json()).error, limited.status);
+};

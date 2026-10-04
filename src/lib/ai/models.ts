@@ -3,9 +3,9 @@ import type { AiProviderId } from './catalog';
 // "auto:*" is stored as the task's model and resolved on every call against the account's current list,
 // so a new release (Gemini 3.9, Claude 6…) is picked up without touching the panel.
 export const autoModes = {
-  'auto:melhor': { label: 'Automático · o melhor disponível', hint: 'Sempre o modelo mais forte e mais novo da família.' },
-  'auto:rapido': { label: 'Automático · rápido e atual', hint: 'O mais novo da linha rápida: bom equilíbrio entre qualidade e custo.' },
-  'auto:economico': { label: 'Automático · mais econômico', hint: 'O mais novo da linha leve: o menor custo por uso.' },
+  'auto:melhor': { label: 'Automático · priorizar qualidade', hint: 'Prioriza a família avançada e a versão estável mais recente disponível.' },
+  'auto:rapido': { label: 'Automático · rápido e atual', hint: 'Prioriza a família rápida e a versão estável mais recente disponível.' },
+  'auto:economico': { label: 'Automático · priorizar economia', hint: 'Prioriza a família leve. Não consulta preços em tempo real; confira a tarifa da sua API.' },
 } as const;
 export type AutoMode = keyof typeof autoModes;
 export const isAuto = (model: string): model is AutoMode => model in autoModes;

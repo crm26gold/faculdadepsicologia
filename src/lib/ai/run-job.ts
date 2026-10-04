@@ -2,9 +2,9 @@ import 'server-only';
 import { jobInputSchema, type JobOutcome } from '../assistant-jobs';
 import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand } from '../commands';
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, parseWorkspace } from '../workspace';
-import { openKey } from './crypto';
+import { runtimeConfig } from './runtime';
 import { AiError, generateResilient } from './providers';
-import { requestBudget } from './budget';
+import { requestBudget, retryBudget } from './budget';
 import type { userSession } from '../supabase/server';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
@@ -24,9 +24,9 @@ export async function runAssistantJob(session: Session, id: string) {
       return { data: result.data ? parseWorkspace(JSON.stringify(result.data.data)) : emptyWorkspace(), revision: result.data?.revision ?? 0 };
     };
     let workspace = await load();
-    const config = { ...runtime.data, key: openKey(runtime.data.key_ciphertext) };
+    const config = runtimeConfig(runtime.data);
     const result = await generateResilient(config, { system: `${commandSystem}\nContexto atual da pessoa:\n${commandContext(workspace.data, input.today, 20_000, input.message)}`,
-      prompt: input.message, history: input.history, maxTokens: 2400, json: true, signal: AbortSignal.timeout(45_000) });
+      prompt: input.message, history: input.history, maxTokens: 2400, json: true, signal: AbortSignal.timeout(45_000), beforeRetry: retryBudget(session, 'ai') });
     const plan = parseCommand(result.text);
     // Apply the same validated plan on fresh data on a revision conflict, without generating a second plan.
     for (let attempt = 0; attempt < 2; attempt++) {

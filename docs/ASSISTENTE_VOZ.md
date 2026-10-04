@@ -14,9 +14,10 @@ A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A pr
 
 ### Gemini
 
-1. Confira se o provedor **Google Gemini** tem uma chave ligada com acesso à Live API.
-2. Na tarefa **Chamada ao vivo**, escolha **Google Gemini** e **Automático · voz disponível**, marque **Ligada** e salve.
-3. Abra uma nova chamada no Assistente.
+1. Em **Administração › Inteligência artificial › Conexões e chaves**, abra **Google Gemini** e confira a chave principal ligada com acesso à Live API.
+2. Em **Tarefas e modelos › Chamada ao vivo**, escolha **Google Gemini** e **Automático · voz disponível**, marque **Ligada** e salve.
+3. Clique em **Testar conexão de voz**. O teste prepara a autorização e verifica a configuração sem microfone, fala ou execução de ações. Se falhar, compartilhe a etapa e o código apresentados; não compartilhe chaves.
+4. Quando a configuração for aceita, abra uma nova chamada no Assistente para verificar áudio e uma ação real.
 
 O servidor lista os modelos autorizados para a chave, prioriza modelos regulares e evita escolher raciocínio prolongado quando a alternativa regular da mesma versão está disponível. `GEMINI_LIVE_MODEL`, se configurada na Vercel, fixa um modelo autorizado e prevalece sobre a escolha automática.
 
@@ -25,12 +26,18 @@ A autorização temporária permanece limitada ao modelo, às instruções e às
 ### OpenAI / GPT Live
 
 1. Na plataforma de API da OpenAI, crie uma chave de um projeto com acesso e cota para **gpt-live-1**. A assinatura do ChatGPT/Codex não inclui automaticamente esse uso de API.
-2. Em **Administração › Inteligência artificial › Provedores › OpenAI**, cole a chave no campo protegido, marque **Ligado** e salve. Não envie a chave no chat.
+2. Em **Administração › Inteligência artificial › Conexões e chaves › OpenAI**, cole a chave no campo protegido, marque **Ligado** e salve. Não envie a chave no chat.
 3. Na tarefa **Chamada ao vivo**, escolha **OpenAI**, modelo **gpt-live-1**, marque **Ligada** e salve.
 4. Mantenha **Conversa do assistente** em um provedor já configurado, como Gemini, para planejar as ações e interpretar fotos.
 5. Teste no celular. O erro exibido informa uma referência se a preparação da sessão falhar.
 
 A sessão usa WebRTC e delegação ao núcleo da Jornada. O servidor negocia a sessão com a chave permanente; o navegador recebe a resposta de conexão, não a chave. Não há troca automática entre Gemini e OpenAI durante uma chamada. A mudança exige uma nova chamada e o histórico continua na Jornada. O adaptador foi validado com eventos simulados; a qualidade de áudio e a autorização real precisam de um teste com a chave configurada.
+
+### Reservas e modelos atualizados
+
+**Conexões e chaves** permite cadastrar, pausar, substituir, verificar e remover reservas da mesma empresa. Elas compartilham o projeto/endereço da conexão principal. A chave principal vem primeiro, seguida das duas primeiras reservas ligadas por prioridade. Cota, faturamento ou configuração inválida interrompem o pedido; falhas de rede ou acesso podem tentar uma reserva. Cada tentativa respeita o controle de uso.
+
+**Atualizar modelos** consulta a API da sua conta e atualiza o cache de escolha de modelos de texto. As preferências automáticas priorizam famílias e versões estáveis; não comparam preços em tempo real. Um teste usa a configuração salva, e não alterações ainda em edição.
 
 ## O que a voz pode executar
 

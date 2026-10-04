@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { openKey } from '@/lib/ai/crypto';
 import { AiError, generateResilient, type AiConfig } from '@/lib/ai/providers';
+import { runtimeConfig, type SealedConfig } from '@/lib/ai/runtime';
 import type { Turn } from '@/lib/ai/turns';
 import { botIntent, botReply, helpText, notLinkedText, todayIn } from '@/lib/bot/core';
 import { botServerSecret, telegramWebhookSecret } from '@/lib/bot/secrets';
@@ -18,7 +19,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 const CHANNEL = 'telegram';
 const ok = () => new Response('ok', { headers: { 'Cache-Control': 'no-store' } });
-type Context = { user_id: string; workspace: { data: unknown; revision: number } | null; ai: Record<string, string> | null; history: Turn[]; last_applied: Applied[] | null };
+type Context = { user_id: string; workspace: { data: unknown; revision: number } | null; ai: SealedConfig | null; history: Turn[]; last_applied: Applied[] | null };
 
 // Telegram calls this for every message to the bot. It always answers 200 (otherwise Telegram retries);
 // repeated deliveries are dropped by the update id saved in the database.
@@ -120,7 +121,7 @@ export async function POST(request: Request) {
 
   if (!context.ai) { await say(`${photo ? 'Sua foto foi guardada em Para organizar. ' : ''}A inteligência artificial ainda não está ligada. No aplicativo: Administração › Inteligência artificial › "Conversa do assistente".`); return ok(); }
   let config: AiConfig;
-  try { config = { provider: context.ai.provider as AiConfig['provider'], model: context.ai.model, base_url: context.ai.base_url, gcp_project: context.ai.gcp_project, gcp_location: context.ai.gcp_location, key: openKey(context.ai.key_ciphertext) }; }
+  try { config = runtimeConfig(context.ai); }
   catch { await say('Não consegui abrir a chave da IA. Salve a chave de novo no painel.'); return ok(); }
 
   try {
@@ -130,13 +131,13 @@ export async function POST(request: Request) {
       if (voice.duration > 240) { await say('Áudio longo demais: mande mensagens de voz de até 4 minutos.'); return ok(); }
       if (!await reserve('ai')) return ok();
       const audio = { mimeType: voice.mime_type || 'audio/ogg', base64: await downloadFile(token, voice.file_id) };
-      heard = (await generateResilient(config, { system: 'Transcreva fielmente o áudio, em português do Brasil. Devolva só o texto falado, sem comentários.', prompt: 'Transcreva este áudio.', audio, maxTokens: 800 })).text.trim();
+      heard = (await generateResilient(config, { system: 'Transcreva fielmente o áudio, em português do Brasil. Devolva só o texto falado, sem comentários.', prompt: 'Transcreva este áudio.', audio, maxTokens: 800, signal: AbortSignal.timeout(40_000), beforeRetry: async () => { if (!await reserve('ai')) throw new AiError('Controle de uso atingido.', 429); } })).text.trim();
       said = [said, heard].filter(Boolean).join('\n');
       if (!said) { await say('Não consegui entender o áudio. Pode repetir ou escrever?'); return ok(); }
     }
     if (!await reserve('ai')) { if (photoNoteId) await say('A foto original está guardada em Para organizar; a leitura poderá ser feita depois.'); return ok(); }
     const raw = (await generateResilient(config, { system: photo ? imageReviewSystem : `${commandSystem}\n\nA conversa acontece pelo Telegram.\n\nContexto da pessoa:\n${commandContext(workspace, today)}`,
-      prompt: said || 'Leia a foto, descreva os dados legíveis e pergunte o que quero organizar.', history: photo ? [] : context.history.slice(-12), image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(40_000) })).text;
+      prompt: said || 'Leia a foto, descreva os dados legíveis e pergunte o que quero organizar.', history: photo ? [] : context.history.slice(-12), image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(40_000), beforeRetry: async () => { if (!await reserve('ai')) throw new AiError('Controle de uso atingido.', 429); } })).text;
     const result = photo ? imageReview(raw) : parseCommand(raw);
     let outcome = applyCommands(workspace, result.actions, { today, now });
     if (outcome.applied.length) {

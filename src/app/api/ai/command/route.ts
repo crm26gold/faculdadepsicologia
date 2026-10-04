@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
-import { openKey } from '@/lib/ai/crypto';
+import { runtimeConfig } from '@/lib/ai/runtime';
 import { AiError, generateResilient } from '@/lib/ai/providers';
 import { commandSystem, parseCommand } from '@/lib/commands';
 import { AI_IMAGE_LIMIT, imageMime, type AiImage } from '@/lib/ai/media';
 import { NOTE_BUCKET, safeMediaSource } from '@/lib/note-media';
-import { requestBudget } from '@/lib/ai/budget';
+import { requestBudget, retryBudget } from '@/lib/ai/budget';
 import { imageReview, imageReviewSystem } from '@/lib/ai/image-review';
 
 export const dynamic = 'force-dynamic';
@@ -40,9 +40,9 @@ export async function POST(request: Request) {
       if (!mimeType) return reply({ error: 'Este arquivo não é uma imagem compatível. A anotação foi preservada.' }, 400);
       image = { mimeType, base64: Buffer.from(bytes).toString('base64') };
     }
-    const config = { provider: data.provider, model: data.model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) };
+    const config = runtimeConfig(data);
     const { text: raw, model } = await generateResilient(config, { system: image ? imageReviewSystem : `${commandSystem}\n\nContexto da pessoa:\n${body.context}`,
-      prompt: body.message, history: image ? [] : body.history, image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(45_000) });
+      prompt: body.message, history: image ? [] : body.history, image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(45_000), beforeRetry: retryBudget(session, 'ai') });
     return reply({ ok: true, data: { configured: true, model, ...(image ? imageReview(raw) : parseCommand(raw)) } });
   } catch (cause) {
     return reply({ error: cause instanceof AiError ? cause.message : 'A inteligência artificial não respondeu agora.' }, 502);
