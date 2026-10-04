@@ -49,8 +49,11 @@ export async function liveProviderFailure(response: Response) {
     message = 'A chave do Gemini está inválida ou bloqueada para esta chamada. Confira suas permissões e restrições no Google AI Studio.';
   } else if (response.status === 429 || reason === 'RATE_LIMIT_EXCEEDED') {
     message = 'O limite de voz do Gemini foi atingido. Aguarde ou confira a cota no Google AI Studio.';
-  } else if (response.status === 401 || response.status === 403 || reason === 'SERVICE_DISABLED') {
-    message = 'O Gemini recusou a autorização desta chave. Confira o acesso à Live API e as restrições da chave no Google AI Studio.';
+  } else if (reason === 'SERVICE_DISABLED') {
+    message = 'A Generative Language API está desativada no projeto desta chave. Ative-a no Google Cloud ou gere uma chave pelo Google AI Studio.';
+  } else if (response.status === 401 || response.status === 403) {
+    // An authorization error alone does not identify the cause or prove revocation.
+    message = 'O Gemini recusou a autorização sem informar o motivo. Confira a chave, as permissões e restrições no Google AI Studio. Se a chave estiver inválida ou bloqueada, gere uma nova chave e substitua nas configurações de IA.';
   } else if (response.status === 400 || response.status === 422) {
     message = 'O Gemini recusou a configuração da chamada. A integração de voz precisa ser ajustada.';
   } else if (response.status === 404) {
