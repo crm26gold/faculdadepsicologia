@@ -7,7 +7,8 @@
 .ai-control .ai-status { margin: 0; padding: 12px 15px; border: 1px solid var(--line); border-radius: 12px; background: var(--ui-hover); color: var(--ink); line-height: 1.6; }
 .ai-control .ai-status svg { flex-shrink: 0; color: var(--accent-text); }
 .ai-control-nav { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px; border: 1px solid var(--line); background: var(--canvas); border-radius: 14px; }
-.ai-control-nav button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 10px 14px; border: 1px solid transparent; border-radius: 9px; font-weight: 500; font-size: 13px; color: var(--muted); transition: background .18s, color .18s; }
+/* Switch theme colors together: interpolated text/background pairs can lose contrast. */
+.ai-control-nav button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 10px 14px; border: 1px solid transparent; border-radius: 9px; font-weight: 500; font-size: 13px; color: var(--muted); transition: box-shadow .18s; }
 .ai-control-nav button:hover { background: var(--ui-hover); color: var(--ink); }
 .ai-control-nav button[aria-pressed='true'] { background: var(--surface); border-color: var(--line); color: var(--accent-text); box-shadow: var(--ui-shadow); }
 .ai-admin-content { display: flex; flex-direction: column; gap: 18px; }
