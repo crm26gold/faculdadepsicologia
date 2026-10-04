@@ -16,6 +16,7 @@ test('diagnóstico fecha após setup sem enviar texto, áudio ou executar ferram
     const result = await checkGeminiSession({ token: 'auth_tokens/synthetic', model: 'gemini-3.8-live' });
     assert.deepEqual(result, { connected: true, stage: 'setup' }); assert.equal(closed, true);
     assert.equal(messages.length, 1); assert.deepEqual(Object.keys(messages[0] as object), ['setup']);
+    assert.deepEqual(messages[0], { setup: { model: 'models/gemini-3.8-live', sessionResumption: {} } });
     assert.doesNotMatch(JSON.stringify(messages), /clientContent|realtimeInput.*audio/);
   } finally { globalThis.WebSocket = NativeSocket; }
 });

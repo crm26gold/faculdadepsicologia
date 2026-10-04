@@ -32,6 +32,8 @@ O teste da conexão é diferente da chamada real: após a configuração ser ace
 
 ## Situação externa conferida
 
+A migração `20261004115741_ai_connections_routing.sql` foi aplicada ao projeto `uccoaebzmvocqwqljmul`, depois da aprovação dos testes de permissões no Postgres da CI. O arquivo local segue a versão registrada no Supabase. As chaves principais e escolhas de tarefas existentes foram preservadas; nenhuma reserva foi cadastrada automaticamente.
+
 No início desta revisão, o Supabase correto estava saudável. Somente Gemini tinha uma chave ligada. OpenAI, Anthropic e Vertex não tinham chave; assistente, organização e voz estavam selecionados em Gemini. Nenhum faturamento Google foi reativado e nenhuma chave de outra empresa foi criada automaticamente.
 
 O navegador integrado não inicializou neste ambiente. A revisão automática recusou materializar variáveis secretas de produção em um arquivo local. O diagnóstico foi colocado no painel do proprietário para evitar exportar credenciais ou copiar uma sessão autenticada.

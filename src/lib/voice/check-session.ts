@@ -1,4 +1,4 @@
-import { LIVE_SOCKET, liveSetup } from './protocol';
+import { LIVE_SOCKET, liveClientSetup } from './protocol';
 import { liveProviderFailure } from './provider-error';
 
 export type LiveCheck = { connected: boolean; stage: 'setup' | 'transport' | 'timeout'; code?: number; diagnostic?: Awaited<ReturnType<typeof liveProviderFailure>>['diagnostic'] };
@@ -19,7 +19,7 @@ export async function checkGeminiSession(credentials: { token: string; model: st
     const aborted = () => finish({ connected: false, stage: 'timeout' });
     const timer = setTimeout(aborted, 15_000);
     signal?.addEventListener('abort', aborted, { once: true });
-    socket.onopen = () => socket.send(JSON.stringify({ setup: liveSetup(credentials.model, 'Teste de conexão da Jornada, sem dados pessoais.', []) }));
+    socket.onopen = () => socket.send(JSON.stringify({ setup: liveClientSetup(credentials.model) }));
     socket.onmessage = async event => {
       try {
         const value = JSON.parse(typeof event.data === 'string' ? event.data : Buffer.from(await (event.data as Blob).arrayBuffer()).toString());

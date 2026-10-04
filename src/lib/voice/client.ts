@@ -1,4 +1,4 @@
-import { LIVE_SOCKET, type CallState, type LiveCredentials, type VoiceTool, type VoiceTranscript } from './protocol';
+import { LIVE_SOCKET, liveClientSetup, type CallState, type LiveCredentials, type VoiceTool, type VoiceTranscript } from './protocol';
 import { GptLivePeer } from './gpt-live';
 
 export type VoiceOptions = {
@@ -124,7 +124,7 @@ export class LiveVoiceConnection {
     const timeout = this.later(() => this.fail('A chamada não respondeu a tempo. Confira a conexão e a configuração do Gemini e tente novamente.'), 20_000);
     socket.onopen = () => {
       if (this.ended || socket !== this.socket) { socket.close(); return; }
-      this.send({ setup: { model: `models/${this.credentials!.model}`, sessionResumption: resuming ? { handle: this.handle } : {} } });
+      this.send({ setup: liveClientSetup(this.credentials!.model, resuming ? this.handle : undefined) });
     };
     socket.onmessage = event => {
       // Blob decoding is asynchronous; preserve packet order without blocking cancellation/tool results.
