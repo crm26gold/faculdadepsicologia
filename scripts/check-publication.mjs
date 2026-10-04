@@ -30,7 +30,7 @@ for (const path of paths) {
     if (!readFileSync(path).equals(bytes)) problems.push(`${path}: difere do índice; prepare novamente antes de publicar`);
     continue;
   }
-  if (!allowedRoot.has(path) && !/^(?:src|tests|supabase|scripts|docs|\.github)\//.test(path)) problems.push(`${path}: fora da lista de publicação`);
+  if (!allowedRoot.has(path) && !/^(?:src|tests|supabase|scripts|docs|\.github|\.claude\/skills)\//.test(path)) problems.push(`${path}: fora da lista de publicação`);
   if (/\.(?:zip|png|jpg|jpeg|pdf|pem|key|p12|db|sqlite|csv)$/i.test(path)) problems.push(`${path}: arquivo requer revisão manual antes de publicar`);
   const content = execFileSync('git', ['show', `:${path}`], { encoding: 'utf8', maxBuffer: 5_000_000 });
   if (signatures.some(pattern => pattern.test(content))) problems.push(`${path}: possível credencial ou identificação pessoal (valor omitido)`);
