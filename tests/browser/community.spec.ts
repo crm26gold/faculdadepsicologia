@@ -115,6 +115,38 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
 }
 const nav = (page: Page) => page.getByRole('navigation', { name: 'Principal', exact: true });
 
+test('WhatsApp: painel permite vincular, configurar voz e revogar com confirmação', async ({ page }) => {
+  await mockApi(page, { home: homeFixture({ master: true }) });
+  let state = { enabled: true, configured: true, state: 'ready', relay: '5511888888888', heartbeat: new Date().toISOString(), qr: null,
+    stt_connection: 'gemini:primary', stt_model: 'auto:rapido', voice: 'pt-BR-AntonioNeural', linked: false, peer: null as string | null, queued: 0,
+    connections: [{ id: 'gemini:primary', label: 'Gemini', enabled: true }] };
+  const actions: Record<string, unknown>[] = [];
+  await page.route('**/api/whatsapp/admin', route => {
+    let data: unknown = state;
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON(); actions.push(body);
+      if (body.action === 'code') data = { code: 'ABCD2345', link: 'https://wa.me/5511888888888?text=fixture' };
+      if (body.action === 'save') state = { ...state, enabled: body.enabled, voice: body.voice, stt_model: body.stt_model };
+      if (body.action === 'unlink') state = { ...state, linked: false, peer: null };
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) });
+  });
+  await page.goto('/'); await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'WhatsApp da Jornada' });
+  await expect(panel).toBeVisible(); await panel.getByRole('button', { name: 'Gerar código de vínculo' }).click();
+  await expect(panel.getByText('/vincular ABCD2345', { exact: true })).toBeVisible();
+  await panel.getByLabel('Voz da resposta').selectOption('pt-BR-FranciscaNeural');
+  await panel.getByRole('button', { name: 'Salvar configuração' }).click();
+  expect(actions.some(item => item.action === 'save' && item.voice === 'pt-BR-FranciscaNeural')).toBe(true);
+  state = { ...state, linked: true, peer: '5511999999999' }; await panel.getByRole('button', { name: 'Atualizar conexão' }).click();
+  await panel.getByRole('button', { name: 'Revogar acesso' }).click();
+  expect(actions.some(item => item.action === 'unlink')).toBe(false);
+  await panel.getByRole('button', { name: 'Confirmar', exact: true }).click();
+  expect(actions.some(item => item.action === 'unlink')).toBe(true);
+  const audit = await new AxeBuilder({ page }).include('.wa-settings').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(audit.violations).toEqual([]);
+});
+
 test('primeiro acesso pede aceite claro dos termos antes de usar', async ({ page }) => {
   const posted = await mockApi(page, { home: homeFixture({ consents: false }) });
   await page.goto('/');

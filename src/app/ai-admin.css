@@ -76,3 +76,14 @@
   .ai-control .button, .ai-control .text-button { min-height: 44px; }
 }
 @media (prefers-reduced-motion: reduce) { .ai-control-nav button, .ai-provider-chevron { transition: none; } }
+/* Private WhatsApp connection follows the administration design system. */
+.wa-steps { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.wa-steps > * { min-width: 0; }
+.wa-command { max-width: 100%; overflow: auto; padding: .9rem; border-radius: .75rem; background: var(--surface, #f1f5f9); color: var(--ink, #102d43); font-size: .9rem; }
+.wa-qr { display: grid; justify-items: center; gap: .8rem; margin: 1rem 0; text-align: center; }
+.wa-qr img { max-width: 100%; height: auto; border: 1px solid var(--line, #d5e0e9); border-radius: 1rem; background: white; }
+.wa-qr figcaption { max-width: 32ch; font-size: .85rem; color: var(--muted, #53697b); }
+.wa-settings details summary { cursor: pointer; padding-block: .7rem; font-weight: 600; }
+.wa-settings .ai-card { margin-block: .7rem; }
+.wa-settings h3 { font-size: 1.05rem; }
+@media (max-width: 680px) { .wa-steps { grid-template-columns: minmax(0, 1fr); } }

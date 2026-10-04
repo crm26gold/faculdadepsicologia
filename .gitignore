@@ -26,3 +26,8 @@ playwright-report/
 blob-report/
 coverage/
 /public/spelling/
+
+# Sessão do WhatsApp e credencial exclusiva da ponte (nunca publicar).
+integrations/whatsapp-bridge/.state/
+integrations/whatsapp-bridge/bridge-config.json
+integrations/whatsapp-bridge/.wwebjs_cache/

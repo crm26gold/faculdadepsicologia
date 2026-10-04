@@ -6,6 +6,8 @@
     "node": "24.x"
   },
   "scripts": {
+    "whatsapp:setup": "node scripts/whatsapp-setup.mjs",
+    "whatsapp:start": "node integrations/whatsapp-bridge/bridge.mjs",
     "predev": "node scripts/prepare-spelling.mjs",
     "prebuild": "node scripts/prepare-spelling.mjs && node scripts/dark-theme.mjs --check",
     "dev": "next dev --hostname 127.0.0.1",
