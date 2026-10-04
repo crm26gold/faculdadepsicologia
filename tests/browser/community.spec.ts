@@ -319,7 +319,7 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   await expect(task.getByText(/Hoje usaria: gemini-3.8-flash/)).toBeVisible();
   await task.getByLabel('Modelo', { exact: true }).selectOption('gemini-3.5-flash-lite');
   await task.getByRole('button', { name: 'Salvar' }).click();
-  await expect.poll(() => posted.find(item => item.body.action === 'save_task')?.body).toMatchObject({ task: 'assistente', provider: 'gemini', model: 'gemini-3.5-flash-lite' });
+  await expect.poll(() => posted.find(item => item.body.action === 'save_route')?.body).toMatchObject({ task: 'assistente', provider: 'gemini', model: 'gemini-3.5-flash-lite', routing_mode: 'fixed', connection_id: null });
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -342,12 +342,12 @@ test('proprietário cadastra reserva explícita e recebe diagnóstico da conexã
   await expect(panel.getByText(/400 · INVALID_ARGUMENT · INVALID_FIELD_MASK · fieldMask/)).toBeVisible();
   expect(posted.find(item => item.body.action === 'test_live')?.body).toEqual({ action: 'test_live' });
   await panel.getByRole('button', { name: 'Conexões e chaves', exact: true }).click();
-  const reserve = panel.locator('form').filter({ hasText: 'Adicionar uma reserva' });
+  const reserve = panel.locator('form').filter({ hasText: 'Adicionar outra conexão' });
   await reserve.getByLabel('Nome', { exact: true }).fill('Minha reserva');
   await reserve.getByLabel('Chave', { exact: true }).fill('synthetic-api-key');
-  await reserve.getByLabel('Usar como reserva').check();
-  await reserve.getByRole('button', { name: 'Cadastrar reserva' }).click();
-  await expect.poll(() => posted.find(item => item.body.action === 'save_connection')?.body).toEqual({ action: 'save_connection', id: null, provider: 'gemini', label: 'Minha reserva', enabled: true, position: 1, key: 'synthetic-api-key' });
+  await reserve.getByLabel('Ligada', { exact: true }).check();
+  await reserve.getByRole('button', { name: 'Cadastrar conexão' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'save_connection')?.body).toEqual({ action: 'save_connection', id: null, provider: 'gemini', label: 'Minha reserva', enabled: true, position: 1, key: 'synthetic-api-key',base_url:'',gcp_project:'',gcp_location:'' });
   await expect(reserve.getByLabel('Chave', { exact: true })).toHaveValue('');
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -377,7 +377,7 @@ test('administração preserva alterações entre seções, atualiza modelos e v
   await panel.getByRole('button', { name: 'Conexões e chaves', exact: true }).click();
   await panel.locator('details.ai-provider summary').click();
   const reserve = panel.locator('form.ai-reserve-form');
-  await reserve.getByRole('button', { name: 'Verificar reserva' }).click();
+  await reserve.getByRole('button', { name: 'Consultar modelos' }).click();
   await expect(panel.getByText(/Conta reserva: acesso à lista aceito/)).toBeVisible();
   expect(posted.find(post => post.body.connection_id === reserveId)?.body).toEqual({ action: 'models', provider: 'gemini', connection_id: reserveId });
   await panel.getByRole('button', { name: 'Tarefas e modelos', exact: true }).click();
@@ -388,6 +388,41 @@ test('administração preserva alterações entre seções, atualiza modelos e v
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await panel.screenshot({ path: 'test-results/admin-models-mobile-dark.png' });
+});
+
+test('conexões independentes têm modelos próprios e rota autoriza outra empresa',async({ page })=>{
+  const first='00000000-0000-4000-8000-000000000020',second='00000000-0000-4000-8000-000000000021';
+  const providers=['deepseek','anthropic','google_cloud'].map(id=>({id,enabled:false,label:'Principal pausada',base_url:'',gcp_project:'',gcp_location:'',has_key:false,key_hint:'',updated_at:''}));
+  const connections=[{id:first,provider:'deepseek',label:'Minha conta DeepSeek',enabled:true,position:1,key_hint:'1234',updated_at:''},{id:second,provider:'anthropic',label:'Minha conta Claude',enabled:true,position:1,key_hint:'4321',updated_at:''}];
+  const ai={secretReady:true,providers,connections,tasks:[{id:'assistente',provider:'deepseek',connection_id:first,model:'auto:rapido',enabled:true,routing_mode:'fixed',fallbacks:[],updated_at:''}]};
+  const posted=await mockApi(page,{home:homeFixture({master:true}),ai,onPost:post=>post.body.action==='models' ? {ids:post.body.connection_id===first ? ['deepseek-flash'] : ['claude-sonnet-5'],auto:{'auto:rapido':post.body.connection_id===first ? 'deepseek-flash' : 'claude-sonnet-5'}} : null});
+  await page.goto('/');await nav(page).getByRole('button',{name:'Administração',exact:true}).click();
+  const panel=page.getByRole('region',{name:'Inteligência artificial'});await panel.getByRole('button',{name:'Tarefas e modelos',exact:true}).click();
+  const task=panel.locator('form.ai-task-card');await expect(task.getByText(/Hoje usaria: deepseek-flash/)).toBeVisible();
+  await task.getByLabel('Se a conexão falhar').selectOption('fallback');await expect(task.getByLabel('Alternativa 2',{exact:true})).toBeDisabled();
+  await task.getByLabel('Alternativa 1',{exact:true}).selectOption(second);await task.getByLabel('Modelo da alternativa 1').fill('claude-sonnet-5');
+  await task.getByRole('button',{name:'Salvar',exact:true}).click();
+  await expect.poll(()=>posted.find(row=>row.body.action==='save_route')?.body).toEqual({action:'save_route',task:'assistente',provider:'deepseek',connection_id:first,model:'auto:rapido',enabled:true,routing_mode:'fallback',fallbacks:[{connection_id:second,model:'claude-sonnet-5'}]});
+  await task.getByLabel('Provedor').selectOption(second);await expect(task.getByText(/Hoje usaria: claude-sonnet-5/)).toBeVisible();
+  expect(posted.filter(row=>row.body.action==='models').map(row=>row.body.connection_id)).toEqual([first,second]);
+  await panel.getByRole('button',{name:'Conexões e chaves',exact:true}).click();await panel.getByLabel('Buscar empresa ou conexão').fill('Minha conta Claude');
+  await expect(panel.locator('details.ai-provider')).toHaveCount(1);await expect(panel.locator('details.ai-provider summary')).toContainText('Anthropic');
+  await page.setViewportSize({width:390,height:844});expect((await new AxeBuilder({page}).include('.ai-settings').analyze()).violations).toEqual([]);
+});
+
+test('MCP cadastra token transitório e consulta ferramentas sem executar comandos',async({page})=>{
+  const connector={id:'00000000-0000-4000-8000-000000000030',label:'Agenda MCP',url:'https://tools.example.invalid/mcp',protocol:'2026-07-28',enabled:true,has_key:true,key_hint:'1234',updated_at:''};
+  const ai={secretReady:true,providers:[],connections:[],connectors:[connector],tasks:[]};
+  const posted=await mockApi(page,{home:homeFixture({master:true}),ai,onPost:post=>post.body.action==='test_connector' ? {tools:[{name:'agenda.list',description:'Consultar agenda'}],hasMore:false,checkedAt:'2026-10-04T15:00:00Z'} : null});
+  await page.goto('/');await nav(page).getByRole('button',{name:'Administração',exact:true}).click();const panel=page.getByRole('region',{name:'Inteligência artificial'});
+  await panel.getByRole('button',{name:'Integrações',exact:true}).click();await panel.locator('.ai-mcp-settings details summary').click();await panel.getByRole('button',{name:'Consultar ferramentas'}).click();
+  await expect(panel.getByText('agenda.list',{exact:true})).toBeVisible();expect(posted.find(row=>row.body.action==='test_connector')?.body).toEqual({action:'test_connector',id:connector.id});
+  const form=panel.locator('form').filter({hasText:'Adicionar servidor MCP'});await form.getByLabel('Nome do conector').fill('Meu MCP');await form.getByLabel('Endpoint MCP').fill('https://more.example.invalid/mcp');await form.getByLabel('Token Bearer (opcional)').fill('synthetic-token');await form.getByRole('button',{name:'Cadastrar conector'}).click();
+  await expect(form.getByLabel('Token Bearer (opcional)')).toHaveValue('');await expect.poll(()=>posted.find(row=>row.body.action==='save_connector')?.body).toMatchObject({label:'Meu MCP',url:'https://more.example.invalid/mcp',protocol:'2026-07-28',enabled:false,key:'synthetic-token'});
+  expect(JSON.stringify(await page.evaluate(()=>({...localStorage})))).not.toContain('synthetic-token');
+  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));
+  expect((await new AxeBuilder({page}).include('.ai-settings').analyze()).violations).toEqual([]);expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await panel.screenshot({path:'test-results/admin-integrations-mobile-dark.png'});
 });
 
 test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Para organizar', async ({ page }) => {

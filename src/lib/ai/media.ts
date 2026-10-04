@@ -16,3 +16,6 @@ export function chatImageContent(text: string, image?: AiImage) {
 export function claudeImageContent(text: string, image?: AiImage) {
   return image ? [{ type: 'image', source: { type: 'base64', media_type: image.mimeType, data: image.base64 } }, { type: 'text', text }] : text;
 }
+export function responsesImageContent(text: string, image?: AiImage) {
+  return image ? [{ type: 'input_text', text }, { type: 'input_image', image_url: `data:${image.mimeType};base64,${image.base64}`, detail: 'auto' }] : text;
+}

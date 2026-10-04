@@ -49,6 +49,12 @@
 .ai-control .button-row { flex-wrap: wrap; margin-top: 3px; }
 .ai-control .ai-roadmap li { padding: 18px; gap: 7px; line-height: 1.7; border-style: solid; border-radius: 12px; }
 .ai-control .ai-diagnostic { border-left: 3px solid var(--accent-text); overflow-wrap: anywhere; }
+.ai-search { display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
+.ai-route-steps, .ai-route-step, .ai-mcp-settings { display: flex; flex-direction: column; gap: 14px; }
+.ai-route-step { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }
+.ai-tool-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.ai-tool-list li { display: flex; flex-direction: column; gap: 6px; overflow-wrap: anywhere; }
+.ai-mcp-settings h3 { display: flex; align-items: center; gap: 8px; }
 @media (max-width: 640px) {
   .ai-control-heading { align-items: flex-start; flex-direction: column; gap: 10px; }
   .ai-control-nav button { flex: 1 1 42%; justify-content: flex-start; padding: 9px; }

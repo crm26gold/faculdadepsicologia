@@ -9,7 +9,7 @@ export const autoModes = {
 } as const;
 export type AutoMode = keyof typeof autoModes;
 export const isAuto = (model: string): model is AutoMode => model in autoModes;
-export const autoCapable: AiProviderId[] = ['gemini', 'openai', 'anthropic'];
+export const autoCapable: AiProviderId[] = ['gemini', 'openai', 'anthropic', 'deepseek', 'xai', 'mistral'];
 
 type Tier = 'best' | 'fast' | 'light';
 type Parsed = { id: string; version: number; tier: Tier; preview: boolean };
@@ -32,6 +32,21 @@ function parse(provider: AiProviderId, id: string): Parsed | null {
     const match = id.match(/^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d))?(?:-\d{8})?$/);
     if (!match) return null;
     return { id, version: Number(`${match[2]}.${match[3] ?? 0}`), tier: match[1] === 'opus' ? 'best' : match[1] === 'sonnet' ? 'fast' : 'light', preview };
+  }
+  if (provider === 'deepseek') {
+    if (!/^deepseek-(?:flash|pro|chat|reasoner|v\d)/.test(id)) return null;
+    const match = id.match(/v(\d+(?:\.\d+)?)/);
+    return { id, version: Number(match?.[1] ?? 0), tier: /pro|reasoner/.test(id) ? 'best' : 'fast', preview };
+  }
+  if (provider === 'xai') {
+    const match = id.match(/^grok-(\d+(?:\.\d+)?)/);
+    if (!match) return null;
+    return { id, version: Number(match[1]), tier: /mini/.test(id) ? 'light' : /fast/.test(id) ? 'fast' : 'best', preview };
+  }
+  if (provider === 'mistral') {
+    const match = id.match(/^mistral-(large|medium|small)(?:-|$)/);
+    if (!match) return null;
+    return { id, version: Number(id.match(/-(\d{4})$/)?.[1] ?? 9999), tier: match[1] === 'large' ? 'best' : match[1] === 'medium' ? 'fast' : 'light', preview };
   }
   return null;
 }

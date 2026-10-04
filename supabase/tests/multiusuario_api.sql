@@ -189,6 +189,33 @@ do $$ begin perform ai_save_provider('gemini', true, '', 'http://inseguro.exampl
 exception when check_violation then null; end $$;
 select expect((select count(*) from admin_audit_log where action = 'ai_provider' and details::text not like '%chave-cifrada%') >= 3, 'histórico registra sem a chave');
 
+-- Conexões independentes, rota explícita e MCP: apenas o proprietário, sem segredos no painel.
+select set_config('test.ai.independent',ai_save_connection_details(null,'compatible','Endpoint próprio',true,1,'v1.independente','9876','https://api.example.invalid/v1','projeto-dois','global')::text,false);
+select set_config('test.ai.alternative',ai_save_connection_details(null,'anthropic','Claude alternativa',true,1,'v1.claude','7654','','','')::text,false);
+select ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'fallback',jsonb_build_array(jsonb_build_object('connection_id',current_setting('test.ai.alternative'),'model','claude-teste')));
+select expect(ai_runtime('assistente')->>'key_ciphertext'='v1.independente','conexão funciona mesmo sem chave principal da empresa');
+select expect(ai_runtime('assistente')->>'base_url'='https://api.example.invalid/v1','endpoint pertence à conexão selecionada');
+select expect(ai_runtime('assistente')->'alternatives'->0->>'provider'='anthropic' and ai_runtime('assistente')->'alternatives'->0->>'model'='claude-teste','alternativa autorizada usa empresa e modelo próprios');
+select expect(ai_admin_state()::text not like '%v1.independente%' and ai_admin_state()::text not like '%v1.claude%','nenhuma chave cifrada no painel ampliado');
+do $$ begin perform ai_save_route('voz','gemini',null,'auto:rapido',true,'fallback',jsonb_build_array(jsonb_build_object('connection_id',current_setting('test.ai.alternative'),'model','claude-teste'))); raise exception 'FALHA: voz aceitou transporte de texto'; exception when invalid_parameter_value then null; end $$;
+select ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'fixed','[]');
+select expect(jsonb_array_length(ai_runtime('assistente')->'alternatives')=0,'rota fixa não inclui reservas implicitamente');
+select ai_remove_connection(current_setting('test.ai.independent')::uuid);
+select expect(ai_runtime('assistente') is null,'remoção pausa tarefa em vez de ativar outra chave silenciosamente');
+select set_config('test.ai.mcp',ai_save_connector(null,'MCP teste','https://tools.example.invalid/mcp','2026-07-28',true,'v1.token-mcp','1234')::text,false);
+select expect(ai_admin_state()::text not like '%token-mcp%','MCP não retorna token cifrado no painel');
+select expect(ai_connector_runtime(current_setting('test.ai.mcp')::uuid)->>'key_ciphertext'='v1.token-mcp','proprietário testa token apenas pelo servidor');
+do $$ begin perform count(*) from private.ai_connectors; raise exception 'FALHA: leitura direta do cofre MCP'; exception when insufficient_privilege then null; end $$;
+select act_as('00000000-0000-4000-8000-000000000001');
+do $$ begin perform ai_save_route('assistente','gemini',null,'x',true,'fixed','[]'); raise exception 'FALHA: outro usuário mudou rota'; exception when insufficient_privilege then null; end $$;
+do $$ begin perform ai_connector_runtime(current_setting('test.ai.mcp')::uuid); raise exception 'FALHA: outro usuário leu token MCP'; exception when insufficient_privilege then null; end $$;
+do $$ begin perform ai_save_connector(null,'Inválido','https://tools.example.invalid','2026-07-28',true,'x','x'); raise exception 'FALHA: outro usuário cadastrou MCP'; exception when insufficient_privilege then null; end $$;
+do $$ begin perform ai_remove_connector(current_setting('test.ai.mcp')::uuid); raise exception 'FALHA: outro usuário excluiu MCP'; exception when insufficient_privilege then null; end $$;
+select act_as('00000000-0000-4000-8000-00000000000a');
+select ai_remove_connector(current_setting('test.ai.mcp')::uuid);
+select ai_remove_connection(current_setting('test.ai.alternative')::uuid);
+select ai_save_task('assistente','gemini','modelo-de-teste',true);
+
 -- Mensageiros: só o proprietário configura e vincula; o robô só age com o segredo do servidor e só na conta vinculada.
 select act_as('00000000-0000-4000-8000-000000000001');
 do $$ begin perform messenger_admin_state(); raise exception 'FALHA: master comum viu os mensageiros';

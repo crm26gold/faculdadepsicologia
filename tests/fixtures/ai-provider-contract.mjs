@@ -1,0 +1,43 @@
+import assert from 'node:assert/strict';
+import { generate,generateResilient,listModelInventory,refreshModels } from '../../src/lib/ai/providers.ts';
+const config=(provider,model='model-test',key='synthetic-key')=>({ provider,model,key,base_url:'https://ignored.example',gcp_project:'',gcp_location:'' });
+const calls=[];
+globalThis.fetch=async(url,init={})=>{
+  calls.push({url:String(url),...init,body:init.body ? JSON.parse(init.body) : null});
+  if(init.headers?.Authorization==='Bearer bad-key') return new Response('{}',{status:401});
+  if(init.headers?.Authorization==='Bearer quota-key') return new Response('{}',{status:429});
+  if(String(url).endsWith('/models')) return Response.json({data:[{id:init.headers.Authorization==='Bearer account-two' ? 'model-two' : 'model-one'}]});
+  if(String(url).includes('aiplatform.googleapis.com')) return Response.json({candidates:[{content:{parts:[{text:'ok-google'}]}}]});
+  if(String(url).includes('api.x.ai')) return Response.json({output:[{type:'message',content:[{type:'output_text',text:'ok-xai'}]}]});
+  if(String(url).includes('api.anthropic.com')) return Response.json({content:[{type:'text',text:'ok-claude'}]});
+  return Response.json({choices:[{message:{content:'ok-chat'}}]});
+};
+const input={ system:'Jornada test',prompt:'Synthetic message',maxTokens:60 };
+for (const [provider,base] of [['deepseek','https://api.deepseek.com'],['mistral','https://api.mistral.ai/v1'],['groq','https://api.groq.com/openai/v1'],['openrouter','https://openrouter.ai/api/v1']]) {
+  assert.equal(await generate(config(provider),input),'ok-chat');
+  assert.equal(calls.at(-1).url,`${base}/chat/completions`);
+  assert.equal(calls.at(-1).redirect,'error');assert.equal(calls.at(-1).body.max_tokens,60);
+  await listModelInventory(config(provider));assert.equal(calls.at(-1).url,`${base}/models`);
+}
+assert.equal(await generate(config('google_cloud','gemini-model'),input),'ok-google');
+assert.equal(calls.at(-1).url,'https://aiplatform.googleapis.com/v1/publishers/google/models/gemini-model:generateContent');
+assert.equal(calls.at(-1).headers['x-goog-api-key'],'synthetic-key');
+assert.equal(await generate(config('xai','grok-model'),input),'ok-xai');
+assert.equal(calls.at(-1).body.store,false);assert.equal(calls.at(-1).body.max_output_tokens,60);
+assert(!('messages' in calls.at(-1).body));
+await generate(config('xai','grok-model'),{...input,image:{mimeType:'image/png',base64:'AA=='}});
+assert.equal(calls.at(-1).body.input.at(-1).content[0].type,'input_text');
+assert.equal(calls.at(-1).body.input.at(-1).content[1].image_url,'data:image/png;base64,AA==');
+await generate({...config('google_cloud','gemini-model'),gcp_project:'project-test',gcp_location:'global'},input);
+assert.equal(calls.at(-1).url,'https://aiplatform.googleapis.com/v1/projects/project-test/locations/global/publishers/google/models/gemini-model:generateContent');
+assert.equal((await refreshModels(config('deepseek','auto:rapido','account-one'))).ids[0],'model-one');
+assert.equal((await refreshModels(config('deepseek','auto:rapido','account-two'))).ids[0],'model-two');
+let retries=0;
+const primary={...config('deepseek','model-test','bad-key'),alternatives:[config('anthropic','claude-test','good-key')]};
+assert.equal((await generateResilient(primary,{...input,beforeRetry:async()=>{retries++;}})).text,'ok-claude');assert.equal(retries,1);
+const before=calls.length;
+await assert.rejects(generateResilient({...primary,key:'quota-key'},input),error=>error.status===429);assert.equal(calls.length,before+1);
+await assert.rejects(generate(config('deepseek'),{...input,image:{mimeType:'image/png',base64:'AA=='}}),error=>error.status===400);
+await assert.rejects(generate(config('google_cloud','claude-test'),input),error=>error.status===400);
+await assert.rejects(generateResilient(primary,{...input,beforeRetry:async()=>{throw new Error('budget denied');}}),/budget denied/);
+console.log('Provider contracts verified without real credentials or network.');

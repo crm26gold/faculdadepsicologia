@@ -8,6 +8,8 @@ import { requestBudget, retryBudget } from '@/lib/ai/budget';
 import { runtimeConfig } from '@/lib/ai/runtime';
 import { prepareGeminiSession, LiveSessionError } from '@/lib/voice/gemini-session';
 import { checkGeminiSession } from '@/lib/voice/check-session';
+import { credentialIssue } from '@/lib/ai/credentials';
+import { discoverMcp } from '@/lib/integrations/mcp';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -27,7 +29,7 @@ async function providerConfig(session: Session, provider: AiProviderId, model = 
   const { data, error } = connectionId ? await session.client.rpc('ai_connection_runtime', { connection_id: connectionId }) : await session.client.rpc('ai_provider_runtime', { provider_id: provider });
   if (error) return dbError(error);
   if (!data) return reply({ error: 'Cadastre e salve a chave deste provedor antes.' }, 409);
-  if (connectionId && data.provider !== provider) return reply({ error: 'A reserva não pertence ao provedor escolhido.' }, 400);
+  if (connectionId && data.provider !== provider) return reply({ error: 'A conexão não pertence à empresa escolhida.' }, 400);
   try { return { provider, model, base_url: data.base_url, gcp_project: data.gcp_project, gcp_location: data.gcp_location, key: openKey(data.key_ciphertext) }; }
   catch (cause) { return reply({ error: cause instanceof Error ? cause.message : 'Não foi possível abrir a chave guardada.' }, 503); }
 }
@@ -37,13 +39,42 @@ export async function POST(request: Request) {
   if (input instanceof Response) return input;
   const { session, body } = input;
   switch (body.action) {
+    case 'save_connector': {
+      const key = body.key?.trim();
+      if (key && /\s/.test(key)) return reply({ error: 'Informe apenas o token Bearer, sem espaços.' },400);
+      if (key && !aiSecretReady()) return reply({ error: 'Configure o cofre de chaves antes de salvar um token.' },503);
+      const result = await session.client.rpc('ai_save_connector',{ connector_id: body.id,next_label:body.label,next_url:body.url,next_protocol:body.protocol,next_enabled:body.enabled,next_ciphertext:body.key === null ? null : key ? sealKey(key) : '',next_hint:body.key === null ? null : key ? keyHint(key) : '' });
+      return result.error ? dbError(result.error) : reply({ ok:true,data:null });
+    }
+    case 'remove_connector': {
+      const result = await session.client.rpc('ai_remove_connector',{ connector_id:body.id });
+      return result.error ? dbError(result.error) : reply({ ok:true,data:null });
+    }
+    case 'test_connector': {
+      const result = await session.client.rpc('ai_connector_runtime',{ connector_id:body.id });
+      if (result.error) return dbError(result.error);
+      if (!result.data?.enabled) return reply({ error:'Salve e ligue o conector antes de consultar.' },409);
+      const limited = await requestBudget(session,'ai'); if (limited) return limited;
+      try {
+        const token = result.data.key_ciphertext ? openKey(result.data.key_ciphertext) : '';
+        const inventory = await discoverMcp(result.data.url,token,result.data.protocol,AbortSignal.any([request.signal,AbortSignal.timeout(30_000)]));
+        return reply({ ok:true,data:{ ...inventory,checkedAt:new Date().toISOString() } });
+      } catch (cause) { return reply({ error:cause instanceof Error ? cause.message : 'Não consegui consultar o servidor MCP.' },502); }
+    }
     case 'save_connection': {
       const key = body.key?.trim();
-      if (!body.id && !key) return reply({ error: 'Informe a chave para criar uma reserva.' }, 400);
+      if (!body.id && !key) return reply({ error: 'Informe a chave para criar uma conexão.' }, 400);
+      if (key && credentialIssue(body.provider, key)) return reply({ error: credentialIssue(body.provider, key) }, 400);
       if (key && !aiSecretReady()) return reply({ error: 'O cofre de chaves não está configurado.' }, 503);
-      const result = await session.client.rpc('ai_save_connection', { connection_id: body.id, provider_id: body.provider,
+      const result = await session.client.rpc('ai_save_connection_details', { connection_id: body.id, provider_id: body.provider,
         next_label: body.label, next_enabled: body.enabled, next_position: body.position,
-        next_ciphertext: key ? sealKey(key) : null, next_hint: key ? keyHint(key) : null });
+        next_ciphertext: key ? sealKey(key) : null, next_hint: key ? keyHint(key) : null,
+        next_base_url: body.base_url ?? '', next_project: body.gcp_project ?? '', next_location: body.gcp_location ?? '' });
+      return result.error ? dbError(result.error) : reply({ ok: true, data: null });
+    }
+    case 'save_route': {
+      const result = await session.client.rpc('ai_save_route', { task_id: body.task, next_provider: body.provider, next_connection: body.connection_id,
+        next_model: body.model, next_enabled: body.enabled, next_mode: body.routing_mode, next_fallbacks: body.fallbacks });
       return result.error ? dbError(result.error) : reply({ ok: true, data: null });
     }
     case 'remove_connection': {
@@ -79,6 +110,7 @@ export async function POST(request: Request) {
       let ciphertext: string | null = null, hint: string | null = null;
       if (body.key !== null) {
         const key = body.key.trim();
+        if (key && credentialIssue(body.provider, key)) return reply({ error: credentialIssue(body.provider, key) }, 400);
         if (key && !aiSecretReady()) return reply({ error: 'O servidor ainda não tem o segredo que protege as chaves (AI_KEYS_SECRET).' }, 503);
         ciphertext = key ? sealKey(key) : '';
         hint = key ? keyHint(key) : '';
