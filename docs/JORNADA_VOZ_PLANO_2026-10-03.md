@@ -32,7 +32,7 @@ Persistir histórico e regras não treina automaticamente um modelo próprio. Pa
 
 | Parte | Implementação desta etapa | Validação que ainda importa |
 | --- | --- | --- |
-| Voz Gemini | Seleção de modelo regular; restrições de autorização; alternativa documentada para configuração 400 | Sessão autenticada com áudio real e resposta do provedor |
+| Voz Gemini | Seleção de modelo regular; contrato REST corrigido, máscara por campo inteiro, ferramentas sem schemas vazios e diagnóstico sem dados privados | Token aceito, conexão autenticada e áudio real no aparelho |
 | Voz OpenAI | Adaptador GPT Live/WebRTC; delegação para o executor próprio | Chave de API com acesso e cota; áudio real no celular |
 | Histórico | Busca, título, fixação, arquivo, exportação e retomada; nuvem por conta e recuperação manual do histórico antigo | Uso na conta real em dois dispositivos |
 | Continuidade | Pedido aceito no banco; função continua após fechar chamada; resultado e workspace na mesma transação | Teste real de fechar chamada durante um pedido |

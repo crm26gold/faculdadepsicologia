@@ -5,15 +5,40 @@ import { boundedLiveText, DelegationInput, liveResultText } from '../src/lib/voi
 import { imageMime, chatImageContent, claudeImageContent } from '../src/lib/ai/media';
 import { photoHandler } from '../supabase/functions/telegram-photo/index.js';
 
-test('ambos os formatos de token restringem modelo, instruções e ferramentas; prioriza voz normal', () => {
+test('token REST fixa os campos fornecidos inteiros e preserva retomada da sessão', () => {
   const choices = ['gemini-3.8-live-extended-thinking', 'gemini-3.8-live'].map(id => ({ name: `models/${id}`, supportedGenerationMethods: ['bidiGenerateContent'] }));
   assert.equal(chooseLiveModel(choices), 'gemini-3.8-live');
-  const request = liveTokenRequest('gemini-3.8-live', 'Resumo', [], Date.now());
-  assert.ok('bidiGenerateContentSetup' in request && request.bidiGenerateContentSetup?.tools.length);
-  assert.ok('fieldMask' in request && request.fieldMask?.includes('generationConfig.responseModalities'));
-  const alternative = liveTokenRequest('gemini-3.8-live', 'Resumo', [], Date.now(), 'rest');
-  assert.ok('liveConnectConstraints' in alternative && alternative.liveConnectConstraints?.config.systemInstruction.parts.length);
-  assert.equal(request.uses, 1); assert.equal(alternative.uses, 1);
+  const now = Date.parse('2026-10-03T22:00:00Z');
+  const request = liveTokenRequest('gemini-3.8-live', 'Resumo', [], now);
+  // AuthToken REST fields, not SDK-only liveConnectConstraints/config fields.
+  assert.deepEqual(Object.keys(request).sort(), ['bidiGenerateContentSetup', 'expireTime', 'fieldMask', 'newSessionExpireTime', 'uses']);
+  const setup = request.bidiGenerateContentSetup;
+  const locked = request.fieldMask.split(',');
+  assert.ok(locked.every(field => /^[a-zA-Z]+$/.test(field)), 'no nested paths or array indexes in the mask');
+  assert.deepEqual(locked.toSorted(), Object.keys(setup).filter(field => field !== 'sessionResumption').toSorted());
+  assert.ok(locked.includes('generationConfig'), 'client cannot override another generation option');
+  assert.equal(setup.model, 'models/gemini-3.8-live');
+  assert.deepEqual(setup.generationConfig.responseModalities, ['AUDIO']);
+  assert.equal(setup.tools[0].functionDeclarations.length, 5);
+  assert.deepEqual(setup.sessionResumption, {});
+  assert.equal(request.uses, 1);
+  assert.equal(Date.parse(request.newSessionExpireTime) - now, 120_000);
+  assert.equal(Date.parse(request.expireTime) - now, 1_320_000);
+});
+test('ferramentas Gemini omitem schemas vazios e aguardam resultado antes de confirmar', () => {
+  const tools = liveTokenRequest('gemini-3.8-live', '', [], 0).bidiGenerateContentSetup.tools[0].functionDeclarations;
+  assert.deepEqual(tools.map(tool => tool.name).toSorted(), ['cancelar_alteracao', 'confirmar_alteracao', 'consultar_jornada', 'desfazer_ultima_acao', 'organizar_jornada']);
+  for (const tool of tools) {
+    assert.equal(tool.behavior, 'BLOCKING');
+    if (!('parameters' in tool) || !tool.parameters) continue;
+    assert.equal(tool.parameters.type, 'OBJECT');
+    const properties = Object.keys(tool.parameters.properties);
+    assert.ok(properties.length > 0, `${tool.name}: Gemini rejects empty OBJECT properties`);
+    assert.ok(tool.parameters.required.every(name => properties.includes(name)));
+  }
+  for (const name of ['cancelar_alteracao', 'confirmar_alteracao', 'desfazer_ultima_acao']) {
+    assert.equal('parameters' in tools.find(tool => tool.name === name)!, false);
+  }
 });
 test('delegação recebe somente fala até seu instante e não repete um pedido consumido', () => {
   const input = new DelegationInput();

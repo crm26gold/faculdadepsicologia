@@ -19,10 +19,14 @@ export const voiceTools = [{ functionDeclarations: [
   { name: 'organizar_jornada', description: 'Executa um pedido explícito de criar, editar, reagendar, concluir, pagar/marcar recebido, registrar, excluir, organizar ou controlar foco. Aguarde o resultado para dizer que foi feito. Agrupe até oito ações do mesmo pedido numa chamada.', parameters: {
     type: 'OBJECT', properties: { instruction: { type: 'STRING', description: 'Pedido completo da pessoa, incluindo dados esclarecidos na conversa e IDs obtidos na consulta. Preserve datas, valores e intenção. Não acrescente ações que ela não pediu.' } }, required: ['instruction'],
   } },
-  { name: 'confirmar_alteracao', description: 'Confirma apenas a exclusão/substituição que está pendente, quando a pessoa acabou de dizer exatamente “confirmo a exclusão” ou “confirmo a substituição”. O aplicativo verifica a transcrição; nunca simule confirmação.', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'cancelar_alteracao', description: 'Cancela uma exclusão/substituição pendente, sem modificar os registros.', parameters: { type: 'OBJECT', properties: {} } },
-  { name: 'desfazer_ultima_acao', description: 'Quando a pessoa pedir, desfaz o último conjunto de ações desta conversa e aguarda o salvamento.', parameters: { type: 'OBJECT', properties: {} } },
-] }];
+  // FunctionDeclaration.parameters is optional for functions with no arguments.
+  // Gemini rejects an OBJECT schema with an empty properties map.
+  { name: 'confirmar_alteracao', description: 'Confirma apenas a exclusão/substituição que está pendente, quando a pessoa acabou de dizer exatamente “confirmo a exclusão” ou “confirmo a substituição”. O aplicativo verifica a transcrição; nunca simule confirmação.' },
+  { name: 'cancelar_alteracao', description: 'Cancela uma exclusão/substituição pendente, sem modificar os registros.' },
+  { name: 'desfazer_ultima_acao', description: 'Quando a pessoa pedir, desfaz o último conjunto de ações desta conversa e aguarda o salvamento.' },
+  // Gemini 3.8 defaults to NON_BLOCKING. These tools must finish before the
+  // model acknowledges the result, especially a mutation's saved:true result.
+].map(declaration => ({ ...declaration, behavior: 'BLOCKING' })) }];
 
 export const voiceSystem = `Você é a voz da Jornada Plena, assistente pessoal para organizar a vida, em uma chamada de áudio ao vivo.
 Fale português do Brasil, de modo natural, acolhedor, objetivo e sem discursos. Faça uma pergunta por vez. Comece com uma saudação curta, e escute. A pessoa pode interromper sua fala.
@@ -60,15 +64,15 @@ export function chooseLiveModel(items: { name?: string; supportedGenerationMetho
 }
 
 /** Lock instructions/tools/model on the server; allow a resumption handle on the client. */
-export function liveTokenRequest(model: string, context: string, history: { role: string; text: string }[], now: number, format: 'discovery' | 'rest' = 'discovery') {
+export function liveTokenRequest(model: string, context: string, history: { role: string; text: string }[], now: number) {
   const expiresAt = new Date(now + (MAX_CALL_SECONDS + 120) * 1000).toISOString();
   const setup = liveSetup(model, context, history);
-  const { model: name, generationConfig, ...configuration } = setup;
   const expiry = { uses: 1, expireTime: expiresAt, newSessionExpireTime: new Date(now + 120_000).toISOString() };
-  // The published REST guide and the discovery/SDK schema currently expose two constraint shapes.
-  // Both variants remain constrained; never retry with an unrestricted provider token.
-  if (format === 'rest') return { ...expiry, liveConnectConstraints: { model: name, config: { ...generationConfig, ...configuration } } };
+  // liveConnectConstraints is SDK input, converted to bidiGenerateContentSetup
+  // on the wire. Use the REST resource shape, not the SDK input shape.
+  // Mask whole fields: nested/indexed paths are rejected by the constrained API.
+  // Pin all supplied configuration except sessionResumption (client handle).
   return { ...expiry, bidiGenerateContentSetup: setup,
-    fieldMask: 'model,generationConfig.responseModalities,generationConfig.speechConfig,systemInstruction,tools,realtimeInputConfig,inputAudioTranscription,outputAudioTranscription,contextWindowCompression',
+    fieldMask: 'model,generationConfig,systemInstruction,tools,realtimeInputConfig,inputAudioTranscription,outputAudioTranscription,contextWindowCompression',
   };
 }
