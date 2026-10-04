@@ -7,6 +7,53 @@ async function navigate(page: Page, name: string) {
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name, exact: true }).click();
 }
 
+test('navegação agrupada funciona recolhida e por teclado no desktop', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop');
+  await page.goto('/');
+  const nav = page.getByRole('navigation', { name: 'Principal', exact: true });
+  const group = nav.getByRole('button', { name: 'Aprender e criar', exact: true });
+  await group.focus();
+  await page.keyboard.press('Enter');
+  await expect(group).toHaveAttribute('aria-expanded', 'false');
+  await expect(nav.getByRole('button', { name: 'Caderno', exact: true })).toBeHidden();
+  await page.getByRole('button', { name: 'Recolher navegação' }).click();
+  await expect(page.getByRole('button', { name: 'Expandir navegação' })).toBeVisible();
+  await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Meu caderno', exact: true })).toBeVisible();
+  await expect(nav.getByRole('button', { name: 'Caderno', exact: true })).toHaveAttribute('aria-current', 'page');
+  await page.getByRole('button', { name: 'Expandir navegação' }).click();
+  await expect(group).toHaveAttribute('aria-expanded', 'true');
+  await expect(nav.getByRole('button', { name: 'Caderno', exact: true })).toBeVisible();
+});
+
+test('gaveta mobile fecha por Escape e devolve o foco ao menu', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile');
+  await page.goto('/');
+  const menu = page.getByRole('button', { name: 'Abrir navegação', exact: true });
+  await menu.click();
+  const drawer = page.getByRole('dialog', { name: 'Seu espaço', exact: true });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Agenda', exact: true })).toBeVisible();
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(drawer).toHaveCount(0);
+  await expect(menu).toBeFocused();
+});
+
+test('mensagens do assistente podem ser roladas por teclado numa tela estreita', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('/');
+  await navigate(page, 'Assistente');
+  const messages = page.getByRole('region', { name: 'Mensagens da conversa', exact: true });
+  await messages.focus();
+  await expect(messages).toBeFocused();
+  await page.keyboard.press('End');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+});
+
 test('atalhos mobile têm área de toque e indicadores em duas colunas', async ({ page }, info) => {
   test.skip(info.project.name !== 'mobile');
   await page.goto('/');
@@ -25,7 +72,7 @@ test('atalhos mobile têm área de toque e indicadores em duas colunas', async (
   await page.screenshot({ path: 'test-results/mobile-home-viewport.png', scale: 'css' });
   await expect(shortcuts.getByRole('button')).toHaveText(['Hoje', 'Agenda', 'Registrar', 'Estudos', 'Mais']);
   await shortcuts.getByRole('button', { name: 'Ver todas as áreas' }).click();
-  await page.getByLabel('Botão da barra, ao lado do Registrar').selectOption('notes');
+  await page.getByLabel('Atalho da barra inferior').selectOption('notes');
   await page.getByRole('button', { name: 'Fechar janela' }).click();
   await expect.poll(() => page.evaluate(() => history.state?.modal ?? null)).toBeNull();
   await shortcuts.getByRole('button', { name: 'Ir para Caderno', exact: true }).click();
@@ -53,7 +100,7 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
     Object.defineProperty(window, 'sessionStorage', { get() { throw new Error('Demo must not access sessionStorage'); } });
   });
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await expect(page.getByText('Demonstração — dados fictícios. Não insira informações pessoais.', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Psicologia', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);

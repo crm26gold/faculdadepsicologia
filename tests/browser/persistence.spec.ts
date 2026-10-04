@@ -1,5 +1,17 @@
 import { test, expect } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+
+test('preferência de navegação recolhida sobrevive ao recarregamento sem alterar registros', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: 'Um passo de cada vez.', exact: true })).toBeVisible();
+  const before = await page.evaluate(() => localStorage.getItem('faculdade-psi:personal:v1'));
+  await page.getByRole('button', { name: 'Recolher navegação', exact: true }).click();
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Expandir navegação', exact: true })).toBeVisible();
+  await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: 'Agenda', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Minha agenda', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => localStorage.getItem('faculdade-psi:personal:v1'))).toBe(before);
+});
 // Calendar day in Brazil (the browser runs in America/Sao_Paulo; CI runs in UTC, which is already tomorrow after 21h).
 const spDay = (offset = 0) => { const base = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()); const date = new Date(`${base}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 
@@ -40,6 +52,7 @@ test('capturas longas não alargam a página nem cortam o menu Android', async (
     await page.screenshot({ path: `test-results/android-captures-${width}.png`, scale: 'css' });
     await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
     const dialog = page.getByRole('dialog');
+    await expect.poll(async () => (await dialog.boundingBox())?.x ?? -1).toBeGreaterThanOrEqual(0);
     const box = await dialog.boundingBox();
     expect(box!.x).toBeGreaterThanOrEqual(0);
     expect(box!.x + box!.width).toBeLessThanOrEqual(width);
@@ -80,8 +93,10 @@ test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ 
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
     for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Foco', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente', 'Meu espaço']) {
-      if (width <= 760) await page.getByRole('button', { name: 'Abrir navegação', exact: true }).click();
-      const nav = width <= 760 ? page.getByRole('dialog') : page.locator('.sidebar');
+      const menu = page.getByRole('button', { name: 'Abrir navegação', exact: true });
+      const usesDrawer = await menu.isVisible();
+      if (usesDrawer) await menu.click();
+      const nav = usesDrawer ? page.getByRole('dialog') : page.locator('.sidebar');
       await nav.getByRole('button', { name: label, exact: true }).click();
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     }
@@ -441,7 +456,7 @@ test('voltar do Android em um curso retorna para a lista de Estudos', async ({ p
   await expect(hero).toBeHidden();
   await expect(list).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Ir para Estudos', exact: true }).click();
   await page.getByRole('heading', { name: 'Inglês instrumental', exact: true }).click();
   await expect(hero).toBeVisible();
@@ -518,7 +533,7 @@ test('formulários abertos num curso não deixam toques mortos no voltar e mudar
   await page.getByRole('button', { name: 'Voltar para Estudos', exact: true }).click();
   await expect(list).toBeVisible();
   await page.goBack();
-  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await page.goForward();
   await expect(list).toBeVisible();
   await page.goForward();
@@ -925,7 +940,7 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/');
 
-    if (vp.width <= 760) {
+    if (await page.getByRole('button', { name: 'Abrir navegação', exact: true }).isVisible()) {
       await page.getByRole('button', { name: 'Abrir navegação' }).click();
       await page.getByRole('dialog').getByRole('button', { name: 'Metas e projetos' }).click();
     } else {
@@ -939,6 +954,8 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     await page.getByRole('button', { name: 'Nova meta', exact: true }).click();
     const goalModal = page.getByRole('dialog');
     await expect(goalModal).toBeVisible();
+    // Measure the settled dialog; an animated transform has fractional bounds.
+    await goalModal.evaluate(async element => { await Promise.all(element.getAnimations().map(animation => animation.finished)); });
 
     // Fechar botão (icon-button) tem >= 44x44
     const closeBtn = goalModal.getByRole('button', { name: 'Fechar janela' });
@@ -1099,7 +1116,7 @@ test('botão central abre o registro rápido, guarda vídeo e a nota mantém o v
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].title)).toBe('Ética · vídeo da aula');
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).notes[0].content)).toContain('<video');
   await page.goBack();
-  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
 });
 
 test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pessoal', async ({ page }) => {
@@ -1113,7 +1130,7 @@ test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pe
   await expect(page.getByRole('dialog', { name: 'Um novo passo' })).toBeVisible();
   await page.goBack();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await settled();
   await bar.getByRole('button', { name: 'Registrar', exact: true }).click();
   await sheet.getByRole('button', { name: 'Começar foco', exact: true }).click();
@@ -1127,7 +1144,7 @@ test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pe
   await page.goBack();
   await expect(page.getByRole('heading', { name: 'Meu foco', level: 1 })).toBeVisible();
   await bar.getByRole('button', { name: 'Ver todas as áreas' }).click();
-  await page.getByLabel('Botão da barra, ao lado do Registrar').selectOption('focus');
+  await page.getByLabel('Atalho da barra inferior').selectOption('focus');
   await page.getByRole('button', { name: 'Fechar janela' }).click();
   await expect(bar.getByRole('button')).toHaveText(['Hoje', 'Agenda', 'Registrar', 'Foco', 'Mais']);
   await page.reload();
@@ -1174,7 +1191,7 @@ test('no computador, a bolinha se apresenta uma vez, anexa arquivos, pode ser ar
   await expect(bubble).toHaveCount(0);
   await expect(page.getByRole('status').filter({ hasText: 'Assistente escondido' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await expect(bubble).toHaveCount(0);
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name: /^Assistente/ }).click();
   await expect(page.getByRole('heading', { name: 'Assistente', level: 1 })).toBeVisible();
@@ -1187,7 +1204,7 @@ test('no computador, a bolinha se apresenta uma vez, anexa arquivos, pode ser ar
 test('no celular não há bolinha: o assistente vive na aba Assistente', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
-  await expect(page.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Abrir assistente' })).toBeHidden();
   await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^Assistente/ }).click();
@@ -1220,8 +1237,8 @@ test('meu dia mostra o dia, as semanas do mês, a agenda de hoje e os avisos sem
     ], notes: [], sessions: [] };
   await page.evaluate(raw => localStorage.setItem('faculdade-psi:personal:v1', raw), JSON.stringify(data));
   await page.reload();
-  const hero = page.getByRole('region', { name: /^Hoje/ });
-  await expect(hero.getByRole('heading', { level: 1, name: /^Hoje/ })).toBeVisible();
+  const hero = page.getByRole('region', { name: 'Um passo de cada vez.', exact: true });
+  await expect(hero.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await expect(page.locator('.topbar .cycle-bars i.on')).toHaveCount(1);
   await expect(page.locator('.topbar-cycle')).toContainText(/semana \d\/4 · dia \d+\/\d+/);
   const agenda = hero.locator('.today-agenda li');

@@ -135,6 +135,22 @@
 .sideCard { scroll-margin-top: 76px; }
 .sideCard:focus { outline: none; }
 
+/* Shared workspace tokens also cover the calendar's locally scoped styles. */
+:global(html) :global(.workspace-shell) .overview { background: linear-gradient(115deg, var(--surface), var(--ui-hover)); border-color: var(--line); border-radius: 20px; }
+:global(html) :global(.workspace-shell) :is(.calendarPanel, .sideCard, .suggestion, .integrationCard) { background: var(--surface); border-color: var(--line); border-radius: 16px; box-shadow: var(--ui-shadow); }
+:global(html) :global(.workspace-shell) :is(.pendingCard, .compactPlanner, .aiBoundary, .permissionNote, .outside, .weekColumn) { background: var(--ui-hover); border-color: var(--line); }
+:global(html) :global(.workspace-shell) :is(.iconTile, .connectionStatus, .segmented) { background: var(--ui-active); color: var(--accent-text); }
+:global(html) :global(.workspace-shell) :is(.metrics span, .syncNote, .filterRow label, .monthTable th, .sideCard > small, .pendingCard > p, .pendingCard > :global(.eyebrow), .event small, .eventTime, .emptyDay, .freeDay, .calendarFoot, .scheduleRow small, .suggestionLabel, .compactPlanner p, .compactPlanner .plannerHeading :global(.eyebrow), .aiBoundary p, .studyStats, .more) { color: var(--muted); }
+:global(html) :global(.workspace-shell) .metrics strong { color: var(--accent-text); }
+:global(html) :global(.workspace-shell) :is(.day, .event, .scheduleRow, .calendarFoot) { border-color: var(--line); }
+:global(html) :global(.workspace-shell) .day:hover { background: var(--ui-hover); border-color: var(--ui-focus); }
+:global(html) :global(.workspace-shell) .day.selected { border-color: var(--ui-focus); box-shadow: inset 0 0 0 1px var(--ui-focus); background: var(--ui-active); }
+:global(html) :global(.workspace-shell) .day:focus-visible { outline-color: var(--ui-focus); }
+:global(html) :global(.workspace-shell) .day[aria-current=date] .dayNumber { background: #123f61; color: #fff; }
+:global(html) :global(.workspace-shell) :is(.outside .dayNumber, .detailFacts p, .inlineNotice) { color: var(--muted); }
+:global(html) :global(.workspace-shell) .weekToday { border-color: var(--ui-focus); background: var(--ui-active); }
+:global(html) :global(.workspace-shell) .segmented button[aria-pressed=true] { background: var(--surface); color: var(--ink); }
+
 /* modo escuro gerado: scripts/dark-theme.mjs */
 :global([data-theme='dark']) .overview {
     border: 1px solid hsl(152 20% 22%);

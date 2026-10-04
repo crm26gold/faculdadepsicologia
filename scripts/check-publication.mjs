@@ -15,7 +15,7 @@ const reviewedAssets = new Map([
 // Audit the exact Git index, not ignored local files or environment values.
 const paths = execFileSync('git', ['ls-files', '--cached', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 if (!paths.length) throw new Error('Nenhum arquivo no índice Git para revisar.');
-const allowedRoot = new Set(['.env.example', '.gitignore', '.nvmrc', '.vercelignore', 'AGENTS.md', 'README.md', 'CONTRIBUTING.md', 'next-env.d.ts', 'next.config.ts', 'package.json', 'package-lock.json', 'playwright.config.ts', 'tsconfig.json', 'vercel.json', 'public/voice-capture.worklet.js']);
+const allowedRoot = new Set(['.env.example', '.gitignore', '.nvmrc', '.vercelignore', 'AGENTS.md', 'README.md', 'CONTRIBUTING.md', 'next-env.d.ts', 'next.config.ts', 'package.json', 'package-lock.json', 'postcss.config.mjs', 'playwright.config.ts', 'tsconfig.json', 'vercel.json', 'public/voice-capture.worklet.js']);
 const signatures = [
   /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
   /\b(?:sb_secret_|sbp_|gh[pousr]_|github_pat_|sk-proj-)[A-Za-z0-9_-]{20,}/,

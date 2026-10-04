@@ -39,7 +39,7 @@ const limits = () => ({ min: 72, max: window.innerHeight - 84 });
 
 // Computer only (hidden on phones, where the center Registrar button already does this job).
 // A WhatsApp-style bubble: tap opens the assistant, drag moves it to either edge, × hides it.
-export function AssistantBubble({ onOpen, onHide, persist }: { onOpen: () => void; onHide: () => void; persist: boolean }) {
+export function AssistantBubble({ onOpen, onHide, persist, showIntro = true }: { onOpen: () => void; onHide: () => void; persist: boolean; showIntro?: boolean }) {
   // chosen: the person dragged it there; otherwise it follows the window and stays at the bottom edge.
   const [position, setPosition] = useState<{ side: 'left' | 'right'; top: number; chosen?: boolean } | null>(null);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
@@ -93,8 +93,8 @@ export function AssistantBubble({ onOpen, onHide, persist }: { onOpen: () => voi
   }
   if (!position) return null;
   const style = drag ? { left: drag.x - 28, top: drag.y - 28 } : position.side === 'left' ? { left: 18, top: position.top } : { right: 18, top: position.top };
-  return <div className={`assistant-dock side-${drag ? (drag.x < window.innerWidth / 2 ? 'left' : 'right') : position.side} ${intro ? 'introducing' : ''} ${drag ? 'dragging' : ''}`} style={style}>
-    {intro && <div className={`assistant-intro${position.top < window.innerHeight / 2 ? ' below' : ''}`} role="status">
+  return <div className={`assistant-dock side-${drag ? (drag.x < window.innerWidth / 2 ? 'left' : 'right') : position.side} ${intro && showIntro ? 'introducing' : ''} ${drag ? 'dragging' : ''}`} style={style}>
+    {intro && showIntro && <div className={`assistant-intro${position.top < window.innerHeight / 2 ? ' below' : ''}`} role="status">
       <p><strong>Oi! Eu sou o assistente da Jornada Plena.</strong> Fale ou escreva o que precisa. Podemos conversar por voz, organizar sua agenda, cuidar dos registros e planejar seus próximos passos.</p>
       <button type="button" className="button primary" onClick={introDone}>Entendi</button>
     </div>}
@@ -368,7 +368,7 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
     {jobs.jobs.filter(job => jobCanResume(job)).map(job => <div className="assistant-confirmation" key={job.id}><p>{job.status === 'failed' ? 'Pedido interrompido' : 'Pedido aguardando conclusão'}: {job.input.message}</p><button type="button" className="button outline" disabled={blocked || busy} onClick={() => void jobs.resume(job)}><RotateCcw size={15} aria-hidden="true" />Retomar este pedido</button></div>)}
     {historyOpen && <ConversationHistory manager={conversations} cloud={cloud} locked={locked} onOpen={reopen} onNew={startNew} onClose={() => setHistoryOpen(false)} />}
     {ai && !ai.ready && <p className="assistant-setup">Para eu conversar e organizar sozinho, a IA precisa estar ligada: em <strong>Administração › Inteligência artificial</strong>, na tarefa “Conversa do assistente”, escolha o provedor e um modelo (o “Automático · rápido” serve) e toque em Salvar.</p>}
-    <div className="assistant-messages" ref={list} aria-live="polite">
+    <div className="assistant-messages" ref={list} role="region" aria-label="Mensagens da conversa" tabIndex={0} aria-live="polite">
       {!messages.length && <div className="assistant-message assistant">
         <p>Vamos cuidar da sua jornada? Posso consultar a agenda, reagendar compromissos, organizar anotações, registrar finanças, criar rotinas e acompanhar seus planos.</p>
         <p>Toque em <strong>Conversar ao vivo</strong> para começar uma chamada. Fale naturalmente e interrompa quando quiser. Para excluir algo, vou pedir sua confirmação.</p>

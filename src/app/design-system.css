@@ -1,0 +1,13 @@
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme) prefix(jp);
+@import 'tailwindcss/utilities.css' layer(utilities) prefix(jp) important;
+@source '../components';
+
+@theme {
+  --color-ocean: #123F61;
+  --color-midnight: #0B2338;
+  --color-mist: #F5F8FC;
+  --color-slate-ink: #57697B;
+  --color-gold: #C49A48;
+  --font-display: 'DM Sans', sans-serif;
+}

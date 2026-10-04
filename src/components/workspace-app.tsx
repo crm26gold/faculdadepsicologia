@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Users, Wallet, X } from 'lucide-react';
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Course, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
@@ -38,6 +39,7 @@ import { ContactsPanel } from './community/contacts-panel';
 import { AccountSettings } from './community/account-settings';
 import { ConsentGate } from './community/consent-gate';
 import { api, formatDay as formatShortDay } from './community/client';
+import { WorkspaceNavigation } from './workspace-navigation';
 import { acceptedTerms, hasPro, statusLabels, upcomingBirthdays, type Contact as ContactRow, type Home } from '@/lib/community';
 
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
@@ -75,6 +77,10 @@ const subtitles: Record<View, string> = {
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 const SHORTCUT_KEY = 'jornada-atalho-barra';
 const BUBBLE_KEY = 'jornada-assistente-escondido';
+const viewTransitions: Variants = {
+  ...Object.fromEntries(Object.keys(names).map((name) => [name, { opacity: 1, y: [8, 0] }])),
+  still: { opacity: 1, y: 0 },
+};
 const tabLabel = (id: View, label: string) => id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : id === 'planning' ? 'Metas' : id === 'routine' ? 'Rotina' : label;
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -86,6 +92,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const { data, ready, demo, status, error, blocked, update, ensureSaved, refresh } = useWorkspace(mode);
   const [view, setView] = useState<View>('today');
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const reducedMotion = useReducedMotion();
   const [form, setForm] = useState<FormState | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -102,6 +110,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [bubbleHidden, setBubbleHidden] = useState(false);
   const [agendaFocus, setAgendaFocus] = useState<'late' | 'day' | null>(null);
   const userProfile = data.profile ?? defaultUserProfile;
+  useEffect(() => {
+    if (mode === 'demo') return;
+    try { setSidebarCollapsed(localStorage.getItem('jornada-navigation-collapsed-v1') === '1'); } catch {}
+  }, [mode]);
+  function toggleSidebar() {
+    const next = !sidebarCollapsed;
+    setSidebarCollapsed(next);
+    if (mode !== 'demo') try { localStorage.setItem('jornada-navigation-collapsed-v1', next ? '1' : '0'); } catch {}
+  }
   const [focusRequest, setFocusRequest] = useState<{ id: string; subjectId: string } | null>(null);
   const cloud = mode === 'cloud';
   const [home, setHome] = useState<Home | null>(null);
@@ -366,48 +383,12 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     requestAnimationFrame(() => main.current?.focus());
   }
 
-  const navContent = <>
-    <div className="sidebar-header">
-      <button className="brand" onClick={() => navigate('today')} aria-label="Jornada Plena — início">
-        <span className="brand-icon"><img src="/brand/simbolo-reduzido.svg" alt="" width={34} height={34} /></span>
-        <span className="brand-text">Jornada Plena<span className="brand-dot">.</span></span>
-      </button>
-      <div className="sidebar-user-card" onClick={() => navigate('settings')} role="button" tabIndex={0} title="Meu perfil e configurações">
-        <div className="user-avatar-badge" aria-hidden="true">
-          {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : userProfile.name.slice(0,1) || 'P'}
-        </div>
-        <div className="user-meta-info">
-          <strong>{userProfile.name || home?.account.display_name || 'Meu espaço'}</strong>
-          <span>{home?.account.email || userProfile.email || 'Meu perfil e preferências'}</span>
-        </div>
-      </div>
-    </div>
-    <nav aria-label="Principal">
-      {visibleNavigation.map(({ id, label, Icon }) => (
-        <button
-          key={id}
-          aria-current={view === id ? 'page' : undefined}
-          className={`nav-item ${view === id ? 'active' : ''}`}
-          onClick={() => navigate(id)}
-        >
-          <Icon aria-hidden="true" size={18} />
-          <span>{label}</span>
-          {proViews.has(id) && !pro && <span className="nav-chip">Pro</span>}
-          {id === 'community' && !!home?.to_review.length && <span className="nav-chip">{home.to_review.length}</span>}
-        </button>
-      ))}
-    </nav>
-    <div className="sidebar-bottom">
-      <button className={`nav-item ${view === 'settings' ? 'active' : ''}`} onClick={() => navigate('settings')}>
-        <Settings2 aria-hidden="true" size={18} />
-        <span>Meu espaço</span>
-      </button>
-      <div className="sidebar-status-indicator">
-        <span className="online-dot" title="Sistema online" />
-        <small>{demo ? 'Demonstração pública' : mode === 'local' ? previewLabel : 'Conta ativa'}</small>
-      </div>
-    </div>
-  </>;
+  const navContent = (mobile = false) => <WorkspaceNavigation
+    items={visibleNavigation.map((item) => ({ ...item, badge: proViews.has(item.id) && !pro ? 'Pro' : item.id === 'community' && home?.to_review.length ? home.to_review.length : undefined }))}
+    view={view} onNavigate={navigate} collapsed={!mobile && sidebarCollapsed} onToggle={toggleSidebar} mobile={mobile}
+    name={userProfile.name || home?.account.display_name || 'Meu espaço'} email={home?.account.email || userProfile.email || ''} photo={userProfile.photoUrl}
+    status={status} modeLabel={demo ? 'Demonstração' : cloud ? 'Espaço pessoal' : previewLabel}
+  />;
 
   const taskRow = (task: Task) => {
     const taskProject = task.projectId ? data.projects?.find((p) => p.id === task.projectId) : undefined;
@@ -475,10 +456,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     </div>
   </article>;
 
-  return <div className="app-shell">
+  return <div className="app-shell workspace-shell" data-sidebar-collapsed={sidebarCollapsed}>
     <a className="skip-link" href="#main">Pular para o conteúdo</a>
-    <aside className="sidebar">{navContent}</aside>
-    {mobileMenu && <Modal title="Seu espaço" onClose={closeMenu}><div className="mobile-navigation">{navContent}</div><label className="tabbar-shortcut" htmlFor="tabbar-shortcut">Botão da barra, ao lado do Registrar<select id="tabbar-shortcut" value={tabShortcut.id} onChange={(event) => chooseShortcut(event.target.value as View)}>{shortcutOptions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></Modal>}
+    <aside className="sidebar" aria-label="Navegação lateral">{navContent()}</aside>
+    {mobileMenu && <Modal title="Seu espaço" className="navigation-drawer" onClose={closeMenu}><div className="mobile-navigation">{navContent(true)}</div><label className="tabbar-shortcut" htmlFor="tabbar-shortcut">Atalho da barra inferior<select id="tabbar-shortcut" value={tabShortcut.id} onChange={(event) => chooseShortcut(event.target.value as View)}>{shortcutOptions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></Modal>}
     <div className="app-body">
       <header className="topbar">
         <div className="breadcrumb">
@@ -535,12 +516,12 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
         {!ready && !error && <div className="loading-panel" role="status">Preparando seu espaço…</div>}
 
-        {ready && <>
+        {ready && <motion.div className="workspace-view" initial={false} variants={viewTransitions} animate={reducedMotion ? 'still' : view} transition={{ duration: 0.22, ease: 'easeOut' }}>
           {!serverViews.has(view) && (view === 'focus' || (!!data.activeFocus && view !== 'today')) && <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />}
           {view === 'today' && <>
             <section className="today-hero" aria-labelledby="today-title">
               <div className="today-head">
-                <h1 id="today-title"><span className="today-kicker">Hoje</span>{capitalize(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</h1>
+                <div><span className="today-kicker">SEU DIA, COM MAIS PRESENÇA</span><h1 id="today-title">Um passo de cada vez.</h1><p className="today-date">{capitalize(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</p></div>
                 <button className="today-new" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
               </div>
               <h2 className="today-subtitle">{agendaToday.length ? `Hoje você tem ${agendaToday.length} ${agendaToday.length === 1 ? 'item' : 'itens'}` : 'Agenda de hoje'}</h2>
@@ -693,7 +674,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               authenticated={authenticated}
             />
           </>}
-        </>}
+        </motion.div>}
         <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status}</span></footer>
       </main>
       <nav className="mobile-tabbar" aria-label="Atalhos mobile">
@@ -709,7 +690,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     {searchOpen && <Modal title="Encontre no seu espaço" onClose={closeSearch}><label className="sr-only" htmlFor="workspace-search">Buscar cursos, matérias, anotações e tarefas</label><input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Um curso, uma matéria, uma ideia, um compromisso…" /><div className="search-results">{!query.trim() ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>{courses.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => openCourse(item.id)}><GraduationCap size={17} aria-hidden="true" /><span>{item.name}<small>Curso</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.subjects.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>{capitalize(unitsOf(item).singular)}{courseOf(data, item) ? ` · ${courseOf(data, item)!.name}` : ''}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.notes.filter((item) => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { navigate('notes'); setSelectedNote(item.id); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.tasks.filter((item) => item.title.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}<p className="search-end">Fim dos resultados para “{query}”.</p></>}</div></Modal>}
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setNotesPlace(null); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
     {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} />}
-    {ready && !bubbleHidden && view !== 'assistant' && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} onOpen={openAssistant} onHide={() => setBubble(true)} />}
+    {ready && !bubbleHidden && view !== 'assistant' && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} showIntro={view === 'today'} onOpen={openAssistant} onHide={() => setBubble(true)} />}
     {assistantOpen && <AssistantPanel refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => { closeAssistant(); navigate(target); }} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
     {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
     {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
