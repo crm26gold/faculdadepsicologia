@@ -1,5 +1,21 @@
 # Roadmap
 
+## Estado em 04/10/2026
+
+O norte do produto é ajudar cada pessoa a gerenciar e melhorar a vida inteira; os estudos são um bloco entre vários. A [matriz do README](../README.md#estado-do-projeto) é a referência do que existe hoje.
+
+Entregue desde o plano original: vários cursos, metas e projetos, finanças, rotina e hábitos, flashcards, Meu dia, camada coletiva (salas, grupos e trabalhos em grupo), assistente por texto e voz, Telegram e WhatsApp por ponte QR.
+
+Em aberto, sem ordem definida (a prioridade é decisão do proprietário):
+
+- Módulos próprios para saúde, emocional, espiritualidade, família, casa, lazer e documentos, que hoje são apenas áreas; inventário.
+- Prazos dos trabalhos em grupo na agenda e nos alertas pessoais (hoje aparecem só no Meu dia).
+- Networking: perfil, conexões e mensagens, com privacidade em camadas.
+- Google Agenda e Drive por OAuth; pagamento (Asaas) e Vercel Pro na abertura das vendas.
+- Tirar a vida pessoal do documento JSON único, migrando módulos para tabelas próprias ([arquitetura](ARCHITECTURE.md#modelo-e-persistência)).
+
+As seções abaixo são registros históricos com critérios de entrega; não as use como inventário atual.
+
 ## Continuidade após as correções mobile de 29/09/2026
 
 Leia primeiro [estado confirmado e roteiro de continuidade](CONTINUIDADE_2026-09-29.md). Os registros abaixo são históricos; não use suas contagens de testes ou declarações de ausência de funcionalidades como inventário atual.
@@ -40,7 +56,7 @@ Critério de conclusão: evidência externa de autenticação, autorização e p
 
 ## 3. Ampliar o modelo acadêmico e pessoal
 
-Todos os módulos abaixo estão no roadmap, não disponíveis como módulos completos.
+Situação em 04/10/2026: vários cursos, finanças, rotina e metas já existem como módulos; saúde, social e inventário seguem no roadmap. A tabela conserva o escopo e os critérios originais.
 
 | Área | Escopo planejado | Dependência para entrega |
 | --- | --- | --- |
@@ -62,7 +78,7 @@ Antes de enviar conteúdo a uma IA, definir provedor, orçamento, limites, conte
 
 ## 5. Oráculo por WhatsApp
 
-O Oráculo é uma integração futura de consulta e organização via WhatsApp. Não há bot ativo, mensagens enviadas, webhook implementado ou conexão com modelo de IA nesta versão.
+Situação em 04/10/2026: o Telegram está ativo e o WhatsApp funciona por uma ponte privada por QR, ambos vinculados à conta por código e ligados ao mesmo núcleo de IA ([WhatsApp da Jornada](WHATSAPP_JORNADA.md)). Falta o aceite com telefone real no WhatsApp. Os critérios abaixo continuam valendo para qualquer novo canal.
 
 A entrega exige:
 

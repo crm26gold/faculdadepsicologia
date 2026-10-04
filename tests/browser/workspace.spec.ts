@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
+import { settleAnimations } from './axe-ready';
 
 async function navigate(page: Page, name: string) {
   const menu = page.getByRole('button', { name: 'Abrir navegação', exact: true });
@@ -34,6 +35,7 @@ test('gaveta mobile fecha por Escape e devolve o foco ao menu', async ({ page },
   const drawer = page.getByRole('dialog', { name: 'Seu espaço', exact: true });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByRole('button', { name: 'Agenda', exact: true })).toBeVisible();
+  await settleAnimations(page);
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
   await page.keyboard.press('Escape');

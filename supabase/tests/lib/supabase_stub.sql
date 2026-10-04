@@ -27,20 +27,21 @@ insert into public.app_owner(user_id) values ('00000000-0000-4000-8000-000000000
 insert into public.personal_workspaces(owner_id, data)
 values ('00000000-0000-4000-8000-00000000000a', '{"version": "1", "subjects": [], "notes": [], "tasks": [], "sessions": []}');
 \ir ../../migrations/20260925004423_restrict_internal_trigger.sql
-\ir ../../migrations/20260927035239_private_note_attachments.sql
-\ir ../../migrations/20260927112036_workspace_editor_generation.sql
-\ir ../../migrations/20260928011355_workspace_generation_three.sql
+\ir ../../migrations/20260927040622_private_note_attachments.sql
+\ir ../../migrations/20260927112342_workspace_editor_generation.sql
+\ir ../../migrations/20260928114544_workspace_generation_three.sql
 \ir ../../migrations/20260930094408_multiusuario_fundacao.sql
 \ir ../../migrations/20260930094700_multiusuario_funcoes_app.sql
 \ir ../../migrations/20261001143850_note_attachments_video.sql
 \ir ../../migrations/20261001234639_ai_foundation.sql
 \ir ../../migrations/20261002220000_messenger_bot.sql
-\ir ../../migrations/20261003010000_conflict_without_retry.sql
+\ir ../../migrations/20261003205055_conflict_without_retry.sql
 \ir ../../migrations/20261003185709_jornada_request_limits.sql
-\ir ../../migrations/20261003215642_jornada_global_budgets.sql
+\ir ../../migrations/20261003224138_jornada_global_budgets.sql
 \ir ../../migrations/20261004115741_ai_connections_routing.sql
 \ir ../../migrations/20261004133754_ai_independent_routes.sql
 \ir ../../migrations/20261004153404_whatsapp_private_bridge.sql
+\ir ../../migrations/20261004190000_advisor_hardening.sql
 
 create function public.expect(ok boolean, message text) returns void language plpgsql
 as $$ begin if not coalesce(ok, false) then raise exception 'FALHA: %', message; end if; end $$;
