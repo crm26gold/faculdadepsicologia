@@ -13,15 +13,20 @@ if (process.argv.includes('--speech')) {
 } else {
   const client = new wwebjs.Client({ authStrategy: new wwebjs.LocalAuth({ clientId: 'smoke', dataPath: join(state, 'auth') }),
     webVersionCache: { type: 'none' }, puppeteer: { headless: true } });
-  let timer;
+  let timer; let succeeded = false;
   try {
     const qr = new Promise((resolve, reject) => { client.once('qr', () => resolve(true)); timer = setTimeout(() => reject(new Error('QR timeout')), 60_000); });
     const initialization = client.initialize(); initialization.catch(() => {});
     await Promise.race([qr, initialization.then(() => { throw new Error('Unexpected authenticated session'); })]);
     console.info(JSON.stringify({ browser: 'ok', whatsappQr: true, accountPaired: false }));
+    succeeded = true;
+  } catch (cause) {
+    console.error(cause instanceof Error ? cause.message : 'QR failed');
   } finally {
     clearTimeout(timer);
-    const forceClose = setTimeout(() => { client.pupBrowser?.process()?.kill(); process.exit(0); }, 10_000);
+    const forceClose = setTimeout(() => { client.pupBrowser?.process()?.kill(); process.exit(succeeded ? 0 : 1); }, 10_000);
     await client.destroy().catch(() => {}); clearTimeout(forceClose);
+    // initialize() can retain authentication timers after an intentionally unpaired QR.
+    process.exit(succeeded ? 0 : 1);
   }
 }
