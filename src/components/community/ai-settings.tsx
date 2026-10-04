@@ -15,7 +15,7 @@ type LiveResult = { connected: boolean; message: string; reference: string; stag
 type View = 'overview' | 'connections' | 'tasks' | 'usage' | 'integrations';
 const views = [{ id: 'overview', label: 'Visão geral', icon: LayoutDashboard }, { id: 'connections', label: 'Conexões e chaves', icon: KeyRound }, { id: 'tasks', label: 'Tarefas e modelos', icon: BrainCircuit }, { id: 'usage', label: 'Consumo e limites', icon: Gauge }, { id: 'integrations', label: 'Integrações', icon: Plug }] as const;
 const updated = (value: string) => new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
-const taskReady = (task: Task, providers: Provider[], connections: Connection[] = []) => !!(task.enabled && task.model && (task.connection_id ? connections.some(row => row.id === task.connection_id && row.enabled) : providers.some(provider => provider.id === task.provider && provider.enabled && provider.has_key)));
+const taskReady = (task: Task, providers: Provider[], connections: Connection[] = []) => !!(task.enabled && task.model && ((task.connection_id ? connections.some(row => row.id === task.connection_id && row.enabled) : providers.some(provider => provider.id === task.provider && provider.enabled && provider.has_key)) || (task.routing_mode === 'fallback' && task.fallbacks?.some(fallback => fallback.model && connections.some(row => row.id === fallback.connection_id && row.enabled)))));
 
 // Keys stay in transient password fields, never in browser storage or returned metadata.
 export function AiSettings() {
@@ -83,8 +83,8 @@ export function AiSettings() {
     if (task.id === 'voz') { setLiveResult(null); void run(`x-${task.id}`, async () => { setLiveResult(await api<LiveResult>('/api/ai/admin', { action: 'test_live' })); }); return; }
     if (!task.provider) return;
     void run(`x-${task.id}`, async () => {
-      const result = await api<{ text: string; ms: number; model: string }>('/api/ai/admin', { action: 'test', provider: task.provider, model: task.model, ...(task.connection_id ? { connection_id: task.connection_id } : {}) });
-      return `Funcionou com ${result.model} em ${(result.ms / 1000).toFixed(1)} s. Resposta: “${result.text}”`;
+      const result = await api<{ text: string; ms: number; model: string; provider?: AiProviderId }>('/api/ai/admin', { action: 'test_task', task: task.id });
+      return `Funcionou com ${result.model} em ${(result.ms / 1000).toFixed(1)} s${result.provider ? ` · ${aiCatalog[result.provider].name}` : ""}. Resposta: “${result.text}”`;
     });
   }
   function verifyReserve(connection: Connection) {

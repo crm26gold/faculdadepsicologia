@@ -1,7 +1,7 @@
 import { dbError, readSession, reply, writeRequest } from '@/lib/api-route';
 import { aiAdminAction, type AiProviderId } from '@/lib/ai/catalog';
 import { aiSecretReady, keyHint, openKey, sealKey } from '@/lib/ai/crypto';
-import { AiError, generate, refreshModels, resolveModel, type AiConfig } from '@/lib/ai/providers';
+import { AiError, generate, generateResilient, refreshModels, resolveModel, type AiConfig } from '@/lib/ai/providers';
 import { autoCapable, autoModes, pickModel, sortModels, type AutoMode } from '@/lib/ai/models';
 import type { userSession } from '@/lib/supabase/server';
 import { requestBudget, retryBudget } from '@/lib/ai/budget';
@@ -39,6 +39,17 @@ export async function POST(request: Request) {
   if (input instanceof Response) return input;
   const { session, body } = input;
   switch (body.action) {
+    case 'test_task': {
+      const selected = await session.client.rpc('ai_runtime',{ task_id:body.task });
+      if(selected.error) return dbError(selected.error);
+      if(!selected.data) return reply({ error:'Salve uma tarefa ligada com pelo menos uma conexão disponível.' },409);
+      const limited = await requestBudget(session,'ai');if(limited) return limited;
+      const started=Date.now();
+      try {
+        const result=await generateResilient(runtimeConfig(selected.data),{ system:'Teste da rota da Jornada Plena. Responda em português, em no máximo oito palavras.',prompt:'Confirme que a conexão funcionou.',maxTokens:60,signal:AbortSignal.any([request.signal,AbortSignal.timeout(35_000)]),beforeRetry:retryBudget(session,'ai') });
+        return reply({ok:true,data:{...result,text:result.text.slice(0,300),ms:Date.now()-started}});
+      } catch(cause) {return reply({error:cause instanceof AiError ? cause.message : 'Não consegui concluir o teste da rota. Confira as conexões e os limites.'},502);}
+    }
     case 'save_connector': {
       const key = body.key?.trim();
       if (key && /\s/.test(key)) return reply({ error: 'Informe apenas o token Bearer, sem espaços.' },400);

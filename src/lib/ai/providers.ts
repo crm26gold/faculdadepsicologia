@@ -196,7 +196,7 @@ export async function resolveModel(config: AiConfig): Promise<AiConfig> {
 
 // Each alternative is a saved route explicitly authorized by the owner, with its own model.
 // A single four-attempt bound applies across all keys and models, with a budget reservation per retry.
-export async function generateResilient(config: AiConfig, input: Prompt): Promise<{ text: string; model: string }> {
+export async function generateResilient(config: AiConfig, input: Prompt): Promise<{ text: string; model: string; provider: AiProviderId }> {
   const seen = new Set<string>();
   const connections = [config, ...(config.alternatives ?? []).slice(0, 2)].filter(candidate => {
     const id = createHash('sha256').update(`${candidate.provider}:${candidate.key}:${candidate.base_url}:${candidate.gcp_project}:${candidate.gcp_location}:${candidate.model}`).digest('hex');
@@ -218,6 +218,6 @@ export async function generateResilient(config: AiConfig, input: Prompt): Promis
       model = choices[Math.min(attempt, choices.length - 1)] ?? '';
       if (!model) throw new AiError('Nenhum modelo compatível encontrado para esta conexão.', 404);
     }
-    return { text: await generate({ ...candidate, model }, input), model };
+    return { text: await generate({ ...candidate, model }, input), model, provider: candidate.provider };
   }, input);
 }

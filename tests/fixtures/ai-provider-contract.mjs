@@ -35,7 +35,8 @@ assert.equal((await refreshModels(config('deepseek','auto:rapido','account-one')
 assert.equal((await refreshModels(config('deepseek','auto:rapido','account-two'))).ids[0],'model-two');
 let retries=0;
 const primary={...config('deepseek','model-test','bad-key'),alternatives:[config('anthropic','claude-test','good-key')]};
-assert.equal((await generateResilient(primary,{...input,beforeRetry:async()=>{retries++;}})).text,'ok-claude');assert.equal(retries,1);
+const switched=await generateResilient(primary,{...input,beforeRetry:async()=>{retries++;}});
+assert.equal(switched.text,'ok-claude');assert.equal(switched.provider,'anthropic');assert.equal(retries,1);
 const before=calls.length;
 await assert.rejects(generateResilient({...primary,key:'quota-key'},input),error=>error.status===429);assert.equal(calls.length,before+1);
 await assert.rejects(generate(config('deepseek'),{...input,image:{mimeType:'image/png',base64:'AA=='}}),error=>error.status===400);

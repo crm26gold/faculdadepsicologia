@@ -281,7 +281,7 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   const providers = ['anthropic', 'compatible', 'gemini', 'openai', 'vertex'].map(id => ({ id, enabled: id === 'gemini', label: '', base_url: '', gcp_project: '', gcp_location: '', has_key: id === 'gemini', key_hint: id === 'gemini' ? 'abcd' : '', updated_at: '2026-10-01T12:00:00Z' }));
   const ai = { secretReady: true, providers, tasks: [{ id: 'assistente', provider: 'gemini', model: 'modelo-teste', enabled: true, updated_at: '' }, { id: 'organizar', provider: null, model: '', enabled: false, updated_at: '' }] };
   const usage = { window_days: 31, day_resets_at: '2026-10-04T00:00:00Z', items: [{ scope: 'media', day_used: 0, day_limit: 300000000, window_used: 3100000000, window_limit: 4000000000, observed_since: '2026-10-03T00:00:00Z', level: 'warning' }] };
-  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, usage, onPost: post => post.body.action === 'test' ? { text: 'Conexão funcionou', ms: 820, model: 'modelo-teste' } : post.body.action === 'models' ? { ids: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], auto: { 'auto:melhor': 'gemini-3.8-flash', 'auto:rapido': 'gemini-3.8-flash', 'auto:economico': 'gemini-3.5-flash-lite' } } : null });
+  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, usage, onPost: post => post.body.action === 'test_task' ? { text: 'Conexão funcionou', ms: 820, model: 'modelo-teste' } : post.body.action === 'models' ? { ids: ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], auto: { 'auto:melhor': 'gemini-3.8-flash', 'auto:rapido': 'gemini-3.8-flash', 'auto:economico': 'gemini-3.5-flash-lite' } } : null });
   await page.goto('/');
   await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Inteligência artificial' });
@@ -312,7 +312,7 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   const task = panel.locator('form').filter({ hasText: 'Conversa do assistente' });
   await task.getByRole('button', { name: 'Testar' }).click();
   await expect(panel.getByText(/Funcionou com modelo-teste em 0.8 s/)).toBeVisible();
-  expect(posted.find(item => item.body.action === 'test')?.body).toEqual({ action: 'test', provider: 'gemini', model: 'modelo-teste' });
+  expect(posted.find(item => item.body.action === 'test_task')?.body).toEqual({ action: 'test_task', task: 'assistente' });
   await expect(task.getByLabel('Nome do modelo')).toHaveValue('modelo-teste');
   await task.getByRole('button', { name: 'Voltar para a lista' }).click();
   await expect(task.getByLabel('Modelo', { exact: true })).toHaveValue('auto:rapido');
@@ -394,8 +394,8 @@ test('conexões independentes têm modelos próprios e rota autoriza outra empre
   const first='00000000-0000-4000-8000-000000000020',second='00000000-0000-4000-8000-000000000021';
   const providers=['deepseek','anthropic','google_cloud'].map(id=>({id,enabled:false,label:'Principal pausada',base_url:'',gcp_project:'',gcp_location:'',has_key:false,key_hint:'',updated_at:''}));
   const connections=[{id:first,provider:'deepseek',label:'Minha conta DeepSeek',enabled:true,position:1,key_hint:'1234',updated_at:''},{id:second,provider:'anthropic',label:'Minha conta Claude',enabled:true,position:1,key_hint:'4321',updated_at:''}];
-  const ai={secretReady:true,providers,connections,tasks:[{id:'assistente',provider:'deepseek',connection_id:first,model:'auto:rapido',enabled:true,routing_mode:'fixed',fallbacks:[],updated_at:''}]};
-  const posted=await mockApi(page,{home:homeFixture({master:true}),ai,onPost:post=>post.body.action==='models' ? {ids:post.body.connection_id===first ? ['deepseek-flash'] : ['claude-sonnet-5'],auto:{'auto:rapido':post.body.connection_id===first ? 'deepseek-flash' : 'claude-sonnet-5'}} : null});
+  const ai={secretReady:true,providers,connections,tasks:[{id:'assistente',provider:'deepseek',connection_id:first,model:'auto:rapido',enabled:true,routing_mode:'fixed',fallbacks:[] as {connection_id:string;model:string}[],updated_at:''}]};
+  const posted=await mockApi(page,{home:homeFixture({master:true}),ai,onPost:post=>post.body.action==='models' ? {ids:post.body.connection_id===first ? ['deepseek-flash'] : ['claude-sonnet-5'],auto:{'auto:rapido':post.body.connection_id===first ? 'deepseek-flash' : 'claude-sonnet-5'}} : post.body.action==='test_task' ? {text:'Rota alternativa funcionando',ms:900,model:'claude-sonnet-5',provider:'anthropic'} : null});
   await page.goto('/');await nav(page).getByRole('button',{name:'Administração',exact:true}).click();
   const panel=page.getByRole('region',{name:'Inteligência artificial'});await panel.getByRole('button',{name:'Tarefas e modelos',exact:true}).click();
   const task=panel.locator('form.ai-task-card');await expect(task.getByText(/Hoje usaria: deepseek-flash/)).toBeVisible();
@@ -405,6 +405,9 @@ test('conexões independentes têm modelos próprios e rota autoriza outra empre
   await expect.poll(()=>posted.find(row=>row.body.action==='save_route')?.body).toEqual({action:'save_route',task:'assistente',provider:'deepseek',connection_id:first,model:'auto:rapido',enabled:true,routing_mode:'fallback',fallbacks:[{connection_id:second,model:'claude-sonnet-5'}]});
   await task.getByLabel('Provedor').selectOption(second);await expect(task.getByText(/Hoje usaria: claude-sonnet-5/)).toBeVisible();
   expect(posted.filter(row=>row.body.action==='models').map(row=>row.body.connection_id)).toEqual([first,second]);
+  ai.connections[0].enabled=false;ai.tasks[0].routing_mode='fallback';ai.tasks[0].fallbacks=[{connection_id:second,model:'claude-sonnet-5'}];ai.tasks[0].updated_at='2026-10-04T15:00:00Z';
+  await panel.getByRole('button',{name:'Atualizar painel',exact:true}).click();await expect(task.getByRole('button',{name:'Testar',exact:true})).toBeEnabled();await task.getByRole('button',{name:'Testar',exact:true}).click();
+  await expect(panel.getByText(/Funcionou com claude-sonnet-5 em 0.9 s · Anthropic/)).toBeVisible();expect(posted.find(row=>row.body.action==='test_task')?.body).toEqual({action:'test_task',task:'assistente'});
   await panel.getByRole('button',{name:'Conexões e chaves',exact:true}).click();await panel.getByLabel('Buscar empresa ou conexão').fill('Minha conta Claude');
   await expect(panel.locator('details.ai-provider')).toHaveCount(1);await expect(panel.locator('details.ai-provider summary')).toContainText('Anthropic');
   await page.setViewportSize({width:390,height:844});expect((await new AxeBuilder({page}).include('.ai-settings').analyze()).violations).toEqual([]);

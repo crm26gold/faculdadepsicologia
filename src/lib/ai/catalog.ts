@@ -51,6 +51,7 @@ export const aiAdminAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('save_route'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), model: text(120).min(1), enabled: z.boolean(), routing_mode: z.enum(['fixed', 'fallback']), fallbacks: z.array(z.object({ connection_id: z.uuid(), model: text(120).min(1) })).max(2) }),
   z.object({ action: z.literal('remove_connection'), id: z.uuid() }),
   z.object({ action: z.literal('test_live') }),
+  z.object({ action: z.literal('test_task'), task: z.enum(['assistente','organizar']) }),
   z.object({ action: z.literal('save_provider'), provider: z.enum(aiProviderIds), enabled: z.boolean(), label: text(60), base_url: endpoint,
     gcp_project: text(100), gcp_location: region, key: z.string().max(12_000).nullable() }),
   z.object({ action: z.literal('save_task'), task: z.enum(aiTaskIds), provider: z.union([z.literal(''), z.enum(aiProviderIds)]), model: text(120), enabled: z.boolean() }),
