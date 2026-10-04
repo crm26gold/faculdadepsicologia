@@ -98,6 +98,10 @@ begin
     or encode(extensions.digest(server_secret,'sha256'),'hex')<>cfg.server_hash
     or encode(extensions.digest(bridge_token,'sha256'),'hex')<>cfg.token_hash then
     raise exception 'Not authorized' using errcode='42501'; end if;
+  -- An abandoned earlier request must not starve a later one after a worker restart.
+  update private.whatsapp_jobs set status='failed',input_ciphertext=null,lease=null,lease_until=null,
+    result='{"reply":"O pedido expirou. Envie novamente se ainda deseja executá-lo."}'
+    where status in ('queued','working') and created_at<now()-interval '1 day';
   if operation='verify' then return '{}'::jsonb; end if;
   if operation='heartbeat' then
     if payload->>'state' not in ('offline','qr','connecting','ready') or payload->>'state' is null

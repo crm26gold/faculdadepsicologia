@@ -40,7 +40,7 @@ export async function POST(request: Request) {
         media_units: input.media ? Buffer.from(input.media.base64, 'base64').length : 0 };
     } else if (input.action === 'link') payload = { peer: input.peer, code_hash: createHash('sha256').update(input.code).digest('hex') };
     const result = await whatsappRpc(token, operation, payload);
-    if (result.error) return reply({ error: result.error.code === '42501' ? 'Telefone não vinculado ou conexão revogada.' : 'Não foi possível concluir agora.', code: result.error.code }, result.error.code === '42501' ? 403 : result.error.code === 'PT409' ? 409 : 503);
+    if (result.error) return reply({ error: result.error.code === '42501' ? 'Telefone não vinculado ou conexão revogada.' : result.error.code === 'PT429' ? 'O limite de arquivos da Jornada foi atingido. Aguarde antes de tentar novamente.' : 'Não foi possível concluir agora.', code: result.error.code }, result.error.code === '42501' ? 403 : result.error.code === 'PT429' ? 429 : result.error.code === 'PT409' ? 409 : 503);
     if (input.action === 'message') after(() => runWhatsAppJob(token, input.peer, result.data.id));
     if (input.action === 'result' && ['queued', 'working'].includes(result.data?.status)) after(() => runWhatsAppJob(token, input.peer, input.id));
     const data = input.action === 'result' ? { ...result.data, result: result.data?.result ? { reply: result.data.result.reply } : null } : result.data;

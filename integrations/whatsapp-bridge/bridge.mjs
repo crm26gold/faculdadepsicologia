@@ -121,8 +121,9 @@ const heartbeatTimer = setInterval(() => void heartbeat(), 30_000);
 const deliveryTimer = setInterval(() => void deliver(), 5000);
 async function stop() {
   if (stopping) return; stopping = true; clearInterval(heartbeatTimer); clearInterval(deliveryTimer);
+  const forceClose = setTimeout(() => { client.pupBrowser?.process()?.kill(); process.exit(0); }, 25_000);
   try { await call({ action: 'heartbeat', state: 'offline', relay, qr: null }); } catch {}
-  await client.destroy().catch(() => {}); process.exit(0);
+  await client.destroy().catch(() => {}); clearTimeout(forceClose); process.exit(0);
 }
 process.on('SIGINT', () => void stop()); process.on('SIGTERM', () => void stop());
 console.info('Iniciando a ponte exclusiva da Jornada. O QR aparecerá em Administração › WhatsApp.');

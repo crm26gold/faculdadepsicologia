@@ -19,5 +19,9 @@ if (process.argv.includes('--speech')) {
     const initialization = client.initialize(); initialization.catch(() => {});
     await Promise.race([qr, initialization.then(() => { throw new Error('Unexpected authenticated session'); })]);
     console.info(JSON.stringify({ browser: 'ok', whatsappQr: true, accountPaired: false }));
-  } finally { clearTimeout(timer); await client.destroy().catch(() => {}); }
+  } finally {
+    clearTimeout(timer);
+    const forceClose = setTimeout(() => { client.pupBrowser?.process()?.kill(); process.exit(0); }, 10_000);
+    await client.destroy().catch(() => {}); clearTimeout(forceClose);
+  }
 }
