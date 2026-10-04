@@ -222,6 +222,8 @@ body { background: var(--canvas); color: var(--ink); }
 .workspace-shell .assistant-form { padding-top: 14px; border-top: 1px solid var(--line); }
 .workspace-shell .conversation-list > li { border-color: var(--line); background: var(--surface); }
 .workspace-shell .conversation-list > li.current { background: var(--ui-active); border-color: #94b2c9; }
+/* Selected filters switch foreground and background together, preserving contrast. */
+.conversation-manager .conversation-filters .button { transition: box-shadow .15s ease; }
 .modal { background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 22px; padding: 26px; box-shadow: 0 30px 100px #0b233833; }
 .modal::backdrop { background: #0b233855; backdrop-filter: blur(5px); }
 .modal .modal-heading { padding-bottom: 16px; border-bottom: 1px solid var(--line); }
@@ -270,6 +272,7 @@ body { background: var(--canvas); color: var(--ink); }
   .workspace-shell .search-trigger kbd { margin-left: 4px; }
 }
 @media (max-width: 960px) {
+  .navigation-drawer :is(.nav-item, .navigation-group-toggle, .brand), .navigation-drawer .tabbar-shortcut select { min-height: 44px; }
   .workspace-shell, .workspace-shell[data-sidebar-collapsed='true'] { grid-template-columns: minmax(0, 1fr); }
   .workspace-shell .sidebar { display: none; }
   .workspace-shell .mobile-menu-button { display: inline-grid; }
@@ -285,7 +288,7 @@ body { background: var(--canvas); color: var(--ink); }
   .workspace-shell .topbar-cycle { font-size: 10px; }
   .workspace-shell .topbar-capture { display: none; }
   .workspace-shell .topbar-actions { gap: 4px; }
-  .workspace-shell .search-trigger { padding: 8px; border: none; background: transparent; min-width: 40px; min-height: 44px; justify-content: center; }
+  .workspace-shell .search-trigger { padding: 8px; border: none; background: transparent; min-width: 44px; min-height: 44px; justify-content: center; }
   .workspace-shell .search-trigger > span, .workspace-shell .search-trigger kbd { display: none; }
   .workspace-shell .main-content { padding: 20px 16px 120px; }
   .workspace-shell .page-heading { gap: 12px; margin-bottom: 15px; }

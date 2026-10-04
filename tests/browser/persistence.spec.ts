@@ -852,6 +852,9 @@ test('planejamento: arquivamento de meta pelo formulário exige confirmação', 
 });
 
 test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pequenas', async ({ page }) => {
+  // Chromium can report 43.99997px for a 44px transformed box. Tolerate only
+  // floating-point geometry noise, well below a physical pixel.
+  const minimumTouchSize = 44 - .001;
   const data = {
     version: 1,
     editorGeneration: 5,
@@ -876,22 +879,22 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
   // Abas
   for (const tab of await page.locator('.planning-tab').all()) {
     const box = await tab.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(box!.height).toBeGreaterThanOrEqual(minimumTouchSize);
   }
 
   // Botões de status
   for (const btn of await page.locator('.status-btn').all()) {
     const box = await btn.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(box!.height).toBeGreaterThanOrEqual(minimumTouchSize);
   }
 
   // Filtros
   for (const filter of await page.locator('.planning-filters-bar select').all()) {
     const box = await filter.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+    expect(box!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(box!.height).toBeGreaterThanOrEqual(minimumTouchSize);
   }
 
   // Alternar para projetos e verificar acordeão e tarefas expandidas
@@ -900,33 +903,33 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
 
   const toggleBtn = projectCard.getByRole('button', { name: /tarefas no projeto/ });
   const toggleBox = await toggleBtn.boundingBox();
-  expect(toggleBox!.width).toBeGreaterThanOrEqual(44);
-  expect(toggleBox!.height).toBeGreaterThanOrEqual(44);
+  expect(toggleBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+  expect(toggleBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
   await toggleBtn.click();
 
   // Checkbox de tarefa (largura E altura >= 44px)
   for (const item of await projectCard.locator('.project-task-item').all()) {
     const cb = item.locator('.task-checkbox');
     const cbBox = await cb.boundingBox();
-    expect(cbBox!.width).toBeGreaterThanOrEqual(44);
-    expect(cbBox!.height).toBeGreaterThanOrEqual(44);
+    expect(cbBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(cbBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
 
     const inputEl = cb.locator('input[type="checkbox"]');
     const inBox = await inputEl.boundingBox();
-    expect(inBox!.width).toBeGreaterThanOrEqual(44);
-    expect(inBox!.height).toBeGreaterThanOrEqual(44);
+    expect(inBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(inBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
 
     const unlink = item.locator('.unlink-btn');
     const uBox = await unlink.boundingBox();
-    expect(uBox!.width).toBeGreaterThanOrEqual(44);
-    expect(uBox!.height).toBeGreaterThanOrEqual(44);
+    expect(uBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(uBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
   }
 
   // Botão Editar
   const editBtn = projectCard.getByRole('button', { name: /Editar/ });
   const editBox = await editBtn.boundingBox();
-  expect(editBox!.width).toBeGreaterThanOrEqual(44);
-  expect(editBox!.height).toBeGreaterThanOrEqual(44);
+  expect(editBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+  expect(editBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
 
   // ─── 2. Validação de formulários abertos e capturas (320, 360, 393 e 500h) ───
   const viewports = [
@@ -960,8 +963,8 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     // Fechar botão (icon-button) tem >= 44x44
     const closeBtn = goalModal.getByRole('button', { name: 'Fechar janela' });
     const closeBox = await closeBtn.boundingBox();
-    expect(closeBox!.width).toBeGreaterThanOrEqual(44);
-    expect(closeBox!.height).toBeGreaterThanOrEqual(44);
+    expect(closeBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(closeBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
 
     // Preencher campos
     await page.getByLabel('Título da meta').fill('Leitura de 12 livros de Neurociência');
@@ -970,8 +973,8 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     // Checkbox de medição quantitativa (alvo de toque >= 44x44)
     const metricLabel = page.locator('.checkbox-label');
     const mBox = await metricLabel.boundingBox();
-    expect(mBox!.width).toBeGreaterThanOrEqual(44);
-    expect(mBox!.height).toBeGreaterThanOrEqual(44);
+    expect(mBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(mBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
     await page.getByLabel('Adicionar medição quantitativa da meta').check();
 
     await page.getByLabel('Unidade de medida').fill('livros');
@@ -994,10 +997,10 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
     // Dimensões mínimas dos botões
     const gsBox = await goalSaveBtn.boundingBox();
     const gcBox = await goalCancelBtn.boundingBox();
-    expect(gsBox!.width).toBeGreaterThanOrEqual(44);
-    expect(gsBox!.height).toBeGreaterThanOrEqual(44);
-    expect(gcBox!.width).toBeGreaterThanOrEqual(44);
-    expect(gcBox!.height).toBeGreaterThanOrEqual(44);
+    expect(gsBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(gsBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(gcBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(gcBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
 
     // Sem sobreposição entre os botões
     const noOverlapGoal =
@@ -1038,10 +1041,10 @@ test('planejamento: responsividade e alvos de toque mínimos de 44px em telas pe
 
     const psBox = await projSaveBtn.boundingBox();
     const pcBox = await projCancelBtn.boundingBox();
-    expect(psBox!.width).toBeGreaterThanOrEqual(44);
-    expect(psBox!.height).toBeGreaterThanOrEqual(44);
-    expect(pcBox!.width).toBeGreaterThanOrEqual(44);
-    expect(pcBox!.height).toBeGreaterThanOrEqual(44);
+    expect(psBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(psBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(pcBox!.width).toBeGreaterThanOrEqual(minimumTouchSize);
+    expect(pcBox!.height).toBeGreaterThanOrEqual(minimumTouchSize);
 
     // Sem sobreposição entre botões
     const noOverlapProj =
