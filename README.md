@@ -1,8 +1,10 @@
 # Jornada Plena
 
-Um organizador pessoal com áreas da vida personalizáveis, cadernos, agenda única, estudos e foco. Módulos especializados de finanças, saúde e metas continuam em desenvolvimento; criar uma área não equivale a implementar um módulo completo.
+A Jornada Plena ajuda cada pessoa a **gerenciar e melhorar a vida inteira**: estudos, trabalho, finanças, rotina, saúde, relações e o que mais fizer parte da sua jornada. Os estudos foram o primeiro bloco, porque o projeto nasceu numa faculdade de psicologia, mas são um bloco entre vários e servem a qualquer curso, graduação ou mentoria. Sobre a vida pessoal existe uma camada coletiva (instituições, salas, grupos e trabalhos em grupo) e uma assistente de IA por texto e voz. Para adultos (18+).
 
-O código está publicado no GitHub. A [demonstração pública](https://faculdadepsicologia-demo.vercel.app) usa somente dados sintéticos em um projeto separado. O workspace privado permanece exclusivo do proprietário; publicar o código não libera acesso a ele.
+Áreas da vida sem módulo próprio funcionam como etiquetas: criar uma área não equivale a implementar um módulo completo.
+
+O código está publicado no GitHub. A [demonstração pública](https://faculdadepsicologia-demo.vercel.app) usa somente dados sintéticos em um projeto separado. Cada conta tem seu próprio espaço pessoal, visível só para ela; publicar o código não libera acesso a nenhum deles.
 
 ## Estado do projeto
 
@@ -16,6 +18,7 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | Cadernos e áreas | Implementado | Cadernos pessoais editáveis; 11 áreas iniciais personalizáveis, filtros por área/caderno/matéria. |
 | Caixa de entrada | Implementado | Captura de texto sem classificação obrigatória, organização posterior na mesma anotação e persistência privada existente. |
 | Editor multimídia | Implementado | Formatação, tabelas, links, imagens/câmera, áudio anexado e ortografia local pt-BR. Usuário informou teste realizado; presença de anexos privados confirmada sem abrir seu conteúdo. Leitura entre dispositivos ainda pendente. |
+| Meu dia | Implementado | Painel do dia: agenda de hoje, ciclo do mês, alertas (atrasos, contas, provas próximas, foco ligado, registros soltos) e as partes de trabalhos em grupo da pessoa. |
 | Agenda | Implementado | Visões mensal e semanal; criar, editar e pausar horários desde uma grade vazia; período letivo e filtros por área e matéria; compromissos pessoais sem matéria obrigatória. Feriados não são descontados automaticamente. |
 | Exportação de calendário | Implementado | Arquivo `.ics` do período selecionado; importação manual no destino, sem sincronização de volta. |
 | Foco e planejamento | Implementado | Temporizador, registro de sessões e sugestões por regras locais, aceitas manualmente. Não usa IA generativa. |
@@ -26,10 +29,16 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | Salas, grupos e trabalhos em grupo | Implementado | Instituição > sala > grupo, convites por link, mural, enquetes com voto secreto, trabalhos divididos em partes com entrega, entrega em nome, revisão e documento final padronizado (copiar para Docs / PDF). |
 | Contatos e LGPD | Implementado | Agenda privada com aniversários; termos, privacidade, aceite versionado, exportação e exclusão da conta. |
 | Planos | Infraestrutura | Acadêmico (grátis) e Pro; fase de lançamento com tudo liberado, controlada no painel master. Pagamento ainda não integrado. |
-| Vários cursos | Roadmap | Ainda não existe entidade de curso nem separação de dados por curso. |
-| Finanças, saúde, rotina, social, inventário e metas | Roadmap | Módulos próprios ainda não implementados; tarefas e foco não equivalem a esses módulos. |
+| Vários cursos | Implementado | Graduação, pós, técnico, curso livre, extensão e idioma, cada um com matérias ou módulos. |
+| Metas e projetos | Implementado (Pro) | Metas com indicador e projetos ligados a metas. |
+| Finanças | Implementado (Pro) | Receitas e despesas, contas a pagar e a receber, fixas ou variáveis, parcelas e alertas no Meu dia. Sem integração bancária. |
+| Rotina e hábitos | Implementado (Pro) | Hábitos por período e horário, marcação diária e sequência. |
+| Flashcards | Implementado | Cartões por matéria com revisão espaçada. |
+| Saúde, emocional, espiritualidade, família, casa, lazer e documentos | Roadmap | Hoje são áreas da vida usadas como etiquetas em anotações, compromissos e finanças; ainda sem módulos próprios. |
 | Assistente por texto e voz | Implementado; chamada real a validar | Conversa com ações pessoais validadas, salvamento, desfazer e confirmação de exclusão. Voz contínua pelo Gemini Live, com autorização temporária; depende da configuração e cota do provedor. [Uso e limites](docs/ASSISTENTE_VOZ.md). |
-| WhatsApp Oráculo | Roadmap | Integração externa depende de configuração, vinculação e consentimento próprios. |
+| Telegram | Implementado | Bot vinculado à conta por código: texto, voz e fotos, com o mesmo núcleo de IA e as mesmas cotas. Exclusões e substituições ficam pendentes até a confirmação no Assistente do app. |
+| WhatsApp | Implementado; aceite real a confirmar | Ponte privada por QR que roda no computador do proprietário, vínculo por código, texto, áudio e foto. Não usa a API oficial da Meta. [Guia](docs/WHATSAPP_JORNADA.md). |
+| Administração de IA | Implementado | Onze provedores com chaves cifradas, rotas por tarefa com alternativas, limites de consumo e cadastro de servidores MCP (descoberta, sem execução de ferramentas). |
 
 Detalhes desta evolução: [áreas e cadernos](docs/AREAS_E_CADERNOS_2026-09-27.md) e [editor multimídia](docs/CADERNO_MULTIMIDIA_2026-09-27.md).
 
