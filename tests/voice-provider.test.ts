@@ -16,8 +16,10 @@ test('erro de configuração do Gemini não atribui a falha a faturamento e não
 
 test('permissão negada só recomenda faturamento quando o Gemini informa essa causa explicitamente', async () => {
   const denied = await liveProviderFailure(Response.json({ error: { status: 'PERMISSION_DENIED' } }, { status: 403 }));
-  assert.match(denied.message, /autorização/);
-  assert.doesNotMatch(denied.message, /faturamento/);
+  assert.match(denied.message, /nova chave/);
+  assert.doesNotMatch(denied.message, /faturamento|Live API/);
+  const disabled = await liveProviderFailure(Response.json({ error: { status: 'PERMISSION_DENIED', details: [{ reason: 'SERVICE_DISABLED' }] } }, { status: 403 }));
+  assert.match(disabled.message, /Generative Language API/);
   const billing = await liveProviderFailure(Response.json({ error: { status: 'PERMISSION_DENIED', details: [{ reason: 'BILLING_DISABLED' }] } }, { status: 403 }));
   assert.match(billing.message, /faturamento/);
   assert.equal(billing.diagnostic.reason, 'BILLING_DISABLED');
