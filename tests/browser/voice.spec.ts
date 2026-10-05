@@ -113,7 +113,7 @@ test('abrir a chamada pela bolinha preserva a janela do assistente ao fechar', a
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await fixture(page);
   await page.goto('/#today');
-  await page.getByRole('button', { name: 'Abrir assistente', exact: true }).click();
+  await page.locator('.assistant-dock').getByRole('button', { name: 'Abrir assistente', exact: true }).click();
   const panel = page.getByRole('dialog', { name: 'Assistente Jornada Plena', exact: true });
   await panel.getByRole('button', { name: 'Conversar ao vivo', exact: false }).click();
   const call = page.getByRole('dialog', { name: 'Vamos conversar?', exact: true });

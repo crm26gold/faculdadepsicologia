@@ -2,11 +2,12 @@
 
 import dynamic from 'next/dynamic';
 import Image from 'next/image';
-import { ArrowDown, ArrowDownRight, ArrowRight, BookOpen, Check, Compass, Menu, Sparkles, Sun, Waves } from 'lucide-react';
-import { motion, useInView, useReducedMotion, useScroll, useTransform } from 'framer-motion';
+import { ArrowDown, ArrowDownRight, ArrowRight, BookOpen, Check, Compass, Menu, Sparkles, Sun, Waves, X } from 'lucide-react';
+import { motion, useInView, useScroll, useTransform } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MagneticLink } from './magnetic-link';
 import { SmoothScroll } from './smooth-scroll';
+import { useLandingMotion } from './use-landing-motion';
 import styles from './landing.module.css';
 
 const JourneyScene = dynamic(() => import('./journey-scene'), { ssr: false });
@@ -23,7 +24,7 @@ function Brand({ compact = false }: { compact?: boolean }) {
 function JourneyOrb() {
   const root = useRef<HTMLDivElement>(null);
   const visible = useInView(root, { margin: '120px' });
-  const reduced = useReducedMotion();
+  const motionEnabled = useLandingMotion();
   const [capable, setCapable] = useState(false);
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -38,7 +39,7 @@ function JourneyOrb() {
     return () => desktop.removeEventListener('change', update);
   }, []);
 
-  const use3D = capable && visible && reduced === false && !failed;
+  const use3D = capable && visible && motionEnabled && !failed;
 
   return (
     <div ref={root} className={styles.orbStage} aria-hidden="true" data-scene-ready={use3D && ready}>
@@ -68,6 +69,20 @@ function Header() {
   const menu = useRef<HTMLDetailsElement>(null);
   const closeMenu = () => { if (menu.current) menu.current.open = false; };
 
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 761px)');
+    const dismissOutside = (event: globalThis.PointerEvent) => {
+      if (menu.current?.open && event.target instanceof Node && !menu.current.contains(event.target)) closeMenu();
+    };
+    const dismissOnDesktop = () => { if (desktop.matches) closeMenu(); };
+    document.addEventListener('pointerdown', dismissOutside);
+    desktop.addEventListener('change', dismissOnDesktop);
+    return () => {
+      document.removeEventListener('pointerdown', dismissOutside);
+      desktop.removeEventListener('change', dismissOnDesktop);
+    };
+  }, []);
+
   return (
     <header className={styles.header}>
       <div className={styles.navShell}>
@@ -77,11 +92,13 @@ function Header() {
         </nav>
         <div className={styles.navActions}>
           <a href="/login" className={styles.loginLink}>Entrar <ArrowDownRight size={16} aria-hidden="true" /></a>
-          <details ref={menu} className={styles.mobileMenu} onKeyDown={(event) => {
+          <details ref={menu} className={styles.mobileMenu} onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) closeMenu();
+          }} onKeyDown={(event) => {
             if (event.key === 'Escape') { closeMenu(); menu.current?.querySelector('summary')?.focus(); }
           }}>
-            <summary aria-label="Menu de navegação"><Menu size={22} aria-hidden="true" /></summary>
-            <nav aria-label="Navegação móvel"><a href="#essencia" onClick={closeMenu}>A essência</a><a href="#possibilidades" onClick={closeMenu}>Seu espaço</a><a href="/login">Começar minha jornada</a></nav>
+            <summary aria-label="Menu de navegação"><Menu className={styles.menuOpen} size={22} aria-hidden="true" /><X className={styles.menuClose} size={22} aria-hidden="true" /></summary>
+            <nav aria-label="Navegação móvel"><a href="#essencia" onClick={closeMenu}>A essência</a><a href="#possibilidades" onClick={closeMenu}>Seu espaço</a><a href="/login" onClick={closeMenu}>Começar minha jornada</a></nav>
           </details>
         </div>
       </div>
@@ -98,13 +115,13 @@ const pillars = [
 export function JornadaLanding() {
   const hero = useRef<HTMLElement>(null);
   const story = useRef<HTMLElement>(null);
-  const reduced = useReducedMotion();
+  const motionEnabled = useLandingMotion();
   const { scrollYProgress: heroProgress } = useScroll({ target: hero, offset: ['start start', 'end start'] });
   const { scrollYProgress: storyProgress } = useScroll({ target: story, offset: ['start end', 'end start'] });
   const orbY = useTransform(heroProgress, [0, 1], [0, 100]);
   const orbOpacity = useTransform(heroProgress, [0, 0.9], [1, 0.25]);
   const storyY = useTransform(storyProgress, [0, 1], [45, -45]);
-  const reveal = reduced ? undefined : { opacity: [0.7, 1], y: [20, 0] };
+  const reveal = motionEnabled ? { opacity: [0.7, 1], y: [20, 0] } : { opacity: 1, y: 0 };
 
   return (
     <div className={`${styles.landing} jp:font-display jp:text-midnight jp:bg-mist`}>
@@ -115,22 +132,22 @@ export function JornadaLanding() {
         <section ref={hero} className={styles.hero} aria-labelledby="hero-title">
           <div className={`${styles.heroGrid} jp:grid jp:items-center jp:lg:grid-cols-2`}>
             <div className={styles.heroCopy}>
-              <motion.div initial={false} animate={reduced ? undefined : { y: [10, 0], opacity: [0.75, 1] }} transition={{ duration: 0.8 }} className={styles.eyebrow}>
+              <motion.div initial={false} animate={motionEnabled ? { y: [10, 0], opacity: [0.75, 1] } : { y: 0, opacity: 1 }} transition={{ duration: motionEnabled ? 0.8 : 0 }} className={styles.eyebrow}>
                 <span className={styles.eyebrowLine} /> UM ESPAÇO PARA FLORESCER
               </motion.div>
-              <motion.h1 id="hero-title" className={`${styles.heroTitle} jp:font-display jp:font-bold jp:tracking-[-0.065em]`} initial={false} animate={reduced ? undefined : { y: [22, 0] }} transition={{ duration: 1, ease: [0.22, 1, 0.36, 1] }}>
+              <motion.h1 id="hero-title" className={`${styles.heroTitle} jp:font-display jp:font-bold jp:tracking-[-0.065em]`} initial={false} animate={motionEnabled ? { y: [22, 0] } : { y: 0 }} transition={{ duration: motionEnabled ? 1 : 0, ease: [0.22, 1, 0.36, 1] }}>
                 Mais vida.<br /><span className="jp:text-ocean">Menos ruído.</span><span className={styles.titleDot} aria-hidden="true">✦</span>
               </motion.h1>
-              <motion.p className={`${styles.heroDescription} jp:text-slate-ink`} initial={false} animate={reveal} transition={{ duration: 0.9, delay: 0.1 }}>
+              <motion.p className={`${styles.heroDescription} jp:text-slate-ink`} initial={false} animate={reveal} transition={{ duration: motionEnabled ? 0.9 : 0, delay: motionEnabled ? 0.1 : 0 }}>
                 Sua rotina, seus estudos e suas ideias.<br className={styles.desktopBreak} /> Um lugar para cuidar do que importa —<br className={styles.desktopBreak} /> e abrir espaço para quem você quer ser.
               </motion.p>
-              <div className="jp:flex jp:flex-wrap jp:items-center jp:gap-5">
+              <div className={styles.heroActions}>
                 <MagneticLink href="/login">Começar minha jornada <ArrowUpRightIcon /></MagneticLink>
                 <a href="#essencia" className={styles.discoverLink}>Conhecer a Jornada <ArrowDown size={17} aria-hidden="true" /></a>
               </div>
               <div className={styles.heroNote}><span className={styles.noteMark}><Sparkles size={14} aria-hidden="true" /></span> Sem pressa. Com intenção. Do seu jeito.</div>
             </div>
-            <motion.div className={styles.heroVisual} style={reduced ? undefined : { y: orbY, opacity: orbOpacity }}>
+            <motion.div className={styles.heroVisual} style={motionEnabled ? { y: orbY, opacity: orbOpacity } : { y: 0, opacity: 1 }}>
               <JourneyOrb />
             </motion.div>
           </div>
@@ -143,11 +160,11 @@ export function JornadaLanding() {
         <section ref={story} id="essencia" className={styles.story} aria-labelledby="story-title">
           <div className={styles.storyTop}><span className={styles.eyebrow}>A ESSÊNCIA DA JORNADA</span><span className={styles.sectionNumber}>02 / PRESENÇA</span></div>
           <div className={`${styles.storyGrid} jp:grid jp:gap-12 jp:lg:grid-cols-[1.15fr_1fr]`}>
-            <motion.div initial={false} whileInView={reveal} viewport={{ once: true, amount: 0.25 }} transition={{ duration: 0.9 }}>
+            <motion.div initial={false} whileInView={reveal} viewport={{ once: true, amount: 0.25 }} transition={{ duration: motionEnabled ? 0.9 : 0 }}>
               <h2 id="story-title" className={styles.storyTitle}>Você não precisa<br />dar conta de tudo.<br /><span>Só do próximo<br className={styles.desktopBreak} /> passo.</span></h2>
               <p className={styles.storyCaption}>SEU CAMINHO. SEU TEMPO. SEU JEITO DE APRENDER.</p>
             </motion.div>
-            <motion.div className={styles.storyRight} style={reduced ? undefined : { y: storyY }}>
+            <motion.div className={styles.storyRight} style={motionEnabled ? { y: storyY } : { y: 0 }}>
               <p className={styles.storyDescription}>Entre o que você precisa fazer e o que deseja viver, existe um espaço. A Jornada Plena nasceu para cuidar dele.</p>
               <p className={styles.storyBody}>Reunir o que estava espalhado. Transformar uma ideia em um plano possível. Dar atenção ao presente, sem perder de vista o que vem depois.</p>
               <div className={styles.dayCard}>
@@ -160,7 +177,7 @@ export function JornadaLanding() {
           </div>
           <div id="possibilidades" className={`${styles.pillars} jp:grid jp:md:grid-cols-3 jp:gap-8`}>
             {pillars.map(({ number, icon: Icon, title, text }, index) => (
-              <motion.article key={number} className={styles.pillar} initial={false} whileInView={reveal} viewport={{ once: true, amount: 0.35 }} transition={{ duration: 0.7, delay: index * 0.1 }}>
+              <motion.article key={number} className={styles.pillar} initial={false} whileInView={reveal} viewport={{ once: true, amount: 0.35 }} transition={{ duration: motionEnabled ? 0.7 : 0, delay: motionEnabled ? index * 0.1 : 0 }}>
                 <div className={styles.pillarTop}><Icon size={25} strokeWidth={1.35} aria-hidden="true" /><span>{number}</span></div>
                 <h3>{title}</h3><p>{text}</p>
               </motion.article>

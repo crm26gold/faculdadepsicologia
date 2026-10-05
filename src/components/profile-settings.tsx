@@ -8,6 +8,49 @@ import { emptyProfile, type UserProfileData } from '@/lib/life-data';
 export { emptyProfile as defaultUserProfile } from '@/lib/life-data';
 export type { UserProfileData } from '@/lib/life-data';
 
+type ThemePreference = 'light' | 'dark' | 'system';
+const THEME_CHANGE_EVENT = 'jornada-theme-change';
+
+function savedThemePreference(): ThemePreference {
+  try {
+    const value = localStorage.getItem('jornada-theme');
+    return value === 'dark' || value === 'system' ? value : 'light';
+  } catch {
+    return 'light';
+  }
+}
+
+function renderTheme(preference: ThemePreference, systemDark: boolean) {
+  document.documentElement.setAttribute('data-theme-preference', preference);
+  if (preference === 'dark' || (preference === 'system' && systemDark)) {
+    document.documentElement.setAttribute('data-theme', 'dark');
+  } else {
+    document.documentElement.removeAttribute('data-theme');
+  }
+}
+
+export function WorkspaceThemeObserver({ demo }: { demo: boolean }) {
+  useEffect(() => {
+    const scheme = window.matchMedia('(prefers-color-scheme: dark)');
+    let preference: ThemePreference = demo ? 'light' : savedThemePreference();
+    const syncTheme = () => renderTheme(preference, scheme.matches);
+    const preferenceChanged = (event: Event) => {
+      const next = (event as CustomEvent<ThemePreference>).detail;
+      if (next !== 'light' && next !== 'dark' && next !== 'system') return;
+      preference = next;
+      syncTheme();
+    };
+    syncTheme();
+    scheme.addEventListener('change', syncTheme);
+    window.addEventListener(THEME_CHANGE_EVENT, preferenceChanged);
+    return () => {
+      scheme.removeEventListener('change', syncTheme);
+      window.removeEventListener(THEME_CHANGE_EVENT, preferenceChanged);
+    };
+  }, [demo]);
+  return null;
+}
+
 export function ProfileSettings({
   data,
   update,
@@ -33,26 +76,23 @@ export function ProfileSettings({
   const [photoError, setPhotoError] = useState('');
 
   const [savedNotice, setSavedNotice] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>('light');
+  const [theme, setTheme] = useState<ThemePreference>('light');
   const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setProfile(data.profile ?? emptyProfile); }, [data.profile]);
 
   useEffect(() => {
-    if (!demo && typeof window !== 'undefined') {
-      try {
-        const savedTheme = (localStorage.getItem('jornada-theme') as 'light' | 'dark' | 'system') || 'light';
-        setTheme(savedTheme);
-        if (savedTheme === 'dark' || (savedTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-          document.documentElement.setAttribute('data-theme', 'dark');
-        } else {
-          document.documentElement.removeAttribute('data-theme');
-        }
-      } catch {}
+    if (typeof window !== 'undefined') {
+      const activeTheme = document.documentElement.getAttribute('data-theme-preference');
+      const preference = activeTheme === 'light' || activeTheme === 'dark' || activeTheme === 'system'
+        ? activeTheme
+        : demo ? 'light' : savedThemePreference();
+      setTheme(preference);
+      renderTheme(preference, window.matchMedia('(prefers-color-scheme: dark)').matches);
     }
   }, [demo]);
 
-  function applyTheme(newTheme: 'light' | 'dark' | 'system') {
+  function applyTheme(newTheme: ThemePreference) {
     setTheme(newTheme);
     if (!demo && typeof window !== 'undefined') {
       try {
@@ -60,11 +100,8 @@ export function ProfileSettings({
       } catch {}
     }
     if (typeof window !== 'undefined') {
-      if (newTheme === 'dark' || (newTheme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        document.documentElement.setAttribute('data-theme', 'dark');
-      } else {
-        document.documentElement.removeAttribute('data-theme');
-      }
+      renderTheme(newTheme, window.matchMedia('(prefers-color-scheme: dark)').matches);
+      window.dispatchEvent(new CustomEvent<ThemePreference>(THEME_CHANGE_EVENT, { detail: newTheme }));
     }
   }
 
@@ -248,6 +285,7 @@ export function ProfileSettings({
             <button
               type="button"
               className={`button ${theme === 'light' ? 'primary' : 'outline'}`}
+              aria-pressed={theme === 'light'}
               onClick={() => applyTheme('light')}
               style={{ fontSize: '0.78rem', padding: '6px 12px' }}
             >
@@ -256,6 +294,7 @@ export function ProfileSettings({
             <button
               type="button"
               className={`button ${theme === 'dark' ? 'primary' : 'outline'}`}
+              aria-pressed={theme === 'dark'}
               onClick={() => applyTheme('dark')}
               style={{ fontSize: '0.78rem', padding: '6px 12px' }}
             >
@@ -264,6 +303,7 @@ export function ProfileSettings({
             <button
               type="button"
               className={`button ${theme === 'system' ? 'primary' : 'outline'}`}
+              aria-pressed={theme === 'system'}
               onClick={() => applyTheme('system')}
               style={{ fontSize: '0.78rem', padding: '6px 12px' }}
             >

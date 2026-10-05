@@ -1,6 +1,7 @@
 /* Jornada design system. Existing semantic colors remain available for
    categories, warning states, accounting and the original brand artwork. */
 :root {
+  --workspace-header-height: 80px;
   --canvas: #f5f8fc;
   --surface: #ffffff;
   --ink: #0b2338;
@@ -49,6 +50,7 @@
   --ui-focus: #9ac9ed;
   color-scheme: dark;
 }
+html { scroll-padding-block-start: calc(var(--workspace-header-height) + 12px); }
 body { background: var(--canvas); color: var(--ink); }
 [data-theme='dark'] body { background: var(--canvas); color: var(--ink); }
 :focus-visible { outline-color: var(--ui-focus); }
@@ -99,7 +101,10 @@ body { background: var(--canvas); color: var(--ink); }
 [data-sidebar-collapsed='true'] .sidebar .nav-item { justify-content: center; min-height: 43px; padding-inline: 8px; }
 [data-sidebar-collapsed='true'] .sidebar .navigation-group { border-top: 1px solid var(--line); padding-top: 8px; margin-bottom: 6px; }
 [data-sidebar-collapsed='true'] .sidebar .sidebar-user-card { justify-content: center; padding-inline: 5px; }
-.workspace-shell .topbar { height: 80px; padding: 0 32px; background: var(--ui-glass); border-color: var(--line); backdrop-filter: blur(18px); position: sticky; top: 0; z-index: 8; }
+.workspace-shell .topbar { height: var(--workspace-header-height); block-size: var(--workspace-header-height); padding: 0 32px; background: var(--ui-glass); border-color: var(--line); backdrop-filter: blur(18px); position: sticky; top: 0; z-index: 8; }
+.workspace-shell .topbar-actions > :is(.icon-button, .avatar), .workspace-shell .mobile-menu-button { min-width: 44px; min-height: 44px; }
+.workspace-shell .topbar .avatar { background: var(--ui-active); color: var(--accent-text); border: 5px solid var(--surface); }
+.workspace-shell .topbar .avatar img { border-radius: 50%; }
 .workspace-shell .breadcrumb { font-size: 13px; gap: 8px; min-width: 0; }
 .workspace-shell .breadcrumb strong { font-size: 13px; color: var(--ink); }
 .workspace-shell .topbar-today { gap: 4px; }
@@ -113,6 +118,11 @@ body { background: var(--canvas); color: var(--ink); }
 .workspace-shell .search-trigger { min-height: 40px; border-radius: 10px; background: var(--ui-input); border-color: var(--line); padding: 10px 12px; font-size: 12px; gap: 8px; }
 .workspace-shell kbd { border-color: var(--line); background: var(--surface); color: var(--muted); font-size: 11px; margin-left: 16px; }
 .workspace-shell .main-content { padding: 30px 32px 42px; max-width: 1580px; width: 100%; }
+.workspace-shell :is(.main-content, .focus-tracker, .notes-inbox, #note-editor-area) { scroll-margin-block-start: 12px; }
+.workspace-shell .focus-tracker:has(.focus-summary[aria-expanded='false']) { inset-block-start: calc(var(--workspace-header-height) + 12px); }
+.workspace-shell .demo-banner { position: static; }
+.workspace-panel-loading { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 180px; padding: 24px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); color: var(--muted); }
+.workspace-loading-mark { width: 14px; height: 14px; border-radius: 50%; background: var(--ui-active); box-shadow: 0 0 0 5px var(--ui-hover); }
 .workspace-shell .mode-banner { font-size: 12px; border-radius: 10px; border-color: var(--line); background: var(--ui-hover); color: var(--muted); padding: 9px 12px; margin-bottom: 22px; }
 .workspace-shell .mode-banner button { font-size: 12px; color: var(--green); }
 .workspace-shell .page-heading { padding: 5px 0 10px; margin-bottom: 20px; }
@@ -132,10 +142,19 @@ body { background: var(--canvas); color: var(--ink); }
 .workspace-shell .add-subject-card { border-color: #a7bdd0; border-radius: 18px; background: var(--ui-hover); color: var(--green); }
 .workspace-shell .add-subject-card:hover { background: var(--ui-active); }
 .workspace-shell .dashboard-grid { grid-template-columns: minmax(0, 1fr) 300px; gap: 22px; }
-.workspace-shell .today-hero { position: relative; isolation: isolate; overflow: clip; padding: 30px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(115deg, var(--surface), var(--ui-hover)); box-shadow: var(--ui-shadow); margin-bottom: 22px; }
+.workspace-shell .today-hero { position: relative; isolation: isolate; display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 32px; overflow: clip; padding: 30px; border: 1px solid var(--line); border-radius: 22px; background: linear-gradient(115deg, var(--surface), var(--ui-hover)); box-shadow: var(--ui-shadow); margin-bottom: 22px; }
 .workspace-shell .today-hero::before { height: 0; }
 .workspace-shell .today-hero::after { content: ''; position: absolute; z-index: -1; width: 255px; height: 255px; border: 1px solid #a6c0d52b; border-radius: 50%; right: -60px; top: -110px; box-shadow: 0 0 0 30px #a6c0d50d, 0 0 0 60px #a6c0d509; pointer-events: none; }
-.workspace-shell .today-head { align-items: flex-start; margin-bottom: 24px; gap: 20px; }
+.workspace-shell .today-head { align-items: flex-start; margin-bottom: 0; gap: 20px; }
+.today-intro { display: flex; flex-direction: column; justify-content: space-between; gap: 24px; min-width: 0; }
+.today-actions { display: grid; gap: 8px; }
+.today-action { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 11px 13px; border: 1px solid var(--line); border-radius: 11px; color: var(--green); background: var(--surface); font-size: 13px; text-align: left; transition: background .16s, border-color .16s, transform .16s; }
+.today-action > span { flex: 1; }
+.today-action:hover { background: var(--ui-hover); border-color: var(--ui-focus); transform: translateY(-1px); }
+.today-agenda-preview { min-width: 0; border-left: 1px solid var(--line); padding-left: 28px; }
+.today-agenda-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 20px; }
+.workspace-shell .today-agenda-heading .today-subtitle { margin: 0; }
+.workspace-shell .today-agenda-heading .today-new { padding: 9px 12px; min-height: 40px; font-size: 12px; }
 .workspace-shell .today-kicker { color: var(--muted); display: block; font-size: 11px; letter-spacing: 1.5px; margin-bottom: 12px; }
 .workspace-shell .today-head h1 { font-size: clamp(27px, 3vw, 44px); font-family: var(--serif); line-height: 1.08; font-weight: 600; letter-spacing: -.055em; margin: 0 0 10px; color: var(--ink); }
 .workspace-shell .today-date { font-size: 13px; margin: 0; color: var(--muted); }
@@ -155,12 +174,14 @@ body { background: var(--canvas); color: var(--ink); }
 .workspace-shell .bento-metric-card { min-height: 150px; padding: 23px; text-align: left; }
 .workspace-shell .bento-metric-card:hover { box-shadow: var(--ui-shadow-hover); transform: translateY(-2px); }
 .workspace-shell .metric-header { gap: 10px; }
-.workspace-shell .metric-label { font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: 1.2px; }
+.workspace-shell .metric-label { font-size: 12px; color: var(--muted); letter-spacing: .2px; }
 .workspace-shell .metric-icon { width: 32px; height: 32px; border-radius: 10px; }
 .workspace-shell .metric-value { font-size: 32px; font-weight: 500; color: var(--ink); margin-top: 14px; }
 .workspace-shell .metric-value small { font-size: 14px; color: var(--muted); }
 .workspace-shell .metric-sub { font-size: 12px; color: var(--muted); }
 .workspace-shell .metric-go { color: var(--muted); }
+.metric-completion-track { display: block; height: 4px; background: var(--ui-hover); border-radius: 10px; overflow: hidden; margin-top: 14px; }
+.metric-completion-track > span { display: block; height: 100%; border-radius: inherit; background: var(--green); transition: width .2s ease; }
 .workspace-shell .week-card .week-strip { gap: 5px; }
 .workspace-shell .week-strip button { padding: 10px 0; background: var(--ui-hover); color: var(--muted); border-radius: 10px; }
 .workspace-shell .week-strip button.today { background: #123f61; color: white; }
@@ -232,7 +253,7 @@ body { background: var(--canvas); color: var(--ink); }
 .modal .entry-form :is(input, textarea, select) { min-height: 44px; }
 .modal[open] { animation: workspace-dialog-enter .2s ease-out; }
 @keyframes workspace-dialog-enter { from { transform: translateY(8px); } to { transform: none; } }
-.navigation-drawer { margin: 0; inset: 0 auto 0 0; width: min(340px, calc(100% - 28px)); height: 100dvh; max-height: 100dvh; border-radius: 0 22px 22px 0; padding: 18px; }
+.navigation-drawer { margin: 0; inset: 0 auto 0 0; width: min(340px, calc(100% - 28px)); height: 100dvh; max-height: 100dvh; border-radius: 0 22px 22px 0; padding: calc(18px + env(safe-area-inset-top)) 18px calc(18px + env(safe-area-inset-bottom)); }
 .navigation-drawer[open] { display: flex; flex-direction: column; animation: workspace-drawer-enter .23s ease-out; }
 @keyframes workspace-drawer-enter { from { opacity: .7; transform: translateX(-25px); } to { opacity: 1; transform: translateX(0); } }
 .navigation-drawer .modal-heading { margin-bottom: 10px; padding-bottom: 9px; flex-shrink: 0; }
@@ -279,26 +300,41 @@ body { background: var(--canvas); color: var(--ink); }
   .workspace-shell .dashboard-grid { grid-template-columns: minmax(0, 1fr); }
   .workspace-shell .dashboard-secondary { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
 }
+@media (max-width: 1100px) {
+  .workspace-shell .today-hero { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .today-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .today-action > svg:last-child { display: none; }
+  .today-agenda-preview { padding-left: 0; padding-top: 22px; border-left: 0; border-top: 1px solid var(--line); }
+}
 @media (max-width: 760px) {
-  .workspace-shell .topbar { padding: 0 16px; height: 68px; gap: 8px; }
+  :root { --workspace-header-height: 68px; }
+  .workspace-shell .topbar { padding: 0 12px; gap: 6px; }
   .workspace-shell .breadcrumb { gap: 7px; font-size: 12px; flex: 1; overflow: hidden; }
   .workspace-shell .breadcrumb > span:not(.topbar-today), .workspace-shell .breadcrumb > svg { display: none; }
   .workspace-shell .breadcrumb strong { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .workspace-shell .topbar-today { min-width: 0; }
-  .workspace-shell .topbar-cycle { font-size: 10px; }
+  .workspace-shell .topbar-cycle { font-size: 11px; gap: 5px; }
+  .workspace-shell .cycle-bars { grid-template-columns: repeat(4, 10px); gap: 2px; }
   .workspace-shell .topbar-capture { display: none; }
   .workspace-shell .topbar-actions { gap: 4px; }
   .workspace-shell .search-trigger { padding: 8px; border: none; background: transparent; min-width: 44px; min-height: 44px; justify-content: center; }
   .workspace-shell .search-trigger > span, .workspace-shell .search-trigger kbd { display: none; }
-  .workspace-shell .main-content { padding: 20px 16px 120px; }
+  .workspace-shell .main-content { padding: 20px max(16px, env(safe-area-inset-right)) calc(120px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+  .workspace-shell .focus-tracker:has(.focus-summary[aria-expanded='false']) { position: static; }
   .workspace-shell .page-heading { gap: 12px; margin-bottom: 15px; }
   .workspace-shell .page-heading h1 { font-size: 28px; }
   .workspace-shell .page-heading p { font-size: 13px; }
   .workspace-shell :is(input:not([type='checkbox']):not([type='radio']), select, textarea), .modal :is(input:not([type='checkbox']):not([type='radio']), select, textarea) { font-size: 16px; }
   .workspace-shell .panel { padding: 20px; border-radius: 16px; }
   .workspace-shell .button, .modal .button { min-height: 44px; min-width: 44px; }
-  .workspace-shell .today-hero { padding: 23px; border-radius: 20px; margin-bottom: 17px; }
-  .workspace-shell .today-head { flex-wrap: wrap; gap: 17px; margin-bottom: 24px; }
+  .workspace-shell .today-hero { padding: 20px; border-radius: 20px; margin-bottom: 17px; gap: 20px; }
+  .workspace-shell .today-head { flex-wrap: wrap; gap: 17px; margin-bottom: 0; }
+  .today-intro { gap: 20px; }
+  .today-action { flex-direction: column; justify-content: flex-start; text-align: center; gap: 8px; padding: 12px 5px; min-height: 80px; font-size: 12px; line-height: 1.35; }
+  .today-action > span { flex: 0; }
+  .today-agenda-preview { padding-top: 18px; }
+  .today-agenda-heading { gap: 8px; margin-bottom: 14px; }
+  .workspace-shell .today-agenda-heading .today-new { min-height: 44px; }
   .workspace-shell .today-kicker { font-size: 10px; letter-spacing: 1px; margin-bottom: 10px; }
   .workspace-shell .today-head h1 { font-size: 30px; }
   .workspace-shell .today-date { font-size: 12px; }
@@ -310,11 +346,11 @@ body { background: var(--canvas); color: var(--ink); }
   .workspace-shell .bento-metric-row.two { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .workspace-shell .bento-metric-card { min-height: 145px; padding: 17px; }
   .workspace-shell .metric-header { gap: 7px; }
-  .workspace-shell .metric-label { font-size: 10px; letter-spacing: .5px; }
+  .workspace-shell .metric-label { font-size: 12px; letter-spacing: 0; }
   .workspace-shell .metric-icon { width: 28px; height: 28px; }
   .workspace-shell .metric-go { display: none; }
   .workspace-shell .metric-value { font-size: 28px; }
-  .workspace-shell .metric-sub { font-size: 11px; }
+  .workspace-shell .metric-sub { font-size: 12px; }
   .workspace-shell .subject-grid { grid-template-columns: minmax(0, 1fr); }
   .workspace-shell .subject-card { padding: 20px; }
   .workspace-shell .subject-title h3 { font-size: 18px; }
@@ -332,15 +368,19 @@ body { background: var(--canvas); color: var(--ink); }
 }
 @media (max-width: 380px) {
   .workspace-shell .breadcrumb strong { font-size: 13px; }
-  .workspace-shell .topbar-cycle { font-size: 9px; }
+  .workspace-shell .topbar-cycle { font-size: 11px; }
+  .workspace-shell .topbar-cycle .cycle-bars { display: none; }
+  .workspace-shell .topbar-cycle .cycle-day { display: none; }
   .workspace-shell .today-head h1 { font-size: 26px; }
-  .workspace-shell .metric-label { font-size: 9px; }
-  .workspace-shell .metric-sub { font-size: 10px; }
-  .workspace-shell .main-content { padding-inline: 12px; }
+  .workspace-shell .metric-label { font-size: 12px; }
+  .workspace-shell .metric-sub { font-size: 12px; }
+  .workspace-shell .metric-header { flex-wrap: wrap; }
+  .workspace-shell .main-content { padding-left: max(12px, env(safe-area-inset-left)); padding-right: max(12px, env(safe-area-inset-right)); }
   .workspace-shell .metric-icon { width: 24px; height: 24px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .workspace-shell *, .modal, .navigation-drawer { animation: none !important; transition: none !important; }
+  .workspace-shell .bento-metric-card:hover, .today-action:hover { transform: none; }
 }
 @media (pointer: coarse) {
   .workspace-shell .nav-item, .workspace-shell .button, .navigation-drawer .nav-item { min-height: 48px; }

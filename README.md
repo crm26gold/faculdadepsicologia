@@ -18,7 +18,8 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | Cadernos e áreas | Implementado | Cadernos pessoais editáveis; 11 áreas iniciais personalizáveis, filtros por área/caderno/matéria. |
 | Caixa de entrada | Implementado | Captura de texto sem classificação obrigatória, organização posterior na mesma anotação e persistência privada existente. |
 | Editor multimídia | Implementado | Formatação, tabelas, links, imagens/câmera, áudio anexado e ortografia local pt-BR. Usuário informou teste realizado; presença de anexos privados confirmada sem abrir seu conteúdo. Leitura entre dispositivos ainda pendente. |
-| Meu dia | Implementado | Painel do dia: agenda de hoje, ciclo do mês, alertas (atrasos, contas, provas próximas, foco ligado, registros soltos) e as partes de trabalhos em grupo da pessoa. |
+| Meu dia | Implementado | Painel responsivo com agenda, ações para registrar ideia, preparar foco sem iniciar o timer e abrir assistente; ciclo do mês, alertas e partes de trabalhos em grupo da pessoa. |
+| Interface e acessibilidade | Implementado | Tema automático acompanha o sistema durante a navegação; busca local com contagem e estado vazio; controles de toque e safe areas. Landing respeita movimento reduzido e painéis secundários carregam sob demanda. [Análise de UX](docs/DESIGN_UX_JORNADA.md). |
 | Agenda | Implementado | Visões mensal e semanal; criar, editar e pausar horários desde uma grade vazia; período letivo e filtros por área e matéria; compromissos pessoais sem matéria obrigatória. Feriados não são descontados automaticamente. |
 | Exportação de calendário | Implementado | Arquivo `.ics` do período selecionado; importação manual no destino, sem sincronização de volta. |
 | Foco e planejamento | Implementado | Temporizador, registro de sessões e sugestões por regras locais, aceitas manualmente. Não usa IA generativa. |

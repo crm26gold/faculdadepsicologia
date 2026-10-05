@@ -3,10 +3,87 @@ import AxeBuilder from '@axe-core/playwright';
 import { settleAnimations } from './axe-ready';
 
 async function navigate(page: Page, name: string) {
+  if (name === 'Meu espaço') {
+    await page.getByRole('button', { name: 'Meu perfil e configurações', exact: true }).click();
+    return;
+  }
   const menu = page.getByRole('button', { name: 'Abrir navegação', exact: true });
   if (await menu.isVisible()) await menu.click();
   await page.getByRole('navigation', { name: 'Principal', exact: true }).getByRole('button', { name, exact: true }).click();
 }
+
+test('ações do dia registram uma ideia e preparam o foco sem iniciar o cronômetro', async ({ page }) => {
+  await page.goto('/');
+  const actions = page.getByRole('group', { name: 'Ações rápidas do dia' });
+  await actions.getByRole('button', { name: 'Registrar ideia', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Capture uma ideia', exact: true });
+  await form.getByLabel('Título da anotação', { exact: true }).fill('Ideia capturada pelo meu dia');
+  await form.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await expect(form).toHaveCount(0);
+  await expect(page.getByLabel('Título da anotação', { exact: true })).toHaveValue('Ideia capturada pelo meu dia');
+  await expect(page.getByRole('textbox', { name: 'Conteúdo da anotação' })).toBeVisible();
+  await navigate(page, 'Meu dia');
+  await actions.getByRole('button', { name: 'Entrar em foco', exact: true }).click();
+  await expect(page.getByLabel('O que você vai fazer?', { exact: true })).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Começar foco', exact: true })).toBeVisible();
+  await expect(page.getByRole('timer', { name: 'Tempo registrado' })).toHaveText('00:00:00');
+  await navigate(page, 'Meu dia');
+  await actions.getByRole('button', { name: 'Abrir assistente', exact: true }).click();
+  await expect(page.getByRole('region', { name: 'Mensagens da conversa', exact: true })).toBeVisible();
+});
+
+test('busca distingue nenhum resultado e abre um curso encontrado pelo teclado', async ({ page }) => {
+  await page.goto('/');
+  await page.keyboard.press('Control+k');
+  const dialog = page.getByRole('dialog', { name: 'Encontre no seu espaço', exact: true });
+  const search = dialog.getByRole('textbox', { name: 'Buscar cursos, matérias, anotações e tarefas' });
+  await search.fill('zzznadaencontrado');
+  await expect(dialog.getByRole('status')).toContainText('Nada encontrado');
+  await expect(dialog.getByRole('button', { name: /Curso/ })).toHaveCount(0);
+  await search.fill('Psicologia');
+  await expect(dialog.getByRole('status')).toContainText('resultados encontrados');
+  await dialog.getByRole('button', { name: 'Psicologia Curso', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'Psicologia', exact: true })).toBeVisible();
+});
+
+test('tema automático acompanha o sistema em outras áreas e preserva a escolha ao voltar', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/');
+  await navigate(page, 'Meu espaço');
+  await page.getByRole('button', { name: '⚙️ Automático', exact: true }).click();
+  await navigate(page, 'Agenda');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
+  await navigate(page, 'Meu espaço');
+  await expect(page.getByRole('button', { name: '⚙️ Automático', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: '🌙 Modo Escuro', exact: true }).click();
+  await navigate(page, 'Agenda');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await page.emulateMedia({ colorScheme: 'light' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await navigate(page, 'Meu espaço');
+  await page.getByRole('button', { name: '☀️ Modo Claro', exact: true }).click();
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
+});
+
+test('controle de foco permanece abaixo do cabeçalho ao rolar no desktop', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop');
+  await page.setViewportSize({ width: 1280, height: 600 });
+  await page.goto('/');
+  await navigate(page, 'Foco');
+  await page.getByRole('button', { name: 'Começar foco', exact: true }).click();
+  await navigate(page, 'Meu espaço');
+  await page.evaluate(() => window.scrollTo({ top: 700, behavior: 'instant' }));
+  await expect.poll(async () => {
+    const tracker = await page.getByRole('region', { name: 'Registro de tempo e foco' }).boundingBox();
+    const header = await page.locator('.topbar').boundingBox();
+    return tracker!.y - (header!.y + header!.height);
+  }).toBeGreaterThanOrEqual(0);
+});
 
 test('navegação agrupada funciona recolhida e por teclado no desktop', async ({ page }, info) => {
   test.skip(info.project.name !== 'desktop');
