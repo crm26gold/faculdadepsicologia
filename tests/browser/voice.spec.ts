@@ -412,3 +412,62 @@ test('GPT-Live usa sessão HTTP e delegação client, sem enviar session.start n
   expect(events.some(event => event.type === 'session.start')).toBe(false);
   expect(events.some(event => event.type === 'session.close')).toBe(true);
 });
+
+test('ElevenLabs: URL assinada, variáveis, áudio, ferramentas da Jornada e interrupção', async ({ page }) => {
+  const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
+  const state = await fixture(page);
+  await page.route('**/api/ai/live', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+    provider: 'elevenlabs', token: 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_test&conversation_signature=test-not-a-secret', model: 'gemini-2.5-flash',
+    expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), maxSeconds: 1200, variables: { contexto: 'Resumo de teste', historico: '[]' } } }) }));
+  let eleven!: WebSocketRoute; const received: Record<string, unknown>[] = [];
+  await page.routeWebSocket(/elevenlabs\.io/, socket => {
+    eleven = socket;
+    socket.onMessage(raw => {
+      const message = JSON.parse(String(raw)); received.push(message);
+      if (message.type === 'conversation_initiation_client_data') socket.send(JSON.stringify({ type: 'conversation_initiation_metadata', conversation_initiation_metadata_event: { conversation_id: 'conv_test', user_input_audio_format: 'pcm_16000', agent_output_audio_format: 'pcm_16000' } }));
+    });
+  });
+  const call = await start(page);
+  const init = received.find(message => message.type === 'conversation_initiation_client_data') as { dynamic_variables?: Record<string, string> };
+  expect(init.dynamic_variables?.contexto).toBe('Resumo de teste');
+  expect(received.some(message => 'conversation_config_override' in message)).toBe(false);
+  await expect.poll(() => received.some(message => typeof message.user_audio_chunk === 'string')).toBe(true);
+  expect(state.sent).toEqual([]);
+  eleven.send(JSON.stringify({ type: 'ping', ping_event: { event_id: 7, ping_ms: 30 } }));
+  await expect.poll(() => received.some(message => message.type === 'pong' && message.event_id === 7)).toBe(true);
+  eleven.send(JSON.stringify({ type: 'user_transcript', user_transcription_event: { user_transcript: 'Agende dentista hoje às 15h.', event_id: 1 } }));
+  eleven.send(JSON.stringify({ type: 'agent_response', agent_response_event: { agent_response: 'Vou registrar agora.', event_id: 2 } }));
+  await expect(call.getByRole('log')).toContainText('Agende dentista hoje às 15h.');
+  await expect(call.getByRole('log')).toContainText('Vou registrar agora.');
+  eleven.send(JSON.stringify({ type: 'client_tool_call', client_tool_call: { tool_name: 'organizar_jornada', tool_call_id: 'el-create-1', parameters: { instruction: 'agende dentista hoje às 15h' }, event_id: 2 } }));
+  await expect.poll(() => received.find(message => message.type === 'client_tool_result' && message.tool_call_id === 'el-create-1')).toBeTruthy();
+  const result = received.find(message => message.tool_call_id === 'el-create-1') as { result: string; is_error: boolean };
+  expect(result.is_error).toBe(false);
+  expect(JSON.parse(result.result).saved).toBe(true);
+  expect(state.workspace.tasks.filter(item => item.title === 'Dentista por voz')).toHaveLength(1);
+  eleven.send(JSON.stringify({ type: 'audio', audio_event: { audio_base_64: Buffer.alloc(64_000).toString('base64'), event_id: 3 } }));
+  await expect(call).toContainText('Pode me interromper a qualquer momento');
+  await call.getByRole('button', { name: 'Interromper fala do assistente', exact: true }).click();
+  await expect(call).toContainText('Pode falar. Estou ouvindo.');
+  await expect.poll(() => received.some(message => message.type === 'contextual_update')).toBe(true);
+  eleven.send(JSON.stringify({ type: 'audio', audio_event: { audio_base_64: Buffer.alloc(64_000).toString('base64'), event_id: 3 } }));
+  await page.waitForTimeout(300);
+  await expect(call).toContainText('Pode falar. Estou ouvindo.');
+  await call.getByRole('button', { name: 'Encerrar chamada', exact: true }).click();
+  await expect(call).toContainText('Chamada encerrada');
+  expect(errors).toEqual([]);
+});
+
+test('ElevenLabs: recusa por créditos explica o motivo sem repetir a resposta do provedor', async ({ page }) => {
+  await fixture(page);
+  await page.route('**/api/ai/live', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+    provider: 'elevenlabs', token: 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_test&conversation_signature=test', model: 'gemini-2.5-flash',
+    expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), maxSeconds: 1200, variables: { contexto: '', historico: '[]' } } }) }));
+  await page.routeWebSocket(/elevenlabs\.io/, socket => { socket.onMessage(() => socket.close({ code: 1008, reason: 'Quota exceeded for secret-workspace' })); });
+  await page.getByRole('button', { name: 'Conversar ao vivo', exact: false }).click();
+  const call = page.getByRole('dialog');
+  await call.getByRole('button', { name: 'Iniciar chamada', exact: true }).click();
+  await expect(call.getByRole('alert')).toContainText('créditos do ElevenLabs');
+  await expect(call.getByRole('alert')).not.toContainText('secret-workspace');
+  await call.getByRole('button', { name: 'Fechar chamada' }).click();
+});

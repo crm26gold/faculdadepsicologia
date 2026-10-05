@@ -35,7 +35,7 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | Rotina e hábitos | Implementado (Pro) | Hábitos por período e horário, marcação diária e sequência. |
 | Flashcards | Implementado | Cartões por matéria com revisão espaçada. |
 | Saúde, emocional, espiritualidade, família, casa, lazer e documentos | Roadmap | Hoje são áreas da vida usadas como etiquetas em anotações, compromissos e finanças; ainda sem módulos próprios. |
-| Assistente por texto e voz | Implementado; chamada real a validar | Conversa com ações pessoais validadas, salvamento, desfazer e confirmação de exclusão. Voz contínua pelo Gemini Live, com autorização temporária; depende da configuração e cota do provedor. [Uso e limites](docs/ASSISTENTE_VOZ.md). |
+| Assistente por texto e voz | Implementado; chamada real a validar | Conversa com ações pessoais validadas, salvamento, desfazer e confirmação de exclusão. Voz contínua pelo Gemini Live, GPT-Live ou ElevenLabs (agente criado automaticamente, URL assinada por chamada); depende da configuração e da cota ou dos créditos do provedor. [Uso e limites](docs/ASSISTENTE_VOZ.md). |
 | Telegram | Implementado | Bot vinculado à conta por código: texto, voz e fotos, com o mesmo núcleo de IA e as mesmas cotas. Exclusões e substituições ficam pendentes até a confirmação no Assistente do app. |
 | WhatsApp | Implementado; aceite real a confirmar | Ponte privada por QR que roda no computador do proprietário, vínculo por código, texto, áudio e foto. Não usa a API oficial da Meta. [Guia](docs/WHATSAPP_JORNADA.md). |
 | Administração de IA | Implementado | Onze provedores com chaves cifradas, rotas por tarefa com alternativas, limites de consumo e cadastro de servidores MCP (descoberta, sem execução de ferramentas). |

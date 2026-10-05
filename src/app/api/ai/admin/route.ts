@@ -1,5 +1,5 @@
 import { dbError, readSession, reply, writeRequest } from '@/lib/api-route';
-import { aiAdminAction, type AiProviderId } from '@/lib/ai/catalog';
+import { aiAdminAction, liveModelAllowed, voiceOnlyProviders, type AiProviderId } from '@/lib/ai/catalog';
 import { aiSecretReady, keyHint, openKey, sealKey } from '@/lib/ai/crypto';
 import { AiError, generate, generateResilient, refreshModels, resolveModel, type AiConfig } from '@/lib/ai/providers';
 import { autoCapable, autoModes, pickModel, sortModels, type AutoMode } from '@/lib/ai/models';
@@ -8,6 +8,7 @@ import { requestBudget, retryBudget } from '@/lib/ai/budget';
 import { runtimeConfig } from '@/lib/ai/runtime';
 import { prepareGeminiSession, LiveSessionError } from '@/lib/voice/gemini-session';
 import { checkGeminiSession } from '@/lib/voice/check-session';
+import { checkElevenLabsSession, ElevenLabsError, prepareElevenLabsSession } from '@/lib/voice/elevenlabs';
 import { credentialIssue } from '@/lib/ai/credentials';
 import { discoverMcp } from '@/lib/integrations/mcp';
 
@@ -97,10 +98,27 @@ export async function POST(request: Request) {
       const selected = await session.client.rpc('ai_runtime', { task_id: 'voz' });
       if (selected.error) return dbError(selected.error);
       if (!selected.data) return reply({ error: 'Configure e ligue a tarefa Chamada ao vivo antes de testar.' }, 409);
-      if (selected.data.provider !== 'gemini') return reply({ error: 'Este diagnóstico testa Gemini. Para OpenAI, inicie uma chamada no Assistente.' }, 409);
+      if (!['gemini', 'elevenlabs'].includes(selected.data.provider)) return reply({ error: 'Este diagnóstico testa Gemini e ElevenLabs. Para OpenAI, inicie uma chamada no Assistente.' }, 409);
       const limited = await requestBudget(session, 'live'); if (limited) return limited;
       const reference = crypto.randomUUID().slice(0, 8);
       const started = Date.now();
+      if (selected.data.provider === 'elevenlabs') {
+        try {
+          // Prepares (or updates) the agent, signs one conversation and closes it right after the metadata.
+          const credentials = await prepareElevenLabsSession(runtimeConfig(selected.data), 'Teste de conexão da Jornada, sem dados pessoais.', [], {
+            signal: AbortSignal.any([request.signal, AbortSignal.timeout(40_000)]), beforeRetry: retryBudget(session, 'live'),
+          });
+          const result = await checkElevenLabsSession(credentials, AbortSignal.timeout(15_000));
+          console.info('[voice-check]', { reference, provider: 'elevenlabs', stage: result.stage, connected: result.connected, code: result.code });
+          return reply({ ok: true, data: { ...result, reference, model: credentials.model, ms: Date.now() - started,
+            message: result.connected ? 'O ElevenLabs preparou o agente “Jornada Plena · voz” e aceitou a conversa. Agora teste o microfone no Assistente.' : 'O agente foi preparado, mas a conversa não foi aceita. Confira os créditos e o agente no ElevenLabs.' } });
+        } catch (cause) {
+          const failure = cause instanceof ElevenLabsError ? cause : null;
+          console.warn('[voice-check]', { reference, provider: 'elevenlabs', stage: failure?.stage ?? 'preparation', ...failure?.diagnostic });
+          return reply({ ok: true, data: { connected: false, stage: failure?.stage ?? 'preparation', diagnostic: failure ? { upstreamStatus: failure.diagnostic.upstreamStatus, reason: failure.diagnostic.detail, invalidFields: failure.diagnostic.fields } : undefined,
+            reference, ms: Date.now() - started, message: cause instanceof AiError ? cause.message : 'Não consegui preparar o teste. Confira o cofre e a tarefa de voz.' } });
+        }
+      }
       try {
         const credentials = await prepareGeminiSession(runtimeConfig(selected.data), 'Teste de conexão da Jornada, sem dados pessoais.', [], {
           signal: AbortSignal.timeout(35_000), beforeRetry: retryBudget(session, 'live'),
@@ -131,9 +149,10 @@ export async function POST(request: Request) {
       return error ? dbError(error) : reply({ ok: true, data: null });
     }
     case 'save_task': {
-      if (body.task === 'voz' && body.provider && (body.provider === 'openai' ? body.model !== 'gpt-live-1' : body.provider !== 'gemini' || (body.model !== 'auto:rapido' && !/^gemini-[a-z0-9.-]*live[a-z0-9.-]*$/.test(body.model)))) {
-        return reply({ error: 'Chamada ao vivo: escolha Gemini com modelo Live ou OpenAI com gpt-live-1.' }, 400);
+      if (body.task === 'voz' && body.provider && !liveModelAllowed(body.provider, body.model)) {
+        return reply({ error: 'Chamada ao vivo: escolha Gemini com modelo Live, OpenAI com gpt-live-1 ou ElevenLabs com um modelo do agente.' }, 400);
       }
+      if (body.task !== 'voz' && body.provider && voiceOnlyProviders.includes(body.provider)) return reply({ error: 'ElevenLabs atende somente a Chamada ao vivo.' }, 400);
       const { error } = await session.client.rpc('ai_save_task', { task_id: body.task, next_provider: body.provider, next_model: body.model, next_enabled: body.enabled });
       return error ? dbError(error) : reply({ ok: true, data: null });
     }

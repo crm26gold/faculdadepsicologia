@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Everything the panel can switch without code: which provider, which model, for which task.
-export const aiProviderIds = ['gemini', 'vertex', 'google_cloud', 'openai', 'anthropic', 'deepseek', 'xai', 'mistral', 'groq', 'openrouter', 'compatible'] as const;
+export const aiProviderIds = ['gemini', 'vertex', 'google_cloud', 'openai', 'anthropic', 'deepseek', 'xai', 'mistral', 'groq', 'openrouter', 'compatible', 'elevenlabs'] as const;
 export type AiProviderId = typeof aiProviderIds[number];
 export const aiTaskIds = ['assistente', 'organizar', 'voz'] as const;
 export type AiTaskId = typeof aiTaskIds[number];
@@ -23,9 +23,21 @@ export const aiCatalog: Record<AiProviderId, ProviderInfo> = {
   mistral: { name: 'Mistral AI', keyLabel: 'Chave de API Mistral', fields: [], models: [], base: 'https://api.mistral.ai/v1', docs: 'https://docs.mistral.ai/api/endpoint/models', help: 'Conversa e modelos multimodais da Mistral. OCR e geração de áudio são produtos com contratos próprios; esta conexão não os ativa automaticamente.' },
   groq: { name: 'Groq · inferência rápida', keyLabel: 'Chave de API Groq', fields: [], models: [], base: 'https://api.groq.com/openai/v1', docs: 'https://console.groq.com/docs/overview', help: 'Groq executa modelos de diferentes famílias. Consulte os modelos atuais da sua chave. Transcrição é uma API separada; não equivale a uma chamada ao vivo.' },
   openrouter: { name: 'OpenRouter · múltiplos modelos', keyLabel: 'Chave de API OpenRouter', fields: [], models: [], base: 'https://openrouter.ai/api/v1', docs: 'https://openrouter.ai/docs/quickstart', help: 'Acesso a modelos de várias empresas por um gateway. As solicitações passam pelo OpenRouter e pelo provedor escolhido; avalie privacidade e tarifa antes de autorizar.' },
+  elevenlabs: { name: 'ElevenLabs · voz', keyLabel: 'Chave de API do ElevenLabs', fields: [], models: [], docs: 'https://elevenlabs.io/docs',
+    help: 'elevenlabs.io › Developers › API Keys. Atende somente a Chamada ao vivo: o ElevenLabs ouve, fala e conduz a conversa com um agente criado automaticamente na sua conta. As ações continuam na Conversa do assistente. Os créditos do plano são consumidos por minuto de conversa.' },
   compatible: { name: 'Outro serviço · compatível com OpenAI', keyLabel: 'Chave de API do serviço', fields: ['base_url'], models: [],
     help: 'Para serviços que seguem o formato da OpenAI. Informe o endereço base, por exemplo https://api.groq.com/openai/v1 ou https://openrouter.ai/api/v1.' },
 };
+/** Providers that only carry the live call; they never answer text tasks. */
+export const voiceOnlyProviders: AiProviderId[] = ['elevenlabs'];
+export const liveProviders: AiProviderId[] = ['gemini', 'openai', 'elevenlabs'];
+/** Mirrors private.ai_live_model_allowed: ElevenLabs stores the agent's LLM, not a live model. */
+export function liveModelAllowed(provider: string, model: string) {
+  if (provider === 'openai') return model === 'gpt-live-1';
+  if (provider === 'gemini') return model === 'auto:rapido' || /^gemini-[a-z0-9.-]*live[a-z0-9.-]*$/.test(model);
+  if (provider === 'elevenlabs') return model === 'auto:rapido' || (/^[a-z0-9][a-z0-9.@_-]{1,79}$/.test(model) && model !== 'custom-llm');
+  return false;
+}
 export const aiTaskLabels: Record<AiTaskId, { name: string; help: string }> = {
   voz: { name: 'Chamada ao vivo', help: 'A voz usa sua própria configuração. O raciocínio e as ações continuam na tarefa Conversa do assistente.' },
   assistente: { name: 'Conversa do assistente', help: 'Responde na bolinha e na aba Assistente.' },

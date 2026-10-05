@@ -129,6 +129,8 @@ export async function generate(config: AiConfig, input: Prompt): Promise<string>
       text = chatText(await call(config.provider, `${(aiCatalog[config.provider].base || config.base_url).replace(/\/+$/, '')}/chat/completions`, { method: 'POST', signal: input.signal, headers: { ...json, Authorization: `Bearer ${config.key}` },
         body: JSON.stringify({ model: config.model, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...turns] }) }));
       break;
+    case 'elevenlabs':
+      throw new AiError('ElevenLabs atende somente a Chamada ao vivo. Escolha outro provedor para texto.', 400);
     case 'anthropic':
       text = claudeText(await call('anthropic', 'https://api.anthropic.com/v1/messages', { method: 'POST', signal: input.signal, headers: { ...json, 'x-api-key': config.key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model: config.model, max_tokens: maxTokens, system, messages: claudeTurns }) }));
@@ -162,6 +164,13 @@ export async function listModelInventory(config: AiConfig, signal?: AbortSignal)
       if (!(aiCatalog[config.provider].base || config.base_url)) throw new AiError('Informe o endereço base da API compatível.');
       ids = ((await call(config.provider, `${(aiCatalog[config.provider].base || config.base_url).replace(/\/+$/, '')}/models`, { signal, headers: { Authorization: `Bearer ${config.key}` } }))?.data ?? []).map((model: { id: string }) => model.id);
       break;
+    case 'elevenlabs': {
+      // Agent LLMs, not text models: offered only to the live call. Checkpoints and retired models are skipped.
+      const body = await call('elevenlabs', 'https://api.elevenlabs.io/v1/convai/llm/list', { signal, headers: { 'xi-api-key': config.key } });
+      liveIds = (Array.isArray(body?.llms) ? body.llms : []).filter((item: { llm?: unknown; is_checkpoint?: boolean; deprecation_info?: { is_deprecated?: boolean } | null }) =>
+        typeof item?.llm === 'string' && item.llm !== 'custom-llm' && !item.is_checkpoint && item.deprecation_info?.is_deprecated !== true).map((item: { llm: string }) => item.llm);
+      break;
+    }
     case 'vertex':
     case 'google_cloud': ids = []; break;
   }
@@ -200,6 +209,7 @@ export async function generateResilient(config: AiConfig, input: Prompt): Promis
   const seen = new Set<string>();
   const connections = [config, ...(config.alternatives ?? []).slice(0, 2)].filter(candidate => {
     const id = createHash('sha256').update(`${candidate.provider}:${candidate.key}:${candidate.base_url}:${candidate.gcp_project}:${candidate.gcp_location}:${candidate.model}`).digest('hex');
+    if (candidate.provider === 'elevenlabs') return false;
     if (input.audio && !['gemini', 'vertex', 'google_cloud'].includes(candidate.provider)) return false;
     if (input.image && candidate.provider === 'deepseek') return false;
     if (input.image && candidate.provider === 'xai' && !['image/jpeg','image/png'].includes(input.image.mimeType)) return false;
