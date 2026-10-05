@@ -672,3 +672,71 @@ test('assistentes externos: a pessoa cria uma chave MCP, vê a configuração de
   await card.getByRole('button', { name: 'Revogar' }).click();
   await expect(card).not.toContainText('consulta e registra');
 });
+
+test('mapa de recursos mostra o que realmente atua e separa a declaração do compartilhamento', async ({ page }) => {
+  const extra = '00000000-0000-4000-8000-000000000061';
+  const reserveId = `connection:${extra}`;
+  const providers = ['deepseek', 'gemini', 'groq', 'elevenlabs'].map(id => ({ id, enabled: true, label: '', base_url: '', gcp_project: '', gcp_location: '', has_key: true, key_hint: id.slice(0, 4), updated_at: '' }));
+  const ai = { secretReady: true, providers, connections: [{ id: extra, provider: 'gemini', label: 'Reserva Gemini', enabled: true, position: 1, key_hint: 'ext1', updated_at: '' }],
+    tasks: [{ id: 'assistente', provider: 'deepseek', model: 'auto:rapido', enabled: true, routing_mode: 'fallback', fallbacks: [{ connection_id: extra, model: 'auto:rapido' }], updated_at: '' }] };
+  type Declaration = { privacy_basis: string | null; audience: string | null; current: boolean };
+  const resource = (source_id: string, provider: string) => ({ source_id, provider, kind: source_id.startsWith('connection:') ? 'connection' : 'api',
+    connection_id: source_id.startsWith('connection:') ? source_id.slice(11) : null, label: source_id.startsWith('connection:') ? 'Reserva Gemini' : '', configured: true, enabled: true,
+    key_hint: 'abcd', updated_at: '2026-10-05T12:00:00Z', personal_data_ok: provider !== 'gemini', declaration: { privacy_basis: null, audience: null, current: false } as Declaration });
+  const map = { version: 1, generated_at: '2026-10-05T16:00:00Z', base_enabled: false,
+    resources: [resource('provider:deepseek', 'deepseek'), resource('provider:gemini', 'gemini'), resource('provider:groq', 'groq'), resource('provider:elevenlabs', 'elevenlabs'), resource(reserveId, 'gemini')],
+    routes: [{ task: 'assistente', enabled: true, mode: 'fallback', provider: 'deepseek', model: 'auto:rapido', routing_effective: 'fallback',
+      chain: [{ source_id: 'provider:deepseek', provider: 'deepseek', model: 'auto:rapido', source: 'owner' }], configured_chain: [], members_chain: [], members_note: 'base_off',
+      sources: [{ source_id: 'provider:deepseek', state: 'active', position: 1, role: 'primary' }, { source_id: reserveId, state: 'blocked', role: 'fallback', reason: 'declaration_missing' } as Record<string, unknown>,
+        { source_id: 'provider:groq', state: 'available' }, { source_id: 'provider:elevenlabs', state: 'incapable', reason: 'capability' }] },
+    { task: 'voz', enabled: true, mode: 'fixed', provider: 'elevenlabs', model: 'qwen36-35b-a3b', routing_effective: 'fixed',
+      chain: [{ source_id: 'provider:elevenlabs', provider: 'elevenlabs', model: 'qwen36-35b-a3b', source: 'owner' }], configured_chain: [], members_chain: [], members_note: 'voice_not_shared',
+      sources: [{ source_id: 'provider:elevenlabs', state: 'active', position: 1, role: 'primary' }, { source_id: 'provider:deepseek', state: 'incapable', reason: 'capability' }] }],
+    channels: [{ channel: 'telegram', enabled: true, bot: 'JornadaPlenaBot', owner_linked: true, member_links: 0 }, { channel: 'whatsapp', enabled: false, bot: '', owner_linked: false, member_links: 0 }],
+    whatsapp: { enabled: false, configured: true, state: 'offline', heartbeat: null, stt: { source_id: reserveId, provider: 'gemini', model: 'auto:rapido', state: 'blocked', reason: 'declaration_missing' } },
+    mcp_inbound: { owner_tokens: 0, owner_oauth: 1, owner_can_write: 1, owner_last_used: null, members_with_access: 0 },
+    mcp_outbound: [{ id: '00000000-0000-4000-8000-000000000062', label: 'Agenda MCP', host: 'tools.example.invalid', protocol: '2026-07-28', enabled: true, has_key: true }],
+    members: { accounts: 3, with_personal_keys: 0 } };
+  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai });
+  const policies: Record<string, unknown>[] = [];
+  await page.route('**/api/ai/resources', route => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON(); policies.push(body);
+      const target = map.resources.find(item => item.connection_id === body.connection_id && item.provider === body.provider);
+      if (target) target.declaration = { privacy_basis: body.privacy_basis, audience: body.audience, current: true };
+      map.routes[0].chain.push({ source_id: reserveId, provider: 'gemini', model: 'auto:rapido', source: 'owner' });
+      map.routes[0].sources[1] = { source_id: reserveId, state: 'active', position: 2, role: 'fallback' };
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: null }) });
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { available: true, map } }) });
+  });
+  await page.goto('/'); await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Inteligência artificial' });
+  await expect(panel.getByText('Um ponto pede sua atenção')).toBeVisible();
+  await panel.getByRole('button', { name: 'Abrir o mapa de recursos' }).click();
+  const assistant = panel.locator('.ai-route-map').filter({ hasText: 'Conversa do assistente' });
+  await expect(assistant.locator('.ai-chain li')).toHaveCount(1);
+  await expect(assistant.locator('.ai-chain')).toContainText('DeepSeek');
+  await expect(assistant.locator('li[data-state="blocked"]')).toContainText('Configurada, mas fora');
+  await expect(assistant.locator('li[data-state="blocked"]')).toContainText('Falta declarar as condições de privacidade');
+  await expect(assistant.locator('li[data-state="available"]')).toContainText('Groq');
+  await expect(panel.locator('.ai-route-map').filter({ hasText: 'Chamada ao vivo' }).locator('li[data-state="incapable"]')).toContainText('DeepSeek');
+  await expect(panel.getByText(/Disponíveis para reserva: Groq/)).toBeVisible();
+  await expect(panel.getByText(/Hoje a Jornada só descobre as ferramentas/)).toBeVisible();
+  await expect(panel.getByRole('button', { name: 'Ligar base para membros' })).toBeDisabled();
+  const card = panel.getByRole('form', { name: 'Reserva Gemini · Google Gemini (AI Studio)' });
+  await expect(card.getByLabel('Quem pode usar')).toBeDisabled();
+  await expect(card.getByLabel('Condições de privacidade').getByRole('option', { name: 'Conferi: contrato sem uso para treino' })).toHaveCount(0);
+  await card.getByLabel('Condições de privacidade').selectOption('paid');
+  await expect(card.getByLabel('Quem pode usar')).toHaveValue('owner');
+  await card.getByRole('button', { name: 'Salvar condições' }).click();
+  await expect.poll(() => policies[0]).toEqual({ action: 'set_source_policy', provider: 'gemini', connection_id: extra, privacy_basis: 'paid', audience: 'owner' });
+  await expect(assistant.locator('.ai-chain li')).toHaveCount(2);
+  await expect(panel.getByText('Reserva Gemini · Google Gemini (AI Studio): liberada só para você.')).toBeVisible();
+  expect(posted.filter(item => item.body.action === 'models' || item.body.action === 'test_task')).toHaveLength(0);
+  expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 }); await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await settleAnimations(page);
+  expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await panel.screenshot({ path: 'test-results/resource-map-mobile-dark.png' });
+});

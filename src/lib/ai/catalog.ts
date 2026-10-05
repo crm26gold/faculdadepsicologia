@@ -87,3 +87,10 @@ export const aiMyKeyAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('set_base'), enabled: z.boolean() }),
   z.object({ action: z.literal('set_base_source'), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), privacy_basis: z.enum(['paid', 'no_training']).nullable() }),
 ]);
+/** Resource map: a source's privacy declaration and its audience are saved together. */
+export const aiResourceAction = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('set_source_policy'), provider: z.enum(personalProviderIds), connection_id: z.uuid().nullable(),
+    privacy_basis: z.enum(['paid', 'no_training']).nullable(), audience: z.enum(['owner', 'members']) })
+    .refine(value => value.provider !== 'gemini' || value.privacy_basis !== 'no_training', 'Gemini exige faturamento pago para receber dados pessoais.'),
+  z.object({ action: z.literal('set_base'), enabled: z.boolean() }),
+]);
