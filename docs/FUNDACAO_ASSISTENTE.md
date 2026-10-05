@@ -40,12 +40,14 @@ MCP é um protocolo de acesso a ferramentas. A descoberta de um servidor não pr
 ## Próximas etapas de infraestrutura
 
 1. **Inventário de recursos:** registrar dono, autorização, direção de acesso, capacidades (texto, planejamento, voz, transcrição, ferramenta), política de custo e domínio de cota. Uma assinatura, um servidor MCP e uma chave API são recursos diferentes. Não cadastrar preços ou cotas estimados como fatos.
-2. **Contribuição da equipe:** criar adesão explícita separada de “Minhas chaves”. Chaves pessoais continuam privadas. Cada contribuição precisa definir público autorizado, finalidade, limites, revogação imediata e privacidade. Não usar silenciosamente a chave de outro membro.
+2. **Contribuição da equipe:** criar adesão explícita separada de “Minhas chaves”. APIs cadastradas para a base do sistema podem atender todos, conforme os limites e autorizações definidos pelo proprietário. Chaves guardadas como pessoais continuam privadas até uma contribuição específica. Cada contribuição precisa definir público autorizado, finalidade, limites, revogação imediata e privacidade. Não usar silenciosamente a chave de outro membro.
 3. **Roteamento com saúde persistente:** cooldown por domínio de cota, motivos de indisponibilidade, pausa por recurso/modelo e sugestões ao administrador. Atualmente o automático troca de empresa após esgotamento de cota; não há rotação por projetos de terceiros. Só mudar isso após definir os domínios e autorizações. Chaves distintas não garantem cotas independentes.
 4. **Trabalho autônomo:** worker com identidade própria restrita, agenda, retomada de leases, prazos, cancelamento, histórico e relatórios. A fila de pedidos atual é persistente, mas depende da execução da função ou de retomada pela conversa. Não afirmar que há monitoramento periódico quando não há worker ativo.
 5. **Ferramentas externas:** adaptador de MCP de saída com lista de destinos/ferramentas permitidos, proteção SSRF, autorização por pessoa, confirmação e idempotência conforme os efeitos. A reserva só pode escolher um recurso cuja capacidade e autorização tenham sido verificadas.
 
-Cada etapa deve ser implementada e revisada antes de ativar a seguinte. O proprietário pediu uma pergunta material por vez e nenhuma contratação silenciosa. A próxima decisão de produto é o escopo da contribuição voluntária da equipe: somente o proprietário, membros escolhidos ou base pública limitada.
+Cada etapa deve ser implementada e revisada antes de ativar a seguinte. O proprietário pediu uma pergunta material por vez e nenhuma contratação silenciosa.
+
+Alinhamento posterior do proprietário nesta sessão: as APIs da base atendem o sistema todo; seus recursos MCP ficam sob seu controle, com escolha de quem pode usar, como e para quê, somente quando houver suporte técnico para essa capacidade. Recursos MCP de outros usuários atendem suas próprias contas. A cota de um usuário não deve atender outra pessoa. Uso para evolução do sistema exige finalidade e autorização específicas, revogáveis, do dono do recurso; conectar o MCP não concede essa permissão automaticamente. Este é o alcance desejado, não uma ativação automática de compartilhamento, nem confirmação de que uma assinatura pode funcionar como motor público.
 
 ## Validação e limites
 
