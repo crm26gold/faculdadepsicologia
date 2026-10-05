@@ -22,6 +22,7 @@ O produto organiza a vida inteira da pessoa, não apenas os estudos. São três 
 | `src/lib/voice/` e `src/app/api/ai/live/` | Chamada de voz pelo Gemini Live com autorização temporária. |
 | `src/lib/bot/`, `src/lib/whatsapp/` e `integrations/whatsapp-bridge/` | Telegram e a ponte privada do WhatsApp por QR, ambos vinculados à conta por código. |
 | `src/lib/integrations/` | Cadastro e descoberta de servidores MCP, sem execução de ferramentas. |
+| `src/lib/mcp/`, `src/app/api/mcp/` | Servidor MCP da Jornada para assistentes externos: chave pessoal (só o hash no banco), consulta e registro na vida pessoal de quem criou a chave. |
 | `supabase/migrations/` | Migrações do workspace, Storage privado e proteção contra editores antigos, aplicadas no projeto privado. |
 | `tests/` | Testes de domínio, autenticação, restrições de produção e navegador. |
 
