@@ -19,7 +19,7 @@ export class GptLivePeer {
   private pendingInput = new DelegationInput();
   private lastResult: Promise<unknown> | null = null;
   private speechTimer: ReturnType<typeof setTimeout> | undefined;
-  constructor(private options: VoiceOptions, private stream: MediaStream, private signal: AbortSignal) {}
+  constructor(private options: VoiceOptions, private stream: MediaStream, private signal: AbortSignal, private startupFailure?: (message: string) => void) {}
   private setState(value: CallState) { this.state = value; this.options.state(value); }
   private send(value: object) { if (!this.closed && this.ready && this.channel?.readyState === 'open') this.channel.send(JSON.stringify(value)); }
   async start() {
@@ -45,6 +45,7 @@ export class GptLivePeer {
     };
     this.channel.onclose = () => { if (!this.closed) this.fail('A chamada foi desconectada. Você pode retomar esta conversa em outra chamada.'); };
     await this.peer.setLocalDescription(await this.peer.createOffer());
+    if (this.closed) return;
     if (this.peer.iceGatheringState !== 'complete') await new Promise<void>((resolve, reject) => {
       const done = () => { clearTimeout(timer); this.peer.removeEventListener('icegatheringstatechange', changed); this.signal.removeEventListener('abort', aborted); };
       const changed = () => { if (this.peer.iceGatheringState === 'complete') { done(); resolve(); } };
@@ -57,7 +58,8 @@ export class GptLivePeer {
     const response = await fetch('/api/ai/live/session', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: this.signal,
       body: JSON.stringify({ sdp: this.peer.localDescription?.sdp, ...context }) });
     const result = await response.json();
-    if (!response.ok) throw new Error(result.error || 'Não consegui preparar a chamada na OpenAI.');
+    if (this.closed) return;
+    if (!response.ok) throw Object.assign(new Error(result.error || 'Não consegui preparar a chamada na OpenAI.'), { doNotRetry: typeof result.code === 'string' && result.code.startsWith('jornada_budget_') });
     this.signal.throwIfAborted();
     await this.peer.setRemoteDescription({ type: 'answer', sdp: result.data.sdp });
     this.timeout = setTimeout(() => { if (!this.ready) this.fail('A OpenAI não iniciou o áudio a tempo. Inicie outra chamada.'); }, 20_000);
@@ -104,19 +106,32 @@ export class GptLivePeer {
   volume(on: boolean) { this.audio.muted = !on; if (on) void this.audio.play().catch(() => {}); }
   notify(content: string) { this.send({ type: 'session.commentary.append', event_id: crypto.randomUUID(), delegation_id: null, content: boundedLiveText(content) }); }
   interrupt() { this.send({ type: 'session.instructions.append', event_id: crypto.randomUUID(), delegation_id: null, content: 'Pare de falar e escute o próximo pedido. Essa interrupção não cancela registros já autorizados.' }); }
-  private fail(message: string) { this.options.notice(message); this.end('error'); }
+  private fail(message: string) {
+    if (!this.ready && this.startupFailure) { const fallback = this.startupFailure; this.dispose(); fallback(message); return; }
+    this.options.notice(message); this.end('error');
+  }
+  /** The parent owns the shared microphone. Releasing a rejected peer leaves its tracks alive for fallback. */
+  dispose() {
+    if (this.closed) return;
+    this.closed = true; this.ready = false; clearTimeout(this.timeout); clearTimeout(this.speechTimer);
+    this.audio.pause(); this.audio.srcObject = null;
+    this.peer.onconnectionstatechange = null; this.peer.ontrack = null;
+    if (this.channel) { this.channel.onclose = null; this.channel.onmessage = null; this.channel.close(); }
+    this.peer.close();
+  }
   end(state: CallState = 'ended') {
     if (this.closed) return;
-    if (this.ready && this.channel?.readyState === 'open') this.channel.send(JSON.stringify({ type: 'session.close' }));
+    const graceful = this.ready && this.channel?.readyState === 'open';
+    if (graceful) this.channel!.send(JSON.stringify({ type: 'session.close' }));
     this.closed = true; this.ready = false; clearTimeout(this.timeout); clearTimeout(this.speechTimer);
     this.audio.pause(); this.audio.srcObject = null;
     // Give the close command a chance to reach the provider while releasing microphone/audio immediately.
     const peer = this.peer, channel = this.channel;
+    let grace:ReturnType<typeof setTimeout>|undefined;
     const cleanup = () => { clearTimeout(grace); channel?.close(); peer.close(); };
     if (channel) { channel.onclose = null; channel.onmessage = event => { try { if (JSON.parse(event.data).type === 'session.closed') cleanup(); } catch {} }; }
     this.peer.onconnectionstatechange = null;
-    this.stream.getTracks().forEach(track => track.stop());
-    const grace = setTimeout(cleanup, 15_000);
+    if(graceful)grace = setTimeout(cleanup, 15_000);else cleanup();
     this.setState(state);
   }
 }

@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
-import { runtimeConfig } from '@/lib/ai/runtime';
+import { runtimeConfig, runtimeForSession } from '@/lib/ai/runtime';
 import { AiError, generateResilient } from '@/lib/ai/providers';
 import { commandSystem, parseCommand } from '@/lib/commands';
 import { AI_IMAGE_LIMIT, imageMime, type AiImage } from '@/lib/ai/media';
 import { NOTE_BUCKET, safeMediaSource } from '@/lib/note-media';
-import { requestBudget, retryBudget } from '@/lib/ai/budget';
+import { beforeAttemptBudget, BudgetLimitError } from '@/lib/ai/budget';
 import { imageReview, imageReviewSystem } from '@/lib/ai/image-review';
 
 export const dynamic = 'force-dynamic';
@@ -18,11 +18,9 @@ export async function POST(request: Request) {
   const input = await writeRequest(request, commandRequest, 224_000);
   if (input instanceof Response) return input;
   const { session, body } = input;
-  const { data, error } = await session.client.rpc('ai_runtime', { task_id: 'assistente' });
+  const { data, error } = await runtimeForSession(session, 'assistente');
   if (error) return dbError(error);
   if (!data) return reply({ ok: true, data: { configured: false } });
-  const limited = await requestBudget(session, 'ai');
-  if (limited) return limited;
   try {
     let image: AiImage | undefined;
     if (body.image) {
@@ -42,9 +40,10 @@ export async function POST(request: Request) {
     }
     const config = runtimeConfig(data);
     const { text: raw, model } = await generateResilient(config, { system: image ? imageReviewSystem : `${commandSystem}\n\nContexto da pessoa:\n${body.context}`,
-      prompt: body.message, history: image ? [] : body.history, image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(45_000), beforeRetry: retryBudget(session, 'ai') });
+      prompt: body.message, history: image ? [] : body.history, image, maxTokens: 2400, json: true, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
     return reply({ ok: true, data: { configured: true, model, ...(image ? imageReview(raw) : parseCommand(raw)) } });
   } catch (cause) {
+    if (cause instanceof BudgetLimitError) return cause.response;
     return reply({ error: cause instanceof AiError ? cause.message : 'A inteligência artificial não respondeu agora.' }, 502);
   }
 }

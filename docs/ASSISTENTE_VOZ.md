@@ -10,7 +10,13 @@ Novas conversas são salvas na conta autenticada e têm uma cópia local separad
 
 ## Configurar o provedor de voz
 
-A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A primeira cuida da conversa falada, com Gemini, OpenAI ou ElevenLabs; a segunda interpreta fotos e planeja ações com o núcleo da Jornada. Trocar a voz não exige trocar o planejador. Só o proprietário configura chaves em **Administração › Inteligência artificial**.
+A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A primeira cuida da conversa falada com Gemini, OpenAI, ElevenLabs ou xAI/Grok; a segunda interpreta fotos e planeja ações. Trocar a voz não exige trocar o planejador. O proprietário configura as tarefas em **Administração › Inteligência artificial**; cada pessoa pode cadastrar APIs próprias em **Meu espaço › Minhas chaves de IA**.
+
+As chaves pessoais têm prioridade para texto e não atendem outra conta. A voz do proprietário mantém a configuração administrativa; membros usam suas APIs pessoais Gemini, OpenAI ou xAI. Groq oferece texto e transcrição de mensagens de voz, sem transporte contínuo nesta integração. Assinaturas de aplicativos não equivalem a crédito de API.
+
+Em **Conexões e chaves**, a busca e o filtro mostram primeiro as conexões cadastradas. **Remover chave** exige confirmação, mostra tarefas afetadas e pausa as tarefas que dependem diretamente dela; conexões extras têm remoção própria. Depois escolha outra conexão em **Tarefas e modelos**. Seus registros continuam guardados.
+
+Gemini exige declaração de faturamento pago habilitado para processar dados pessoais. O proprietário declara as condições em **Meu espaço › Minhas chaves de IA › Privacidade das conexões e base para membros**; essa declaração não ativa a base compartilhada. Trocar a chave exige nova declaração. Essa condição decorre dos [termos da API Gemini](https://ai.google.dev/gemini-api/terms).
 
 ### Gemini
 
@@ -49,15 +55,19 @@ Os créditos do plano são consumidos por minuto de conversa e pelo modelo do ag
 
 A integração segue o formato do SDK oficial (`@elevenlabs/elevenlabs-js` e `@elevenlabs/types`). Os corpos enviados foram conferidos contra os esquemas desse SDK, e o fluxo foi testado com respostas simuladas. A chamada real precisa ser validada com a chave configurada.
 
+### xAI / Grok
+
+Cadastre uma chave de API xAI em **Conexões e chaves**, habilite a conexão e selecione **xAI** com **grok-voice-latest** na tarefa **Chamada ao vivo**. O teste administrativo verifica autorização e configuração, sem usar microfone. Depois teste uma chamada no aparelho. O navegador recebe somente uma autorização temporária; as ações usam o mesmo executor e exigem as mesmas confirmações. Modelo, áudio e ferramentas seguem a [documentação de voz xAI](https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech).
+
 ### Automático: usar a que funcionar
 
-Em **Tarefas e modelos**, cada tarefa tem **Se a conexão falhar › Automático: usar a que funcionar (recomendado)**. A tarefa começa pela conexão escolhida. Se ela falhar, tenta as outras chaves ligadas, uma de cada vez, até oito tentativas, cada uma registrada no controle de uso:
+Em **Tarefas e modelos**, cada tarefa tem **Se a conexão falhar › Automático: usar a que funcionar (recomendado)**. Voz começa pela conexão escolhida; texto ordena todas as conexões elegíveis, incluindo a escolhida. Há no máximo oito tentativas no pedido inteiro, cada uma registrada no controle de uso:
 
-- **Chamada ao vivo:** ElevenLabs, depois Gemini e por fim OpenAI (gpt-live-1). A troca também acontece no navegador quando um provedor recusa a conversa antes do primeiro áudio, por exemplo por créditos esgotados. Uma conversa já iniciada não troca de provedor.
+- **Chamada ao vivo:** preserva a escolhida e usa ElevenLabs, Gemini, xAI e OpenAI como alternativas. A troca acontece apenas antes de conectar. Uma conversa já iniciada não troca de provedor.
 - **Conversa do assistente e Organizar registros, economia primeiro:** Gemini, Groq, Mistral, DeepSeek, xAI e os modelos gratuitos (`:free`) do OpenRouter; OpenAI e Anthropic ficam por último. Cada empresa escolhe o próprio modelo pela lista da chave. Serviços compatíveis e Google Cloud entram apenas como conexão principal. ElevenLabs nunca responde texto.
 - **Áudios normais** (mensagens de voz no Telegram e no WhatsApp): a transcrição segue a mesma ordem e aceita Gemini e o Whisper da Groq (`whisper-large-v3-turbo`, com cota gratuita) ou da OpenAI (`gpt-4o-mini-transcribe`). A voz ao vivo continua separada.
 
-No automático, cota esgotada, chave recusada ou serviço fora do ar passam para a próxima opção. Nas outras políticas, cota e faturamento continuam interrompendo o pedido. Os dados do pedido podem chegar a qualquer empresa com chave ligada; desligue em **Conexões e chaves** as que não devem ser usadas.
+No automático, cota esgotada passa para outra empresa, sem insistir em outras chaves da empresa esgotada. Nas outras políticas, cota e faturamento interrompem o pedido. O limite global da Jornada interrompe todas as opções e informa quando tentar novamente. APIs pessoais usam limites próprios por conta; APIs do proprietário ou da base também consomem o orçamento global. Os dados podem chegar às empresas elegíveis da rota: pause as conexões que não devem ser usadas.
 
 ### Reservas e modelos atualizados
 

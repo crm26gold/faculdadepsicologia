@@ -32,10 +32,12 @@ flowchart LR
 
 4. Volte ao painel. No WhatsApp Business do **número temporário**, abra **Aparelhos conectados › Conectar um aparelho** e escaneie o QR mostrado na Jornada.
 5. Quando aparecer **WhatsApp conectado**, toque em **Gerar código de vínculo**. Do **seu outro telefone**, envie `/vincular CODIGO` para o número temporário. O código expira em 15 minutos e só vale uma vez. A ponte não é dona da conta.
-6. Em **Inteligência e voz**, selecione uma conexão Google compatível e habilitada para entender áudio e fotos. `auto:rapido` consulta os modelos disponíveis nessa credencial; também é possível informar um modelo específico. A resposta usa a tarefa **Conversa do assistente** no gestor de IA, que pode ser de outra empresa. Voz: Antônio ou Francisca, em português brasileiro e ritmo mais calmo.
+6. Em **Inteligência e voz**, selecione uma conexão habilitada para transcrição: Groq (`whisper-large-v3-turbo`), OpenAI (`gpt-4o-mini-transcribe`) ou Google compatível. Gemini exige declaração de API paga em Minhas chaves de IA. Para fotos, use uma rota de texto com visão. A resposta usa a tarefa **Conversa do assistente**, que pode ser de outra empresa. Voz: Antônio ou Francisca, em português brasileiro.
 7. Envie um áudio de teste: “Crie uma anotação chamada teste do WhatsApp com o texto conexão validada”. Confira no Caderno e ouça a resposta. Depois teste consulta e exclusão com confirmação. Esse teste real é o critério de aceite; testes de código ou somente QR não o substituem.
 
 Para iniciar novamente depois da instalação: `npm run whatsapp:start`. Mantenha o terminal e o computador ligados. Para serviço 24 horas, hospede **somente a ponte** em um servidor persistente; esta entrega não compra servidor nem reativa o faturamento Google Cloud.
+
+Outras pessoas vinculam o próprio telefone em **Meu espaço › WhatsApp da minha conta**, sem acesso ao QR ou à credencial da ponte. A ponte precisa estar online; o código vale 15 minutos. Cada conta usa suas APIs pessoais ou a base de texto expressamente autorizada. Desvincular cancela pedidos ainda aguardando e preserva registros já confirmados.
 
 ## Controles e limites
 

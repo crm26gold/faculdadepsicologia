@@ -10,12 +10,27 @@ registerHooks({ resolve: (specifier, context, next) => specifier === 'server-onl
 process.env.AI_KEYS_SECRET ??= randomBytes(32).toString('base64');
 
 function fakeDatabase(options: { canWrite: boolean }) {
-  const state = { workspace: { data: demoWorkspace(dateKey()) as unknown, revision: 3 }, saves: 0, calls: [] as string[] };
+  const state = { workspace: { data: demoWorkspace(dateKey()) as unknown, revision: 3 }, saves: 0, calls: [] as string[], pending: [] as unknown[], receipts: new Map<string, { digest: unknown; outcome: any }>() };
   const db = { rpc: async (name: string, args: Record<string, unknown>) => {
     state.calls.push(name);
     assert.match(String(args.token), /^[a-f0-9]{64}$/, 'only the hash reaches the database');
     if (name === 'mcp_auth') return { data: { token_id: 'token-1', can_write: options.canWrite }, error: null };
     if (name === 'mcp_context') return { data: { can_write: options.canWrite, workspace: state.workspace }, error: null };
+    if (name === 'mcp_request_result') {
+      const prior = state.receipts.get(String(args.request_id));
+      return prior && prior.digest !== args.payload_hash ? { data: null, error: { code: 'PT409' } } : { data: prior?.outcome ?? null, error: null };
+    }
+    if (name === 'mcp_commit') {
+      const prior = state.receipts.get(String(args.request_id));
+      if (prior) return prior.digest === args.payload_hash ? { data: prior.outcome, error: null } : { data: null, error: { code: 'PT409' } };
+      if (args.expected_revision !== state.workspace.revision) return { data: null, error: { code: 'PT409' } };
+      if (args.next_data) { state.workspace = { data: args.next_data, revision: state.workspace.revision + 1 }; state.saves++; }
+      const outcome = args.outcome as any;
+      state.pending.push(...outcome.pending);
+      const receipt = { ...outcome, conversation_id: outcome.pending.length ? '00000000-0000-4000-8000-000000000001' : null };
+      state.receipts.set(String(args.request_id), { digest: args.payload_hash, outcome: receipt });
+      return { data: receipt, error: null };
+    }
     if (name === 'mcp_save') {
       if (args.expected_revision !== state.workspace.revision) return { data: null, error: { code: 'PT409' } };
       state.workspace = { data: args.next_data, revision: state.workspace.revision + 1 }; state.saves++;
@@ -59,6 +74,8 @@ test('servidor MCP: aperto de mão, catálogo, consulta e registro validado na v
   assert.ok(JSON.stringify(state.workspace.data).includes('Dentista via MCP'));
   const removal = await call(legacy(5, 'tools/call', { name: 'registrar_na_jornada', arguments: { acoes: [{ type: 'excluir', entity: 'compromisso', target: 'Dentista via MCP' }] } }));
   assert.equal(JSON.parse(removal.result.content[0].text).pendente_no_aplicativo.length, 1, 'exclusão fica para o aplicativo');
+  assert.equal(state.pending.length, 1, 'o pedido e o fingerprint são guardados para confirmar no aplicativo');
+  assert.ok((state.pending[0] as { fingerprint?: string }).fingerprint);
   assert.equal(state.saves, 1);
   const invalid = await call(legacy(6, 'tools/call', { name: 'registrar_na_jornada', arguments: { acoes: [{ type: 'financeiro', flow: 'expense', description: 'x', amount: -5, date: dateKey() }] } }));
   assert.equal(invalid.result?.isError ?? !!invalid.error, true);
@@ -77,6 +94,22 @@ test('servidor MCP: chave só de leitura não grava; chave ausente ou de outro f
   for (const header of [null, 'Bearer ', 'Bearer sk-outra-empresa-0123456789abcdefghij', 'Basic jp_teste']) {
     await assert.rejects(mcpAuthenticate(db as never, header), (error: unknown) => error instanceof McpAccessError && error.status === 401);
   }
+});
+
+test('MCP reapresenta o recibo após desconexão e rejeita reutilizar o ID para outro pedido', async () => {
+  const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
+  const { db, state } = fakeDatabase({ canWrite: true });
+  const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const request_id = '00000000-0000-4000-8000-000000000011';
+  const call = async (text: string) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/call', {
+    name: 'registrar_na_jornada', arguments: { request_id, acoes: [{ type: 'anotacao', text }] },
+  })));
+  const first = await call('Registro único');
+  const replay = await call('Registro único');
+  assert.equal(state.saves, 1);
+  assert.deepEqual(first.result, replay.result);
+  assert.equal((await call('Outro registro')).result.isError, true);
+  assert.equal(state.saves, 1);
 });
 
 test('servidor MCP: clientes da versão 2026-07-28 listam e consultam sem aperto de mão', async () => {

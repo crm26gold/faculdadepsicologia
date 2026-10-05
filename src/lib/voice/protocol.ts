@@ -1,6 +1,6 @@
 export const LIVE_SOCKET = 'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained';
 export const MAX_CALL_SECONDS = 20 * 60;
-export type LiveCredentials = { provider?: 'gemini' | 'openai' | 'elevenlabs'; token: string; model: string; expiresAt: string; maxSeconds: number; variables?: Record<string, string>; fallback?: boolean };
+export type LiveCredentials = { provider?: 'gemini' | 'openai' | 'elevenlabs' | 'xai'; token: string; model: string; expiresAt: string; maxSeconds: number; variables?: Record<string, string>; fallback?: boolean };
 export type VoiceTool = { id: string; name: string; args: unknown };
 export type VoiceTranscript = { text: string; startedAt: number };
 export type CallState = 'idle' | 'permission' | 'connecting' | 'listening' | 'speaking' | 'working' | 'reconnecting' | 'ended' | 'error';

@@ -491,3 +491,49 @@ test('automático: se o ElevenLabs recusa antes de conectar, a chamada segue pel
   await call.getByRole('button', { name: 'Encerrar chamada', exact: true }).click();
   await expect(call).toContainText('Chamada encerrada');
 });
+
+test('Grok usa token temporário, espera todas as ferramentas e acompanha interrupções', async ({ page }) => {
+  const state=await fixture(page);const received:Record<string,any>[]=[];let xai:WebSocketRoute;
+  await page.route('**/api/ai/live',route=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data:{provider:'xai',token:'synthetic-ephemeral-token',model:'grok-voice-latest',expiresAt:new Date(Date.now()+300_000).toISOString(),maxSeconds:1200}})}));
+  await page.routeWebSocket(/api\.x\.ai/,socket=>{xai=socket;socket.onMessage(raw=>{const message=JSON.parse(String(raw));received.push(message);if(message.type==='session.update')socket.send(JSON.stringify({type:'session.updated'}));});});
+  const call=await start(page);
+  await expect.poll(()=>received.some(message=>message.type==='input_audio_buffer.append')).toBe(true);
+  expect(received.find(message=>message.type==='session.update')!.session.audio.input.format.rate).toBe(16000);
+  const greetingRequests=received.filter(message=>message.type==='response.create').length;
+  let release:()=>void=()=>{};state.delaySave=()=>new Promise(resolve=>{release=resolve;});
+  xai!.send(JSON.stringify({type:'input_audio_buffer.speech_started'}));
+  xai!.send(JSON.stringify({type:'conversation.item.input_audio_transcription.completed',item_id:'utterance-1',transcript:'Agende um dentista hoje às 15h'}));
+  xai!.send(JSON.stringify({type:'response.created',response:{id:'batch-1'}}));
+  xai!.send(JSON.stringify({type:'response.function_call_arguments.done',response_id:'batch-1',call_id:'xai-tool-1',name:'organizar_jornada',arguments:JSON.stringify({instruction:'Agende um dentista hoje às 15h'})}));
+  xai!.send(JSON.stringify({type:'response.function_call_arguments.done',response_id:'batch-1',call_id:'xai-tool-2',name:'consultar_jornada',arguments:JSON.stringify({section:'agenda'})}));
+  xai!.send(JSON.stringify({type:'response.done',response:{id:'batch-1',status:'completed'}}));
+  await expect.poll(()=>state.saves.length).toBe(1);
+  expect(received.filter(message=>message.type==='response.create')).toHaveLength(greetingRequests);
+  release();state.delaySave=undefined;
+  await expect.poll(()=>received.filter(message=>message.item?.type==='function_call_output').length).toBe(2);
+  await expect.poll(()=>received.filter(message=>message.type==='response.create').length).toBe(greetingRequests+1);
+  expect(state.workspace.tasks.filter(item=>item.title==='Dentista por voz')).toHaveLength(1);
+  xai!.send(JSON.stringify({type:'response.created',response:{id:'spoken-1'}}));
+  xai!.send(JSON.stringify({type:'response.output_audio.delta',response_id:'spoken-1',item_id:'audio-1',delta:Buffer.alloc(64_000).toString('base64')}));
+  await expect(call).toContainText('Pode me interromper a qualquer momento');
+  await call.getByRole('button',{name:'Interromper fala do assistente',exact:true}).click();
+  await expect.poll(()=>received.some(message=>message.type==='response.cancel')).toBe(true);
+  await expect.poll(()=>received.some(message=>message.type==='conversation.item.truncate'&&message.item_id==='audio-1')).toBe(true);
+  xai!.send(JSON.stringify({type:'response.output_audio.delta',response_id:'spoken-1',item_id:'audio-1',delta:Buffer.alloc(64_000).toString('base64')}));
+  await expect(call).toContainText('Pode falar. Estou ouvindo.');
+  await call.getByRole('button',{name:'Encerrar chamada',exact:true}).click();
+});
+
+test('Grok recusado antes de configurar usa a reserva autorizada',async({page})=>{
+  await fixture(page);const skips:string[][]=[];
+  await page.route('**/api/ai/live',route=>{
+    const skip=route.request().postDataJSON().skip??[];skips.push(skip);
+    const data=skip.includes('xai')?{provider:'gemini',token:'synthetic',model:'gemini-test-live',maxSeconds:1200,expiresAt:new Date(Date.now()+300_000).toISOString()}
+      :{provider:'xai',token:'synthetic-ephemeral-token',model:'grok-voice-latest',maxSeconds:1200,expiresAt:new Date(Date.now()+300_000).toISOString(),fallback:true};
+    return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,data})});
+  });
+  await page.routeWebSocket(/api\.x\.ai/,socket=>socket.onMessage(()=>socket.send(JSON.stringify({type:'error',error:{code:'authentication_error',message:'secret private transcript'}}))));
+  const call=await start(page);expect(skips).toEqual([[],['xai']]);
+  await expect(call.getByRole('alert')).not.toContainText('secret private');
+  await call.getByRole('button',{name:'Encerrar chamada',exact:true}).click();
+});

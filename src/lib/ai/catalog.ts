@@ -3,6 +3,11 @@ import { z } from 'zod';
 // Everything the panel can switch without code: which provider, which model, for which task.
 export const aiProviderIds = ['gemini', 'vertex', 'google_cloud', 'openai', 'anthropic', 'deepseek', 'xai', 'mistral', 'groq', 'openrouter', 'compatible', 'elevenlabs'] as const;
 export type AiProviderId = typeof aiProviderIds[number];
+export const personalProviderIds = ['gemini', 'groq', 'mistral', 'deepseek', 'xai', 'openrouter', 'openai', 'anthropic'] as const;
+export type PersonalProviderId = typeof personalProviderIds[number];
+export type AiMyKeysState = { available: boolean; secretReady: boolean; isOwner: boolean; baseEnabled: boolean;
+  keys: { provider: PersonalProviderId; enabled: boolean; key_hint: string; updated_at: string; privacy_basis: 'paid' | 'no_training' | null }[];
+  baseSources?: { provider: AiProviderId; connection_id: string | null; label: string; privacy_basis: 'paid' | 'no_training' | null }[] };
 export const aiTaskIds = ['assistente', 'organizar', 'voz'] as const;
 export type AiTaskId = typeof aiTaskIds[number];
 
@@ -19,7 +24,7 @@ export const aiCatalog: Record<AiProviderId, ProviderInfo> = {
   anthropic: { name: 'Anthropic (Claude)', keyLabel: 'Chave de API da Anthropic', fields: [], models: [],
     help: 'console.anthropic.com › API Keys. Cobrada por uso, separada da assinatura do Claude.' },
   deepseek: { name: 'DeepSeek', keyLabel: 'Chave de API DeepSeek', fields: [], models: [], base: 'https://api.deepseek.com', docs: 'https://api-docs.deepseek.com/', help: 'API oficial DeepSeek. A lista de modelos vem da sua chave, sem depender de nomes antigos. Modelos de texto; imagens e voz exigem outra conexão.' },
-  xai: { name: 'xAI · Grok', keyLabel: 'Chave de API xAI', fields: [], models: [], base: 'https://api.x.ai/v1', docs: 'https://docs.x.ai/developers/rest-api-reference/inference/responses', help: 'API oficial xAI com Responses. A assinatura do app Grok não ativa esta API. Consulte os modelos da sua conta e teste antes de usar.' },
+  xai: { name: 'xAI · Grok', keyLabel: 'Chave de API xAI', fields: [], models: [], base: 'https://api.x.ai/v1', docs: 'https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech', help: 'Texto e Chamada ao vivo pela API oficial xAI. Na voz, use grok-voice-latest: token temporário, áudio e ferramentas da Jornada. A assinatura do app Grok não ativa a API. Confira os créditos e teste o acesso antes de usar.' },
   mistral: { name: 'Mistral AI', keyLabel: 'Chave de API Mistral', fields: [], models: [], base: 'https://api.mistral.ai/v1', docs: 'https://docs.mistral.ai/api/endpoint/models', help: 'Conversa e modelos multimodais da Mistral. OCR e geração de áudio são produtos com contratos próprios; esta conexão não os ativa automaticamente.' },
   groq: { name: 'Groq · inferência rápida', keyLabel: 'Chave de API Groq', fields: [], models: [], base: 'https://api.groq.com/openai/v1', docs: 'https://console.groq.com/docs/overview', help: 'Groq executa modelos de diferentes famílias. Consulte os modelos atuais da sua chave. Transcrição é uma API separada; não equivale a uma chamada ao vivo.' },
   openrouter: { name: 'OpenRouter · múltiplos modelos', keyLabel: 'Chave de API OpenRouter', fields: [], models: [], base: 'https://openrouter.ai/api/v1', docs: 'https://openrouter.ai/docs/quickstart', help: 'Acesso a modelos de várias empresas por um gateway. As solicitações passam pelo OpenRouter e pelo provedor escolhido; avalie privacidade e tarifa antes de autorizar.' },
@@ -30,10 +35,11 @@ export const aiCatalog: Record<AiProviderId, ProviderInfo> = {
 };
 /** Providers that only carry the live call; they never answer text tasks. */
 export const voiceOnlyProviders: AiProviderId[] = ['elevenlabs'];
-export const liveProviders: AiProviderId[] = ['gemini', 'openai', 'elevenlabs'];
+export const liveProviders: AiProviderId[] = ['gemini', 'openai', 'elevenlabs', 'xai'];
 /** Mirrors private.ai_live_model_allowed: ElevenLabs stores the agent's LLM, not a live model. */
 export function liveModelAllowed(provider: string, model: string) {
   if (provider === 'openai') return model === 'gpt-live-1';
+  if (provider === 'xai') return ['auto:rapido','grok-voice-latest','grok-voice-think-fast-2.0'].includes(model);
   if (provider === 'gemini') return model === 'auto:rapido' || /^gemini-[a-z0-9.-]*live[a-z0-9.-]*$/.test(model);
   if (provider === 'elevenlabs') return model === 'auto:rapido' || (/^[a-z0-9][a-z0-9.@_-]{1,79}$/.test(model) && model !== 'custom-llm');
   return false;
@@ -62,6 +68,7 @@ export const aiAdminAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('save_connection'), id: z.uuid().nullable(), provider: z.enum(aiProviderIds), label: text(60).min(1), enabled: z.boolean(), position: z.number().int().min(1).max(5), key: z.string().max(12_000).nullable(), base_url: endpoint.optional(), gcp_project: text(100).optional(), gcp_location: region.optional() }),
   z.object({ action: z.literal('save_route'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), model: text(120).min(1), enabled: z.boolean(), routing_mode: z.enum(['fixed', 'fallback', 'auto']), fallbacks: z.array(z.object({ connection_id: z.uuid(), model: text(120).min(1) })).max(2) }),
   z.object({ action: z.literal('remove_connection'), id: z.uuid() }),
+  z.object({ action: z.literal('remove_provider'), provider: z.enum(aiProviderIds) }),
   z.object({ action: z.literal('test_live') }),
   z.object({ action: z.literal('test_task'), task: z.enum(['assistente','organizar']) }),
   z.object({ action: z.literal('save_provider'), provider: z.enum(aiProviderIds), enabled: z.boolean(), label: text(60), base_url: endpoint,
@@ -71,3 +78,12 @@ export const aiAdminAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('models'), provider: z.enum(aiProviderIds), connection_id: z.uuid().optional() }),
 ]);
 export const assistantRequest = z.object({ message: z.string().trim().min(1).max(2000) });
+
+export const aiMyKeyAction = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('save'), provider: z.enum(personalProviderIds), key: z.string().trim().min(1).max(12_000), enabled: z.boolean(), privacy_basis: z.enum(['paid','no_training']).nullable() }).refine(value => !value.enabled || (value.provider === 'gemini' ? value.privacy_basis === 'paid' : !!value.privacy_basis), 'Antes de ligar, confirme as condições da API. Gemini exige faturamento pago habilitado.'),
+  z.object({ action: z.literal('test'), provider: z.enum(personalProviderIds) }),
+  z.object({ action: z.literal('set'), provider: z.enum(personalProviderIds), enabled: z.boolean() }),
+  z.object({ action: z.literal('remove'), provider: z.enum(personalProviderIds) }),
+  z.object({ action: z.literal('set_base'), enabled: z.boolean() }),
+  z.object({ action: z.literal('set_base_source'), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), privacy_basis: z.enum(['paid', 'no_training']).nullable() }),
+]);

@@ -1,8 +1,8 @@
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { assistantRequest } from '@/lib/ai/catalog';
-import { runtimeConfig } from '@/lib/ai/runtime';
+import { runtimeConfig, runtimeForSession } from '@/lib/ai/runtime';
 import { AiError, generateResilient } from '@/lib/ai/providers';
-import { requestBudget, retryBudget } from '@/lib/ai/budget';
+import { beforeAttemptBudget, BudgetLimitError } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,17 +16,16 @@ export async function POST(request: Request) {
   const input = await writeRequest(request, assistantRequest, 8_000);
   if (input instanceof Response) return input;
   const { session, body } = input;
-  const { data, error } = await session.client.rpc('ai_runtime', { task_id: 'assistente' });
+  const { data, error } = await runtimeForSession(session, 'assistente');
   if (error) return dbError(error);
   if (!data) return reply({ ok: true, data: { configured: false } });
-  const limited = await requestBudget(session, 'ai');
-  if (limited) return limited;
   try {
     const config = runtimeConfig(data);
     const { text } = await generateResilient(config,
-      { system, prompt: body.message, maxTokens: 400, beforeRetry: retryBudget(session, 'ai') });
+      { system, prompt: body.message, maxTokens: 400, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
     return reply({ ok: true, data: { configured: true, reply: text.slice(0, 1200) } });
   } catch (cause) {
+    if (cause instanceof BudgetLimitError) return cause.response;
     return reply({ error: cause instanceof AiError ? cause.message : 'A inteligência artificial não respondeu agora. Sua mensagem ficou guardada.' }, 502);
   }
 }

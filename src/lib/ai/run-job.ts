@@ -2,9 +2,9 @@ import 'server-only';
 import { jobInputSchema, type JobOutcome } from '../assistant-jobs';
 import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand } from '../commands';
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, parseWorkspace } from '../workspace';
-import { runtimeConfig } from './runtime';
+import { runtimeConfig, runtimeForSession } from './runtime';
 import { AiError, generateResilient } from './providers';
-import { requestBudget, retryBudget } from './budget';
+import { beforeAttemptBudget } from './budget';
 import type { userSession } from '../supabase/server';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
@@ -14,10 +14,8 @@ export async function runAssistantJob(session: Session, id: string) {
   if (claimed.error || !claimed.data) return;
   try {
     const input = jobInputSchema.parse(claimed.data.input);
-    const runtime = await session.client.rpc('ai_runtime', { task_id: 'assistente' });
+    const runtime = await runtimeForSession(session, 'assistente');
     if (runtime.error || !runtime.data) throw new Error('A Conversa do assistente está desativada. O pedido continua guardado.');
-    const limited = await requestBudget(session, 'ai');
-    if (limited) throw new Error((await limited.json()).error);
     const load = async () => {
       const result = await session.client.from('personal_workspaces').select('data,revision').eq('owner_id', session.user.id).maybeSingle();
       if (result.error) throw new Error('Não consegui abrir seu espaço. Nenhuma alteração foi feita.');
@@ -26,7 +24,7 @@ export async function runAssistantJob(session: Session, id: string) {
     let workspace = await load();
     const config = runtimeConfig(runtime.data);
     const result = await generateResilient(config, { system: `${commandSystem}\nContexto atual da pessoa:\n${commandContext(workspace.data, input.today, 20_000, input.message)}`,
-      prompt: input.message, history: input.history, maxTokens: 2400, json: true, signal: AbortSignal.timeout(45_000), beforeRetry: retryBudget(session, 'ai') });
+      prompt: input.message, history: input.history, maxTokens: 2400, json: true, signal: AbortSignal.timeout(45_000), beforeAttempt: beforeAttemptBudget(session, 'ai') });
     const plan = parseCommand(result.text);
     // Apply the same validated plan on fresh data on a revision conflict, without generating a second plan.
     for (let attempt = 0; attempt < 2; attempt++) {

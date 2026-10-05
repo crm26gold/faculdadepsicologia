@@ -4,11 +4,13 @@ import { aiSecretReady, keyHint, openKey, sealKey } from '@/lib/ai/crypto';
 import { AiError, generate, generateResilient, refreshModels, resolveModel, type AiConfig } from '@/lib/ai/providers';
 import { autoCapable, autoModes, pickModel, sortModels, type AutoMode } from '@/lib/ai/models';
 import type { userSession } from '@/lib/supabase/server';
-import { requestBudget, retryBudget } from '@/lib/ai/budget';
+import { requestBudget, beforeAttemptBudget, BudgetLimitError } from '@/lib/ai/budget';
 import { runtimeConfig } from '@/lib/ai/runtime';
-import { prepareGeminiSession, LiveSessionError } from '@/lib/voice/gemini-session';
+import { LiveSessionError } from '@/lib/voice/gemini-session';
 import { checkGeminiSession } from '@/lib/voice/check-session';
-import { checkElevenLabsSession, ElevenLabsError, prepareElevenLabsSession } from '@/lib/voice/elevenlabs';
+import { checkElevenLabsSession, ElevenLabsError } from '@/lib/voice/elevenlabs';
+import { prepareLiveSession } from '@/lib/voice/live-session';
+import { checkXaiSession, XaiSessionError } from '@/lib/voice/xai-session';
 import { credentialIssue } from '@/lib/ai/credentials';
 import { discoverMcp } from '@/lib/integrations/mcp';
 
@@ -44,12 +46,11 @@ export async function POST(request: Request) {
       const selected = await session.client.rpc('ai_runtime',{ task_id:body.task });
       if(selected.error) return dbError(selected.error);
       if(!selected.data) return reply({ error:'Salve uma tarefa ligada com pelo menos uma conexão disponível.' },409);
-      const limited = await requestBudget(session,'ai');if(limited) return limited;
       const started=Date.now();
       try {
-        const result=await generateResilient(runtimeConfig(selected.data),{ system:'Teste da rota da Jornada Plena. Responda em português, em no máximo oito palavras.',prompt:'Confirme que a conexão funcionou.',maxTokens:60,signal:AbortSignal.any([request.signal,AbortSignal.timeout(35_000)]),beforeRetry:retryBudget(session,'ai') });
+        const result=await generateResilient(runtimeConfig(selected.data),{ system:'Teste da rota da Jornada Plena. Responda em português, em no máximo oito palavras.',prompt:'Confirme que a conexão funcionou.',maxTokens:60,signal:AbortSignal.any([request.signal,AbortSignal.timeout(35_000)]),beforeAttempt:beforeAttemptBudget(session,'ai') });
         return reply({ok:true,data:{...result,text:result.text.slice(0,300),ms:Date.now()-started}});
-      } catch(cause) {return reply({error:cause instanceof AiError ? cause.message : 'Não consegui concluir o teste da rota. Confira as conexões e os limites.'},502);}
+      } catch(cause) {if(cause instanceof BudgetLimitError) return cause.response; return reply({error:cause instanceof AiError ? cause.message : 'Não consegui concluir o teste da rota. Confira as conexões e os limites.'},502);}
     }
     case 'save_connector': {
       const key = body.key?.trim();
@@ -93,26 +94,45 @@ export async function POST(request: Request) {
       const result = await session.client.rpc('ai_remove_connection', { connection_id: body.id });
       return result.error ? dbError(result.error) : reply({ ok: true, data: null });
     }
+    case 'remove_provider': {
+      const result = await session.client.rpc('ai_remove_provider', { provider_id: body.provider });
+      if (['PGRST202', '42883'].includes(result.error?.code ?? '')) return reply({ error: 'A remoção segura de chaves aguarda a atualização do banco. Sua chave foi mantida.' }, 503);
+      return result.error ? dbError(result.error) : reply({ ok: true, data: null });
+    }
     case 'test_live': {
       // ai_runtime checks the owner in the database, including for a crafted HTTP request.
       const selected = await session.client.rpc('ai_runtime', { task_id: 'voz' });
       if (selected.error) return dbError(selected.error);
       if (!selected.data) return reply({ error: 'Configure e ligue a tarefa Chamada ao vivo antes de testar.' }, 409);
-      if (!['gemini', 'elevenlabs'].includes(selected.data.provider)) return reply({ error: 'Este diagnóstico testa Gemini e ElevenLabs. Para OpenAI, inicie uma chamada no Assistente.' }, 409);
-      const limited = await requestBudget(session, 'live'); if (limited) return limited;
+      if (!['gemini', 'elevenlabs', 'xai'].includes(selected.data.provider)) return reply({ error: 'Este diagnóstico testa Gemini, ElevenLabs e xAI. Para OpenAI, inicie uma chamada no Assistente.' }, 409);
       const reference = crypto.randomUUID().slice(0, 8);
       const started = Date.now();
+      if (selected.data.provider === 'xai') {
+        try {
+          const { credentials } = await prepareLiveSession(runtimeConfig(selected.data), 'Teste de conexão da Jornada, sem dados pessoais.', [], {
+            signal: AbortSignal.any([request.signal, AbortSignal.timeout(35_000)]), beforeAttempt: beforeAttemptBudget(session,'live'),
+          });
+          if (credentials.provider !== 'xai') return reply({ error: 'A rota selecionou outro provedor. Teste a chamada no Assistente.' },409);
+          const result = await checkXaiSession(credentials,AbortSignal.any([request.signal,AbortSignal.timeout(16_000)]));
+          return reply({ok:true,data:{...result,reference,model:credentials.model,ms:Date.now()-started,message:result.connected ? 'A xAI aceitou a conexão e a configuração de voz. Agora teste seu microfone no Assistente.' : 'A autorização foi criada, mas a conexão de voz xAI não foi aceita. Confira acesso e créditos da API.'}});
+        } catch(cause) {
+          if(cause instanceof BudgetLimitError) return cause.response;
+          return reply({ok:true,data:{connected:false,reference,stage:cause instanceof XaiSessionError ? cause.stage : 'preparation',diagnostic:cause instanceof XaiSessionError ? cause.diagnostic : undefined,ms:Date.now()-started,message:cause instanceof AiError ? cause.message : 'Não consegui preparar o diagnóstico xAI. Confira o cofre e a configuração de voz.'}});
+        }
+      }
       if (selected.data.provider === 'elevenlabs') {
         try {
           // Prepares (or updates) the agent, signs one conversation and closes it right after the metadata.
-          const credentials = await prepareElevenLabsSession(runtimeConfig(selected.data), 'Teste de conexão da Jornada, sem dados pessoais.', [], {
-            signal: AbortSignal.any([request.signal, AbortSignal.timeout(40_000)]), beforeRetry: retryBudget(session, 'live'),
+          const { credentials } = await prepareLiveSession(runtimeConfig(selected.data), 'Teste de conexão da Jornada, sem dados pessoais.', [], {
+            signal: AbortSignal.any([request.signal, AbortSignal.timeout(40_000)]), beforeAttempt: beforeAttemptBudget(session, 'live'),
           });
-          const result = await checkElevenLabsSession(credentials, AbortSignal.timeout(15_000));
+          if (credentials.provider !== 'elevenlabs') return reply({ error: 'A rota selecionou outro provedor. Teste a chamada no Assistente.' },409);
+          const result = await checkElevenLabsSession({ ...credentials, variables: credentials.variables ?? {} }, AbortSignal.timeout(15_000));
           console.info('[voice-check]', { reference, provider: 'elevenlabs', stage: result.stage, connected: result.connected, code: result.code });
           return reply({ ok: true, data: { ...result, reference, model: credentials.model, ms: Date.now() - started,
             message: result.connected ? 'O ElevenLabs preparou o agente “Jornada Plena · voz” e aceitou a conversa. Agora teste o microfone no Assistente.' : 'O agente foi preparado, mas a conversa não foi aceita. Confira os créditos e o agente no ElevenLabs.' } });
         } catch (cause) {
+          if (cause instanceof BudgetLimitError) return cause.response;
           const failure = cause instanceof ElevenLabsError ? cause : null;
           console.warn('[voice-check]', { reference, provider: 'elevenlabs', stage: failure?.stage ?? 'preparation', ...failure?.diagnostic });
           return reply({ ok: true, data: { connected: false, stage: failure?.stage ?? 'preparation', diagnostic: failure ? { upstreamStatus: failure.diagnostic.upstreamStatus, reason: failure.diagnostic.detail, invalidFields: failure.diagnostic.fields } : undefined,
@@ -120,14 +140,16 @@ export async function POST(request: Request) {
         }
       }
       try {
-        const credentials = await prepareGeminiSession(runtimeConfig(selected.data), 'Teste de conexão da Jornada, sem dados pessoais.', [], {
-          signal: AbortSignal.timeout(35_000), beforeRetry: retryBudget(session, 'live'),
+        const { credentials } = await prepareLiveSession(runtimeConfig(selected.data), 'Teste de conexão da Jornada, sem dados pessoais.', [], {
+          signal: AbortSignal.any([request.signal, AbortSignal.timeout(35_000)]), beforeAttempt: beforeAttemptBudget(session, 'live'),
         });
+        if (credentials.provider !== 'gemini') return reply({ error: 'A rota selecionou outro provedor. Teste a chamada no Assistente.' },409);
         const result = await checkGeminiSession(credentials, AbortSignal.timeout(16_000));
         console.info('[voice-check]', { reference, stage: result.stage, connected: result.connected, diagnostic: result.diagnostic });
         return reply({ ok: true, data: { ...result, reference, model: credentials.model, ms: Date.now() - started,
           message: result.connected ? 'O Gemini aceitou a autorização e a configuração. Agora teste o microfone no Assistente.' : 'A autorização foi criada, mas a conexão Live não foi aceita. O diagnóstico identifica a etapa.' } });
       } catch (cause) {
+        if (cause instanceof BudgetLimitError) return cause.response;
         const stage = cause instanceof LiveSessionError ? cause.stage : 'preparation';
         const diagnostic = cause instanceof LiveSessionError ? cause.diagnostic : undefined;
         console.warn('[voice-check]', { reference, stage, diagnostic });
@@ -150,7 +172,7 @@ export async function POST(request: Request) {
     }
     case 'save_task': {
       if (body.task === 'voz' && body.provider && !liveModelAllowed(body.provider, body.model)) {
-        return reply({ error: 'Chamada ao vivo: escolha Gemini com modelo Live, OpenAI com gpt-live-1 ou ElevenLabs com um modelo do agente.' }, 400);
+        return reply({ error: 'Chamada ao vivo: escolha Gemini com modelo Live, OpenAI com gpt-live-1, xAI com grok-voice-latest ou ElevenLabs com um modelo do agente.' }, 400);
       }
       if (body.task !== 'voz' && body.provider && voiceOnlyProviders.includes(body.provider)) return reply({ error: 'ElevenLabs atende somente a Chamada ao vivo.' }, 400);
       const { error } = await session.client.rpc('ai_save_task', { task_id: body.task, next_provider: body.provider, next_model: body.model, next_enabled: body.enabled });

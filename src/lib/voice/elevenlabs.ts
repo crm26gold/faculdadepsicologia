@@ -15,6 +15,7 @@ export type ElevenLabsDiagnostic = { upstreamStatus: number; detail?: string; fi
 export class ElevenLabsError extends AiError {
   constructor(readonly stage: Stage, readonly diagnostic: ElevenLabsDiagnostic, message: string, status: number) { super(message, status); }
   get doNotRetry() { return ['quota_exceeded', 'payment_required', 'detected_unusual_activity'].includes(this.diagnostic.detail ?? ''); }
+  get retryOnProviderChange() { return ['quota_exceeded', 'payment_required'].includes(this.diagnostic.detail ?? ''); }
 }
 
 // ElevenLabs errors may echo request content. Keep only a status token and validation field paths.
@@ -121,14 +122,14 @@ export async function ensureElevenLabsAgent(key: string, model: string, signal: 
 }
 
 async function signedUrl(key: string, agentId: string, signal: AbortSignal) {
-  const body = await request<{ signed_url?: unknown }>(key, `/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}`, 'signed_url', signal);
+  const body = await request<{ signed_url?: unknown }>(key, `/v1/convai/conversation/get-signed-url?agent_id=${encodeURIComponent(agentId)}&include_conversation_id=true`, 'signed_url', signal);
   const url = elevenLabsSocket(body.signed_url);
   if (!url) throw new ElevenLabsError('signed_url', { upstreamStatus: 200 }, 'O ElevenLabs devolveu um endereço de conversa inesperado.', 502);
   return url;
 }
 
 /** The browser receives a single-use signed URL and prompt variables, never the API key. */
-export async function prepareElevenLabsSession(config: AiConfig, context: string, history: { role: string; text: string }[], options: { signal: AbortSignal; beforeRetry?: () => Promise<void> }) {
+export async function prepareElevenLabsSession(config: AiConfig, context: string, history: { role: string; text: string }[], options: { signal: AbortSignal; beforeRetry?: () => Promise<void>; beforeAttempt?: (candidate: AiConfig, index: number) => Promise<void> }) {
   const candidates = [config, ...(config.alternatives ?? []).filter(row => row.provider === 'elevenlabs').slice(0, 2)];
   return runAiAttempts(candidates, async connection => {
     let agent = await ensureElevenLabsAgent(connection.key, connection.model, options.signal);

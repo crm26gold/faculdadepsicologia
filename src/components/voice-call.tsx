@@ -157,7 +157,7 @@ export function VoiceCall(props: Props) {
         <p>Fale naturalmente. Você pode interromper e mudar de assunto.</p>
       </> : <>
         <button type="button" className="button primary voice-start" disabled={!props.available || props.blocked} onClick={start}>{state === 'error' ? <RotateCcw size={20} aria-hidden="true" /> : <Phone size={20} aria-hidden="true" />}{state === 'idle' ? 'Iniciar chamada' : 'Conversar novamente'}</button>
-        <p>Ao iniciar, seu áudio será enviado ao provedor escolhido em Chamada ao vivo. A Jornada não guarda a gravação. A transcrição fica nesta conversa. Cada chamada dura até 20 minutos.</p>
+        <p>Ao iniciar, seu áudio será enviado ao provedor escolhido em Chamada ao vivo. A Jornada não guarda a gravação; a transcrição fica nesta conversa. Cada chamada dura até 20 minutos. <a href="/privacidade" target="_blank" rel="noopener noreferrer">Veja o tratamento dos dados pelos provedores.</a></p>
       </>}
       <input hidden type="file" ref={photoInput} aria-label="Foto para a chamada" accept="image/jpeg,image/png,image/webp,image/gif" onChange={event => { const file = event.target.files?.[0]; event.target.value = ''; if (file) void sendPhoto(file); }} />
     </footer>

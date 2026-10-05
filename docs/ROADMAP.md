@@ -1,10 +1,12 @@
 # Roadmap
 
-## Estado em 04/10/2026
+## Estado em 05/10/2026
 
 O norte do produto é ajudar cada pessoa a gerenciar e melhorar a vida inteira; os estudos são um bloco entre vários. A [matriz do README](../README.md#estado-do-projeto) é a referência do que existe hoje.
 
 Entregue desde o plano original: vários cursos, metas e projetos, finanças, rotina e hábitos, flashcards, Meu dia, camada coletiva (salas, grupos e trabalhos em grupo), assistente por texto e voz, Telegram e WhatsApp por ponte QR.
+
+Evolução do assistente: APIs pessoais por conta, exclusão de chaves, painel de IA por seções, xAI/Grok para voz, controle de tentativas por fonte, OAuth com proteção contra reutilização e confirmações persistidas do MCP. A ativação depende das migrações e da entrega registradas em [revisão de 05/10](ENTREGA_ASSISTENTE_2026-10-05.md). Chamadas reais com os novos adaptadores, login de assistentes externos e vínculo de telefone de membros permanecem critérios de aceite.
 
 Em aberto, sem ordem definida (a prioridade é decisão do proprietário):
 

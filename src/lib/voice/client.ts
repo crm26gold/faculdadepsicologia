@@ -1,5 +1,7 @@
 import { LIVE_SOCKET, liveClientSetup, type CallState, type LiveCredentials, type VoiceTool, type VoiceTranscript } from './protocol';
 import { GptLivePeer } from './gpt-live';
+import { liveCloseFailure, liveSocketFailure } from './socket-failure';
+import { XAI_LIVE_SOCKET, xaiClientSetup, xaiFailureMessage } from './xai-protocol';
 import { ELEVENLABS_AUDIO_FORMAT, ELEVENLABS_PROTOCOL, elevenLabsCloseMessage, elevenLabsErrorMessage, elevenLabsSocket, elevenLabsToolResult, pcmRate } from './elevenlabs-protocol';
 
 export type VoiceOptions = {
@@ -24,7 +26,9 @@ type ElevenLabsMessage = {
   agent_response_event?: { agent_response?: string }; agent_response_correction_event?: { corrected_agent_response?: string };
   client_tool_call?: { tool_name?: string; tool_call_id?: string; parameters?: unknown }; error_event?: { error_type?: string };
 };
-const providerNames: Record<string, string> = { gemini: 'O Gemini', elevenlabs: 'O ElevenLabs', openai: 'A OpenAI' };
+type XaiMessage = { type?:string; delta?:string; transcript?:string; item_id?:string; response_id?:string; call_id?:string; name?:string; arguments?:string;
+  response?:{id?:string;status?:string}; error?:{code?:string;type?:string}; };
+const providerNames: Record<string, string> = { gemini: 'O Gemini', elevenlabs: 'O ElevenLabs', openai: 'A OpenAI', xai: 'A xAI' };
 export function pcmBase64(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
   let binary = '';
@@ -78,6 +82,10 @@ export class LiveVoiceConnection {
   // ElevenLabs Agents: audio events carry the response id; anything older than an interruption is dropped.
   private eleven = false; private elevenStarted = false; private outputRate = 16_000;
   private interruptedAt = 0; private lastAudioEvent = 0; private assistantId = '';
+  private xai = false; private xaiResponse = ''; private xaiAudioItem = ''; private xaiAudioStarted = 0;
+  private xaiCancelled = new Set<string>();
+  private xaiToolResponse = new Map<string,string>();
+  private xaiBatches = new Map<string,{pending:Set<string>;done:boolean;continued:boolean}>();
 
   constructor(private options: VoiceOptions) {}
   private state(state: CallState) { this.callState = state; this.options.state(state); }
@@ -114,12 +122,21 @@ export class LiveVoiceConnection {
       this.later(() => { this.options.notice('Chamada encerrada após 20 minutos. Inicie outra para continuar.'); this.end(); }, this.credentials.maxSeconds * 1000);
     }
     if (this.credentials.provider === 'openai') {
-      if (!window.RTCPeerConnection) throw new Error('Este navegador não oferece a conexão de áudio da OpenAI. Abra no Chrome, Edge ou Safari atualizado.');
-      this.rtc = new GptLivePeer({ ...this.options, state: value => { if (value === 'ended' || value === 'error') this.end(value); else this.state(value); } }, this.stream!, this.abort.signal);
-      await this.rtc.start();
+      if (!window.RTCPeerConnection) { this.fallback('Este navegador não oferece a conexão de áudio da OpenAI. Abra no Chrome, Edge ou Safari atualizado.'); return; }
+      const rtc = this.rtc = new GptLivePeer({ ...this.options, state: value => {
+        if (value === 'listening' || value === 'speaking' || value === 'working') this.connected = true;
+        if (value === 'ended' || value === 'error') this.end(value); else this.state(value);
+      } }, this.stream!, this.abort.signal, message => this.fallback(message));
+      try { await rtc.start(); }
+      catch (error) {
+        if (this.ended || this.rtc !== rtc) return;
+        if ((error as Error & { doNotRetry?: boolean })?.doNotRetry) this.fail(microphoneError(error));
+        else this.fallback(microphoneError(error));
+      }
       return;
     }
     this.eleven = this.credentials.provider === 'elevenlabs';
+    this.xai = this.credentials.provider === 'xai';
     this.elevenStarted = false; this.interruptedAt = 0; this.lastAudioEvent = 0; this.handle = '';
     if (!this.capture) {
       if (!window.AudioWorkletNode || !this.audio?.audioWorklet) throw new Error(`Este navegador não oferece a captura de áudio ${this.eleven ? 'da chamada' : 'do Gemini'}. Abra no Chrome, Edge ou Safari atualizado.`);
@@ -136,7 +153,8 @@ export class LiveVoiceConnection {
         this.options.level(this.muted ? 0 : Math.min(1, data.level * 7));
         // A disconnected or congested socket must never accumulate microphone data.
         if (this.socket!.bufferedAmount > 256_000) { this.fail('A conexão está lenta demais para o áudio. Confira a internet e inicie outra chamada.'); return; }
-        if (this.eleven) this.send({ user_audio_chunk: pcmBase64(data.pcm) });
+        if (this.xai) this.send({type:'input_audio_buffer.append',audio:pcmBase64(data.pcm)});
+        else if (this.eleven) this.send({ user_audio_chunk: pcmBase64(data.pcm) });
         else this.send({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: pcmBase64(data.pcm) } } });
       };
     }
@@ -148,6 +166,7 @@ export class LiveVoiceConnection {
     const provider = this.credentials?.provider ?? 'gemini';
     if (this.ended || this.connected || !this.credentials?.fallback || this.skipped.has(provider)) { this.fail(message); return; }
     this.skipped.add(provider);
+    const rtc = this.rtc; this.rtc = null; rtc?.dispose();
     clearTimeout(this.setupTimer); if (this.setupTimer) this.timers.delete(this.setupTimer);
     const socket = this.socket; this.socket = null; this.credentials = null;
     if (socket) { socket.onclose = null; socket.onmessage = null; try { socket.close(); } catch {} }
@@ -157,6 +176,7 @@ export class LiveVoiceConnection {
 
   private open(resuming = false) {
     if (this.ended || !this.credentials) return;
+    if (this.xai) { this.openXai(); return; }
     if (this.eleven) { this.openElevenLabs(); return; }
     this.ready = false;
     this.state(resuming ? 'reconnecting' : 'connecting');
@@ -177,22 +197,22 @@ export class LiveVoiceConnection {
           clearTimeout(timeout); this.timers.delete(timeout); this.ready = true; this.connected = true; this.reconnects = 0; this.state('listening');
           if (!resuming) this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'A chamada começou. Cumprimente brevemente e pergunte como pode me ajudar.' }] }], turnComplete: true } });
         }
-        this.receive(message);
+        await this.receive(message);
       }).catch(() => { if (!this.ended) this.fail('Não consegui interpretar o áudio recebido. Inicie outra chamada para continuar.'); });
     };
     socket.onerror = () => { /* onclose carries the retry decision; never expose a token-bearing URL. */ };
-    socket.onclose = event => {
+    socket.onclose = async event => {
       clearTimeout(timeout); this.timers.delete(timeout);
       if (this.ended || socket !== this.socket) return;
       this.ready = false; this.stopPlayback();
       if (this.handle && !this.tools.size && this.reconnects < 2 && Date.now() < Date.parse(this.credentials!.expiresAt) && event.code !== 1008) {
         this.reconnects++; this.state('reconnecting'); this.later(() => this.open(true), 1000 * this.reconnects);
-      } else this.fallback(event.code === 1008 ? 'O Gemini recusou a sessão de voz. Confira o modelo, a cota e o acesso à Live API em Administração.' : 'A conexão da chamada caiu. As ações já salvas continuam guardadas. Inicie outra chamada para continuar.');
+      } else { const safe = await liveCloseFailure(event.code, event.reason); if (!this.ended && socket === this.socket) this.fallback(safe.message); }
     };
   }
 
-  private receive(message: LiveMessage) {
-    if (message.error) { this.fallback('O provedor de voz recusou a chamada. Confira o acesso à Live API e a cota do Gemini.'); return; }
+  private async receive(message: LiveMessage) {
+    if (message.error) { const safe = await liveSocketFailure(message.error); if (!this.ended) this.fallback(safe.message); return; }
     if (message.sessionResumptionUpdate) this.handle = message.sessionResumptionUpdate.resumable ? message.sessionResumptionUpdate.newHandle ?? '' : '';
     for (const id of message.toolCallCancellation?.ids ?? []) this.tools.get(id)?.abort();
     const content = message.serverContent;
@@ -222,6 +242,82 @@ export class LiveVoiceConnection {
       if (this.handle && !this.tools.size) this.socket?.close();
       else this.options.notice('A conexão de voz será renovada. Se a chamada encerrar, inicie outra; os registros salvos permanecem.');
     }
+  }
+
+  private openXai() {
+    this.ready=false;this.state('connecting');
+    const socket=new WebSocket(`${XAI_LIVE_SOCKET}?model=${encodeURIComponent(this.credentials!.model)}`,[`xai-client-secret.${this.credentials!.token}`]);
+    this.socket=socket;
+    const timeout=this.setupTimer=this.later(()=>this.fallback('A xAI não iniciou a conversa a tempo. Confira o acesso à API Grok.'),20_000);
+    socket.onopen=()=>{if(this.ended||socket!==this.socket){socket.close();return;} const context=this.options.context?.();this.send(xaiClientSetup(this.credentials!.model,context?.context,context?.history));};
+    socket.onmessage=event=>{
+      this.incoming=this.incoming.then(async()=>{
+        if(this.ended||socket!==this.socket)return;
+        const raw=typeof event.data==='string'?event.data:event.data instanceof Blob?await event.data.text():new TextDecoder().decode(event.data);
+        const message:XaiMessage=JSON.parse(raw);
+        if(message.type==='session.updated'){clearTimeout(timeout);this.timers.delete(timeout);}
+        this.receiveXai(message);
+      }).catch(()=>{if(!this.ended)this.fail('Não consegui interpretar a resposta de voz Grok. Inicie outra chamada.');});
+    };
+    socket.onerror=()=>{/* Do not disclose the client secret from the socket's protocol. */};
+    socket.onclose=()=>{clearTimeout(timeout);this.timers.delete(timeout);if(this.ended||socket!==this.socket)return;this.ready=false;this.stopPlayback();this.fallback(xaiFailureMessage());};
+  }
+  private receiveXai(message:XaiMessage) {
+    switch(message.type){
+      case 'session.updated':
+        if(this.ready)return;
+        this.ready=true;this.connected=true;this.state('listening');
+        this.send({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text:'A chamada começou. Cumprimente brevemente em português do Brasil e pergunte como pode ajudar.'}]}});
+        this.send({type:'response.create'});return;
+      case 'input_audio_buffer.speech_started':
+        this.inputAt=Date.now();this.cancelXaiAudio(false);this.state(this.tools.size?'working':'listening');return;
+      case 'conversation.item.input_audio_transcription.updated':
+      case 'conversation.item.input_audio_transcription.completed':{
+        const text=message.transcript?.trim();if(!text||!message.item_id)return;
+        const startedAt=this.inputAt||Date.now();this.options.transcript(`xai-input-${message.item_id}`,'me',text);
+        this.lastInput={text,startedAt};return;
+      }
+      case 'response.created':
+        this.xaiResponse=message.response?.id??'';this.xaiAudioItem='';this.xaiAudioStarted=0;return;
+      case 'response.output_audio.delta':
+      case 'response.audio.delta':
+        if(!message.delta||this.xaiCancelled.has(message.response_id??this.xaiResponse))return;
+        if(!this.xaiAudioItem){this.xaiAudioItem=message.item_id??'';this.xaiAudioStarted=this.audio?Math.max(this.audio.currentTime+0.025,this.scheduledAt):0;}
+        this.play(message.delta,24_000);return;
+      case 'response.output_audio_transcript.delta':
+      case 'response.audio_transcript.delta':
+        if(!message.delta||this.xaiCancelled.has(message.response_id??this.xaiResponse))return;
+        if(this.outputId!==message.item_id){this.outputId=message.item_id??crypto.randomUUID();this.outputText='';}
+        this.outputText+=message.delta;this.options.transcript(`xai-output-${this.outputId}`,'assistant',this.outputText);return;
+      case 'response.function_call_arguments.done':{
+        if(!message.call_id||!message.name||this.xaiToolResponse.has(message.call_id))return;
+        const response=message.response_id??this.xaiResponse;
+        const batch=this.xaiBatches.get(response)??{pending:new Set<string>(),done:false,continued:false};
+        batch.pending.add(message.call_id);this.xaiBatches.set(response,batch);this.xaiToolResponse.set(message.call_id,response);
+        let args:unknown;try{args=JSON.parse(message.arguments??'{}');}catch{this.fail('A xAI enviou uma ação com formato inválido. Inicie outra chamada.');return;}
+        this.queueTool({id:message.call_id,name:message.name,args});return;
+      }
+      case 'response.done':{
+        const id=message.response?.id??message.response_id??this.xaiResponse;
+        const batch=this.xaiBatches.get(id);if(batch){batch.done=true;this.continueXai(id);}
+        if(!this.sources.size)this.state(this.tools.size?'working':'listening');return;
+      }
+      case 'error':this.fallback(xaiFailureMessage(message.error?.code??message.error?.type));return;
+    }
+  }
+  /** Wait for the complete function-call batch and every saved result before requesting speech. */
+  private continueXai(response:string) {
+    const batch=this.xaiBatches.get(response);
+    if(!batch?.done||batch.pending.size||batch.continued||this.ended)return;
+    batch.continued=true;
+    if(!this.xaiCancelled.has(response))this.send({type:'response.create'});
+    this.xaiBatches.delete(response);
+  }
+  private cancelXaiAudio(manual:boolean) {
+    if(this.xaiResponse){this.xaiCancelled.add(this.xaiResponse);if(this.xaiCancelled.size>20)this.xaiCancelled.delete(this.xaiCancelled.values().next().value!);}
+    if(manual)this.send({type:'response.cancel'});
+    if(this.xaiAudioItem&&this.audio)this.send({type:'conversation.item.truncate',item_id:this.xaiAudioItem,content_index:0,audio_end_ms:Math.max(0,Math.floor((this.audio.currentTime-this.xaiAudioStarted)*1000))});
+    this.stopPlayback();this.xaiAudioItem='';
   }
 
   private openElevenLabs() {
@@ -332,6 +428,10 @@ export class LiveVoiceConnection {
     void result.then(value => { if (!controller.signal.aborted) this.respond(call, value); });
   }
   private respond(call: VoiceTool, result: unknown) {
+    if(this.xai){
+      this.send({type:'conversation.item.create',item:{type:'function_call_output',call_id:call.id,output:elevenLabsToolResult(result)}});
+      const response=this.xaiToolResponse.get(call.id);if(response!==undefined){this.xaiBatches.get(response)?.pending.delete(call.id);this.continueXai(response);}return;
+    }
     if (this.eleven) { this.send({ type: 'client_tool_result', tool_call_id: call.id, result: elevenLabsToolResult(result), is_error: false }); return; }
     this.send({ toolResponse: { functionResponses: [{ id: call.id, name: call.name, response: { result } }] } });
   }
@@ -354,6 +454,7 @@ export class LiveVoiceConnection {
   }
   interrupt() {
     if (this.rtc) { this.rtc.interrupt(); return; }
+    if(this.xai){this.cancelXaiAudio(true);this.state(this.tools.size?'working':'listening');return;}
     this.stopPlayback(); this.state(this.tools.size ? 'working' : 'listening');
     if (this.eleven) {
       // No client command stops an ElevenLabs turn: drop its remaining audio and tell the agent why.
@@ -368,10 +469,11 @@ export class LiveVoiceConnection {
   mute(value: boolean) {
     this.muted = value; this.options.level(0);
     this.stream?.getAudioTracks().forEach(track => { track.enabled = !value; });
-    if (value && !this.eleven) this.send({ realtimeInput: { audioStreamEnd: true } });
+    if(value&&this.xai)this.send({type:'input_audio_buffer.clear'});
+    else if (value && !this.eleven) this.send({ realtimeInput: { audioStreamEnd: true } });
   }
   volume(value: boolean) { if (this.rtc) this.rtc.volume(value); if (this.output) this.output.gain.value = value ? 1 : 0; }
-  notify(text: string) { if (this.rtc) this.rtc.notify(text); else if (this.eleven) this.send({ type: 'user_message', text }); else this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }); }
+  notify(text: string) { if (this.rtc) this.rtc.notify(text); else if(this.xai){this.send({type:'conversation.item.create',item:{type:'message',role:'user',content:[{type:'input_text',text}]}});this.send({type:'response.create'});} else if (this.eleven) this.send({ type: 'user_message', text }); else this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }); }
   private fail(message: string) { this.options.notice(message); this.end('error'); }
   end(state: CallState = 'ended') {
     if (this.ended) return;
