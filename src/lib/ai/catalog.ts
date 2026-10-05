@@ -48,7 +48,7 @@ export type AiAdminState = {
   connectors?: { id: string; label: string; url: string; protocol: '2026-07-28' | '2025-11-25'; enabled: boolean; has_key: boolean; key_hint: string; updated_at: string }[];
   connections?: { id: string; provider: AiProviderId; label: string; enabled: boolean; position: number; key_hint: string; updated_at: string; base_url?: string; gcp_project?: string; gcp_location?: string }[];
   providers: { id: AiProviderId; enabled: boolean; label: string; base_url: string; gcp_project: string; gcp_location: string; has_key: boolean; key_hint: string; updated_at: string }[];
-  tasks: { id: AiTaskId; provider: AiProviderId | null; model: string; enabled: boolean; updated_at: string; connection_id?: string | null; routing_mode?: 'legacy' | 'fixed' | 'fallback'; fallbacks?: { connection_id: string; model: string }[] }[];
+  tasks: { id: AiTaskId; provider: AiProviderId | null; model: string; enabled: boolean; updated_at: string; connection_id?: string | null; routing_mode?: 'legacy' | 'fixed' | 'fallback' | 'auto'; fallbacks?: { connection_id: string; model: string }[] }[];
   secretReady: boolean;
 };
 
@@ -60,7 +60,7 @@ export const aiAdminAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('remove_connector'), id: z.uuid() }),
   z.object({ action: z.literal('test_connector'), id: z.uuid() }),
   z.object({ action: z.literal('save_connection'), id: z.uuid().nullable(), provider: z.enum(aiProviderIds), label: text(60).min(1), enabled: z.boolean(), position: z.number().int().min(1).max(5), key: z.string().max(12_000).nullable(), base_url: endpoint.optional(), gcp_project: text(100).optional(), gcp_location: region.optional() }),
-  z.object({ action: z.literal('save_route'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), model: text(120).min(1), enabled: z.boolean(), routing_mode: z.enum(['fixed', 'fallback']), fallbacks: z.array(z.object({ connection_id: z.uuid(), model: text(120).min(1) })).max(2) }),
+  z.object({ action: z.literal('save_route'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), model: text(120).min(1), enabled: z.boolean(), routing_mode: z.enum(['fixed', 'fallback', 'auto']), fallbacks: z.array(z.object({ connection_id: z.uuid(), model: text(120).min(1) })).max(2) }),
   z.object({ action: z.literal('remove_connection'), id: z.uuid() }),
   z.object({ action: z.literal('test_live') }),
   z.object({ action: z.literal('test_task'), task: z.enum(['assistente','organizar']) }),

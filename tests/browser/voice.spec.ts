@@ -471,3 +471,23 @@ test('ElevenLabs: recusa por créditos explica o motivo sem repetir a resposta d
   await expect(call.getByRole('alert')).not.toContainText('secret-workspace');
   await call.getByRole('button', { name: 'Fechar chamada' }).click();
 });
+
+test('automático: se o ElevenLabs recusa antes de conectar, a chamada segue pelo próximo provedor', async ({ page }) => {
+  const state = await fixture(page);
+  const skips: unknown[] = [];
+  await page.route('**/api/ai/live', route => {
+    const skip = route.request().postDataJSON().skip ?? [];
+    skips.push(skip);
+    const data = skip.includes('elevenlabs')
+      ? { provider: 'gemini', token: 'test-ephemeral-not-a-secret', model: 'gemini-test-live', expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), maxSeconds: 1200, fallback: true }
+      : { provider: 'elevenlabs', token: 'wss://api.elevenlabs.io/v1/convai/conversation?agent_id=agent_test&conversation_signature=test', model: 'gemini-2.5-flash', expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(), maxSeconds: 1200, variables: { contexto: '', historico: '[]' }, fallback: true };
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) });
+  });
+  await page.routeWebSocket(/elevenlabs\.io/, socket => { socket.onMessage(() => socket.close({ code: 1008, reason: 'Quota exceeded' })); });
+  const call = await start(page);
+  expect(skips).toEqual([[], ['elevenlabs']]);
+  await expect(call.getByRole('alert')).toContainText('Tentando a próxima opção');
+  await expect.poll(() => state.sent.some(message => message.setup)).toBe(true);
+  await call.getByRole('button', { name: 'Encerrar chamada', exact: true }).click();
+  await expect(call).toContainText('Chamada encerrada');
+});

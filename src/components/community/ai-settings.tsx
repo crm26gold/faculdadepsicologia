@@ -74,7 +74,7 @@ export function AiSettings() {
       const provider = String(fields.get('provider') ?? '');
       if (!provider) { await api('/api/ai/admin', { action: 'save_task', task: task.id, provider: '', model: '', enabled: false }); return 'Tarefa desligada.'; }
       const fallbacks = [0,1].flatMap(index => fields.get(`fallback-${index}`) ? [{ connection_id: String(fields.get(`fallback-${index}`)), model: String(fields.get(`fallback-model-${index}`)).trim() }] : []);
-      await api('/api/ai/admin', { action: 'save_route', task: task.id, provider, connection_id: fields.get('connection_id') || null, model: String(fields.get('model') ?? '').trim(), enabled: fields.get('enabled') === 'on', routing_mode: fields.get('routing_mode') ?? 'fixed', fallbacks });
+      await api('/api/ai/admin', { action: 'save_route', task: task.id, provider, connection_id: fields.get('connection_id') || null, model: String(fields.get('model') ?? '').trim(), enabled: fields.get('enabled') === 'on', routing_mode: fields.get('routing_mode') ?? 'fixed', fallbacks: fields.get('routing_mode') === 'fallback' ? fallbacks : [] });
       if (task.id === 'voz') setLiveResult(null);
       return `${aiTaskLabels[task.id].name}: salvo.`;
     });
@@ -153,13 +153,14 @@ function TaskForm({ task, providers, connections, models, loading, errors, activ
   const [model, setModel] = useState(task.model);
   const [custom, setCustom] = useState(false);
   const [enabled, setEnabled] = useState(task.enabled);
-  const [mode, setMode] = useState(task.routing_mode === 'fallback' ? 'fallback' : 'fixed');
+  const savedMode = task.routing_mode === 'fallback' || task.routing_mode === 'auto' ? task.routing_mode : 'fixed';
+  const [mode, setMode] = useState<string>(savedMode);
   const [fallbacks, setFallbacks] = useState(task.fallbacks ?? []);
   const voice = task.id === 'voz'; const list = models[selected];
   const ids = voice ? provider === 'openai' ? ['gpt-live-1'] : list?.liveIds ?? [] : list?.ids ?? [];
   const canAuto = voice ? provider === 'gemini' || provider === 'elevenlabs' : !!provider && autoCapable.includes(provider);
   const hasKey = !!extra || !!providers.find(item => item.id === provider)?.has_key;
-  const dirty = selected !== (task.connection_id || task.provider || '') || model !== task.model || enabled !== task.enabled || mode !== (task.routing_mode === 'fallback' ? 'fallback' : 'fixed') || JSON.stringify(fallbacks) !== JSON.stringify(task.fallbacks ?? []);
+  const dirty = selected !== (task.connection_id || task.provider || '') || model !== task.model || enabled !== task.enabled || mode !== savedMode || JSON.stringify(fallbacks) !== JSON.stringify(task.fallbacks ?? []);
   useEffect(() => { if (active && provider && hasKey && !['vertex','google_cloud'].includes(provider)) void ensureModels(provider, false, extra?.id); }, [active, provider, hasKey, extra?.id, ensureModels]);
   const typed = custom || (!!model && !isAuto(model) && (!!list || !canAuto) && !ids.includes(model));
   const picked = isAuto(model) ? list?.auto?.[model] : null;
@@ -181,7 +182,8 @@ function TaskForm({ task, providers, connections, models, loading, errors, activ
     {provider && hasKey && !['vertex','google_cloud'].includes(provider) && <button type="button" className="text-button" disabled={!!busy || !!loading[selected]} onClick={() => void ensureModels(provider,true,extra?.id)}><RefreshCw size={14} aria-hidden="true" /> Atualizar modelos</button>}
     {list?.refreshedAt && <span className="muted small">Lista consultada: {updated(list.refreshedAt)}</span>}
     {isAuto(model) && <div className="ai-model-summary"><Sparkles size={16} aria-hidden="true" /><span className="muted small">{voice ? provider === 'elevenlabs' ? 'Escolhe um modelo rápido disponível para agentes nesta conta ElevenLabs ao preparar a chamada.' : 'Escolhe um modelo Live autorizado para esta chave ao iniciar a chamada.' : `${autoModes[model].hint}${picked ? ` Hoje usaria: ${picked}.` : ''}`}</span></div>}
-    <label>Se a conexão falhar<select name="routing_mode" value={mode} onChange={event => setMode(event.target.value)}><option value="fixed">Usar somente a conexão escolhida</option><option value="fallback">Tentar minhas alternativas autorizadas</option></select></label>
+    <label>Se a conexão falhar<select name="routing_mode" value={mode} onChange={event => setMode(event.target.value)}><option value="auto">Automático: usar a que funcionar (recomendado)</option><option value="fixed">Usar somente a conexão escolhida</option><option value="fallback">Tentar minhas alternativas autorizadas</option></select></label>
+    {mode === 'auto' && <p className="muted small">Começa pela conexão escolhida acima. Se ela falhar, tenta as outras chaves ligadas, uma de cada vez: {voice ? 'ElevenLabs, Gemini e OpenAI (gpt-live-1), sem trocar no meio de uma conversa já iniciada' : 'Gemini, OpenAI, Anthropic, DeepSeek, xAI e Mistral, cada uma escolhendo o próprio modelo'}. Cota esgotada, chave recusada ou serviço fora do ar passam para a próxima. Até seis tentativas, cada uma conta no controle de uso.</p>}
     {mode === 'fallback' && <div className="ai-route-steps"><p className="muted small">Ordem explícita: principal → alternativa 1 → alternativa 2. {voice ? 'Voz usa alternativas da mesma empresa.' : 'Cada empresa usa seu próprio modelo. Dados também serão enviados às alternativas escolhidas.'} Cota, faturamento e pedido inválido encerram a operação.</p>{[0,1].map(index => {
       const value = fallbacks[index]; const current = connections.find(c => c.id === value?.connection_id);
       return <div className="ai-route-step" key={index}><label>Alternativa {index + 1}<select aria-label={`Alternativa ${index + 1}`} name={`fallback-${index}`} disabled={index === 1 && !fallbacks[0]} value={value?.connection_id ?? ''} onChange={event => {

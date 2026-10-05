@@ -275,8 +275,8 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
     const done = await executor.confirm(); if (done.saved) await jobs.settle(); recordExecution(crypto.randomUUID(), done); return done.reply;
   }
   async function cancelPending() { executor.cancel(); try { await jobs.settle(); } catch { setProblem('A alteração foi cancelada aqui, mas a confirmação da conta não foi atualizada. Confira antes de retomar.'); } }
-  async function voiceCredentials(signal: AbortSignal): Promise<LiveCredentials> {
-    const response = await fetch('/api/ai/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, body: JSON.stringify({
+  async function voiceCredentials(signal: AbortSignal, skip: string[] = []): Promise<LiveCredentials> {
+    const response = await fetch('/api/ai/live', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal, body: JSON.stringify({ skip,
       context: commandContext(executor.current(), dateKey()),
       history: currentMessages.current.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' : 'assistant', text: item.text.slice(0, 2000) })),
     }) });

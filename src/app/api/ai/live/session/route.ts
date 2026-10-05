@@ -19,14 +19,16 @@ export async function POST(request: Request) {
   const { session, body } = input;
   const { data, error } = await session.client.rpc('ai_runtime', { task_id: 'voz' });
   if (error) return dbError(error);
-  if (!data || data.provider !== 'openai' || data.model !== 'gpt-live-1') return reply({ error: 'Cadastre uma chave OpenAI e escolha GPT-Live na tarefa Chamada ao vivo.' }, 409);
+  // OpenAI may be the chosen route or, in automatic routing, a later alternative.
+  const usable = data && (data.provider === 'openai' || data.routing === 'auto') && [data, ...(data.alternatives ?? [])].some((row: { provider?: string; model?: string }) => row.provider === 'openai' && row.model === 'gpt-live-1');
+  if (!usable) return reply({ error: 'Cadastre uma chave OpenAI e escolha GPT-Live na tarefa Chamada ao vivo.' }, 409);
   const limited = await requestBudget(session, 'live');
   if (limited) return limited;
   const reference = crypto.randomUUID().slice(0, 8);
   try {
     const config = runtimeConfig(data);
     const signal = AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]);
-    const response = await runAiAttempts([config, ...(config.alternatives ?? [])], async connection => {
+    const response = await runAiAttempts([config, ...(config.alternatives ?? [])].filter(row => row.provider === 'openai' && row.model === 'gpt-live-1'), async connection => {
       const result = await fetch('https://api.openai.com/v1/live/sessions', { method: 'POST', cache: 'no-store', signal: AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
       headers: { Authorization: `Bearer ${connection.key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ session: { model: 'gpt-live-1', delegation: { type: 'client' },
