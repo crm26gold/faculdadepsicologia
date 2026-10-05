@@ -569,3 +569,40 @@ test('telegram: a pessoa gera o código, abre o robô e a tela confirma quando o
   await card.getByRole('button', { name: 'Desconectar' }).click();
   await expect(card.getByRole('button', { name: 'Conectar meu Telegram' })).toBeVisible();
 });
+
+test('assistentes externos: a pessoa cria uma chave MCP, vê a configuração de cada app uma vez e revoga', async ({ page }) => {
+  await mockApi(page, { home: homeFixture({ master: false }) });
+  let tokens: unknown[] = [];
+  const endpoint = 'https://jornada.example/api/mcp';
+  await page.route('**/api/mcp-tokens', route => {
+    const request = route.request();
+    if (request.method() === 'POST') {
+      const body = request.postDataJSON() as { action: string; label: string; can_write: boolean; valid_days: number | null };
+      if (body.action === 'create') {
+        expect(body).toMatchObject({ label: 'Claude Code do notebook', can_write: true, valid_days: 90 });
+        tokens = [{ id: '11111111-2222-4333-8444-555555555555', label: body.label, hint: 'wxyz', can_write: true, created_at: new Date().toISOString(), expires_at: null, last_used_at: null }];
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: 'x', token: 'jp_teste_mostrado_uma_vez_wxyz', endpoint } }) });
+      }
+      tokens = [];
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: null }) });
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { tokens, endpoint } }) });
+  });
+  await page.goto('/#settings');
+  const card = page.getByRole('region', { name: 'Conectar assistentes (MCP)' });
+  await expect(card).toContainText(endpoint);
+  await card.getByLabel('Nome').fill('Claude Code do notebook');
+  await card.getByLabel('Permissão').selectOption('write');
+  await card.getByRole('button', { name: 'Criar chave' }).click();
+  await expect(card.getByText('jp_teste_mostrado_uma_vez_wxyz', { exact: true })).toBeVisible();
+  await card.getByText('Claude Code', { exact: true }).click();
+  await expect(card.locator('pre').first()).toContainText(`claude mcp add --transport http jornada ${endpoint} --header "Authorization: Bearer jp_teste_mostrado_uma_vez_wxyz"`);
+  await expect(card).toContainText('consulta e registra');
+  expect((await new AxeBuilder({ page }).include('.assistant-connections').analyze()).violations).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await card.getByRole('button', { name: 'Já guardei, esconder' }).click();
+  await expect(card.getByText('jp_teste_mostrado_uma_vez_wxyz', { exact: true })).toBeHidden();
+  page.once('dialog', dialog => dialog.accept());
+  await card.getByRole('button', { name: 'Revogar' }).click();
+  await expect(card).not.toContainText('consulta e registra');
+});

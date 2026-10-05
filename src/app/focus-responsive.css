@@ -456,3 +456,11 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55
 .telegram-code { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 .telegram-code code { padding: 1px 6px; border-radius: 6px; background: var(--soft-bg); border: 1px solid var(--line); }
 .telegram-link .button { display: inline-flex; align-items: center; gap: 6px; }
+.assistant-connections { display: flex; flex-direction: column; gap: 10px; margin-block-end: 18px; }
+.assistant-connections h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.05rem; }
+.assistant-connections details { display: grid; gap: 6px; }
+.assistant-connections summary { cursor: pointer; font-weight: 600; }
+.mcp-token, .mcp-snippet { overflow-wrap: anywhere; white-space: pre-wrap; font-size: .8rem; max-width: 100%; }
+.mcp-snippet { margin: 0; overflow-x: auto; }
+.mcp-token-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+.mcp-token-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
