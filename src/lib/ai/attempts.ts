@@ -6,7 +6,7 @@ export async function runAiAttempts<T, C>(candidates: C[], run: (candidate: C) =
   persistent?: boolean;
 } = {}): Promise<T> {
   let last: unknown;
-  for (const [index, candidate] of candidates.slice(0, options.persistent ? 6 : 4).entries()) {
+  for (const [index, candidate] of candidates.slice(0, options.persistent ? 8 : 4).entries()) {
     options.signal?.throwIfAborted();
     // Outside the catch: a denied budget must end the entire operation.
     if (index) await options.beforeRetry?.();
