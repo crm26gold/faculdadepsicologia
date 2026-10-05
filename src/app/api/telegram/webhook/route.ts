@@ -131,7 +131,7 @@ export async function POST(request: Request) {
       if (voice.duration > 240) { await say('Áudio longo demais: mande mensagens de voz de até 4 minutos.'); return ok(); }
       if (!await reserve('ai')) return ok();
       const audio = { mimeType: voice.mime_type || 'audio/ogg', base64: await downloadFile(token, voice.file_id) };
-      heard = (await generateResilient(config, { system: 'Transcreva fielmente o áudio, em português do Brasil. Devolva só o texto falado, sem comentários.', prompt: 'Transcreva este áudio.', audio, maxTokens: 800, signal: AbortSignal.timeout(40_000), beforeRetry: async () => { if (!await reserve('ai')) throw new AiError('Controle de uso atingido.', 429); } })).text.trim();
+      heard = (await generateResilient(config, { system: 'Transcreva fielmente o áudio, em português do Brasil. Devolva só o texto falado, sem comentários.', prompt: 'Transcreva este áudio.', audio, audioTask: 'transcribe', maxTokens: 800, signal: AbortSignal.timeout(40_000), beforeRetry: async () => { if (!await reserve('ai')) throw new AiError('Controle de uso atingido.', 429); } })).text.trim();
       said = [said, heard].filter(Boolean).join('\n');
       if (!said) { await say('Não consegui entender o áudio. Pode repetir ou escrever?'); return ok(); }
     }

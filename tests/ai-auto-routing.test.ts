@@ -9,13 +9,13 @@ registerHooks({ resolve: (specifier, context, next) => specifier === 'server-onl
 const failed = (status: number) => Object.assign(new Error(`falha ${status}`), { status });
 const row = (provider: string, model: string, key: string) => ({ provider: provider as 'gemini', model, key, base_url: '', gcp_project: '', gcp_location: '' });
 
-test('automático passa para a próxima conexão mesmo com cota esgotada, até seis tentativas', async () => {
+test('automático passa para a próxima conexão mesmo com cota esgotada, até oito tentativas', async () => {
   const seen: number[] = [];
   const result = await runAiAttempts([1, 2, 3], async item => { seen.push(item); if (item < 3) throw failed(item === 1 ? 429 : 400); return 'ok'; }, { persistent: true });
   assert.equal(result, 'ok'); assert.deepEqual(seen, [1, 2, 3]);
   let calls = 0, budgets = 0;
-  await assert.rejects(runAiAttempts([1, 2, 3, 4, 5, 6, 7], async () => { calls++; throw failed(429); }, { persistent: true, beforeRetry: async () => { budgets++; } }), { status: 429 });
-  assert.equal(calls, 6); assert.equal(budgets, 5);
+  await assert.rejects(runAiAttempts([1, 2, 3, 4, 5, 6, 7, 8, 9], async () => { calls++; throw failed(429); }, { persistent: true, beforeRetry: async () => { budgets++; } }), { status: 429 });
+  assert.equal(calls, 8); assert.equal(budgets, 7);
   calls = 0;
   await assert.rejects(runAiAttempts([1, 2], async () => { calls++; throw failed(429); }), { status: 429 });
   assert.equal(calls, 1, 'rota fixa continua parando na cota');
@@ -52,4 +52,28 @@ test('voz automática: ElevenLabs recusado leva ao Gemini; rota fixa não troca 
     await assert.rejects(prepareLiveSession(fixed, 'contexto', [], { signal: AbortSignal.timeout(5000) }), /créditos/);
     assert.ok(!hosts.slice(before).includes('generativelanguage.googleapis.com'), 'rota fixa não tenta outra empresa');
   } finally { globalThis.fetch = original; resetElevenLabsCache(); }
+});
+
+test('áudio normal: Whisper da Groq transcreve quando o pedido é só transcrição; texto comum não vai para lá', async () => {
+  const { generateResilient } = await import('../src/lib/ai/providers');
+  const original = globalThis.fetch;
+  const calls: { url: string; form?: FormData }[] = [];
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = String(input); calls.push({ url, form: init?.body instanceof FormData ? init.body : undefined });
+    if (url.endsWith('/audio/transcriptions')) return Response.json({ text: 'marcar dentista amanhã' });
+    if (url.endsWith('/models')) return Response.json({ data: [{ id: 'llama-3.3-70b-versatile' }] });
+    return Response.json({ error: 'quota' }, { status: 429 });
+  }) as typeof fetch;
+  try {
+    const config = { ...row('deepseek', 'auto:rapido', 'deepseek-key'), routing: 'auto', alternatives: [row('groq', 'auto:rapido', 'groq-key')] };
+    const audio = { mimeType: 'audio/ogg', base64: Buffer.from('ogg').toString('base64') };
+    const heard = await generateResilient(config, { system: 'Transcreva.', prompt: 'Transcreva este áudio.', audio, audioTask: 'transcribe' });
+    assert.equal(heard.text, 'marcar dentista amanhã');
+    assert.equal(heard.provider, 'groq');
+    const sent = calls.find(call => call.url.endsWith('/audio/transcriptions'))!;
+    assert.equal(sent.url, 'https://api.groq.com/openai/v1/audio/transcriptions');
+    assert.equal(sent.form?.get('model'), 'whisper-large-v3-turbo');
+    assert.equal(sent.form?.get('language'), 'pt');
+    await assert.rejects(generateResilient(config, { system: 'Responda.', prompt: 'Resuma o áudio.', audio }), /Nenhuma conexão|lê áudio/);
+  } finally { globalThis.fetch = original; }
 });

@@ -51,10 +51,11 @@ A integração segue o formato do SDK oficial (`@elevenlabs/elevenlabs-js` e `@e
 
 ### Automático: usar a que funcionar
 
-Em **Tarefas e modelos**, cada tarefa tem **Se a conexão falhar › Automático: usar a que funcionar (recomendado)**. A tarefa começa pela conexão escolhida. Se ela falhar, tenta as outras chaves ligadas, uma de cada vez, até seis tentativas, cada uma registrada no controle de uso:
+Em **Tarefas e modelos**, cada tarefa tem **Se a conexão falhar › Automático: usar a que funcionar (recomendado)**. A tarefa começa pela conexão escolhida. Se ela falhar, tenta as outras chaves ligadas, uma de cada vez, até oito tentativas, cada uma registrada no controle de uso:
 
 - **Chamada ao vivo:** ElevenLabs, depois Gemini e por fim OpenAI (gpt-live-1). A troca também acontece no navegador quando um provedor recusa a conversa antes do primeiro áudio, por exemplo por créditos esgotados. Uma conversa já iniciada não troca de provedor.
-- **Conversa do assistente e Organizar registros:** Gemini, OpenAI, Anthropic, DeepSeek, xAI e Mistral, cada uma escolhendo o próprio modelo pela lista da chave. Groq, OpenRouter e serviços compatíveis entram apenas quando escolhidos como conexão principal. ElevenLabs nunca responde texto.
+- **Conversa do assistente e Organizar registros, economia primeiro:** Gemini, Groq, Mistral, DeepSeek, xAI e os modelos gratuitos (`:free`) do OpenRouter; OpenAI e Anthropic ficam por último. Cada empresa escolhe o próprio modelo pela lista da chave. Serviços compatíveis e Google Cloud entram apenas como conexão principal. ElevenLabs nunca responde texto.
+- **Áudios normais** (mensagens de voz no Telegram e no WhatsApp): a transcrição segue a mesma ordem e aceita Gemini e o Whisper da Groq (`whisper-large-v3-turbo`, com cota gratuita) ou da OpenAI (`gpt-4o-mini-transcribe`). A voz ao vivo continua separada.
 
 No automático, cota esgotada, chave recusada ou serviço fora do ar passam para a próxima opção. Nas outras políticas, cota e faturamento continuam interrompendo o pedido. Os dados do pedido podem chegar a qualquer empresa com chave ligada; desligue em **Conexões e chaves** as que não devem ser usadas.
 

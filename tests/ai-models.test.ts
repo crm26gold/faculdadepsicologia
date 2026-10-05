@@ -46,3 +46,15 @@ test('modelos de reserva: os mais novos estáveis da linha, depois os anteriores
   assert.deepEqual(pickModels('gemini', gemini, 'auto:rapido', 3), ['gemini-3.8-flash', 'gemini-3.8-flash-001', 'gemini-3.5-flash']);
   assert.deepEqual(pickModels('gemini', ['gemini-3.8-flash', 'gemini-3.5-flash-lite'], 'auto:rapido', 3), ['gemini-3.8-flash', 'gemini-3.5-flash-lite']);
 });
+
+test('Groq e OpenRouter gratuitos escolhem modelo sozinhos, sem moderação, voz ou modelos pagos do OpenRouter', async () => {
+  const { pickModel, pickModels } = await import('../src/lib/ai/models');
+  const groq = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'openai/gpt-oss-120b', 'meta-llama/llama-guard-4-12b', 'whisper-large-v3', 'playai-tts', 'groq/compound'];
+  assert.equal(pickModel('groq', groq, 'auto:rapido'), 'llama-3.3-70b-versatile');
+  assert.equal(pickModel('groq', groq, 'auto:economico'), 'llama-3.1-8b-instant');
+  assert.equal(pickModel('groq', groq, 'auto:melhor'), 'openai/gpt-oss-120b');
+  assert.ok(!pickModels('groq', groq, 'auto:rapido', 10).some(id => /guard|whisper|tts|compound/.test(id)));
+  const openrouter = ['openai/gpt-4o', 'meta-llama/llama-3.3-70b-instruct:free', 'qwen/qwen3-8b:free'];
+  assert.equal(pickModel('openrouter', openrouter, 'auto:rapido'), 'meta-llama/llama-3.3-70b-instruct:free');
+  assert.ok(!pickModels('openrouter', openrouter, 'auto:melhor', 10).includes('openai/gpt-4o'));
+});

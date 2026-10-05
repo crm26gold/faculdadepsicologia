@@ -220,6 +220,9 @@ select expect(ai_runtime('assistente')->>'key_ciphertext'='v1.independente','tex
 select expect(ai_runtime('assistente')->'alternatives'->0->>'provider'='gemini' and ai_runtime('assistente')->'alternatives'->1->>'provider'='anthropic','texto automático segue a ordem recomendada');
 select expect(ai_runtime('assistente')->'alternatives'->1->>'model'='auto:rapido','empresa automática escolhe o próprio modelo');
 select expect(not (ai_runtime('assistente')->'alternatives')::text like '%elevenlabs%','texto automático nunca usa ElevenLabs');
+select set_config('test.ai.groq',ai_save_connection_details(null,'groq','Groq gratuita',true,1,'v1.groq','2222','','','')::text,false);
+select expect(ai_runtime('assistente')->'alternatives'->1->>'provider'='groq' and ai_runtime('assistente')->'alternatives'->2->>'provider'='anthropic','economia primeiro: Groq gratuita antes de empresa paga');
+select ai_remove_connection(current_setting('test.ai.groq')::uuid);
 select ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'fixed','[]');
 select expect(ai_runtime('assistente')->'routing'='"fixed"'::jsonb and jsonb_array_length(ai_runtime('assistente')->'alternatives')=0,'rota fixa continua sem alternativas');
 select ai_save_provider('gemini', false, '', '', '', '', null, null);

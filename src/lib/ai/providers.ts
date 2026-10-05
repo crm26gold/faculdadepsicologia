@@ -8,8 +8,9 @@ import { runAiAttempts } from './attempts';
 import { publicHttps } from './public-http';
 
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[]; routing?: string };
-/** audio: a voice note sent along with the last message (Gemini and Vertex Gemini only). */
-export type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void> };
+/** audio: a voice note sent along with the last message (Gemini and Vertex Gemini read it with the prompt).
+ * audioTask 'transcribe' also accepts Whisper-style transcription endpoints (Groq, OpenAI), which return only the words heard. */
+export type Prompt = { system: string; prompt: string; audioTask?: 'transcribe'; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void> };
 export class AiError extends Error {
   constructor(message: string, readonly status = 0) { super(message); }
   /** Busy, rate-limited or briefly broken: worth another try, maybe on another model. */
@@ -81,11 +82,29 @@ const geminiText = (body: any) => (body?.candidates?.[0]?.content?.parts ?? []).
 const claudeText = (body: any) => (body?.content ?? []).map((part: { text?: string }) => part.text ?? '').join('').trim();
 const chatText = (body: any) => String(body?.choices?.[0]?.message?.content ?? '').trim();
 
+// Speech-to-text endpoints that follow the OpenAI audio API. Free tiers (Groq) make voice notes cheap.
+const transcribers: Partial<Record<AiProviderId, { url: string; model: string }>> = {
+  groq: { url: 'https://api.groq.com/openai/v1/audio/transcriptions', model: 'whisper-large-v3-turbo' },
+  openai: { url: 'https://api.openai.com/v1/audio/transcriptions', model: 'gpt-4o-mini-transcribe' },
+};
+async function transcribe(config: AiConfig, audio: { mimeType: string; base64: string }, signal?: AbortSignal) {
+  const target = transcribers[config.provider]!;
+  const extension = audio.mimeType.split(';')[0].split('/')[1]?.replace('mpeg', 'mp3').replace('x-m4a', 'm4a') || 'ogg';
+  const form = new FormData();
+  form.append('file', new Blob([Buffer.from(audio.base64, 'base64')], { type: audio.mimeType }), `audio.${extension}`);
+  form.append('model', target.model); form.append('language', 'pt'); form.append('response_format', 'json');
+  const body = await call(config.provider, target.url, { method: 'POST', signal, headers: { Authorization: `Bearer ${config.key}` }, body: form });
+  const text = String(body?.text ?? '').trim();
+  if (!text) throw new AiError(`${aiCatalog[config.provider].name} não reconheceu fala neste áudio.`, 422);
+  return text;
+}
+
 /** One prompt in, plain text out — the same contract for every provider. */
 export async function generate(config: AiConfig, input: Prompt): Promise<string> {
   input.signal?.throwIfAborted();
   const { system, prompt, maxTokens = 800 } = input;
   const json = { 'Content-Type': 'application/json' };
+  if (input.audio && input.audioTask === 'transcribe' && transcribers[config.provider]) return transcribe(config, input.audio, input.signal);
   if (input.audio && !(config.provider === 'gemini' || config.provider === 'google_cloud' || (config.provider === 'vertex' && !config.model.startsWith('claude')))) throw new AiError('Esta conexão não lê áudio gravado. Escolha uma conexão Gemini compatível ou envie texto.', 400);
   if (input.image && config.provider === 'deepseek') throw new AiError('Esta conexão DeepSeek atende texto. Escolha um modelo com visão para ler a imagem.', 400);
   if (input.image && config.provider === 'xai' && !['image/jpeg','image/png'].includes(input.image.mimeType)) throw new AiError('Esta conexão xAI lê imagens JPEG ou PNG. Use um desses formatos.',400);
@@ -174,7 +193,7 @@ export async function listModelInventory(config: AiConfig, signal?: AbortSignal)
     case 'vertex':
     case 'google_cloud': ids = []; break;
   }
-  const clean = (items: string[]) => [...new Set(items.filter(id => typeof id === 'string'))].sort().slice(0, 200);
+  const clean = (items: string[]) => [...new Set(items.filter(id => typeof id === 'string'))].sort().slice(0, 500);
   return { ids: clean(ids), liveIds: clean(liveIds) };
 }
 
@@ -207,10 +226,10 @@ export async function resolveModel(config: AiConfig): Promise<AiConfig> {
 // A single four-attempt bound applies across all keys and models, with a budget reservation per retry.
 export async function generateResilient(config: AiConfig, input: Prompt): Promise<{ text: string; model: string; provider: AiProviderId }> {
   const seen = new Set<string>();
-  const connections = [config, ...(config.alternatives ?? []).slice(0, 5)].filter(candidate => {
+  const connections = [config, ...(config.alternatives ?? []).slice(0, 7)].filter(candidate => {
     const id = createHash('sha256').update(`${candidate.provider}:${candidate.key}:${candidate.base_url}:${candidate.gcp_project}:${candidate.gcp_location}:${candidate.model}`).digest('hex');
     if (candidate.provider === 'elevenlabs') return false;
-    if (input.audio && !['gemini', 'vertex', 'google_cloud'].includes(candidate.provider)) return false;
+    if (input.audio && !['gemini', 'vertex', 'google_cloud'].includes(candidate.provider) && !(input.audioTask === 'transcribe' && transcribers[candidate.provider])) return false;
     if (input.image && candidate.provider === 'deepseek') return false;
     if (input.image && candidate.provider === 'xai' && !['image/jpeg','image/png'].includes(input.image.mimeType)) return false;
     if (seen.has(id)) return false;

@@ -9,14 +9,15 @@ export const autoModes = {
 } as const;
 export type AutoMode = keyof typeof autoModes;
 export const isAuto = (model: string): model is AutoMode => model in autoModes;
-export const autoCapable: AiProviderId[] = ['gemini', 'openai', 'anthropic', 'deepseek', 'xai', 'mistral'];
+export const autoCapable: AiProviderId[] = ['gemini', 'openai', 'anthropic', 'deepseek', 'xai', 'mistral', 'groq', 'openrouter'];
 
 type Tier = 'best' | 'fast' | 'light';
 type Parsed = { id: string; version: number; tier: Tier; preview: boolean };
 const NOT_TEXT = /(tts|image|imagen|vision-preview|embed|audio|live|realtime|transcribe|search|moderation|dall-e|whisper|babbage|davinci|computer-use|robotics|codex|instruct|nano-banana|veo|lyria|aqa|learnlm|gemma)/i;
 
 function parse(provider: AiProviderId, id: string): Parsed | null {
-  if (NOT_TEXT.test(id)) return null;
+  // Gateways name chat models "-instruct"; that suffix only marks completion-only models elsewhere.
+  if (NOT_TEXT.test(provider === 'groq' || provider === 'openrouter' ? id.replace(/-instruct/g, '') : id)) return null;
   const preview = /(preview|exp|experimental|beta)/i.test(id);
   if (provider === 'gemini' || provider === 'vertex') {
     const match = id.match(/^gemini-(\d+(?:\.\d+)?)-(pro|flash-lite|flash)(?:-|$)/);
@@ -42,6 +43,18 @@ function parse(provider: AiProviderId, id: string): Parsed | null {
     const match = id.match(/^grok-(\d+(?:\.\d+)?)/);
     if (!match) return null;
     return { id, version: Number(match[1]), tier: /mini/.test(id) ? 'light' : /fast/.test(id) ? 'fast' : 'best', preview };
+  }
+  if (provider === 'groq' || provider === 'openrouter') {
+    // Gateways host many families. OpenRouter enters automatic routing only with its free models.
+    if (provider === 'openrouter' && !id.endsWith(':free')) return null;
+    if (/guard|safeguard|tts|orpheus|compound|allam/i.test(id)) return null;
+    const name = id.replace(/:free$/, '').split('/').pop() ?? id;
+    const family = name.match(/^(llama|gpt-oss|qwen|kimi|deepseek|mistral|gemini|glm|nemotron|hermes)/i);
+    if (!family) return null;
+    const size = Number(name.match(/(\d+)b(?:-|$)/i)?.[1] ?? 0);
+    const version = Number(name.match(/(?:llama|qwen|glm)-?(\d+(?:\.\d+)?)/i)?.[1] ?? 1);
+    const strong = size >= 100 || /kimi|maverick|405b/i.test(name);
+    return { id, version, tier: strong ? 'best' : size && size < 20 ? 'light' : 'fast', preview };
   }
   if (provider === 'mistral') {
     const match = id.match(/^mistral-(large|medium|small)(?:-|$)/);
