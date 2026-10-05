@@ -724,6 +724,7 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   await expect(panel.getByText(/Disponíveis para reserva: Groq/)).toBeVisible();
   await expect(panel.getByText(/Hoje a Jornada só descobre as ferramentas/)).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Ligar base para membros' })).toBeDisabled();
+  await assistant.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/resource-map-desktop.png' });
   const card = panel.getByRole('form', { name: 'Reserva Gemini · Google Gemini (AI Studio)' });
   await expect(card.getByLabel('Quem pode usar')).toBeDisabled();
   await expect(card.getByLabel('Condições de privacidade').getByRole('option', { name: 'Conferi: contrato sem uso para treino' })).toHaveCount(0);
@@ -738,5 +739,5 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   await page.setViewportSize({ width: 390, height: 844 }); await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await settleAnimations(page);
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await panel.screenshot({ path: 'test-results/resource-map-mobile-dark.png' });
+  await assistant.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/resource-map-mobile-dark.png' });
 });

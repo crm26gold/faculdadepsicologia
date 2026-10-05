@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AlertTriangle, Info, Network, RefreshCw, Users } from 'lucide-react';
 import { aiCatalog, aiTaskLabels } from '@/lib/ai/catalog';
+import { autoModes, isAuto } from '@/lib/ai/models';
 import { capabilityLabels, declarableProviders, modelDependentCapabilities, providerCapabilities, reasonLabels, resourceInsights, resourceName, stateLabels,
   type AiResource, type AiResourceMap, type AiRouteMap } from '@/lib/ai/resources';
 import { api } from './client';
@@ -64,7 +65,7 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
       <div className="section-heading"><strong>{aiTaskLabels[route.task].name}</strong><span className="ai-badge">{!route.enabled ? 'Desligada'
         : route.routing_effective && route.routing_effective !== route.mode && route.mode !== 'legacy' ? `${modeLabels[route.mode]} · funcionando como automático` : modeLabels[route.mode]}</span></div>
       <span className="muted small">{route.chain.length ? 'Atuando agora, nesta ordem:' : 'Nenhuma conexão está atuando nesta tarefa.'}</span>
-      {route.chain.length > 0 && <ol className="ai-chain">{route.chain.map(item => <li key={item.source_id}><span>{name(item.source_id)}</span><small className="muted">{item.model}</small></li>)}</ol>}
+      {route.chain.length > 0 && <ol className="ai-chain">{route.chain.map(item => <li key={item.source_id}><span>{name(item.source_id)}</span><small className="muted">{isAuto(item.model) ? autoModes[item.model].label : item.model}</small></li>)}</ol>}
       {route.sources.some(source => source.state !== 'active') && <ul className="ai-source-states">{route.sources.filter(source => source.state !== 'active').map(source => <li key={source.source_id} data-state={source.state}>
         <span className="ai-source-name">{name(source.source_id)}</span><span className="ai-state">{stateLabels[source.state]}</span>
         {source.reason && source.state !== 'incapable' && <small className="muted">{reasonLabels[source.reason]}</small>}</li>)}</ul>}

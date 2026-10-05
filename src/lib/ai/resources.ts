@@ -81,6 +81,7 @@ export function resourceName(resource: Pick<AiResource, 'provider' | 'label' | '
 }
 
 export type Insight = { level: 'warning' | 'info'; task?: AiTaskId; text: string };
+const afterColon = (text: string) => text.charAt(0).toLocaleLowerCase('pt-BR') + text.slice(1);
 /** Plain-language findings derived only from the map; nothing here contacts a provider. */
 export function resourceInsights(map: AiResourceMap): Insight[] {
   const byId = new Map(map.resources.map(resource => [resource.source_id, resource]));
@@ -99,8 +100,8 @@ export function resourceInsights(map: AiResourceMap): Insight[] {
       insights.push({ level: 'info', task: route.task, text: `${task}: suas chaves pessoais entram primeiro e fazem a rota funcionar no modo automático, que tenta a próxima conexão em qualquer falha.` });
   }
   for (const resource of map.resources.filter(item => item.declaration.privacy_basis && !item.declaration.current))
-    insights.push({ level: 'warning', text: `${resourceName(resource)}: ${reasonLabels.declaration_stale}` });
+    insights.push({ level: 'warning', text: `${resourceName(resource)}: ${afterColon(reasonLabels.declaration_stale)}` });
   if (map.whatsapp?.stt.state === 'blocked' && map.whatsapp.stt.reason)
-    insights.push({ level: map.whatsapp.enabled ? 'warning' : 'info', text: `Transcrição do WhatsApp: ${reasonLabels[map.whatsapp.stt.reason]}` });
+    insights.push({ level: map.whatsapp.enabled ? 'warning' : 'info', text: `Transcrição do WhatsApp: ${afterColon(reasonLabels[map.whatsapp.stt.reason])}` });
   return insights;
 }

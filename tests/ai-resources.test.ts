@@ -85,5 +85,5 @@ test('o mapa avisa quando chaves pessoais mudam o modo efetivo e quando a declar
   map.resources[4].declaration = { privacy_basis: 'paid', audience: 'owner', current: false };
   const insights = resourceInsights(map);
   assert(insights.some(item => /funcionar no modo automático/.test(item.text)));
-  assert(insights.some(item => item.level === 'warning' && /A chave foi trocada depois da declaração/.test(item.text)));
+  assert(insights.some(item => item.level === 'warning' && /a chave foi trocada depois da declaração/i.test(item.text)));
 });
