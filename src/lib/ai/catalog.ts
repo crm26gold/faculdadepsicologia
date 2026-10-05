@@ -45,7 +45,7 @@ export function liveModelAllowed(provider: string, model: string) {
   return false;
 }
 export const aiTaskLabels: Record<AiTaskId, { name: string; help: string }> = {
-  voz: { name: 'Chamada ao vivo', help: 'A voz usa sua própria configuração. O raciocínio e as ações continuam na tarefa Conversa do assistente.' },
+  voz: { name: 'Chamada ao vivo', help: 'A voz usa sua própria configuração. Pedidos livres usam a Conversa do assistente; ações estruturadas completas usam o executor da Jornada.' },
   assistente: { name: 'Conversa do assistente', help: 'Responde na bolinha e na aba Assistente.' },
   organizar: { name: 'Organizar registros', help: 'Vai sugerir área, matéria, data e tipo para o que cair em Para organizar.' },
 };

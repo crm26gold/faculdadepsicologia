@@ -10,6 +10,7 @@ import { dateKey, type Workspace } from '@/lib/workspace';
 import { commandContext, type Applied, type CommandAction } from '@/lib/commands';
 import { confirmationIntent, queryWorkspace } from '@/lib/assistant-query';
 import type { LiveCredentials, VoiceTool, VoiceTranscript } from '@/lib/voice/protocol';
+import { voiceActionRequest } from '@/lib/voice/actions';
 import { Modal } from './modal';
 import { VoiceCall } from './voice-call';
 import { useAssistantExecutor, type Execution } from './use-assistant-executor';
@@ -302,8 +303,8 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
       const intent = confirmationIntent(transcript.text);
       if (executor.pending.length && intent === 'cancel') { await cancelPending(); return { saved: true, reply: 'Alteração cancelada. Nenhum item pendente foi removido.' }; }
       if (executor.pending.length && intent === 'confirm') { done = await executor.confirm(transcript, signal); if (done.saved) await jobs.settle(); recordExecution(`voice-action:${call.id}`, done); return { saved: done.saved, reply: done.reply }; }
-      const { instruction } = z.object({ instruction: z.string().trim().min(1).max(2000) }).parse(call.args);
-      const result = await jobs.run(call.id, instruction, signal);
+      const { instruction, actions } = voiceActionRequest(call.args);
+      const result = await jobs.run(call.id, instruction, signal, actions);
       return { saved: result.saved, reply: result.reply, applied: result.applied.map(item => item.label), pending: result.pending.map(item => item.label), failed: result.failed };
     } else throw new Error('Este comando de voz não está disponível.');
     recordExecution(`voice-action:${call.id}`, done);

@@ -54,6 +54,10 @@ O orçamento é reservado antes de cada tentativa efetiva, com limite único de 
 
 No MCP, OAuth registra apenas hashes de códigos e tokens. Uma reutilização de renovação revoga a família inteira em transação, e o registro de clientes tem limites globais e por origem. `private.mcp_receipts` torna pedidos com `request_id` idempotentes por 90 dias. Alterações de workspace, comprovantes e confirmações pendentes são gravados atomicamente; ações destrutivas reaparecem nas Conversas do app e passam novamente pela verificação do registro antes da confirmação.
 
+Nos pedidos de voz, `assistant_jobs.input.actions` é uma proposta opcional, validada pelo mesmo `commandAction` usado nos demais canais. `assistant-execution.ts` concentra execução, resumo, confirmação pendente e uma repetição por conflito de revisão. O adaptador `ai/run-job.ts` prende leitura, lease e commit à conta autenticada. Sem ações estruturadas, ele chama o planejador existente com orçamento e fallback; com ações estruturadas, não chama o runtime de IA nem reserva uma tentativa de API. O custo da própria chamada de voz continua existindo. `finish_assistant_job` grava workspace e resultado na mesma transação. O recibo identifica `execution: structured | planned`; pedidos antigos continuam compatíveis.
+
+Este mecanismo usa a fila persistente já existente, iniciada por `after()` e retomada pelos Pedidos da conversa. Não há ainda um worker autônomo periódico; `after()` está sujeito ao prazo da função Vercel. A direção e os limites de cada integração, incluindo o MCP, estão em [FUNDACAO_ASSISTENTE.md](FUNDACAO_ASSISTENTE.md).
+
 ## Contrato de separação dos ambientes
 
 | Aspecto | Demo pública | Workspace privado |
