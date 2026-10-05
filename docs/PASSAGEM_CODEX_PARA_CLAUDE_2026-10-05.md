@@ -8,6 +8,8 @@ O proprietário pediu esta passagem porque seus créditos do Codex estão perto 
 
 > Continue o trabalho da Jornada Plena no repositório `crm26gold/faculdadepsicologia`. Leia primeiro `AGENTS.md` e este documento completo, `docs/PASSAGEM_CODEX_PARA_CLAUDE_2026-10-05.md`. Confirme checkout, origin, branch e versão atual da main; não use automaticamente um branch antigo do Claude. A prioridade é a infraestrutura do assistente: controle central de recursos, autorização, capacidades, saúde, cotas, execução durável e relatórios, preservando o visual aprovado. Os PRs #46–#49 já foram entregues. APIs da base podem atender o sistema conforme meus controles; meus recursos MCP só são compartilhados conforme minha escolha e capacidade suportada. Recursos dos demais usuários atendem suas contas; uso para evolução do sistema exige autorização específica do dono, sem usar a cota deles para atender outra pessoa. Primeiro apresente sua leitura do estado e o plano do próximo lote; faça uma pergunta material por vez quando faltar decisão. Não contrate serviços, altere permissões, consuma créditos de chamadas reais nem compartilhe fontes silenciosamente. Trabalhe em branch próprio e entregue diff, testes e relatório para revisão.
 
+> Atue também como arquiteto e colaborador sênior: sempre que eu trouxer um vídeo, aplicativo, sistema, serviço ou ideia, investigue a raiz do problema e o mecanismo da solução. Traduza a referência em capacidades, tecnologias e um plano aplicável à Jornada, conforme a seção 3.1. Questione premissas com respeito, recomende o que faz sentido e explique os limites. Não copie marcas ou promessas sem verificar, nem espere que eu conheça os nomes das bibliotecas para propor uma boa solução.
+
 Se este for um chat do Claude sem terminal/repositório, anexe este arquivo e use-o como contexto. O texto não concede acesso ao GitHub, Supabase, Vercel ou computador: é preciso conectar os recursos suportados pelo ambiente. Não cole credenciais no chat para compensar falta de acesso.
 
 ## 2. Identidade do projeto e estado confirmado
@@ -47,6 +49,29 @@ Regras indispensáveis:
 - Custo adicional mínimo no começo. Não comprar servidores, reativar faturamento, aumentar planos ou habilitar fontes pagas por conta própria.
 
 Identidade visual aprovada: azul oceano/escuro, contraste legível, cores vivas sem aparência apagada, superfícies claras/escuras e símbolo existente. Mobile e desktop precisam funcionar. Não refazer a identidade nem remover a história do produto.
+
+### 3.1. Postura crítica: investigar a raiz e traduzir referências
+
+Pedido explícito posterior do proprietário: ele aprovou a análise que foi além do nome de um aplicativo e encontrou as tecnologias e mecanismos relevantes. Quer que o Claude trabalhe dessa forma também. O proprietário não precisa saber programação para expressar o resultado desejado; cabe ao agente transformar essa intenção numa solução técnica coerente.
+
+Ao receber informação, vídeo, app, sistema, serviço ou sugestão:
+
+1. **Encontre o objetivo:** que problema isso resolve e qual experiência/capacidade o proprietário quer para a Jornada? Separe o benefício desejado do nome comercial e da apresentação do vídeo.
+2. **Investigue o mecanismo:** identifique fluxo de dados, execução, protocolos, bibliotecas, identidade, autorização, persistência e custos que tornam o resultado possível. Se o assunto envolver uma falha, investigue a causa antes de trocar ferramentas.
+3. **Verifique as afirmações:** consulte o código e, quando necessário, documentação primária atual. Não afirme quais tecnologias uma plataforma usa internamente sem evidência. Uma biblioteca adequada para reproduzir um efeito não prova que a plataforma original a utiliza. Diferencie fato, hipótese e proposta.
+4. **Compare com a Jornada:** o mecanismo já existe? Há uma dependência desnecessária? O recurso pode ser adaptado sem mudar o visual aprovado, duplicar módulos, expor dados ou contratar serviço? Avalie privacidade, autorização, acessibilidade, mobile, manutenção e custo conforme a tarefa.
+5. **Exerça julgamento:** recomende uma solução e justifique os tradeoffs. Se a ideia for incompleta, impraticável ou mais cara que o benefício, diga por quê e proponha uma alternativa. Considere também a possibilidade de sua própria proposta estar errada; revise-a diante de evidências novas.
+6. **Torne a proposta executável:** forneça tecnologias/adaptadores realmente necessários, responsabilidades, arquivos envolvidos, prompts úteis, etapas pequenas e critérios de pronto. Evite listas de ferramentas por popularidade ou instalação de skills apenas por palavras-chave.
+7. **Alinhe o que importa:** pergunte ao proprietário sobre resultado, prioridade, custo, privacidade ou permissão quando isso mudar a solução. Resolva escolhas técnicas rotineiras usando evidências e explique em linguagem simples; não transfira ao usuário leigo a obrigação de projetar a arquitetura.
+8. **Valide o resultado:** quando a implementação estiver autorizada, execute e teste o fluxo real pertinente. “Tem código”, “foi publicado” e “funciona na conta real” são estados distintos. Não prometa economia, disponibilidade ou funcionamento universal sem medição/evidência.
+
+Exemplos desta postura no próprio projeto:
+
+- “Quero uma experiência como aquela plataforma visual”: analisar hierarquia, interação, movimento e responsividade; propor componentes e bibliotecas compatíveis com a base React/Next existente, conforme o efeito, em vez de instalar a plataforma citada ou refazer tudo.
+- “A voz conversa, mas não registra”: separar áudio, interpretação, validação e commit. O PR #49 nasceu dessa análise e removeu a segunda chamada ao planejador quando há ações estruturadas completas, preservando o caminho antigo e as confirmações.
+- “Meu MCP vai dar poder ao sistema”: identificar o sentido de acesso, ferramenta versus modelo, autenticação e escopo de uso; comprovar a capacidade antes de tratar uma assinatura como reserva executável para outros usuários.
+
+Formato curto sugerido para a devolutiva: **o que entendi → mecanismo identificado → evidências e limites → recomendação para a Jornada → próximo passo/pergunta material**. Uma referência é insumo para raciocinar, não uma instrução técnica incontestável nem autorização para executar tudo que ela sugere.
 
 ## 4. O que já foi entregue — não refazer
 
@@ -343,5 +368,7 @@ nenhum segredo, dado pessoal ou promessa sem evidência.
 ## 13. Primeira devolutiva esperada do Claude
 
 Explique o que encontrou pronto, divergências atuais e o plano do lote A. Reconheça que a voz ElevenLabs já foi aprovada pelo proprietário, que APIs pessoais e exclusão já existem, que a base ainda está desligada e que o MCP executável de saída/worker autônomo não existem. Faça apenas a próxima pergunta que realmente alterar desenho, custo, permissão ou implantação. Não perguntar de novo genericamente “quem pode usar as APIs”: a política já foi esclarecida na seção 5.
+
+Mostre julgamento técnico conforme a seção 3.1: identifique o problema de fundo, recomende a próxima solução com justificativa e sinalize premissas que ainda exigem comprovação. Não se limite a repetir o pedido ou a concordar com nomes de ferramentas.
 
 Este documento entrega contexto e critérios de continuidade. Não transforma planos em implementações, adaptações de MCP em motores universais, CI em aceite real ou permissões futuras em compartilhamento ativo.
