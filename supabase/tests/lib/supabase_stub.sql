@@ -51,11 +51,12 @@ values ('00000000-0000-4000-8000-00000000000a', '{"version": "1", "subjects": []
 \ir ../../migrations/20261005011151_ai_auto_economy.sql
 \ir ../../migrations/20261005014431_mcp_access.sql
 \ir ../../migrations/20261005015929_mcp_oauth.sql
-\ir ../../migrations/20261005024000_oauth_security_hardening.sql
-\ir ../../migrations/20261005024044_ai_personal_keys_and_removal.sql
-\ir ../../migrations/20261005024224_assistant_mcp_receipts.sql
-\ir ../../migrations/20261005025107_whatsapp_ai_sources.sql
-\ir ../../migrations/20261005025825_ai_routing_capabilities.sql
+\ir ../../migrations/20261005080129_oauth_security_hardening.sql
+\ir ../../migrations/20261005080141_ai_personal_keys_and_removal.sql
+\ir ../../migrations/20261005080153_assistant_mcp_receipts.sql
+\ir ../../migrations/20261005080206_whatsapp_ai_sources.sql
+\ir ../../migrations/20261005080218_ai_routing_capabilities.sql
+\ir ../../migrations/20261005080521_ai_member_source_indexes.sql
 
 create function public.expect(ok boolean, message text) returns void language plpgsql
 as $$ begin if not coalesce(ok, false) then raise exception 'FALHA: %', message; end if; end $$;
