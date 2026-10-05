@@ -7,7 +7,7 @@ import { chatImageContent, claudeImageContent, responsesImageContent, type AiIma
 import { runAiAttempts } from './attempts';
 import { publicHttps } from './public-http';
 
-export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[] };
+export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[]; routing?: string };
 /** audio: a voice note sent along with the last message (Gemini and Vertex Gemini only). */
 export type Prompt = { system: string; prompt: string; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void> };
 export class AiError extends Error {
@@ -207,7 +207,7 @@ export async function resolveModel(config: AiConfig): Promise<AiConfig> {
 // A single four-attempt bound applies across all keys and models, with a budget reservation per retry.
 export async function generateResilient(config: AiConfig, input: Prompt): Promise<{ text: string; model: string; provider: AiProviderId }> {
   const seen = new Set<string>();
-  const connections = [config, ...(config.alternatives ?? []).slice(0, 2)].filter(candidate => {
+  const connections = [config, ...(config.alternatives ?? []).slice(0, 5)].filter(candidate => {
     const id = createHash('sha256').update(`${candidate.provider}:${candidate.key}:${candidate.base_url}:${candidate.gcp_project}:${candidate.gcp_location}:${candidate.model}`).digest('hex');
     if (candidate.provider === 'elevenlabs') return false;
     if (input.audio && !['gemini', 'vertex', 'google_cloud'].includes(candidate.provider)) return false;
@@ -229,5 +229,5 @@ export async function generateResilient(config: AiConfig, input: Prompt): Promis
       if (!model) throw new AiError('Nenhum modelo compatível encontrado para esta conexão.', 404);
     }
     return { text: await generate({ ...candidate, model }, input), model, provider: candidate.provider };
-  }, input);
+  }, { ...input, persistent: config.routing === 'auto' });
 }

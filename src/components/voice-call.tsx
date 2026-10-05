@@ -11,7 +11,7 @@ type Caption = { id: string; from: 'me' | 'assistant'; text: string };
 type Props = {
   available: boolean; blocked: boolean; pending: PendingCommand[]; executing: boolean;
   onClose: () => void;
-  credentials: (signal: AbortSignal) => Promise<LiveCredentials>;
+  credentials: (signal: AbortSignal, skip?: string[]) => Promise<LiveCredentials>;
   context: () => { context: string; history: { role: 'user' | 'assistant'; text: string }[] };
   onTranscript: (id: string, from: Caption['from'], text: string) => void;
   onTool: (tool: VoiceTool, signal: AbortSignal, transcript: VoiceTranscript) => Promise<unknown>;
@@ -89,7 +89,7 @@ export function VoiceCall(props: Props) {
     if (active || !props.available || props.blocked) return;
     connection.current?.end(); setProblem(''); setMuted(false); setSpeaker(true); setCaptions([]); setSeconds(0); startedAt.current = Date.now();
     const call = new LiveVoiceConnection({
-      credentials: signal => current.current.credentials(signal), context: () => current.current.context(), state: setState, level: setLevel, notice: setProblem,
+      credentials: (signal, skip) => current.current.credentials(signal, skip), context: () => current.current.context(), state: setState, level: setLevel, notice: setProblem,
       transcript: (id, from, text) => {
         setCaptions(previous => {
           const existing = previous.some(item => item.id === id);
