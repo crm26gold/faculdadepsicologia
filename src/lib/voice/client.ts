@@ -79,6 +79,7 @@ export class LiveVoiceConnection {
   private callState: CallState = 'idle';
   private rtc: GptLivePeer | null = null;
   private skipped = new Set<string>(); private connected = false; private limited = false; private setupTimer: ReturnType<typeof setTimeout> | undefined;
+  private starting = false;
   // ElevenLabs Agents: audio events carry the response id; anything older than an interruption is dropped.
   private eleven = false; private elevenStarted = false; private outputRate = 16_000;
   private interruptedAt = 0; private lastAudioEvent = 0; private assistantId = '';
@@ -113,6 +114,10 @@ export class LiveVoiceConnection {
 
   /** Asks the server for the next transport; automatic routing skips the ones that already failed. */
   private async connect() {
+    if (!this.starting) {
+      this.starting = true;
+      this.later(() => { if (!this.connected) this.fail('Não consegui iniciar a chamada em 60 segundos. Confira a internet e as conexões de voz antes de tentar novamente.'); }, 60_000);
+    }
     this.state('connecting');
     this.ready = false;
     this.credentials = await this.options.credentials(this.abort.signal, [...this.skipped]);

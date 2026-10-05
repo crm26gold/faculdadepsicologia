@@ -61,7 +61,7 @@ Cadastre uma chave de API xAI em **Conexões e chaves**, habilite a conexão e s
 
 ### Automático: usar a que funcionar
 
-Em **Tarefas e modelos**, cada tarefa tem **Se a conexão falhar › Automático: usar a que funcionar (recomendado)**. Voz começa pela conexão escolhida; texto ordena todas as conexões elegíveis, incluindo a escolhida. Há no máximo oito tentativas no pedido inteiro, cada uma registrada no controle de uso:
+Em **Tarefas e modelos**, cada tarefa tem **Se a conexão falhar › Automático: usar a que funcionar (recomendado)**. Voz começa pela conexão escolhida; texto ordena todas as conexões elegíveis, incluindo a escolhida. O servidor limita cada preparação a oito candidatos, com orçamento por tentativa; o navegador encerra o início da chamada após 60 segundos, inclusive durante trocas de transporte:
 
 - **Chamada ao vivo:** preserva a escolhida e usa ElevenLabs, Gemini, xAI e OpenAI como alternativas. A troca acontece apenas antes de conectar. Uma conversa já iniciada não troca de provedor.
 - **Conversa do assistente e Organizar registros, economia primeiro:** Gemini, Groq, Mistral, DeepSeek, xAI e os modelos gratuitos (`:free`) do OpenRouter; OpenAI e Anthropic ficam por último. Cada empresa escolhe o próprio modelo pela lista da chave. Serviços compatíveis e Google Cloud entram apenas como conexão principal. ElevenLabs nunca responde texto.

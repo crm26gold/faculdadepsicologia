@@ -40,3 +40,20 @@ for (const budgetDenied of [false, true]) test(budgetDenied ? 'limite da Jornada
     connection.end();for(const name of names) {const original=originals[name];if(original)Object.defineProperty(globalThis,name,original);else Reflect.deleteProperty(globalThis,name);}
   }
 });
+
+test('prazo de início encerra preparação pendente e libera o microfone', async context => {
+  context.mock.timers.enable({apis:['setTimeout']});
+  let stops=0, aborted=false;
+  const states:string[]=[],notices:string[]=[];
+  const connection=new LiveVoiceConnection({credentials:signal=>new Promise((_resolve,reject)=>{
+    signal.addEventListener('abort',()=>{aborted=true;reject(new DOMException('aborted','AbortError'));},{once:true});
+  }),state:value=>states.push(value),level:()=>{},transcript:()=>{},tool:async()=>({}),notice:value=>notices.push(value)});
+  const internal=connection as unknown as {stream:unknown;connect:()=>Promise<void>};
+  internal.stream={getTracks:()=>[{stop(){stops++;}}]};
+  const pending=assert.rejects(internal.connect(),{name:'AbortError'});
+  context.mock.timers.tick(59_999);assert.equal(aborted,false);
+  context.mock.timers.tick(1);await pending;
+  assert.equal(aborted,true);assert.equal(stops,1);assert.ok(states.includes('error'));
+  assert.match(notices.at(-1)!,/60 segundos/);
+  connection.end();assert.equal(stops,1);
+});
