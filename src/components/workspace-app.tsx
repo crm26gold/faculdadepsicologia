@@ -31,6 +31,7 @@ import { SubjectOptions } from './subject-options';
 import { NotesLibrary } from './notes-library';
 import { TelegramAdmin, TelegramLink } from './messenger-settings';
 import { AssistantConnections } from './assistant-connections';
+import { OAUTH_RETURN_KEY } from './oauth-consent';
 import { WhatsAppAdmin } from './whatsapp-settings';
 import type { Place } from '@/lib/notebooks';
 import { PlanningPanel } from './planning-panel';
@@ -133,6 +134,13 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     api<Home>('/api/me').then(value => { setHome(value); setHomeError(''); }).catch(reason => setHomeError(reason instanceof Error ? reason.message : 'Não foi possível carregar sua conta.'));
   }, [cloud]);
   useEffect(() => { refreshHome(); }, [refreshHome]);
+  // Back to an MCP consent (ChatGPT, Claude) that started before Google login. Same-origin path only.
+  useEffect(() => {
+    if (!cloud || !home) return;
+    let target: string | null = null;
+    try { target = localStorage.getItem(OAUTH_RETURN_KEY); localStorage.removeItem(OAUTH_RETURN_KEY); } catch { return; }
+    if (target && /^\/oauth\/authorize\?[^#\s]*$/.test(target)) window.location.assign(target);
+  }, [cloud, home]);
   useEffect(() => { if (cloud && home && acceptedTerms(home)) api<ContactRow[]>('/api/contacts').then(setContacts).catch(() => setContacts([])); }, [cloud, home]);
   usePendingInvite(cloud && !!home && acceptedTerms(home), (spaceId, message) => {
     if (spaceId) { setCommunityRoute({ kind: 'space', id: spaceId }); setView('community'); setNotice('Convite aceito. Bem-vindo(a) à sala!'); refreshHome(); }

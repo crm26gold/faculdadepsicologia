@@ -1,5 +1,7 @@
 import { botDatabase } from '@/lib/supabase/bot';
 import { jornadaMcpHandler, mcpAuthenticate, McpAccessError } from '@/lib/mcp/server';
+import { resourceMetadataUrl } from '@/lib/mcp/oauth';
+import { applicationOrigin } from '@/lib/auth-input';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -17,7 +19,10 @@ async function serve(request: Request) {
     return response;
   } catch (error) {
     if (error instanceof McpAccessError) {
-      return Response.json({ error: error.message }, { status: error.status, headers: { ...headers, ...(error.status === 401 ? { 'WWW-Authenticate': 'Bearer realm="Jornada Plena"' } : {}) } });
+      // RFC 9728: clients that support OAuth (ChatGPT, Claude) discover the login from this header.
+      const origin = applicationOrigin(process.env);
+      const challenge = `Bearer realm="Jornada Plena"${origin ? `, resource_metadata="${resourceMetadataUrl(origin)}"` : ''}`;
+      return Response.json({ error: error.message }, { status: error.status, headers: { ...headers, ...(error.status === 401 ? { 'WWW-Authenticate': challenge } : {}) } });
     }
     console.warn('[mcp]', { outcome: 'failed' });
     return Response.json({ error: 'Não consegui atender agora.' }, { status: 500, headers });

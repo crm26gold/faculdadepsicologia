@@ -94,3 +94,22 @@ test('servidor MCP: clientes da versão 2026-07-28 listam e consultam sem aperto
   const asked = await jornadaMcpHandler(db as never, access).fetch(modern(2, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'resumo' } }));
   assert.match(JSON.stringify(mcpResult(await asked.text(), 2)), /summary/);
 });
+
+test('OAuth do MCP: PKCE S256, retornos permitidos e metadados de descoberta', async () => {
+  const { s256, redirectAllowed, verifierValid, challengeValid, wantsWrite, authorizationServer, protectedResource, resourceMetadataUrl } = await import('../src/lib/mcp/oauth');
+  // RFC 7636, apêndice B.
+  assert.equal(s256('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk'), 'E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM');
+  assert.ok(verifierValid('dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk') && !verifierValid('curto'));
+  assert.ok(challengeValid('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM') && !challengeValid('E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-c='));
+  for (const ok of ['https://chatgpt.com/connector_platform_oauth_redirect', 'https://claude.ai/api/mcp/auth_callback', 'http://localhost:6274/oauth/callback', 'http://127.0.0.1:33418/cb']) assert.ok(redirectAllowed(ok), ok);
+  for (const bad of ['http://evil.example/cb', 'https://x.example/cb#frag', 'https://user:pass@x.example/cb', 'javascript:alert(1)', 42]) assert.ok(!redirectAllowed(bad), String(bad));
+  assert.ok(wantsWrite('ler registrar') && !wantsWrite('ler') && !wantsWrite(undefined));
+  const origin = 'https://jornada.example';
+  assert.deepEqual(protectedResource(origin).authorization_servers, [origin]);
+  assert.equal(protectedResource(origin).resource, `${origin}/api/mcp`);
+  const server = authorizationServer(origin);
+  assert.deepEqual(server.code_challenge_methods_supported, ['S256']);
+  assert.deepEqual(server.token_endpoint_auth_methods_supported, ['none']);
+  assert.equal(server.registration_endpoint, `${origin}/api/oauth/register`);
+  assert.equal(resourceMetadataUrl(origin), `${origin}/.well-known/oauth-protected-resource/api/mcp`);
+});

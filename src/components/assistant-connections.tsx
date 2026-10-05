@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Copy, KeyRound, Plug, Trash2 } from 'lucide-react';
 import { api } from './community/client';
 
-type Token = { id: string; label: string; hint: string; can_write: boolean; created_at: string; expires_at: string | null; last_used_at: string | null };
+type Token = { id: string; label: string; hint: string; can_write: boolean; created_at: string; expires_at: string | null; last_used_at: string | null; oauth?: boolean };
 type State = { tokens: Token[]; endpoint: string | null };
 const when = (value: string | null) => value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca';
 
@@ -51,6 +51,7 @@ export function AssistantConnections() {
     <h2 id="assistant-connections-title"><Plug size={17} aria-hidden="true" /> Conectar assistentes (MCP)</h2>
     <p className="muted">Use o Claude Code, o Codex, o Gemini ou o Antigravity com a sua própria assinatura para consultar e organizar a sua Jornada. Cada chave acessa só a sua vida pessoal, nunca grupos ou outras pessoas. Exclusões continuam sendo confirmadas aqui no aplicativo.</p>
     {state.endpoint && <p className="small">Endereço do servidor: <code>{state.endpoint}</code></p>}
+    <p className="muted small"><strong>ChatGPT e Claude (app e site):</strong> adicione um conector personalizado com este endereço. Eles abrem o login da Jornada e você autoriza, sem colar chave. <strong>Claude Code, Codex, Gemini CLI e Antigravity:</strong> crie uma chave abaixo.</p>
     {created && <div className="ai-card" role="status">
       <strong><KeyRound size={16} aria-hidden="true" /> Sua chave nova (aparece só agora)</strong>
       <p className="muted small">Guarde num gerenciador de senhas. Não envie em conversas. Se perder, revogue e crie outra.</p>
@@ -68,7 +69,7 @@ export function AssistantConnections() {
       <button className="button primary" disabled={busy}>Criar chave</button>
     </form>
     {state.tokens.length > 0 && <ul className="mcp-token-list">{state.tokens.map(token => <li key={token.id}>
-      <span><strong>{token.label}</strong> · …{token.hint} · {token.can_write ? 'consulta e registra' : 'só consulta'}<br /><span className="muted small">Último uso: {when(token.last_used_at)}{token.expires_at ? ` · vale até ${when(token.expires_at)}` : ''}</span></span>
+      <span><strong>{token.label}</strong> · {token.oauth ? 'conectado por login' : `…${token.hint}`} · {token.can_write ? 'consulta e registra' : 'só consulta'}<br /><span className="muted small">Último uso: {when(token.last_used_at)}{token.expires_at ? ` · vale até ${when(token.expires_at)}` : ''}</span></span>
       <button type="button" className="text-button cm-danger" disabled={busy} onClick={() => void revoke(token)}><Trash2 size={15} aria-hidden="true" />Revogar</button>
     </li>)}</ul>}
     {message && <p className="cm-message" role="status">{message}</p>}

@@ -33,13 +33,21 @@ Depois de configurar, peça por exemplo: "consulte minha agenda desta semana na 
 
 Os nomes de campo de cada aplicativo podem mudar entre versões. Se um deles recusar a configuração, confira na documentação do próprio aplicativo como adicionar um servidor MCP remoto (Streamable HTTP) com cabeçalho `Authorization`.
 
-## ChatGPT e Claude (app e site)
+## ChatGPT e Claude (app e site): login com a Jornada
 
-Esses aplicativos não aceitam uma chave colada: eles exigem o login "Conectar com a Jornada" (OAuth). Esse login é a próxima etapa do servidor MCP. Até lá, use o Claude Code, o Codex, o Gemini CLI ou o Antigravity.
+Esses aplicativos não usam chave colada: eles abrem o login da Jornada (OAuth 2.1 com PKCE) e você autoriza na tela **Conectar assistente**.
+
+- **Claude** (claude.ai, app de computador ou celular): Configurações › Conectores › Adicionar conector personalizado. Nome: `Jornada Plena`. URL: o endereço do servidor (`…/api/mcp`). Clique em Conectar, entre com sua conta Google da Jornada e clique em **Permitir acesso**.
+- **ChatGPT**: Configurações › Apps e conectores › Avançado › ative o modo desenvolvedor e crie um conector. URL do servidor MCP: o endereço `…/api/mcp`; autenticação: OAuth. Conclua o login e clique em **Permitir acesso**.
+
+Na tela de autorização você escolhe se o aplicativo pode **registrar e editar** ou só consultar. Cada autorização aparece em **Meu espaço › Conectar assistentes** com o nome do aplicativo e pode ser revogada. O acesso vale 1 hora e é renovado sozinho por até 90 dias; revogar encerra também a renovação.
+
+Os menus desses aplicativos mudam com frequência e podem exigir plano pago ou modo desenvolvedor. Se o caminho acima não existir, procure por "conector personalizado" ou "servidor MCP remoto" na ajuda do aplicativo.
 
 ## Limites e segurança
 
 - Cada chave faz até 300 chamadas a cada 10 minutos.
 - O banco guarda só o hash da chave e os quatro últimos caracteres, para você reconhecê-la.
 - O servidor atende as versões 2025 e 2026-07-28 do protocolo, sem sessão (cada chamada é independente).
+- Login OAuth: só clientes públicos com PKCE S256, retorno HTTPS (ou loopback para apps locais) registrado pelo próprio aplicativo, código de uso único por 10 minutos. Códigos e tokens ficam no banco só como hash.
 - Dados devolvidos ao assistente são da pessoa e não são instruções.
