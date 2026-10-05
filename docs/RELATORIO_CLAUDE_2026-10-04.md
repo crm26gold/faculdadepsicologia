@@ -48,7 +48,7 @@ Resultados que orientaram as correções abaixo:
 
 ### 2.4 Endurecimento do banco — PR #37 (`e616be8`) e produção
 
-- **Migração** `supabase/migrations/20261004190000_advisor_hardening.sql`:
+- **Migração** `supabase/migrations/20261004190902_advisor_hardening.sql` (criada como `20261004190000`, renomeada em 05/10):
   - RLS em `private.trusted_transactions`, `private.personal_workspaces_backup_20260930` e `private.personal_workspaces_backup_20261001` (esta última de forma condicional, porque foi criada fora das migrações);
   - 15 índices de chaves estrangeiras.
 - **Por que é seguro:** as funções que usam essas tabelas (`private.trusted_change` e `private.delete_my_account`) são `SECURITY DEFINER` e pertencem ao dono das tabelas (`postgres`), que o RLS não afeta (não há `FORCE ROW LEVEL SECURITY`).
@@ -124,7 +124,7 @@ Em `src/components/community/ai-settings.tsx`, "WhatsApp · API da Meta pendente
    - Todo o conteúdo deles já está na `main`: 34 foram mesclados direto e 3 por squash, nos PRs #32, #33 e #34.
    - O proprietário autorizou, mas a ação foi classificada como destrutiva e bloqueada.
    - Pode ser feito pela página *Branches* do GitHub, ou com `git push origin --delete <nomes>` numa máquina com permissão.
-2. **Renomear `20261004190000_advisor_hardening.sql`** para a versão que o Supabase atribuiu na aplicação (algo como `2026100419xxxx`).
+2. **Concluído em 05/10:** `20261004190000_advisor_hardening.sql` virou `20261004190902_advisor_hardening.sql`, a versão registrada no Supabase, com o stub atualizado. Registro original:
    - A leitura de `list_migrations` foi bloqueada.
    - A versão aparece no painel do Supabase, em Database › Migrations.
    - Ao renomear, atualizar também `supabase/tests/lib/supabase_stub.sql`.

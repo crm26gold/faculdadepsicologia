@@ -198,6 +198,24 @@ select expect(ai_runtime('assistente')->>'base_url'='https://api.example.invalid
 select expect(ai_runtime('assistente')->'alternatives'->0->>'provider'='anthropic' and ai_runtime('assistente')->'alternatives'->0->>'model'='claude-teste','alternativa autorizada usa empresa e modelo próprios');
 select expect(ai_admin_state()::text not like '%v1.independente%' and ai_admin_state()::text not like '%v1.claude%','nenhuma chave cifrada no painel ampliado');
 do $$ begin perform ai_save_route('voz','gemini',null,'auto:rapido',true,'fallback',jsonb_build_array(jsonb_build_object('connection_id',current_setting('test.ai.alternative'),'model','claude-teste'))); raise exception 'FALHA: voz aceitou transporte de texto'; exception when invalid_parameter_value then null; end $$;
+-- ElevenLabs: só voz, com o LLM do agente; nunca como texto ou alternativa de texto.
+-- A tarefa voz vem de 20261003173200_assistant_continuity, fora deste stub: mesmo passo de produção.
+reset role;
+alter table public.ai_tasks drop constraint ai_tasks_id_check;
+alter table public.ai_tasks add constraint ai_tasks_id_check check (id in ('assistente','organizar','voz'));
+insert into public.ai_tasks(id) values ('voz') on conflict (id) do nothing;
+set role authenticated;
+select set_config('test.ai.eleven',ai_save_connection_details(null,'elevenlabs','ElevenLabs teste',true,1,'v1.eleven','abcd','','','')::text,false);
+select ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'auto:rapido',true,'fixed','[]');
+select expect(ai_runtime('voz')->>'provider'='elevenlabs' and ai_runtime('voz')->>'key_ciphertext'='v1.eleven','voz usa a conexão ElevenLabs');
+select ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'gemini-2.5-flash',true,'fixed','[]');
+do $$ begin perform ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'custom-llm',true,'fixed','[]'); raise exception 'FALHA: voz aceitou LLM próprio sem endpoint'; exception when invalid_parameter_value then null; end $$;
+do $$ begin perform ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'auto:rapido',true,'fallback',jsonb_build_array(jsonb_build_object('connection_id',current_setting('test.ai.alternative'),'model','claude-teste'))); raise exception 'FALHA: voz ElevenLabs aceitou alternativa de texto'; exception when invalid_parameter_value then null; end $$;
+do $$ begin perform ai_save_route('assistente','elevenlabs',current_setting('test.ai.eleven')::uuid,'gemini-2.5-flash',true,'fixed','[]'); raise exception 'FALHA: texto aceitou ElevenLabs'; exception when invalid_parameter_value then null; end $$;
+do $$ begin perform ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'fallback',jsonb_build_array(jsonb_build_object('connection_id',current_setting('test.ai.eleven'),'model','gemini-2.5-flash'))); raise exception 'FALHA: texto aceitou alternativa ElevenLabs'; exception when invalid_parameter_value then null; end $$;
+do $$ begin perform ai_save_route('voz','gemini',null,'gemini-2.5-flash',true,'fixed','[]'); raise exception 'FALHA: Gemini aceitou modelo sem Live'; exception when invalid_parameter_value then null; end $$;
+select ai_save_route('voz','gemini',null,'auto:rapido',true,'fixed','[]');
+select ai_remove_connection(current_setting('test.ai.eleven')::uuid);
 select ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'fixed','[]');
 select expect(jsonb_array_length(ai_runtime('assistente')->'alternatives')=0,'rota fixa não inclui reservas implicitamente');
 select ai_remove_connection(current_setting('test.ai.independent')::uuid);

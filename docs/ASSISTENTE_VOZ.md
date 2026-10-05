@@ -10,7 +10,7 @@ Novas conversas são salvas na conta autenticada e têm uma cópia local separad
 
 ## Configurar o provedor de voz
 
-A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A primeira cuida da conversa falada; a segunda interpreta fotos e planeja ações com o núcleo da Jornada. Trocar a voz não exige trocar o planejador. Só o proprietário configura chaves em **Administração › Inteligência artificial**.
+A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A primeira cuida da conversa falada, com Gemini, OpenAI ou ElevenLabs; a segunda interpreta fotos e planeja ações com o núcleo da Jornada. Trocar a voz não exige trocar o planejador. Só o proprietário configura chaves em **Administração › Inteligência artificial**.
 
 ### Gemini
 
@@ -32,6 +32,22 @@ A autorização temporária permanece limitada ao modelo, às instruções e às
 5. Teste no celular. O erro exibido informa uma referência se a preparação da sessão falhar.
 
 A sessão usa WebRTC e delegação ao núcleo da Jornada. O servidor negocia a sessão com a chave permanente; o navegador recebe a resposta de conexão, não a chave. Não há troca automática entre Gemini e OpenAI durante uma chamada. A mudança exige uma nova chamada e o histórico continua na Jornada. O adaptador foi validado com eventos simulados; a qualidade de áudio e a autorização real precisam de um teste com a chave configurada.
+
+### ElevenLabs
+
+O ElevenLabs conduz a conversa por voz: reconhece a fala, responde com o modelo escolhido para o agente e fala em português. As ferramentas da Jornada rodam no navegador, com o mesmo executor do chat. Por isso consultar, organizar, confirmar, cancelar e desfazer seguem as regras desta página. Pedidos de alteração (organizar_jornada) continuam sendo planejados pela tarefa **Conversa do assistente**, que precisa estar funcionando.
+
+1. Em elevenlabs.io › Developers › API Keys, crie uma chave com acesso a Agents (ElevenAgents). Não envie a chave no chat.
+2. Em **Administração › Inteligência artificial › Conexões e chaves**, abra **ElevenLabs · voz**, cole a chave no campo protegido, marque **Ligado** e salve.
+3. Em **Tarefas e modelos › Chamada ao vivo**, escolha **ElevenLabs · voz** e **Automático · voz disponível** (ou um modelo da lista), marque **Ligada** e salve.
+4. Clique em **Testar conexão de voz**. O servidor cria (ou atualiza) na sua conta o agente **Jornada Plena · voz** e as cinco ferramentas, assina uma conversa e a encerra assim que o ElevenLabs a aceita. O teste pode consumir poucos créditos, porque o agente começa a cumprimentar.
+5. Abra uma nova chamada no Assistente para verificar áudio e uma ação real.
+
+O agente exige URL assinada: o navegador recebe um endereço de uso único, nunca a chave. A gravação de áudio fica desligada no agente. O servidor só altera o agente quando o código da Jornada muda a configuração (prompt, ferramentas, modelo ou formato de áudio), marcando a versão em uma etiqueta. A voz escolhida no painel do ElevenLabs é preservada nessas atualizações. Para fixar outra voz na criação, defina `ELEVENLABS_VOICE_ID` na Vercel.
+
+Os créditos do plano são consumidos por minuto de conversa e pelo modelo do agente. No plano gratuito, os créditos rendem poucos minutos por mês; confira o consumo no painel do ElevenLabs. Créditos esgotados, chave recusada ou permissão ausente aparecem com uma mensagem própria e um código da chamada. O **Speech Engine** do ElevenLabs não foi usado porque exige um servidor WebSocket próprio sempre ligado, e as funções da Vercel não mantêm esse tipo de conexão.
+
+A integração segue o formato do SDK oficial (`@elevenlabs/elevenlabs-js` e `@elevenlabs/types`). Os corpos enviados foram conferidos contra os esquemas desse SDK, e o fluxo foi testado com respostas simuladas. A chamada real precisa ser validada com a chave configurada.
 
 ### Reservas e modelos atualizados
 

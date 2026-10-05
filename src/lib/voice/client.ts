@@ -1,5 +1,6 @@
 import { LIVE_SOCKET, liveClientSetup, type CallState, type LiveCredentials, type VoiceTool, type VoiceTranscript } from './protocol';
 import { GptLivePeer } from './gpt-live';
+import { ELEVENLABS_AUDIO_FORMAT, ELEVENLABS_PROTOCOL, elevenLabsCloseMessage, elevenLabsErrorMessage, elevenLabsSocket, elevenLabsToolResult, pcmRate } from './elevenlabs-protocol';
 
 export type VoiceOptions = {
   context?: () => { context: string; history: { role: 'user' | 'assistant'; text: string }[] };
@@ -14,6 +15,14 @@ type LiveMessage = {
   serverContent?: { interrupted?: boolean; turnComplete?: boolean; inputTranscription?: { text?: string; finished?: boolean }; outputTranscription?: { text?: string }; modelTurn?: { parts?: { inlineData?: { data?: string; mimeType?: string } }[] } };
   toolCall?: { functionCalls?: VoiceTool[] }; toolCallCancellation?: { ids?: string[] };
   sessionResumptionUpdate?: { resumable?: boolean; newHandle?: string }; goAway?: object; error?: unknown;
+};
+type ElevenLabsMessage = {
+  type?: string;
+  conversation_initiation_metadata_event?: { user_input_audio_format?: string; agent_output_audio_format?: string };
+  ping_event?: { event_id?: number }; audio_event?: { audio_base_64?: string; event_id?: number }; interruption_event?: { event_id?: number };
+  user_transcription_event?: { user_transcript?: string }; tentative_user_transcription_event?: { user_transcript?: string };
+  agent_response_event?: { agent_response?: string }; agent_response_correction_event?: { corrected_agent_response?: string };
+  client_tool_call?: { tool_name?: string; tool_call_id?: string; parameters?: unknown }; error_event?: { error_type?: string };
 };
 export function pcmBase64(buffer: ArrayBuffer) {
   const bytes = new Uint8Array(buffer);
@@ -64,6 +73,9 @@ export class LiveVoiceConnection {
   private lastInput: VoiceTranscript = { text: '', startedAt: 0 };
   private callState: CallState = 'idle';
   private rtc: GptLivePeer | null = null;
+  // ElevenLabs Agents: audio events carry the response id; anything older than an interruption is dropped.
+  private eleven = false; private elevenStarted = false; private outputRate = 16_000;
+  private interruptedAt = 0; private lastAudioEvent = 0; private assistantId = '';
 
   constructor(private options: VoiceOptions) {}
   private state(state: CallState) { this.callState = state; this.options.state(state); }
@@ -95,7 +107,8 @@ export class LiveVoiceConnection {
         this.later(() => this.end(), this.credentials.maxSeconds * 1000);
         return;
       }
-      if (!window.AudioWorkletNode || !this.audio?.audioWorklet) throw new Error('Este navegador não oferece a captura de áudio do Gemini. Abra no Chrome, Edge ou Safari atualizado.');
+      this.eleven = this.credentials.provider === 'elevenlabs';
+      if (!window.AudioWorkletNode || !this.audio?.audioWorklet) throw new Error(`Este navegador não oferece a captura de áudio ${this.eleven ? 'da chamada' : 'do Gemini'}. Abra no Chrome, Edge ou Safari atualizado.`);
       await this.audio!.audioWorklet.addModule('/voice-capture.worklet.js');
       if (this.ended) return;
       this.capture = new AudioWorkletNode(this.audio!, 'jornada-voice-capture');
@@ -104,11 +117,13 @@ export class LiveVoiceConnection {
       source.connect(this.capture); this.capture.connect(silence); silence.connect(this.audio!.destination);
       this.output = this.audio!.createGain(); this.output.connect(this.audio!.destination);
       this.capture.port.onmessage = ({ data }: MessageEvent<{ pcm: ArrayBuffer; level: number }>) => {
-        if (this.ended || this.muted || !this.ready) return;
-        this.options.level(Math.min(1, data.level * 7));
+        // ElevenLabs keeps receiving the (silent) stream while muted, so its turn detection never stalls.
+        if (this.ended || !this.ready || (this.muted && !this.eleven)) return;
+        this.options.level(this.muted ? 0 : Math.min(1, data.level * 7));
         // A disconnected or congested socket must never accumulate microphone data.
         if (this.socket!.bufferedAmount > 256_000) { this.fail('A conexão está lenta demais para o áudio. Confira a internet e inicie outra chamada.'); return; }
-        this.send({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: pcmBase64(data.pcm) } } });
+        if (this.eleven) this.send({ user_audio_chunk: pcmBase64(data.pcm) });
+        else this.send({ realtimeInput: { audio: { mimeType: 'audio/pcm;rate=16000', data: pcmBase64(data.pcm) } } });
       };
       this.later(() => { this.options.notice('Chamada encerrada após 20 minutos. Inicie outra para continuar.'); this.end(); }, this.credentials.maxSeconds * 1000);
       this.open();
@@ -117,6 +132,7 @@ export class LiveVoiceConnection {
 
   private open(resuming = false) {
     if (this.ended || !this.credentials) return;
+    if (this.eleven) { this.openElevenLabs(); return; }
     this.ready = false;
     this.state(resuming ? 'reconnecting' : 'connecting');
     const socket = new WebSocket(`${LIVE_SOCKET}?access_token=${encodeURIComponent(this.credentials.token)}`);
@@ -183,6 +199,95 @@ export class LiveVoiceConnection {
     }
   }
 
+  private openElevenLabs() {
+    const url = elevenLabsSocket(this.credentials!.token);
+    if (!url) { this.fail('A autorização da chamada do ElevenLabs é inválida. Inicie outra chamada.'); return; }
+    this.ready = false; this.state('connecting');
+    const socket = new WebSocket(url, [ELEVENLABS_PROTOCOL]);
+    this.socket = socket;
+    const timeout = this.later(() => this.fail('O ElevenLabs não iniciou a conversa a tempo. Confira a conexão e tente novamente.'), 20_000);
+    socket.onopen = () => {
+      if (this.ended || socket !== this.socket) { socket.close(); return; }
+      this.send({ type: 'conversation_initiation_client_data', dynamic_variables: this.credentials!.variables ?? {} });
+    };
+    socket.onmessage = event => {
+      this.incoming = this.incoming.then(async () => {
+        if (this.ended || socket !== this.socket) return;
+        const raw = typeof event.data === 'string' ? event.data : event.data instanceof Blob ? await event.data.text() : new TextDecoder().decode(event.data);
+        const message: ElevenLabsMessage = JSON.parse(raw);
+        if (message.type === 'conversation_initiation_metadata') { clearTimeout(timeout); this.timers.delete(timeout); }
+        this.receiveElevenLabs(message);
+      }).catch(() => { if (!this.ended) this.fail('Não consegui interpretar a resposta do ElevenLabs. Inicie outra chamada para continuar.'); });
+    };
+    socket.onerror = () => { /* onclose explains the outcome; never expose the signed URL. */ };
+    socket.onclose = event => {
+      clearTimeout(timeout); this.timers.delete(timeout);
+      if (this.ended || socket !== this.socket) return;
+      this.ready = false; this.stopPlayback();
+      if (event.code === 1000 && this.elevenStarted) {
+        if (/duration/i.test(event.reason)) this.options.notice(elevenLabsCloseMessage(event.code, event.reason, true));
+        this.end();
+      } else this.fail(elevenLabsCloseMessage(event.code, event.reason, this.elevenStarted));
+    };
+  }
+
+  private receiveElevenLabs(message: ElevenLabsMessage) {
+    switch (message.type) {
+      case 'conversation_initiation_metadata': {
+        const metadata = message.conversation_initiation_metadata_event ?? {};
+        const rate = pcmRate(metadata.agent_output_audio_format ?? ELEVENLABS_AUDIO_FORMAT);
+        if ((metadata.user_input_audio_format ?? ELEVENLABS_AUDIO_FORMAT) !== ELEVENLABS_AUDIO_FORMAT || !rate) {
+          this.fail('O agente no ElevenLabs usa um formato de áudio incompatível. Em Administração, teste a conexão de voz para restaurar a configuração.'); return;
+        }
+        this.outputRate = rate; this.ready = true; this.elevenStarted = true; this.state('listening');
+        return;
+      }
+      case 'ping': if (typeof message.ping_event?.event_id === 'number') this.send({ type: 'pong', event_id: message.ping_event.event_id }); return;
+      case 'audio': {
+        const event = message.audio_event, id = Number(event?.event_id ?? 0);
+        if (!event?.audio_base_64 || id < this.interruptedAt) return;
+        this.lastAudioEvent = Math.max(this.lastAudioEvent, id);
+        this.play(event.audio_base_64, this.outputRate);
+        return;
+      }
+      case 'interruption':
+        this.interruptedAt = Math.max(this.interruptedAt, Number(message.interruption_event?.event_id ?? this.lastAudioEvent + 1));
+        this.stopPlayback(); this.state(this.tools.size ? 'working' : 'listening');
+        return;
+      case 'tentative_user_transcript':
+      case 'user_transcript': {
+        const text = (message.type === 'user_transcript' ? message.user_transcription_event : message.tentative_user_transcription_event)?.user_transcript?.trim();
+        if (!text) return;
+        if (!this.inputId) { this.inputId = crypto.randomUUID(); this.inputAt = Date.now(); }
+        this.options.transcript(this.inputId, 'me', text);
+        if (message.type === 'user_transcript') { this.lastInput = { text, startedAt: this.inputAt }; this.inputId = ''; }
+        return;
+      }
+      case 'agent_response': {
+        const text = message.agent_response_event?.agent_response?.trim();
+        if (!text) return;
+        this.assistantId = crypto.randomUUID();
+        this.options.transcript(this.assistantId, 'assistant', text);
+        return;
+      }
+      case 'agent_response_correction': {
+        // After an interruption the agent's turn is cut to what was actually heard.
+        const text = message.agent_response_correction_event?.corrected_agent_response?.trim();
+        if (text && this.assistantId) this.options.transcript(this.assistantId, 'assistant', text);
+        return;
+      }
+      case 'client_tool_call': {
+        const call = message.client_tool_call;
+        if (typeof call?.tool_call_id === 'string' && typeof call.tool_name === 'string') this.queueTool({ id: call.tool_call_id, name: call.tool_name, args: call.parameters ?? {} });
+        return;
+      }
+      case 'error':
+        this.options.notice(elevenLabsErrorMessage(message.error_event?.error_type));
+        if (message.error_event?.error_type === 'max_duration_exceeded') this.end();
+        return;
+    }
+  }
+
   private queueTool(call: VoiceTool) {
     if (!call.id || typeof call.name !== 'string') return;
     const duplicate = this.toolResults.get(call.id);
@@ -202,6 +307,7 @@ export class LiveVoiceConnection {
     void result.then(value => { if (!controller.signal.aborted) this.respond(call, value); });
   }
   private respond(call: VoiceTool, result: unknown) {
+    if (this.eleven) { this.send({ type: 'client_tool_result', tool_call_id: call.id, result: elevenLabsToolResult(result), is_error: false }); return; }
     this.send({ toolResponse: { functionResponses: [{ id: call.id, name: call.name, response: { result } }] } });
   }
 
@@ -224,6 +330,12 @@ export class LiveVoiceConnection {
   interrupt() {
     if (this.rtc) { this.rtc.interrupt(); return; }
     this.stopPlayback(); this.state(this.tools.size ? 'working' : 'listening');
+    if (this.eleven) {
+      // No client command stops an ElevenLabs turn: drop its remaining audio and tell the agent why.
+      this.interruptedAt = Math.max(this.interruptedAt, this.lastAudioEvent + 1);
+      this.send({ type: 'contextual_update', text: 'A pessoa tocou em Interromper e não ouviu o restante da sua última fala. Não repita; aguarde o próximo pedido.' });
+      return;
+    }
     // Gemini 3.8 interrupts active generation only on a completed client turn.
     // Stopping local playback alone lets subsequent server chunks play again.
     this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text: 'Pare de falar e aguarde meu próximo pedido.' }] }], turnComplete: true } });
@@ -231,10 +343,10 @@ export class LiveVoiceConnection {
   mute(value: boolean) {
     this.muted = value; this.options.level(0);
     this.stream?.getAudioTracks().forEach(track => { track.enabled = !value; });
-    if (value) this.send({ realtimeInput: { audioStreamEnd: true } });
+    if (value && !this.eleven) this.send({ realtimeInput: { audioStreamEnd: true } });
   }
   volume(value: boolean) { if (this.rtc) this.rtc.volume(value); if (this.output) this.output.gain.value = value ? 1 : 0; }
-  notify(text: string) { if (this.rtc) this.rtc.notify(text); else this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }); }
+  notify(text: string) { if (this.rtc) this.rtc.notify(text); else if (this.eleven) this.send({ type: 'user_message', text }); else this.send({ clientContent: { turns: [{ role: 'user', parts: [{ text }] }], turnComplete: true } }); }
   private fail(message: string) { this.options.notice(message); this.end('error'); }
   end(state: CallState = 'ended') {
     if (this.ended) return;
