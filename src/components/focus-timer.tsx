@@ -35,7 +35,7 @@ export function FocusTimer({ data, disabled, status, demo, update, request }: Pr
   useEffect(() => {
     if (!request || handled.current === request.id) return;
     handled.current = request.id; setExpanded(true);
-    requestAnimationFrame(() => section.current?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+    requestAnimationFrame(() => section.current?.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }));
     if (!request.subjectId && !focus) setFocusTick(tick => tick + 1);
     if (focus || !request.subjectId) return; // Never discard an existing activity's partial time.
     setSubjectId(request.subjectId); setAreaId('studies'); setTarget(25);

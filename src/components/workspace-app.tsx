@@ -20,28 +20,18 @@ import { useConversations } from './use-conversations';
 import { CaptureInbox } from './capture-inbox';
 import { AreaSelect, NoteOrganization, OrganizationPanel } from './life-organization';
 import { areaName, itemArea, lifeAreas } from '@/lib/life';
-import { FinancialController } from './financial-controller';
-import { DailyRoutine } from './daily-routine';
-import { ProfileSettings, defaultUserProfile, type UserProfileData } from './profile-settings';
+import { ProfileSettings, WorkspaceThemeObserver, defaultUserProfile, type UserProfileData } from './profile-settings';
 import { QuickCaptureWidget } from './quick-capture';
 import { LegacyImport } from './legacy-import';
-import { FlashcardsDeck } from './flashcards-deck';
 import { ColorOptions, CourseFields } from './course-form';
 import { SubjectOptions } from './subject-options';
 import { NotesLibrary } from './notes-library';
-import { TelegramAdmin, TelegramLink } from './messenger-settings';
 import { AssistantConnections } from './assistant-connections';
 import { MyAiKeys } from './my-ai-keys';
 import { WhatsAppMyLink } from './whatsapp-my-link';
 import { OAUTH_RETURN_KEY } from './oauth-consent';
-import { WhatsAppAdmin } from './whatsapp-settings';
 import type { Place } from '@/lib/notebooks';
-import { PlanningPanel } from './planning-panel';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
-import { AdminPanel } from './community/admin-panel';
-import { AiSettings } from './community/ai-settings';
-import { ContactsPanel } from './community/contacts-panel';
-import { AccountSettings } from './community/account-settings';
 import { ConsentGate } from './community/consent-gate';
 import { api, formatDay as formatShortDay } from './community/client';
 import { WorkspaceNavigation } from './workspace-navigation';
@@ -50,6 +40,18 @@ import { acceptedTerms, hasPro, statusLabels, upcomingBirthdays, type Contact as
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 const AcademicCalendar = dynamic(() => import('./academic-calendar'), { loading: () => <p role="status">Abrindo sua agenda…</p> });
 const StudyPlanner = dynamic(() => import('./study-planner'), { loading: () => <p role="status">Organizando sugestões…</p> });
+const panelLoading = () => <div className="workspace-panel-loading" role="status"><span className="workspace-loading-mark" aria-hidden="true" /><span>Abrindo seu espaço…</span></div>;
+const FinancialController = dynamic(() => import('./financial-controller').then(module => module.FinancialController), { loading: panelLoading });
+const DailyRoutine = dynamic(() => import('./daily-routine').then(module => module.DailyRoutine), { loading: panelLoading });
+const FlashcardsDeck = dynamic(() => import('./flashcards-deck').then(module => module.FlashcardsDeck), { loading: panelLoading });
+const PlanningPanel = dynamic(() => import('./planning-panel').then(module => module.PlanningPanel), { loading: panelLoading });
+const AdminPanel = dynamic(() => import('./community/admin-panel').then(module => module.AdminPanel), { loading: panelLoading });
+const AiSettings = dynamic(() => import('./community/ai-settings').then(module => module.AiSettings), { loading: panelLoading });
+const ContactsPanel = dynamic(() => import('./community/contacts-panel').then(module => module.ContactsPanel), { loading: panelLoading });
+const AccountSettings = dynamic(() => import('./community/account-settings').then(module => module.AccountSettings), { loading: panelLoading });
+const TelegramAdmin = dynamic(() => import('./messenger-settings').then(module => module.TelegramAdmin), { loading: panelLoading });
+const TelegramLink = dynamic(() => import('./messenger-settings').then(module => module.TelegramLink), { loading: panelLoading });
+const WhatsAppAdmin = dynamic(() => import('./whatsapp-settings').then(module => module.WhatsAppAdmin), { loading: panelLoading });
 type View = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'focus' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
 type FormKind = 'subject' | 'task' | 'note' | 'course';
 type FormState = { kind: FormKind; task?: Task; subject?: Subject; course?: Course; courseId?: string };
@@ -171,6 +173,12 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const loose = data.notes.filter(isUnorganized).toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const subject = (id: string) => data.subjects.find((item) => item.id === id);
   const courses = data.courses ?? [];
+  const searchTerm = searchOpen ? query.trim().toLocaleLowerCase('pt-BR') : '';
+  const searchCourses = searchTerm ? courses.filter(item => item.name.toLocaleLowerCase('pt-BR').includes(searchTerm)) : [];
+  const searchSubjects = searchTerm ? data.subjects.filter(item => item.name.toLocaleLowerCase('pt-BR').includes(searchTerm)) : [];
+  const searchNotes = searchTerm ? data.notes.filter(item => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(searchTerm)) : [];
+  const searchTasks = searchTerm ? data.tasks.filter(item => item.title.toLocaleLowerCase('pt-BR').includes(searchTerm)) : [];
+  const searchCount = searchCourses.length + searchSubjects.length + searchNotes.length + searchTasks.length;
   const active = activeCourses(data);
   const studyCourse = studiesRoute.kind === 'course' ? courses.find((item) => item.id === studiesRoute.id) : undefined;
   const unitsOf = (item: Pick<Subject, 'courseId'>) => { const course = courseOf(data, item); return course ? courseUnits(course) : unitPresets[0]; };
@@ -469,13 +477,14 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   </article>;
 
   return <div className="app-shell workspace-shell" data-sidebar-collapsed={sidebarCollapsed}>
+    <WorkspaceThemeObserver demo={demo} />
     <a className="skip-link" href="#main">Pular para o conteúdo</a>
     <aside className="sidebar" aria-label="Navegação lateral">{navContent()}</aside>
     {mobileMenu && <Modal title="Seu espaço" className="navigation-drawer" onClose={closeMenu}><div className="mobile-navigation">{navContent(true)}</div><label className="tabbar-shortcut" htmlFor="tabbar-shortcut">Atalho da barra inferior<select id="tabbar-shortcut" value={tabShortcut.id} onChange={(event) => chooseShortcut(event.target.value as View)}>{shortcutOptions.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label></Modal>}
     <div className="app-body">
       <header className="topbar">
         <div className="breadcrumb">
-          <button className="icon-button mobile-menu-button" aria-label="Abrir navegação" onClick={openMobileMenu}>
+          <button type="button" className="icon-button mobile-menu-button" aria-label="Abrir navegação" aria-haspopup="dialog" aria-expanded={mobileMenu} onClick={openMobileMenu}>
             <Menu size={20} aria-hidden="true" />
           </button>
           {view !== 'today' && (
@@ -491,11 +500,11 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           )}
           {view !== 'today' && <><span>Meu espaço</span><ChevronRight aria-hidden="true" size={14} /></>}
           {view === 'studies' && studyCourse && <><span><button type="button" className="cm-crumb" onClick={showStudies}>Estudos</button></span><ChevronRight aria-hidden="true" size={14} /></>}
-          {view === 'today' && ready ? <span className="topbar-today"><strong>{greeting(new Date().getHours())}{firstName ? `, ${firstName}` : ''}</strong><span className="topbar-cycle"><span className="sr-only">{`${cycles.month}: semana ${cycles.cycle} de 4, dia ${cycles.day} de ${cycles.last}`}</span><span className="cycle-bars" aria-hidden="true">{cycles.cycles.map((cycle) => <i key={cycle.index} className={cycle.current ? 'on' : cycle.end < cycles.day ? 'past' : ''} />)}</span><span aria-hidden="true"><span className="cycle-month">{cycles.month} · </span>semana {cycles.cycle}/4 · dia {cycles.day}/{cycles.last}</span></span></span> : <strong>{pageName}</strong>}
+          {view === 'today' && ready ? <span className="topbar-today"><strong>{greeting(new Date().getHours())}{firstName ? `, ${firstName}` : ''}</strong><span className="topbar-cycle"><span className="sr-only">{`${cycles.month}: semana ${cycles.cycle} de 4, dia ${cycles.day} de ${cycles.last}`}</span><span className="cycle-bars" aria-hidden="true">{cycles.cycles.map((cycle) => <i key={cycle.index} className={cycle.current ? 'on' : cycle.end < cycles.day ? 'past' : ''} />)}</span><span aria-hidden="true"><span className="cycle-month">{cycles.month} · </span>semana {cycles.cycle}/4<span className="cycle-day"> · dia {cycles.day}/{cycles.last}</span></span></span></span> : <strong>{pageName}</strong>}
         </div>
         <div className="topbar-actions">
           <button type="button" className="button primary topbar-capture" disabled={!ready} onClick={openCapture}><img src="/brand/simbolo-reduzido.svg" alt="" width={22} height={22} />Registrar</button>
-          <button className="search-trigger" aria-label="Buscar no meu espaço" onClick={openSearch}>
+          <button type="button" className="search-trigger" aria-label="Buscar no meu espaço" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" onClick={openSearch}>
             <Search size={16} aria-hidden="true" />
             <span>Buscar no meu espaço</span>
             <kbd>Ctrl K</kbd>
@@ -532,13 +541,24 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {!serverViews.has(view) && (view === 'focus' || (!!data.activeFocus && view !== 'today')) && <FocusTimer data={data} disabled={blocked} status={status} demo={demo} request={focusRequest} update={update} />}
           {view === 'today' && <>
             <section className="today-hero" aria-labelledby="today-title">
+              <div className="today-intro">
               <div className="today-head">
                 <div><span className="today-kicker">SEU DIA, COM MAIS PRESENÇA</span><h1 id="today-title">Um passo de cada vez.</h1><p className="today-date">{capitalize(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</p></div>
-                <button className="today-new" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
               </div>
+              <div className="today-actions" role="group" aria-label="Ações rápidas do dia">
+                <button type="button" className="today-action" disabled={blocked} onClick={() => openForm({ kind: 'note' })}><PenLine size={18} aria-hidden="true" /><span>Registrar ideia</span><ArrowUpRight size={14} aria-hidden="true" /></button>
+                <button type="button" className="today-action" onClick={() => { navigate('focus'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }}><Clock3 size={18} aria-hidden="true" /><span>Entrar em foco</span><ArrowUpRight size={14} aria-hidden="true" /></button>
+                <button type="button" className="today-action" onClick={() => navigate('assistant')}><Sparkles size={18} aria-hidden="true" /><span>Abrir assistente</span><ArrowUpRight size={14} aria-hidden="true" /></button>
+              </div>
+              </div>
+              <div className="today-agenda-preview">
+              <div className="today-agenda-heading">
               <h2 className="today-subtitle">{agendaToday.length ? `Hoje você tem ${agendaToday.length} ${agendaToday.length === 1 ? 'item' : 'itens'}` : 'Agenda de hoje'}</h2>
+                <button type="button" className="today-new" disabled={blocked} onClick={() => openForm({ kind: 'task' })}><Plus size={16} aria-hidden="true" />Novo compromisso</button>
+              </div>
               {agendaToday.length ? <ul className="today-agenda">{agendaToday.slice(0, 5).map((entry) => { const course = entry.session ? courseOf(data, { courseId: subject(entry.subjectId)?.courseId }) : undefined; return <li key={entry.id} className={entry.task ? 'with-check' : ''}>{entry.task && <label className="task-checkbox"><input type="checkbox" checked={entry.done} disabled={blocked} onChange={() => toggleTask(entry.task!)} aria-label={`Concluir: ${entry.title}`} /><span className="check-visual"><Check size={13} aria-hidden="true" /></span></label>}<button type="button" className={entry.done ? 'done' : ''} onClick={() => { setAgendaDate(today); navigate('agenda'); }}><span className="today-time">{entry.time ?? 'Dia todo'}</span><span className="today-what"><strong>{entry.title}</strong><small>{[entry.kind, course?.name, entry.professor, entry.location, entry.task?.projectId ? `Projeto: ${data.projects?.find((p) => p.id === entry.task!.projectId)?.title ?? ''}` : ''].filter(Boolean).join(' · ')}</small></span>{entry.done && <Check size={16} aria-label="Concluído" />}</button></li>; })}</ul> : <p className="today-empty">Nada marcado para hoje. Um bom dia para avançar no que importa.</p>}
               {agendaToday.length > 5 && <button type="button" className="text-button" onClick={() => { setAgendaDate(today); navigate('agenda'); }}>Mais {agendaToday.length - 5} hoje na agenda <ArrowRight size={13} aria-hidden="true" /></button>}
+              </div>
             </section>
 
             {alerts.length > 0 && <section className="panel today-alerts" aria-labelledby="today-alerts-title">
@@ -563,6 +583,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 </span>
                 <span className="metric-value">{doneToday}<small> / {dueToday.length}</small></span>
                 <span className="metric-sub">{dueToday.length === 0 ? 'Sem prazos para hoje' : `${progress}% concluído`}</span>
+                {dueToday.length > 0 && <span className="metric-completion-track" aria-hidden="true"><span style={{ width: `${progress}%` }} /></span>}
               </button>
             </div>
 
@@ -702,7 +723,19 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
     {form && <Modal title={form.kind === 'course' ? form.course ? 'Editar curso' : 'Novo curso' : form.kind === 'subject' ? `${form.subject ? 'Editar' : 'Adicionar'} ${unitsOf({ courseId: formCourseId }).singular}` : form.kind === 'task' ? form.task ? 'Editar compromisso' : 'Um novo passo' : 'Capture uma ideia'} onClose={closeForm}><form onSubmit={submitForm} className="entry-form"><label htmlFor="entry-title">{form.kind === 'subject' || form.kind === 'course' ? 'Nome' : form.kind === 'task' ? 'O que você quer fazer?' : 'Título da anotação'}</label><input id="entry-title" name="title" required autoFocus maxLength={form.kind === 'subject' || form.kind === 'course' ? 100 : 160} defaultValue={form.course?.name ?? form.subject?.name ?? form.task?.title ?? ''} placeholder={form.kind === 'course' ? 'Ex.: Psicologia, Hipnose clínica, Pós em Pedagogia' : form.kind === 'subject' ? 'Ex.: Psicologia Social, Fundamentos, Módulo 1' : form.kind === 'task' ? 'Um pequeno passo já conta' : 'Dê um nome à sua ideia'} />{form.kind === 'course' ? <CourseFields course={form.course} color={colors.find((color) => !courses.some((item) => item.color === color)) ?? 'sage'} /> : form.kind === 'subject' ? <><label htmlFor="entry-course">Curso</label><select id="entry-course" name="course" required value={formCourseId} onChange={(event) => setForm({ ...form, courseId: event.target.value })}>{courses.map((item) => <option key={item.id} value={item.id}>{item.name}{item.status !== 'active' ? ` · ${courseStatusLabels[item.status].toLowerCase()}` : ''}</option>)}</select><label htmlFor="entry-professor">Professor(a) · opcional</label><input id="entry-professor" name="professor" maxLength={100} defaultValue={form.subject?.professor ?? ''} /><label htmlFor="entry-semester">Semestre · opcional</label><input id="entry-semester" name="semester" type="number" min={1} max={20} defaultValue={form.subject?.semester ?? ''} /><ColorOptions legend="Cor" value={form.subject?.color ?? 'sage'} /></> : <><label htmlFor="entry-area">Área da vida · opcional</label><AreaSelect id="entry-area" name="area" data={data} value={form.task ? itemArea(form.task) : notesPlace?.kind === 'subject' ? 'studies' : notesPlace?.kind === 'area' ? notesPlace.id : ''} />{form.kind === 'note' && <><label htmlFor="entry-notebook">Caderno · opcional</label><select id="entry-notebook" name="notebook" defaultValue={notesPlace?.kind === 'notebook' ? notesPlace.id : ''}><option value="">Sem caderno</option>{data.notebooks?.map((book) => <option key={book.id} value={book.id}>{book.name}</option>)}</select></>}<label htmlFor="entry-subject">Matéria · opcional</label><select id="entry-subject" name="subject" defaultValue={form.task?.subjectId ?? (notesPlace?.kind === 'subject' ? notesPlace.id : '')}><option value="">Pessoal · sem matéria</option><SubjectOptions data={data} /></select>{form.kind === 'task' && <><label htmlFor="entry-project">Projeto · opcional</label><select id="entry-project" name="project" defaultValue={form.task?.projectId ?? ''}><option value="">Sem projeto</option>{data.projects?.filter((p) => p.status !== 'archived' || p.id === form.task?.projectId).map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}</select><div className="form-grid"><div><label htmlFor="entry-date">Data</label><input id="entry-date" name="date" type="date" required defaultValue={form.task?.date ?? (view === 'agenda' ? agendaDate : today)} /></div><div><label htmlFor="entry-minutes">Tempo estimado (min)</label><input id="entry-minutes" name="minutes" type="number" min={5} max={240} required defaultValue={form.task?.minutes ?? 25} /></div></div><label htmlFor="entry-time">Horário · opcional</label><input id="entry-time" name="time" type="time" defaultValue={form.task?.time ?? ''} /><label htmlFor="entry-kind">Tipo</label><select id="entry-kind" name="kind" defaultValue={form.task?.kind ?? 'Compromisso'}>{taskKinds.map((kind) => <option key={kind}>{kind}</option>)}</select></>}</>}{form.course && subjectsOfCourse(data, form.course.id).length > 0 && <p id="course-delete-help" className="form-hint">Para excluir, primeiro leve as partes deste curso ({courseUnits(form.course).plural}) para outro curso, pelo campo Curso de cada uma.</p>}<div className="form-footer">{form.course && <button type="button" className="button outline cm-danger" disabled={blocked || subjectsOfCourse(data, form.course.id).length > 0} aria-describedby={subjectsOfCourse(data, form.course.id).length ? 'course-delete-help' : undefined} onClick={() => deleteCourse(form.course!)}>Excluir curso</button>}<button type="button" className="button outline" onClick={closeForm}>Cancelar</button><button className="button primary" disabled={blocked}>Salvar <Check size={17} aria-hidden="true" /></button></div></form></Modal>}
 
-    {searchOpen && <Modal title="Encontre no seu espaço" onClose={closeSearch}><label className="sr-only" htmlFor="workspace-search">Buscar cursos, matérias, anotações e tarefas</label><input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Um curso, uma matéria, uma ideia, um compromisso…" /><div className="search-results">{!query.trim() ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>{courses.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => openCourse(item.id)}><GraduationCap size={17} aria-hidden="true" /><span>{item.name}<small>Curso</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.subjects.filter((item) => item.name.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>{capitalize(unitsOf(item).singular)}{courseOf(data, item) ? ` · ${courseOf(data, item)!.name}` : ''}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.notes.filter((item) => `${item.title} ${item.content.replace(/<[^>]*>/g, ' ')}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { navigate('notes'); setSelectedNote(item.id); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}{data.tasks.filter((item) => item.title.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR'))).map((item) => <button key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}<p className="search-end">Fim dos resultados para “{query}”.</p></>}</div></Modal>}
+    {searchOpen && <Modal title="Encontre no seu espaço" onClose={closeSearch}>
+      <label className="sr-only" htmlFor="workspace-search">Buscar cursos, matérias, anotações e tarefas</label>
+      <input id="workspace-search" className="search-input" autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Um curso, uma matéria, uma ideia, um compromisso…" />
+      <div className="search-results">
+        {!searchTerm ? <p className="muted">Digite para buscar. Nada é enviado a serviços externos.</p> : <>
+          <p className="search-results-summary" role="status">{searchCount === 0 ? `Nada encontrado para “${query.trim()}”. Tente outro nome ou uma palavra do conteúdo.` : `${searchCount} ${searchCount === 1 ? 'resultado encontrado' : 'resultados encontrados'}`}</p>
+          {searchCourses.map(item => <button type="button" key={item.id} onClick={() => openCourse(item.id)}><GraduationCap size={17} aria-hidden="true" /><span>{item.name}<small>Curso</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}
+          {searchSubjects.map(item => <button type="button" key={item.id} onClick={() => { openSubject(item); setSearchOpen(false); }}><BookOpen size={17} aria-hidden="true" /><span>{item.name}<small>{capitalize(unitsOf(item).singular)}{courseOf(data, item) ? ` · ${courseOf(data, item)!.name}` : ''}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}
+          {searchNotes.map(item => <button type="button" key={item.id} onClick={() => { navigate('notes'); setSelectedNote(item.id); setSearchOpen(false); }}><FileText size={17} aria-hidden="true" /><span>{item.title}<small>Anotação</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}
+          {searchTasks.map(item => <button type="button" key={item.id} onClick={() => { setAgendaDate(item.date); navigate('agenda'); setSearchOpen(false); }}><CalendarDays size={17} aria-hidden="true" /><span>{item.title}<small>{formatDate(item.date)}</small></span><ArrowUpRight size={17} aria-hidden="true" /></button>)}
+        </>}
+      </div>
+    </Modal>}
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setNotesPlace(null); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
     {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} />}
     {ready && !bubbleHidden && view !== 'assistant' && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} showIntro={view === 'today'} onOpen={openAssistant} onHide={() => setBubble(true)} />}

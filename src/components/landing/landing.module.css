@@ -22,11 +22,12 @@
 .brand { display: inline-flex; align-items: center; gap: 10px; flex-shrink: 0; font-size: 18px; font-weight: 700; line-height: 1.25; letter-spacing: -.6px; }
 .brand img { width: 44px; height: 44px; }
 .brandCaption { display: block; margin-top: 5px; color: var(--jp-muted); font-size: 10px; font-weight: 400; letter-spacing: .5px; }
-.desktopNav { display: flex; gap: 38px; margin-left: auto; margin-right: 54px; font-size: 13px; color: var(--jp-muted); }
+.desktopNav { display: flex; align-items: center; gap: 38px; margin-left: auto; margin-right: 54px; font-size: 13px; color: var(--jp-muted); }
+.desktopNav a { display: inline-flex; align-items: center; min-height: 44px; }
 .desktopNav a, .footer nav a { transition: color .2s; }
 .desktopNav a:hover, .footer nav a:hover { color: #1b689b; }
 .navActions { display: flex; align-items: center; gap: 16px; }
-.loginLink { display: inline-flex; align-items: center; gap: 22px; border: 1px solid #cedae5; border-radius: 11px; padding: 10px 18px; font-size: 13px; font-weight: 600; background: #ffffff73; transition: background .2s, border-color .2s; }
+.loginLink { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; gap: 22px; border: 1px solid #cedae5; border-radius: 11px; padding: 10px 18px; font-size: 13px; font-weight: 600; background: #ffffff73; transition: background .2s, border-color .2s; }
 .loginLink:hover { border-color: #9bb5c9; background: white; }
 .mobileMenu { display: none; }
 .hero { position: relative; max-width: 1536px; margin: 0 auto; min-height: min(860px, calc(100svh - 96px)); padding: 60px 7% 25px; }
@@ -38,11 +39,18 @@
 .landing .heroTitle { position: relative; width: max-content; max-width: 100%; font-size: clamp(64px, 7.3vw, 112px); line-height: .99; margin: 30px 0; color: var(--jp-ink); }
 .heroTitle .titleDot { position: absolute; right: -27px; top: -10px; font-family: 'DM Sans', sans-serif; font-size: 26px; font-weight: 400; color: #b49151; }
 .landing .heroDescription { font-size: 16px; line-height: 1.85; margin: 0 0 32px; max-width: 440px; }
+.heroActions { display: flex; flex-wrap: wrap; align-items: center; gap: 20px; }
 .button { min-height: 56px; display: inline-flex; align-items: center; justify-content: center; gap: 24px; padding: 17px 23px; border-radius: 13px; font-size: 13px; font-weight: 600; white-space: nowrap; transition: background .25s, box-shadow .25s; }
+.button svg { flex-shrink: 0; transition: transform .2s; }
+.button:active { box-shadow: none; }
 .landing .primary { color: #fff; background: linear-gradient(115deg, #174c72, #0f314b); box-shadow: 0 8px 20px #0f314b26, inset 0 1px 0 #ffffff1a; }
 .primary:hover { background: #174c72; box-shadow: 0 10px 25px #0f314b38; }
 .secondary { border: 1px solid #b9ccdc; background: #ffffff59; }
 .secondary:hover { background: #fff; }
+@media (hover: hover) and (pointer: fine) {
+  .primary:hover svg { transform: translate(2px, -2px); }
+  .secondary:hover svg { transform: translateX(3px); }
+}
 .discoverLink { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font-size: 12px; font-weight: 500; }
 .discoverLink svg { transition: transform .25s; }
 .discoverLink:hover svg { transform: translateY(3px); }
@@ -95,6 +103,7 @@
 .dayDot { width: 5px; height: 5px; border-radius: 50%; background: #3f759d; flex-shrink: 0; }
 .dayDotGold { background: #b49151; }
 .dayItem strong { display: block; font-size: 12px; font-weight: 500; }
+.dayItem > div { min-width: 0; }
 .dayItem div span { display: block; font-size: 10px; color: var(--jp-muted); margin-top: 3px; }
 .dayCardFooter { display: flex; align-items: center; gap: 10px; font-size: 10px; color: var(--jp-muted); padding-top: 20px; }
 .pillars { scroll-margin-top: 130px; margin-top: 120px; }
@@ -113,7 +122,7 @@
 .footer nav { display: flex; gap: 22px; font-size: 10px; color: #b0c2d1; }
 @media (min-width: 1600px) { .hero { padding-top: 100px; } }
 @media (max-width: 1100px) {
-  .hero { padding-inline: 5%; }
+  .hero { min-height: auto; padding-inline: 5%; }
   .heroGrid { min-height: 580px; }
   .landing .heroTitle { font-size: clamp(58px, 7.5vw, 83px); }
   .heroDescription { font-size: 14px; }
@@ -143,10 +152,16 @@
   .navActions { gap: 12px; }
   .loginLink { font-size: 11px; border: none; padding: 8px 2px; gap: 5px; }
   .mobileMenu { display: block; }
-  .mobileMenu summary { display: flex; align-items: center; justify-content: center; width: 36px; height: 40px; cursor: pointer; list-style: none; }
+  .mobileMenu summary { display: flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 10px; cursor: pointer; list-style: none; transition: background .2s; }
   .mobileMenu summary::-webkit-details-marker { display: none; }
+  .mobileMenu .menuClose { display: none; }
+  .mobileMenu[open] .menuOpen { display: none; }
+  .mobileMenu[open] .menuClose { display: block; }
+  .mobileMenu[open] summary, .mobileMenu summary:hover { background: #e8f0f7; }
   .mobileMenu nav { position: absolute; top: calc(100% + 10px); left: 5%; right: 5%; padding: 15px; display: grid; gap: 5px; border: 1px solid #d9e2ec; border-radius: 14px; background: #fffffff5; box-shadow: 0 10px 40px #0b233815; }
-  .mobileMenu nav a { padding: 12px; font-size: 14px; }
+  .mobileMenu nav a { display: flex; align-items: center; min-height: 48px; padding: 12px; border-radius: 9px; font-size: 14px; transition: background .2s; }
+  .mobileMenu nav a:hover, .mobileMenu nav a:focus-visible { background: #edf3f9; }
+  .loginLink { min-width: 62px; }
   .hero { min-height: auto; padding: 58px 7% 15px; }
   .heroGrid { min-height: auto; grid-template-columns: 1fr; }
   .heroCopy { padding: 0; }
@@ -195,6 +210,21 @@
   .footer { padding: 35px 7%; flex-wrap: wrap; gap: 25px; }
   .footer > span { width: 100%; order: 3; }
   .footer nav { margin-left: auto; gap: 13px; font-size: 9px; }
+}
+@media (min-width: 761px) and (max-height: 800px) {
+  .hero { min-height: auto; padding-top: 35px; }
+  .heroGrid { min-height: 490px; }
+  .orbStage { height: 440px; }
+  .story { margin-top: 70px; }
+}
+@media (max-width: 480px) {
+  .heroActions { align-items: stretch; gap: 12px; }
+  .heroActions .button { width: 100%; justify-content: space-between; padding-inline: 22px; }
+  .heroActions .discoverLink { padding-block: 4px; }
+  .storyBottom .button { width: 100%; justify-content: space-between; }
+  .heroFoot { align-items: flex-start; }
+  .heroFoot > span { padding-block: 13px; }
+  .heroFoot a span { max-width: 55px; }
 }
 @media (max-width: 380px) {
   .navShell { padding-inline: 11px; }

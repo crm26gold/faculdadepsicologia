@@ -1158,7 +1158,7 @@ test('registro rápido leva a compromisso, foco e gasto; o atalho da barra é pe
 test('no computador, a bolinha se apresenta uma vez, anexa arquivos, pode ser arrastada e escondida', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await page.goto('/');
-  const bubble = page.getByRole('button', { name: 'Abrir assistente' });
+  const bubble = page.locator('.assistant-dock').getByRole('button', { name: 'Abrir assistente' });
   const intro = page.getByRole('status').filter({ hasText: 'Eu sou o assistente da Jornada Plena' });
   await expect(intro).toBeVisible();
   expect((await new AxeBuilder({ page }).include('.assistant-dock').analyze()).violations).toEqual([]);
@@ -1208,7 +1208,7 @@ test('no celular não há bolinha: o assistente vive na aba Assistente', async (
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Abrir assistente' })).toBeHidden();
+  await expect(page.locator('.assistant-dock').getByRole('button', { name: 'Abrir assistente' })).toBeHidden();
   await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
   await page.getByRole('dialog').getByRole('button', { name: /^Assistente/ }).click();
   await expect(page.getByRole('heading', { name: 'Assistente', level: 1 })).toBeVisible();

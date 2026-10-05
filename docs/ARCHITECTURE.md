@@ -26,6 +26,12 @@ O produto organiza a vida inteira da pessoa, não apenas os estudos. São três 
 | `supabase/migrations/` | Migrações do workspace, Storage privado e proteção contra editores antigos, aplicadas no projeto privado. |
 | `tests/` | Testes de domínio, autenticação, restrições de produção e navegador. |
 
+## Interface e carregamento
+
+`WorkspaceApp` preserva a navegação, os estados de persistência e os controles da conta. Onze painéis secundários usam `next/dynamic` com feedback de carregamento; o editor mantém sua fronteira sem SSR. `WorkspaceThemeObserver` acompanha a preferência automática durante toda a navegação, com escolha explícita prioritária e preferência somente em memória na demo. A busca filtra o documento pessoal localmente apenas quando aberta.
+
+A landing isola Motion, Lenis e o 3D decorativo. `useLandingMotion` usa um snapshot estático igual no servidor e na hidratação inicial, depois assina a preferência de movimento do navegador. O 3D tem fallback e só é carregado em desktop compatível e visível. Tokens de superfície, contraste, cabeçalho e foco pertencem ao sistema visual; as melhorias estão registradas em [DESIGN_UX_JORNADA.md](DESIGN_UX_JORNADA.md).
+
 ## Modelo e persistência
 
 O documento `Workspace` guarda a vida pessoal: cursos (`courses`), matérias (`subjects`), tarefas e compromissos (`tasks`), notas (`notes`), sessões de foco (`sessions`), aulas recorrentes (`classes`), período letivo (`term`), áreas (`areas`), cadernos (`notebooks`), metas (`goals`), projetos (`projects`), lançamentos financeiros (`transactions`), hábitos (`habits`), perfil (`profile`) e flashcards (`flashcards`), com vínculos por `areaId`/`notebookId`. As relações e os identificadores são validados. Contatos e tudo o que é coletivo ficam em tabelas relacionais próprias. Saúde, emocional, espiritualidade, família, casa, lazer e documentos ainda não têm entidades: existem apenas como áreas.
