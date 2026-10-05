@@ -10,7 +10,7 @@ Novas conversas são salvas na conta autenticada e têm uma cópia local separad
 
 ## Configurar o provedor de voz
 
-A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A primeira cuida da conversa falada com Gemini, OpenAI, ElevenLabs ou xAI/Grok; a segunda interpreta fotos e planeja ações. Trocar a voz não exige trocar o planejador. O proprietário configura as tarefas em **Administração › Inteligência artificial**; cada pessoa pode cadastrar APIs próprias em **Meu espaço › Minhas chaves de IA**.
+A tarefa **Chamada ao vivo** é independente de **Conversa do assistente**. A primeira cuida da conversa falada com Gemini, OpenAI, ElevenLabs ou xAI/Grok; a segunda interpreta fotos e planeja pedidos livres. Quando a voz fornece ações estruturadas completas, o servidor valida e executa sem chamar novamente o planejador. Exclusões e substituições mantêm a confirmação. Isso evita a segunda chamada de IA, mas a própria voz continua consumindo o serviço escolhido. Trocar a voz não exige trocar o planejador. O proprietário configura as tarefas em **Administração › Inteligência artificial**; cada pessoa pode cadastrar APIs próprias em **Meu espaço › Minhas chaves de IA**. [Contrato de execução](FUNDACAO_ASSISTENTE.md).
 
 As chaves pessoais têm prioridade para texto e não atendem outra conta. A voz do proprietário mantém a configuração administrativa; membros usam suas APIs pessoais Gemini, OpenAI ou xAI. Groq oferece texto e transcrição de mensagens de voz, sem transporte contínuo nesta integração. Assinaturas de aplicativos não equivalem a crédito de API.
 

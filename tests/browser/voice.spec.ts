@@ -2,7 +2,7 @@ import { test, expect, type Page, type WebSocketRoute } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { demoWorkspace, dateKey, parseWorkspace, type Workspace } from '../../src/lib/workspace';
 import { applyCommands, executionSummary, type CommandAction } from '../../src/lib/commands';
-import type { AssistantJob } from '../../src/lib/assistant-jobs';
+import { jobInputSchema, type AssistantJob } from '../../src/lib/assistant-jobs';
 
 type Fixture = { workspace: Workspace; saves: Workspace[]; revision: number; jobs: Map<string, AssistantJob>; socket?: WebSocketRoute; sent: Record<string, unknown>[]; delaySave?: () => Promise<void> };
 async function fixture(page: Page) {
@@ -39,7 +39,7 @@ async function fixture(page: Page) {
           const job: AssistantJob = { id, conversation_id: value.conversationId, input: value.input, status: 'working', result: null, created_at: new Date().toISOString(), updated_at: new Date().toISOString() };
           state.jobs.set(id, job);
           await route.fulfill({ status: 202, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id, status: 'working' } }) });
-          const actions: CommandAction[] = value.input.message.includes('excluir') ? [{ type: 'excluir', entity: 'compromisso', target: 't1' }] : [{ type: 'compromisso', title: 'Dentista por voz', date: dateKey(), time: '15:00' }];
+          const actions: CommandAction[] = jobInputSchema.parse(value.input).actions ?? (value.input.message.includes('excluir') ? [{ type: 'excluir', entity: 'compromisso', target: 't1' }] : [{ type: 'compromisso', title: 'Dentista por voz', date: dateKey(), time: '15:00' }]);
           const result = applyCommands(parseWorkspace(JSON.stringify(state.workspace)), actions, { today: dateKey(), now: Date.now() });
           if (result.applied.length) { state.saves.push(result.data); await state.delaySave?.(); state.workspace = result.data; state.revision++; }
           job.status = result.pending.length ? 'needs_confirmation' : 'done'; job.result = { saved: true, reply: executionSummary(result), applied: result.applied, pending: result.pending, failed: result.failed };
@@ -74,6 +74,23 @@ async function start(page: Page) {
   return call;
 }
 const tool = (state: Fixture, id: string, name: string, args: unknown = {}) => state.socket!.send(JSON.stringify({ toolCall: { functionCalls: [{ id, name, args }] } }));
+
+test('voz estruturada rejeita JSON inválido e só confirma depois de salvar no desktop e celular', async ({ page }) => {
+  const state = await fixture(page); const call = await start(page);
+  tool(state, 'invalid-structured', 'organizar_jornada', { instruction: 'Registre', actions_json: '[' });
+  await expect.poll(() => state.sent.some(message => message.toolResponse && JSON.stringify(message).includes('A ação estruturada está inválida'))).toBe(true);
+  expect(state.jobs.size).toBe(0);
+  let release!: () => void;
+  state.delaySave = () => new Promise<void>(resolve => { release = resolve; });
+  tool(state, 'structured-note', 'organizar_jornada', { instruction: 'Anote minha ideia', actions_json: JSON.stringify([{ type: 'anotacao', text: 'Fundação da Jornada' }]) });
+  await expect.poll(() => !!release).toBe(true);
+  expect([...state.jobs.values()][0].input.actions?.[0].type).toBe('anotacao');
+  expect(state.sent.some(message => message.toolResponse && JSON.stringify(message).includes('structured-note'))).toBe(false);
+  state.delaySave = undefined; release();
+  await expect.poll(() => state.sent.some(message => message.toolResponse && JSON.stringify(message).includes('structured-note'))).toBe(true);
+  expect(state.workspace.notes.some(note => note.content.includes('Fundação da Jornada'))).toBe(true);
+  await call.getByRole('button', { name: 'Encerrar chamada', exact: true }).click();
+});
 
 test('uma falha na voz do navegador não impede abrir a chamada', async ({ page }, info) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));

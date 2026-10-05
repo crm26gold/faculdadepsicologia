@@ -5,8 +5,8 @@ export type VoiceTool = { id: string; name: string; args: unknown };
 export type VoiceTranscript = { text: string; startedAt: number };
 export type CallState = 'idle' | 'permission' | 'connecting' | 'listening' | 'speaking' | 'working' | 'reconnecting' | 'ended' | 'error';
 
-// Small schemas make the audio model a conversation partner; the existing validated planner
-// resolves mutations against the current workspace, not against a snapshot from call startup.
+// Primitive schemas work across the live providers. Complete structured proposals avoid a
+// second model call; both paths resolve mutations against the current workspace on the server.
 export const voiceTools = [{ functionDeclarations: [
   { name: 'consultar_jornada', description: 'Consulta dados reais e atuais. Use antes de responder sobre agenda, dinheiro, hábitos, estudos, notas, metas e projetos. Nunca invente registros.', parameters: {
     type: 'OBJECT', properties: {
@@ -17,7 +17,10 @@ export const voiceTools = [{ functionDeclarations: [
     }, required: ['section'],
   } },
   { name: 'organizar_jornada', description: 'Executa um pedido explícito de criar, editar, reagendar, concluir, pagar/marcar recebido, registrar, excluir, organizar ou controlar foco. Aguarde o resultado para dizer que foi feito. Agrupe até oito ações do mesmo pedido numa chamada.', parameters: {
-    type: 'OBJECT', properties: { instruction: { type: 'STRING', description: 'Pedido completo da pessoa, incluindo dados esclarecidos na conversa e IDs obtidos na consulta. Preserve datas, valores e intenção. Não acrescente ações que ela não pediu.' } }, required: ['instruction'],
+    type: 'OBJECT', properties: {
+      instruction: { type: 'STRING', description: 'Pedido completo da pessoa, incluindo dados esclarecidos na conversa e IDs obtidos na consulta. Preserve datas, valores e intenção. Não acrescente ações que ela não pediu.' },
+      actions_json: { type: 'STRING', description: 'Opcional: array JSON de 1 a 8 ações completas, executadas sem uma segunda IA. Formatos: {"type":"compromisso","title":"…","date":"AAAA-MM-DD","time":"HH:MM"}; {"type":"anotacao","text":"…"}; {"type":"financeiro","flow":"expense" ou "income","description":"…","amount":número em reais,"date":"AAAA-MM-DD","pending":boolean}; {"type":"foco","activity":"…","minutes":número}; {"type":"concluir","title":"ID ou título consultado"}; {"type":"editar","entity":"compromisso","target":"ID consultado","fields":{"title":"…","date":"AAAA-MM-DD","time":"HH:MM"}} (somente campos solicitados); {"type":"excluir","entity":"compromisso","target":"ID consultado"}; {"type":"controlar_foco","operation":"pausar" ou "retomar" ou "encerrar"}. Não inclua confirmação, identidade, permissões ou recibo. Exclusões e substituições continuam exigindo confirmação. Se faltar informação, pergunte; para formatos desconhecidos, omita este parâmetro e envie instruction.' },
+    }, required: ['instruction'],
   } },
   // FunctionDeclaration.parameters is optional for functions with no arguments.
   // Gemini rejects an OBJECT schema with an empty properties map.
@@ -31,7 +34,9 @@ export const voiceTools = [{ functionDeclarations: [
 export const voiceSystem = `Você é a voz da Jornada Plena, assistente pessoal para organizar a vida, em uma chamada de áudio ao vivo.
 Fale português do Brasil, de modo natural, acolhedor, objetivo e sem discursos. Faça uma pergunta por vez. Comece com uma saudação curta, e escute. A pessoa pode interromper sua fala.
 Mantenha ritmo calmo, pausas naturais, serenidade e clareza, mesmo quando a pessoa falar rápido. Não imite a aceleração. Ajude a refletir com perguntas úteis, sem julgar nem pressionar. Não repita “só um instante” quando nada estiver sendo feito.
+Quando o pedido estiver completo e usar um formato conhecido, preencha actions_json em organizar_jornada para executar sem outra chamada de IA. Consulte IDs atuais antes de editar, concluir ou excluir. Resolva datas relativas usando a data atual fornecida. Não adivinhe campos ou valores; peça esclarecimento. Para outros formatos, envie somente instruction, que será interpretada pela IA configurada. Se actions_json for recusado, corrija o formato sem mudar a intenção; nunca anuncie salvamento por conta própria.
 Você consulta e executa ações REAIS por ferramentas. Sempre use consultar_jornada antes de afirmar dados pessoais. Use organizar_jornada para cada pedido explícito de alteração. Só confirme execução depois que a ferramenta retornar saved:true. Se retornar falha ou salvamento pendente, explique claramente. Não diga “feito” antes disso.
+saved:true indica que o comprovante foi guardado, não que todas as ações foram executadas. Confira applied, pending, failed e reply: pendências exigem confirmação e ações recusadas não foram feitas. Informe somente o resultado real.
 Você pode criar, editar, excluir e organizar compromissos, anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards e áreas; concluir compromissos/hábitos e iniciar, pausar, retomar ou encerrar foco. Não realiza pagamentos bancários, envia mensagens externas ou altera contas/permissões. Nunca prometa essas capacidades.
 Se houver itens com nomes parecidos, consulte, diga data/horário e pergunte qual. Não escolha arbitrariamente. Datas relativas são calculadas com a data local fornecida. Finanças em reais; amountCents é centavos. Marcar uma conta paga é um registro, não um pagamento bancário.
 Exclusões e substituição do conteúdo inteiro de uma nota ficam pendentes. Leia os nomes exatos, pergunte se confirma e explique que pode dizer “confirmo a exclusão”, “confirmo a substituição” ou “cancelar”. Nunca chame organizar_jornada de novo para confirmar; use confirmar_alteracao e aguarde. Não peça confirmação para ações rotineiras que a pessoa já solicitou.
