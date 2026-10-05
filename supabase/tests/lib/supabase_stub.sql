@@ -3,6 +3,7 @@
 -- Incluído pelos testes em supabase/tests. NUNCA executar no projeto remoto.
 do $$ begin create role anon nologin; exception when duplicate_object then null; end $$;
 do $$ begin create role authenticated nologin; exception when duplicate_object then null; end $$;
+do $$ begin create role service_role nologin bypassrls; exception when duplicate_object then null; end $$;
 create schema auth;
 create schema extensions;
 create schema storage;
@@ -35,6 +36,9 @@ values ('00000000-0000-4000-8000-00000000000a', '{"version": "1", "subjects": []
 \ir ../../migrations/20261001143850_note_attachments_video.sql
 \ir ../../migrations/20261001234639_ai_foundation.sql
 \ir ../../migrations/20261002220000_messenger_bot.sql
+\ir ../../migrations/20261003173200_assistant_continuity.sql
+\ir ../../migrations/20261003173935_assistant_attachment_auth.sql
+\ir ../../migrations/20261003182620_assistant_export.sql
 \ir ../../migrations/20261003205055_conflict_without_retry.sql
 \ir ../../migrations/20261003185709_jornada_request_limits.sql
 \ir ../../migrations/20261003224138_jornada_global_budgets.sql
@@ -47,6 +51,11 @@ values ('00000000-0000-4000-8000-00000000000a', '{"version": "1", "subjects": []
 \ir ../../migrations/20261005011151_ai_auto_economy.sql
 \ir ../../migrations/20261005014431_mcp_access.sql
 \ir ../../migrations/20261005015929_mcp_oauth.sql
+\ir ../../migrations/20261005024000_oauth_security_hardening.sql
+\ir ../../migrations/20261005024044_ai_personal_keys_and_removal.sql
+\ir ../../migrations/20261005024224_assistant_mcp_receipts.sql
+\ir ../../migrations/20261005025107_whatsapp_ai_sources.sql
+\ir ../../migrations/20261005025825_ai_routing_capabilities.sql
 
 create function public.expect(ok boolean, message text) returns void language plpgsql
 as $$ begin if not coalesce(ok, false) then raise exception 'FALHA: %', message; end if; end $$;

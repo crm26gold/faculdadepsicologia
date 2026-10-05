@@ -19,7 +19,7 @@ O produto organiza a vida inteira da pessoa, não apenas os estudos. São três 
 | `src/components/` | Meu dia, estudos, caderno, agenda, foco, metas, finanças, rotina, flashcards e assistente. |
 | `src/lib/community.ts`, `src/components/community/` e `src/app/api/spaces/` | Camada coletiva: salas, grupos, trabalhos em grupo, contatos, conta, termos e painel de administração. |
 | `src/lib/ai/` | Provedores, rotas por tarefa, tentativas alternativas, chaves cifradas e orçamento de consumo. |
-| `src/lib/voice/` e `src/app/api/ai/live/` | Chamada de voz pelo Gemini Live com autorização temporária. |
+| `src/lib/voice/` e `src/app/api/ai/live/` | Adaptadores Gemini Live, GPT-Live, ElevenLabs e xAI/Grok com autorização temporária; troca de transporte somente antes de conectar. |
 | `src/lib/bot/`, `src/lib/whatsapp/` e `integrations/whatsapp-bridge/` | Telegram e a ponte privada do WhatsApp por QR, ambos vinculados à conta por código. |
 | `src/lib/integrations/` | Cadastro e descoberta de servidores MCP, sem execução de ferramentas. |
 | `src/lib/mcp/`, `src/app/api/mcp/` | Servidor MCP da Jornada para assistentes externos: chave pessoal (só o hash no banco), consulta e registro na vida pessoal de quem criou a chave. |
@@ -37,6 +37,16 @@ A persistência local compara o estado salvo antes de gravar e observa alteraç�
 A importação JSON exige dados válidos e limite de 2 MB, apresenta confirmação e substitui o workspace selecionado. Não é uma mesclagem. Exportar a versão atual antes de confirmar continua necessário.
 
 Na persistência remota, a API usa `personal_workspaces` e a função `save_personal_workspace`. A revisão esperada evita sobrescrever uma alteração concorrente; o conflito retorna HTTP 409. A API exige sessão autorizada, verifica origem nas gravações e valida formato e tamanho. A migração inclui RLS e uma tabela `app_owner` para autorização explícita. As políticas remotas e registros persistidos foram confirmados; teste completo de upload na sessão real e recuperação de mídia continuam pendentes.
+
+## Credenciais pessoais e execução da IA
+
+`private.ai_user_keys` guarda chaves cifradas por conta e provedor. As RPCs públicas devolvem apenas metadados para a própria sessão; a leitura do conteúdo cifrado exige simultaneamente sessão e prova do servidor. Nenhuma chave é persistida no armazenamento do navegador. Pausar ou remover uma chave pessoal não altera registros da vida pessoal.
+
+`private.ai_runtime_for` combina fontes pessoais, do proprietário e da base autorizada, identificando a origem em cada candidato. Texto prioriza as APIs da própria pessoa; a voz do proprietário mantém a tarefa administrativa. Voz de membros usa apenas APIs pessoais compatíveis. A base compartilhada fica desligada por padrão, atende texto e exige autorização de privacidade presa ao hash da credencial atual; substituir a chave invalida a autorização. Gemini só recebe dados pessoais após declaração de faturamento pago, inclusive nas rotas fixas e reservas.
+
+O orçamento é reservado antes de cada tentativa efetiva, com limite único de candidatos. Credenciais pessoais usam limites por conta; as fontes do proprietário e da base também consomem o orçamento global. Um limite da Jornada interrompe o pedido inteiro. Cota de uma API no automático permite outra empresa, sem tentar gastar outra chave da mesma empresa.
+
+No MCP, OAuth registra apenas hashes de códigos e tokens. Uma reutilização de renovação revoga a família inteira em transação, e o registro de clientes tem limites globais e por origem. `private.mcp_receipts` torna pedidos com `request_id` idempotentes por 90 dias. Alterações de workspace, comprovantes e confirmações pendentes são gravados atomicamente; ações destrutivas reaparecem nas Conversas do app e passam novamente pela verificação do registro antes da confirmação.
 
 ## Contrato de separação dos ambientes
 

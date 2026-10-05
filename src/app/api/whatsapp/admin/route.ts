@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const current = await session.client.rpc('whatsapp_admin');
     if (current.error) return dbError(current.error);
     const connection = current.data.connections.find((item: { id: string; provider: string }) => item.id === body.stt_connection);
-    if (!connection || body.stt_model.startsWith('auto:') && connection.provider !== 'gemini') return reply({ error: 'Nesta conexão Google Cloud, informe um modelo habilitado no seu projeto. O automático de leitura está disponível na conexão Gemini Developer API.' }, 400);
+    if (!connection || body.stt_model.startsWith('auto:') && !['gemini', 'groq', 'openai'].includes(connection.provider)) return reply({ error: 'Nesta conexão Google Cloud, informe um modelo habilitado no seu projeto. Gemini permite escolha automática; Groq e OpenAI usam transcrição própria para áudio.' }, 400);
   }
   return rpc(session, 'whatsapp_admin', { operation: body.action, payload: body });
 }

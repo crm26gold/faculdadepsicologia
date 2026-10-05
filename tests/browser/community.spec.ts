@@ -337,6 +337,7 @@ test('proprietário configura a IA pelo painel: chave cifrada, modelo por tarefa
   await expect(gemini.getByLabel('Chave de API do Google AI Studio')).toHaveValue('');
   await gemini.getByRole('button', { name: 'Ver modelos' }).click();
   await expect(panel.getByText(/2 modelos de texto/)).toBeVisible();
+  await panel.getByRole('button', { name: 'Adicionar empresa', exact: true }).click();
   await panel.locator('details.ai-provider').filter({ hasText: 'Credencial da conta de serviço' }).locator('summary').click();
   const vertex = panel.locator('form').filter({ hasText: 'Credencial da conta de serviço' });
   await vertex.getByLabel(/Credencial da conta de serviço/).fill('{"client_email":"robo@projeto.iam.gserviceaccount.com","private_key":"x"}');
@@ -447,6 +448,71 @@ test('conexões independentes têm modelos próprios e rota autoriza outra empre
   await panel.getByRole('button',{name:'Conexões e chaves',exact:true}).click();await panel.getByLabel('Buscar empresa ou conexão').fill('Minha conta Claude');
   await expect(panel.locator('details.ai-provider')).toHaveCount(1);await expect(panel.locator('details.ai-provider summary')).toContainText('Anthropic');
   await page.setViewportSize({width:390,height:844});expect((await new AxeBuilder({page}).include('.ai-settings').analyze()).violations).toEqual([]);
+});
+
+test('admin remove a chave com confirmação, pausa sua tarefa e preserva a conexão extra', async ({page}) => {
+  const providers = [{id:'groq',enabled:true,label:'Minha Groq',base_url:'',gcp_project:'',gcp_location:'',has_key:true,key_hint:'1234',updated_at:''},
+    {id:'anthropic',enabled:false,label:'',base_url:'',gcp_project:'',gcp_location:'',has_key:false,key_hint:'',updated_at:''}];
+  const connections = [{id:'00000000-0000-4000-8000-000000000051',provider:'groq',label:'Groq extra',enabled:true,position:1,key_hint:'5678',updated_at:''}];
+  const ai = {secretReady:true,providers,connections,tasks:[{id:'assistente',provider:'groq',model:'auto:rapido',enabled:true,routing_mode:'fixed',fallbacks:[],updated_at:''}]};
+  const posted = await mockApi(page,{home:homeFixture({master:true}),ai,onPost: post => {
+    if(post.body.action==='remove_provider') {providers[0].has_key=false;providers[0].enabled=false;providers[0].updated_at=new Date().toISOString();ai.tasks[0].enabled=false;ai.tasks[0].updated_at=providers[0].updated_at;}
+    return null;
+  }});
+  await page.goto('/');await nav(page).getByRole('button',{name:'Administração',exact:true}).click();
+  const panel=page.getByRole('region',{name:'Inteligência artificial'});
+  await panel.getByRole('button',{name:'Conexões e chaves',exact:true}).click();
+  await expect(panel.locator('details.ai-provider')).toHaveCount(1);
+  await panel.locator('details.ai-provider summary').click();await panel.getByRole('button',{name:'Remover chave',exact:true}).click();
+  const modal=page.getByRole('dialog',{name:'Remover chave principal'});
+  await expect(modal).toContainText('Conversa do assistente · será pausada');
+  expect(posted.filter(post=>post.body.action==='remove_provider')).toHaveLength(0);
+  await modal.getByRole('button',{name:'Cancelar',exact:true}).click();
+  expect(posted.filter(post=>post.body.action==='remove_provider')).toHaveLength(0);
+  await panel.getByRole('button',{name:'Remover chave',exact:true}).click();
+  await modal.getByRole('button',{name:/^Remover Groq/}).click();
+  await expect.poll(()=>posted.find(post=>post.body.action==='remove_provider')?.body).toEqual({action:'remove_provider',provider:'groq'});
+  await expect(panel).toContainText('Sem chave principal');await expect(panel).toContainText('Groq extra');
+  await expect(panel.locator('details.ai-provider summary .ai-badge')).toHaveText('Ligado');
+  await page.setViewportSize({width:390,height:844});await settleAnimations(page);
+  expect((await new AxeBuilder({page}).include('.ai-settings').analyze()).violations).toEqual([]);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await panel.screenshot({path:'test-results/admin-keys-mobile.png'});
+});
+
+test('minhas chaves ficam fora do navegador e a remoção pessoal exige confirmação', async ({page}) => {
+  await mockApi(page,{home:homeFixture({master:false})});
+  const json = (route: import('@playwright/test').Route, data: unknown) => route.fulfill({status:200,contentType:'application/json',body:JSON.stringify(data)});
+  const keys: {provider:string;key_hint:string;enabled:boolean;privacy_basis:string;updated_at:string}[]=[];
+  const posted: Record<string,unknown>[]=[];
+  await page.route('**/api/ai/my-keys',route=>{
+    if(route.request().method()==='POST') {
+      const body=route.request().postDataJSON();posted.push(body);
+      if(body.action==='save') {keys.push({provider:body.provider,key_hint:'test',enabled:body.enabled,privacy_basis:body.privacy_basis,updated_at:new Date().toISOString()});return json(route,{ok:true,data:{message:'Chave validada e guardada só para sua conta.'}});}
+      if(body.action==='remove') keys.splice(0,keys.length);
+      return json(route,{ok:true,data:null});
+    }
+    return json(route,{ok:true,data:{available:true,keys,isOwner:false,baseEnabled:false,secretReady:true}});
+  });
+  await page.goto('/#settings');
+  const card=page.getByRole('region',{name:'Minhas chaves de IA'});
+  await card.getByLabel('Chave de API',{exact:true}).fill('synthetic-personal-key-test');
+  await card.getByLabel('Condições de privacidade da minha API').selectOption('no_training');
+  await card.getByRole('checkbox').check();await card.getByRole('button',{name:'Validar e guardar chave'}).click();
+  await expect(card.getByLabel('Chave de API',{exact:true})).toHaveValue('');
+  await expect(card).toContainText('Chave …test · Ligada');
+  expect(posted[0]).toMatchObject({action:'save',provider:'groq',enabled:true,privacy_basis:'no_training'});
+  expect(JSON.stringify(await page.evaluate(()=>({...localStorage})))).not.toContain('synthetic-personal-key-test');
+  await card.getByRole('button',{name:'Remover',exact:true}).click();
+  const modal=page.getByRole('dialog',{name:'Remover sua chave de IA'});
+  expect(posted.filter(row=>row.action==='remove')).toHaveLength(0);
+  await modal.getByRole('button',{name:'Remover chave',exact:true}).click();
+  await expect(card).not.toContainText('Chave …test');
+  expect(posted.find(row=>row.action==='remove')).toEqual({action:'remove',provider:'groq'});
+  await page.setViewportSize({width:390,height:844});await page.evaluate(()=>document.documentElement.setAttribute('data-theme','dark'));await settleAnimations(page);
+  expect((await new AxeBuilder({page}).include('.my-ai-keys').analyze()).violations).toEqual([]);
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await card.screenshot({path:'test-results/my-keys-mobile-dark.png'});
 });
 
 test('MCP cadastra token transitório e consulta ferramentas sem executar comandos',async({page})=>{

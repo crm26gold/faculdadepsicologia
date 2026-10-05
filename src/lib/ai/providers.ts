@@ -7,10 +7,11 @@ import { chatImageContent, claudeImageContent, responsesImageContent, type AiIma
 import { runAiAttempts } from './attempts';
 import { publicHttps } from './public-http';
 
-export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[]; routing?: string };
+export type AiCredentialSource = 'owner' | 'personal' | 'base';
+export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[]; routing?: string; source?: AiCredentialSource };
 /** audio: a voice note sent along with the last message (Gemini and Vertex Gemini read it with the prompt).
  * audioTask 'transcribe' also accepts Whisper-style transcription endpoints (Groq, OpenAI), which return only the words heard. */
-export type Prompt = { system: string; prompt: string; audioTask?: 'transcribe'; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void> };
+export type Prompt = { system: string; prompt: string; audioTask?: 'transcribe'; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void>; beforeAttempt?: (candidate: AiConfig, index: number) => Promise<void> };
 export class AiError extends Error {
   constructor(message: string, readonly status = 0) { super(message); }
   /** Busy, rate-limited or briefly broken: worth another try, maybe on another model. */
@@ -24,7 +25,7 @@ async function call(provider: AiProviderId, url: string, init: RequestInit) {
     const options = { ...init, signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(TIMEOUT)]) : AbortSignal.timeout(TIMEOUT), cache: 'no-store' as const, redirect: 'error' as const };
     response = provider === 'compatible' ? await publicHttps(url, options) : await fetch(url, options);
   }
-  catch { throw new AiError(`${aiCatalog[provider].name}: sem resposta (rede ou tempo esgotado).`, 0); }
+  catch { init.signal?.throwIfAborted(); throw new AiError(`${aiCatalog[provider].name}: sem resposta (rede ou tempo esgotado).`, 0); }
   const raw = await response.text();
   let body: any = null;
   try { body = JSON.parse(raw); } catch {}
@@ -194,6 +195,7 @@ export async function listModelInventory(config: AiConfig, signal?: AbortSignal)
     case 'google_cloud': ids = []; break;
   }
   const clean = (items: string[]) => [...new Set(items.filter(id => typeof id === 'string'))].sort().slice(0, 500);
+  if(config.provider==='xai') liveIds=['grok-voice-latest','grok-voice-think-fast-2.0'];
   return { ids: clean(ids), liveIds: clean(liveIds) };
 }
 
@@ -240,7 +242,8 @@ export async function generateResilient(config: AiConfig, input: Prompt): Promis
     const attempt = attempts.get(candidate) ?? 0;
     attempts.set(candidate, attempt + 1);
     let model = candidate.model;
-    if (isAuto(model)) {
+    if (input.audio && input.audioTask === 'transcribe' && transcribers[candidate.provider]) model = transcribers[candidate.provider]!.model;
+    else if (isAuto(model)) {
       if (!autoCapable.includes(candidate.provider)) throw new AiError('Escolha um modelo pelo nome para este provedor.', 400);
       const ids = await cachedModels(candidate, input.signal);
       const choices = pickModels(candidate.provider, ids, model, 2);

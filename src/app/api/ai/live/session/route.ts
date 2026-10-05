@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { runtimeConfig } from '@/lib/ai/runtime';
+import { runtimeConfig, runtimeForSession } from '@/lib/ai/runtime';
 import { runAiAttempts } from '@/lib/ai/attempts';
 import { AiError } from '@/lib/ai/providers';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { MAX_CALL_SECONDS } from '@/lib/voice/protocol';
-import { requestBudget, retryBudget } from '@/lib/ai/budget';
+import { beforeAttemptBudget, BudgetLimitError } from '@/lib/ai/budget';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -17,13 +17,11 @@ export async function POST(request: Request) {
   const input = await writeRequest(request, schema, 180_000);
   if (input instanceof Response) return input;
   const { session, body } = input;
-  const { data, error } = await session.client.rpc('ai_runtime', { task_id: 'voz' });
+  const { data, error } = await runtimeForSession(session, 'voz');
   if (error) return dbError(error);
   // OpenAI may be the chosen route or, in automatic routing, a later alternative.
   const usable = data && (data.provider === 'openai' || data.routing === 'auto') && [data, ...(data.alternatives ?? [])].some((row: { provider?: string; model?: string }) => row.provider === 'openai' && row.model === 'gpt-live-1');
   if (!usable) return reply({ error: 'Cadastre uma chave OpenAI e escolha GPT-Live na tarefa Chamada ao vivo.' }, 409);
-  const limited = await requestBudget(session, 'live');
-  if (limited) return limited;
   const reference = crypto.randomUUID().slice(0, 8);
   try {
     const config = runtimeConfig(data);
@@ -41,12 +39,13 @@ Conversa recente: ${JSON.stringify(body.history)}` }, transport: { type: 'webrtc
       }).catch(() => { signal.throwIfAborted(); throw new AiError('A OpenAI não respondeu à preparação da chamada.', 0); });
       if (!result.ok) throw new AiError('A OpenAI não aceitou a preparação da chamada.', result.status);
       return result;
-    }, { signal, beforeRetry: retryBudget(session, 'live') });
+    }, { signal, persistent: config.routing === 'auto', beforeAttempt: beforeAttemptBudget(session, 'live') });
     const result = await response.json();
     if (typeof result.transport?.sdp !== 'string' || typeof result.session?.id !== 'string') throw new Error('Invalid session response');
     console.info('[voice-live]', { reference, provider: 'openai', stage: 'session', outcome: 'ready' });
     return reply({ ok: true, data: { sdp: result.transport.sdp, id: result.session.id, maxSeconds: MAX_CALL_SECONDS } });
   } catch (cause) {
+    if (cause instanceof BudgetLimitError) return cause.response;
     const status = cause instanceof AiError ? cause.status : undefined;
     console.warn('[voice-live]', { reference, provider: 'openai', stage: 'session', outcome: 'failed', upstreamStatus: status });
     const message = status === 429 ? 'A OpenAI informou falta de cota ou créditos para a chamada.'

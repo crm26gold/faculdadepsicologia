@@ -51,8 +51,10 @@ export function elevenLabsAgentConfig(llm: string, toolIds: string[], voiceId?: 
       tts: { model_id: ELEVENLABS_TTS_MODEL, agent_output_audio_format: ELEVENLABS_AUDIO_FORMAT, ...(voiceId ? { voice_id: voiceId } : {}) },
       conversation: { max_duration_seconds: MAX_CALL_SECONDS, client_events: ELEVENLABS_CLIENT_EVENTS },
     },
-    // Signed URLs only: the agent id alone never opens a conversation. Audio recordings are not kept.
-    platform_settings: { auth: { enable_auth: true }, privacy: { record_voice: false } },
+    // Schedule deletion of new transcripts after the call; no retrospective deletion of existing conversations.
+    // retention_days=0 is scheduled deletion, distinct from the Enterprise-only zero retention mode.
+    platform_settings: { auth: { enable_auth: true }, privacy: { record_voice: false, retention_days: 0,
+      delete_transcript_and_pii: true, delete_audio: true, apply_to_existing_conversations: false } },
   };
 }
 

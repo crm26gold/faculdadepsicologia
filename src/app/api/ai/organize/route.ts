@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
-import { runtimeConfig } from '@/lib/ai/runtime';
+import { runtimeConfig, runtimeForSession } from '@/lib/ai/runtime';
 import { AiError, generateResilient } from '@/lib/ai/providers';
-import { requestBudget, retryBudget } from '@/lib/ai/budget';
+import { beforeAttemptBudget, BudgetLimitError } from '@/lib/ai/budget';
 
 export const dynamic = 'force-dynamic';
 const organizeRequest = z.object({
@@ -19,23 +19,22 @@ export async function POST(request: Request) {
   const input = await writeRequest(request, organizeRequest, 40_000);
   if (input instanceof Response) return input;
   const { session, body } = input;
-  let runtime = await session.client.rpc('ai_runtime', { task_id: 'organizar' });
-  if (!runtime.error && !runtime.data) runtime = await session.client.rpc('ai_runtime', { task_id: 'assistente' });
+  let runtime = await runtimeForSession(session, 'organizar');
+  if (!runtime.error && !runtime.data) runtime = await runtimeForSession(session, 'assistente');
   if (runtime.error) return dbError(runtime.error);
   const data = runtime.data;
   if (!data) return reply({ ok: true, data: { configured: false } });
-  const limited = await requestBudget(session, 'ai');
-  if (limited) return limited;
   try {
     const config = runtimeConfig(data);
     const prompt = `Anotação:\nTítulo: ${body.title || '(sem título)'}\nTexto: ${body.text || '(vazio)'}\n\nLugares possíveis:\n${body.options.map(option => `- ${option.key}: ${option.label}`).join('\n')}`;
-    const { text: raw } = await generateResilient(config, { system, prompt, maxTokens: 200, json: true, signal: AbortSignal.timeout(45_000), beforeRetry: retryBudget(session, 'ai') });
+    const { text: raw } = await generateResilient(config, { system, prompt, maxTokens: 200, json: true, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
     const match = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
     let parsed: { key?: unknown; reason?: unknown } = {};
     try { parsed = JSON.parse(match); } catch {}
     const key = typeof parsed.key === 'string' && body.options.some(option => option.key === parsed.key) ? parsed.key : 'inbox';
     return reply({ ok: true, data: { configured: true, key, reason: typeof parsed.reason === 'string' ? parsed.reason.slice(0, 300) : '' } });
   } catch (cause) {
+    if (cause instanceof BudgetLimitError) return cause.response;
     return reply({ error: cause instanceof AiError ? cause.message : 'A inteligência artificial não respondeu agora.' }, 502);
   }
 }

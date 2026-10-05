@@ -31,6 +31,8 @@ import { SubjectOptions } from './subject-options';
 import { NotesLibrary } from './notes-library';
 import { TelegramAdmin, TelegramLink } from './messenger-settings';
 import { AssistantConnections } from './assistant-connections';
+import { MyAiKeys } from './my-ai-keys';
+import { WhatsAppMyLink } from './whatsapp-my-link';
 import { OAUTH_RETURN_KEY } from './oauth-consent';
 import { WhatsAppAdmin } from './whatsapp-settings';
 import type { Place } from '@/lib/notebooks';
@@ -669,8 +671,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'settings' && <>
             {cloud && home && <AccountSettings home={home} refreshHome={refreshHome} />}
-            {cloud && home?.account.is_master && <TelegramLink />}
+            {cloud && home && <TelegramLink key={`telegram-${home.account.user_id}`} />}
             {cloud && home && <AssistantConnections />}
+            {cloud && home && <MyAiKeys key={`ai-keys-${home.account.user_id}`} />}
+            {cloud && home && <WhatsAppMyLink key={`whatsapp-${home.account.user_id}`} />}
             {!demo && <LegacyImport data={data} update={update} blocked={blocked} />}
             {!demo && <input className="sr-only" tabIndex={-1} ref={fileInput} type="file" accept=".json,application/json" aria-label="Selecionar backup JSON" onChange={async (event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; try { if (file.size > 2_000_000) throw new Error(); setImported(parseWorkspace(await file.text())); } catch { setNotice('Backup inválido ou maior que 2 MB. Nada foi alterado.'); } }} />}
             <ProfileSettings

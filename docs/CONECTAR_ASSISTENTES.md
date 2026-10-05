@@ -7,7 +7,7 @@ A Jornada tem um servidor MCP próprio em `https://<endereço do app>/api/mcp`. 
 - **consultar_jornada:** resumo, agenda com datas, anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards e áreas. Só lê.
 - **registrar_na_jornada:** cria, edita, conclui, reagenda e registra (compromissos, anotações, finanças, foco, hábitos e registros de estudo), até oito ações por vez, com as mesmas validações do aplicativo. Exige uma chave com permissão de registrar.
 
-Exclusões e substituição do conteúdo inteiro de uma anotação nunca são aplicadas pelo MCP: ficam para a pessoa confirmar no aplicativo. A chave acessa só a vida pessoal de quem a criou, nunca grupos, salas ou outras pessoas.
+Exclusões e substituição do conteúdo inteiro de uma anotação nunca são aplicadas pelo MCP: ficam salvas em **Assistente › Conversas › Confirmação de assistente externo**. Abra a conversa, revise e confirme; se o registro tiver mudado, o pedido antigo é recusado. A chave acessa só a vida pessoal de quem a criou, nunca grupos, salas ou outras pessoas. Para evitar repetir uma alteração após falha de rede, envie o mesmo `request_id` (UUID) com o mesmo conteúdo; o comprovante é mantido por 90 dias.
 
 ## Criar a chave
 
@@ -41,6 +41,8 @@ Esses aplicativos não usam chave colada: eles abrem o login da Jornada (OAuth 2
 - **ChatGPT**: Configurações › Apps e conectores › Avançado › ative o modo desenvolvedor e crie um conector. URL do servidor MCP: o endereço `…/api/mcp`; autenticação: OAuth. Conclua o login e clique em **Permitir acesso**.
 
 Na tela de autorização você escolhe se o aplicativo pode **registrar e editar** ou só consultar. Cada autorização aparece em **Meu espaço › Conectar assistentes** com o nome do aplicativo e pode ser revogada. O acesso vale 1 hora e é renovado sozinho por até 90 dias; revogar encerra também a renovação.
+
+Confira também o endereço e a URL de retorno mostrados no consentimento: o nome é escolhido pelo próprio aplicativo e não comprova sua identidade. Reutilizar um token de renovação já gasto revoga a família inteira, inclusive a autorização sucessora. Nesse caso, conecte novamente. O registro de novos aplicativos tem limites por origem e globais; respostas OAuth usam dados mínimos e nunca exibem tokens.
 
 Os menus desses aplicativos mudam com frequência e podem exigir plano pago ou modo desenvolvedor. Se o caminho acima não existir, procure por "conector personalizado" ou "servidor MCP remoto" na ajuda do aplicativo.
 

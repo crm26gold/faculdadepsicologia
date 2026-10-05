@@ -56,6 +56,9 @@ test('ferramentas do agente seguem o formato do ElevenLabs e as mesmas regras da
   const agent = elevenLabsAgentConfig('gemini-2.5-flash', ['tool_1']);
   assert.equal(agent.platform_settings.auth.enable_auth, true, 'o agente só abre conversas com URL assinada');
   assert.equal(agent.platform_settings.privacy.record_voice, false);
+  assert.equal(agent.platform_settings.privacy.retention_days, 0);
+  assert.equal(agent.platform_settings.privacy.delete_transcript_and_pii, true);
+  assert.equal(agent.platform_settings.privacy.apply_to_existing_conversations, false);
   assert.match(agent.conversation_config.agent.prompt.prompt, /\{\{contexto\}\}[\s\S]*\{\{historico\}\}/);
   assert.equal('voice_id' in agent.conversation_config.tts, false, 'sem voz definida, mantém a escolhida no ElevenLabs');
 });
@@ -96,6 +99,7 @@ test('primeira chamada cria ferramentas e agente; a seguinte reutiliza sem recri
   const fake = fakeElevenLabs();
   try {
     const session = await prepareElevenLabsSession(config(), 'Hoje: 2026-10-05', [{ role: 'user', text: 'oi' }], { signal: AbortSignal.timeout(5000) });
+    assert.match(fake.calls.find(call => call.path.startsWith('/v1/convai/conversation/get-signed-url'))!.path, /include_conversation_id=true/);
     assert.match(session.token, /^wss:\/\/api\.elevenlabs\.io\/.*agent_id=agent_new/);
     assert.equal(session.model, 'gemini-2.5-flash');
     assert.equal(session.variables.contexto, 'Hoje: 2026-10-05');

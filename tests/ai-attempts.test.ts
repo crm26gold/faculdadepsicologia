@@ -36,6 +36,26 @@ test('faturamento desativado identificado em uma recusa de acesso encerra a oper
   await assert.rejects(runAiAttempts([1,2], async () => { calls++; throw Object.assign(failed(403), { doNotRetry: true }); }), { status: 403 });
   assert.equal(calls, 1);
 });
+test('automático respeita recusas definitivas e não chama outra chave', async () => {
+  let calls = 0;
+  await assert.rejects(runAiAttempts([1,2], async () => { calls++; throw Object.assign(failed(429), { doNotRetry: true }); }, { persistent: true }), { status: 429 });
+  assert.equal(calls, 1);
+});
+
+test('cota de uma empresa permite outra empresa em automático, sem repetir suas chaves', async () => {
+  const seen: string[] = [];
+  const result = await runAiAttempts([{provider:'a',key:'1'},{provider:'a',key:'2'},{provider:'b',key:'3'}], async candidate => {
+    seen.push(candidate.key);
+    if (candidate.provider === 'a') throw Object.assign(failed(429), {doNotRetry:true,retryOnProviderChange:true});
+    return 'ok';
+  }, {persistent:true});
+  assert.equal(result,'ok');assert.deepEqual(seen,['1','3']);
+});
+test('recusa conhecida de uma chave Gemini permite a reserva mesmo com HTTP 400', async () => {
+  let calls = 0;
+  const result = await runAiAttempts([1,2], async key => { calls++; if (key === 1) throw Object.assign(failed(400), { retryableCredential: true }); return 'ok'; });
+  assert.equal(result, 'ok'); assert.equal(calls, 2);
+});
 test('painel valida chave de reserva, prioridade, exclusão e diagnóstico sem dados da pessoa', () => {
   const base = { action: 'save_connection', id: null, provider: 'gemini', label: 'Reserva', enabled: false, position: 1, key: 'synthetic' };
   assert.equal(aiAdminAction.safeParse(base).success, true);

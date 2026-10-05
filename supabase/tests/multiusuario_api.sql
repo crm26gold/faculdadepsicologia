@@ -161,6 +161,9 @@ exception when insufficient_privilege then null; end $$;
 select act_as('00000000-0000-4000-8000-00000000000a');
 select ai_save_provider('gemini', true, '', '', '', '', 'v1.chave-cifrada', '1234');
 select ai_save_task('assistente', 'gemini', 'modelo-de-teste', true);
+select expect(ai_runtime('assistente') is null,'Gemini fixo sem declaração paga não recebe dados pessoais');
+select ai_set_member_base_source('gemini',null,'paid');
+select ai_save_task('assistente', 'gemini', 'modelo-de-teste', true);
 select expect((select p->>'has_key' from jsonb_array_elements(ai_admin_state()->'providers') p where p->>'id' = 'gemini') = 'true', 'painel sabe que há chave');
 select expect(ai_admin_state()::text not like '%chave-cifrada%', 'painel nunca recebe a chave');
 select expect(ai_runtime('assistente')->>'key_ciphertext' = 'v1.chave-cifrada' and ai_runtime('assistente')->>'model' = 'modelo-de-teste', 'servidor obtém a configuração da tarefa');
@@ -172,6 +175,8 @@ select set_config('test.ai.reserve', ai_save_connection(null,'gemini','Reserva s
 select expect((ai_connection_runtime(current_setting('test.ai.reserve')::uuid)->>'key_ciphertext')='v1.reserva-cifrada','proprietário verifica reserva desligada somente no servidor');
 select expect(jsonb_array_length(ai_runtime('assistente')->'alternatives')=0,'reserva desligada não participa');
 select ai_save_connection(current_setting('test.ai.reserve')::uuid,'gemini','Reserva sintética',true,1,null,null);
+select expect(jsonb_array_length(ai_runtime('assistente')->'alternatives')=0,'reserva Gemini sem declaração paga não recebe dados');
+select ai_set_member_base_source('gemini',current_setting('test.ai.reserve')::uuid,'paid');
 select expect(ai_runtime('assistente')->'alternatives'->0->>'key_ciphertext'='v1.reserva-cifrada','reserva ligada disponível só para servidor');
 select expect(ai_admin_state()::text not like '%reserva-cifrada%','painel da reserva não expõe conteúdo cifrado');
 do $$ begin perform private.ai_task_config('assistente'); raise exception 'FALHA: função interna aberta ao cliente'; exception when insufficient_privilege then null; end $$;
@@ -209,20 +214,44 @@ select set_config('test.ai.eleven',ai_save_connection_details(null,'elevenlabs',
 select ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'auto:rapido',true,'fixed','[]');
 select expect(ai_runtime('voz')->>'provider'='elevenlabs' and ai_runtime('voz')->>'key_ciphertext'='v1.eleven','voz usa a conexão ElevenLabs');
 select ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'gemini-2.5-flash',true,'fixed','[]');
--- Automático: escolhida primeiro, depois chaves ligadas de empresas compatíveis, na ordem recomendada.
+-- Automático: voz preserva transporte escolhido; texto ordena todas as chaves elegíveis.
 select ai_save_provider('gemini', true, '', '', '', '', 'v1.gemini-auto', '1111');
 select ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'auto:rapido',true,'auto','[]');
 select expect(ai_runtime('voz')->>'routing'='auto' and ai_runtime('voz')->>'provider'='elevenlabs','voz automática começa pela escolhida');
+select expect(not(ai_runtime('voz')::text like '%gemini%'),'Gemini sem declaração de API paga não participa automaticamente');
+select ai_set_member_base_source('gemini',null,'paid');
 select expect(ai_runtime('voz')->'alternatives'->0->>'provider'='gemini' and ai_runtime('voz')->'alternatives'->0->>'model'='auto:rapido','voz automática tenta Gemini em seguida');
 select expect(not (ai_runtime('voz')->'alternatives')::text ~ '(anthropic|compatible|v1\.eleven)','voz automática não usa texto nem repete a escolhida');
 select ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'auto','[]');
-select expect(ai_runtime('assistente')->>'key_ciphertext'='v1.independente','texto automático começa pela escolhida');
-select expect(ai_runtime('assistente')->'alternatives'->0->>'provider'='gemini' and ai_runtime('assistente')->'alternatives'->1->>'provider'='anthropic','texto automático segue a ordem recomendada');
-select expect(ai_runtime('assistente')->'alternatives'->1->>'model'='auto:rapido','empresa automática escolhe o próprio modelo');
+select expect(ai_runtime('assistente')->>'provider'='gemini','texto automático ordena também a escolhida pela recomendação');
+select expect(ai_runtime('assistente')->'alternatives'->0->>'provider'='anthropic' and ai_runtime('assistente')->'alternatives'->1->>'key_ciphertext'='v1.independente','endpoint escolhido permanece disponível após empresas automáticas');
+select expect(ai_runtime('assistente')->'alternatives'->0->>'model'='auto:rapido','empresa automática escolhe o próprio modelo');
 select expect(not (ai_runtime('assistente')->'alternatives')::text like '%elevenlabs%','texto automático nunca usa ElevenLabs');
 select set_config('test.ai.groq',ai_save_connection_details(null,'groq','Groq gratuita',true,1,'v1.groq','2222','','','')::text,false);
-select expect(ai_runtime('assistente')->'alternatives'->1->>'provider'='groq' and ai_runtime('assistente')->'alternatives'->2->>'provider'='anthropic','economia primeiro: Groq gratuita antes de empresa paga');
+select expect(ai_runtime('assistente')->'alternatives'->0->>'provider'='groq' and ai_runtime('assistente')->'alternatives'->1->>'provider'='anthropic','economia: Groq antes de Anthropic e endpoint próprio');
+select ai_save_route('assistente','anthropic',current_setting('test.ai.alternative')::uuid,'claude-teste',true,'auto','[]');
+select expect(ai_runtime('assistente')->>'provider'='gemini' and ai_runtime('assistente')->'alternatives'->0->>'provider'='groq' and ai_runtime('assistente')->'alternatives'->1->>'provider'='anthropic','chave paga selecionada não contorna a ordem automática');
+select expect(ai_runtime('assistente')->'alternatives'->1->>'model'='claude-teste','modelo explícito da conexão selecionada é preservado');
+select ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'auto','[]');
 select ai_remove_connection(current_setting('test.ai.groq')::uuid);
+-- A changed credential cannot inherit a paid-API declaration from its previous ciphertext.
+select ai_save_provider('gemini',true,'','','','','v1.gemini-replaced','3333');
+select expect(not(ai_runtime('voz')::text like '%gemini%'),'trocar chave invalida elegibilidade Gemini automática');
+select ai_set_member_base_source('gemini',null,'paid');
+select expect(ai_runtime('voz')->'alternatives'->0->>'provider'='gemini','nova declaração presa à chave atual reabilita Gemini');
+select ai_set_member_base_source('gemini',null,null);
+-- xAI is a native live transport; Groq's text models are not advertised as realtime voice.
+select set_config('test.ai.xai',ai_save_connection_details(null,'xai','Voz Grok',true,1,'v1.xai-live','4444','','','')::text,false);
+select ai_save_route('voz','xai',current_setting('test.ai.xai')::uuid,'grok-voice-latest',true,'fixed','[]');
+select expect(ai_runtime('voz')->>'provider'='xai' and ai_runtime('voz')->>'model'='grok-voice-latest','rota fixa suporta voz nativa xAI');
+select ai_save_route('voz','xai',current_setting('test.ai.xai')::uuid,'grok-voice-think-fast-2.0',true,'fixed','[]');
+select expect(ai_runtime('voz')->>'model'='grok-voice-think-fast-2.0','rota fixa aceita o modelo xAI Voice documentado');
+select ai_save_route('voz','xai',current_setting('test.ai.xai')::uuid,'auto:rapido',true,'fixed','[]');
+do $$ begin perform ai_save_route('voz','xai',current_setting('test.ai.xai')::uuid,'grok-3',true,'fixed','[]'); raise exception 'FALHA: modelo texto Grok aceito para voz'; exception when invalid_parameter_value then null; end $$;
+do $$ begin perform ai_save_route('voz','groq',null,'auto:rapido',true,'fixed','[]'); raise exception 'FALHA: Groq anunciada como voz realtime'; exception when invalid_parameter_value then null; end $$;
+select ai_save_route('voz','elevenlabs',current_setting('test.ai.eleven')::uuid,'auto:rapido',true,'auto','[]');
+select expect(ai_runtime('voz')->'alternatives'->0->>'provider'='xai' and ai_runtime('voz')->'alternatives'->0->>'model'='grok-voice-latest','voz automática inclui xAI compatível depois da principal');
+select ai_remove_connection(current_setting('test.ai.xai')::uuid);
 select ai_save_route('assistente','compatible',current_setting('test.ai.independent')::uuid,'modelo-principal',true,'fixed','[]');
 select expect(ai_runtime('assistente')->'routing'='"fixed"'::jsonb and jsonb_array_length(ai_runtime('assistente')->'alternatives')=0,'rota fixa continua sem alternativas');
 select ai_save_provider('gemini', false, '', '', '', '', null, null);
@@ -251,12 +280,12 @@ select ai_remove_connector(current_setting('test.ai.mcp')::uuid);
 select ai_remove_connection(current_setting('test.ai.alternative')::uuid);
 select ai_save_task('assistente','gemini','modelo-de-teste',true);
 
--- Mensageiros: só o proprietário configura e vincula; o robô só age com o segredo do servidor e só na conta vinculada.
+-- Mensageiros: só o proprietário configura; cada conta vincula seu próprio chat com código descartável.
 select act_as('00000000-0000-4000-8000-000000000001');
 do $$ begin perform messenger_admin_state(); raise exception 'FALHA: master comum viu os mensageiros';
 exception when insufficient_privilege then null; end $$;
-do $$ begin perform messenger_create_code('telegram', repeat('a', 64)); raise exception 'FALHA: conta comum gerou código de vínculo';
-exception when insufficient_privilege then null; end $$;
+select messenger_create_code('telegram', repeat('a',64));
+select expect(not (messenger_status()->>'owner')::boolean,'membro vincula seu chat sem virar administrador');
 do $$ begin perform count(*) from messenger_settings; raise exception 'FALHA: configuração de mensageiros legível';
 exception when insufficient_privilege then null; end $$;
 select act_as('00000000-0000-4000-8000-00000000000a');
@@ -295,6 +324,7 @@ select expect(bot_unlink('segredo-do-servidor-com-mais-de-32-caracteres', 'teleg
 select expect(bot_context('segredo-do-servidor-com-mais-de-32-caracteres', 'telegram', '555') is null, 'depois de desvincular não vê nada');
 reset role;
 \ir ../../tests/sql/mcp-access.sql
+\ir ../../tests/sql/mcp-confirmations.sql
 \ir ../../tests/sql/mcp-oauth.sql
 \ir ../../tests/sql/workspace-conflicts.sql
 \ir ../../tests/sql/jornada-request-limits.sql
