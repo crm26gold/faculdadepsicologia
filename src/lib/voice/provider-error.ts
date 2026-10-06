@@ -1,3 +1,5 @@
+import { failureKind } from '../ai/provider-failure';
+
 const statuses = new Set(['INVALID_ARGUMENT', 'FAILED_PRECONDITION', 'UNAUTHENTICATED', 'PERMISSION_DENIED', 'NOT_FOUND', 'RESOURCE_EXHAUSTED', 'INTERNAL', 'UNAVAILABLE', 'DEADLINE_EXCEEDED']);
 const reasons = new Set(['API_KEY_INVALID', 'API_KEY_EXPIRED', 'API_KEY_NOT_FOUND', 'API_KEY_SERVICE_BLOCKED', 'API_KEY_HTTP_REFERRER_BLOCKED', 'API_KEY_IP_ADDRESS_BLOCKED', 'SERVICE_DISABLED', 'BILLING_DISABLED', 'BILLING_REQUIRED', 'INSUFFICIENT_CREDITS', 'RATE_LIMIT_EXCEEDED']);
 const fields = new Set(['model', 'generationConfig', 'systemInstruction', 'tools', 'realtimeInputConfig', 'inputAudioTranscription', 'outputAudioTranscription', 'contextWindowCompression', 'sessionResumption', 'fieldMask', 'expireTime', 'newSessionExpireTime', 'uses', 'bidiGenerateContentSetup', 'liveConnectConstraints']);
@@ -42,8 +44,10 @@ export async function liveProviderFailure(response: Response) {
   const reason = details.map(detail => detail.reason).find(value => typeof value === 'string' && reasons.has(value)) as string | undefined;
   const configuration = !reason && upstreamCode === 'INVALID_ARGUMENT' && (response.status === 400 || response.status === 422) ? messageConfiguration(error.message) : { invalidFields: [] };
   const invalidFields = [...new Set([...details.flatMap(detail => Array.isArray(detail.fieldViolations) ? detail.fieldViolations.slice(0, 10) : []).map(value => knownFieldRoot(record(value).field)).filter((value): value is string => value !== null), ...configuration.invalidFields])];
+  // The message text is read only by the shared classifier (prepaid credits), never kept.
+  const kind = failureKind(response.status, { codes: [reason, upstreamCode], text: error.message });
   let message: string;
-  if (response.status === 402 || reason === 'BILLING_DISABLED' || reason === 'BILLING_REQUIRED' || reason === 'INSUFFICIENT_CREDITS') {
+  if (kind === 'billing') {
     message = 'O Gemini informou um problema de faturamento ou créditos da API. Confira o projeto da chave no Google AI Studio.';
   } else if (reason?.startsWith('API_KEY_')) {
     message = 'A chave do Gemini está inválida ou bloqueada para esta chamada. Confira suas permissões e restrições no Google AI Studio.';
@@ -62,7 +66,7 @@ export async function liveProviderFailure(response: Response) {
     message = 'Não consegui preparar a chamada no Gemini agora. Tente novamente em alguns instantes.';
   }
   return {
-    message, status: response.status === 429 ? 429 : 502,
+    message, kind, status: response.status === 429 ? 429 : 502,
     diagnostic: { upstreamStatus: response.status, upstreamCode, reason, invalidFields, configurationIssue: 'configurationIssue' in configuration ? configuration.configurationIssue : undefined },
   };
 }

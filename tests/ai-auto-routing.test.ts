@@ -11,8 +11,10 @@ const row = (provider: string, model: string, key: string) => ({ provider: provi
 
 test('automático passa para a próxima conexão mesmo com cota esgotada, até oito tentativas', async () => {
   const seen: number[] = [];
-  const result = await runAiAttempts([1, 2, 3], async item => { seen.push(item); if (item < 3) throw failed(item === 1 ? 429 : 400); return 'ok'; }, { persistent: true });
+  const result = await runAiAttempts([1, 2, 3], async item => { seen.push(item); if (item < 3) throw failed(item === 1 ? 429 : 503); return 'ok'; }, { persistent: true });
   assert.equal(result, 'ok'); assert.deepEqual(seen, [1, 2, 3]);
+  await assert.rejects(runAiAttempts([1, 2], async item => { seen.push(item); throw failed(400); }, { persistent: true }), { status: 400 });
+  assert.deepEqual(seen, [1, 2, 3, 1], 'pedido inválido para também no automático');
   let calls = 0, budgets = 0;
   await assert.rejects(runAiAttempts([1, 2, 3, 4, 5, 6, 7, 8, 9], async () => { calls++; throw failed(429); }, { persistent: true, beforeRetry: async () => { budgets++; } }), { status: 429 });
   assert.equal(calls, 8); assert.equal(budgets, 7);

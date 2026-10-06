@@ -6,16 +6,14 @@ import { chooseLiveModel, liveTokenRequest, MAX_CALL_SECONDS } from './protocol'
 import { liveProviderFailure } from './provider-error';
 
 const modelCache = new Map<string, { items: { name?: string; supportedGenerationMethods?: string[] }[]; expires: number }>();
+type Failure = Awaited<ReturnType<typeof liveProviderFailure>>;
 export class LiveSessionError extends AiError {
-  get retryableCredential() { return ['API_KEY_INVALID', 'API_KEY_EXPIRED', 'API_KEY_NOT_FOUND', 'API_KEY_SERVICE_BLOCKED', 'API_KEY_HTTP_REFERRER_BLOCKED', 'API_KEY_IP_ADDRESS_BLOCKED'].includes(this.diagnostic.reason ?? ''); }
-  get doNotRetry() { return ['BILLING_DISABLED', 'BILLING_REQUIRED', 'INSUFFICIENT_CREDITS', 'RATE_LIMIT_EXCEEDED'].includes(this.diagnostic.reason ?? ''); }
-  get retryOnProviderChange() { return this.doNotRetry; }
-  constructor(readonly stage: string, readonly diagnostic: Awaited<ReturnType<typeof liveProviderFailure>>['diagnostic'], message: string, status: number) { super(message, status); }
+  constructor(readonly stage: string, readonly diagnostic: Failure['diagnostic'], message: string, status: number, kind?: Failure['kind']) { super(message, status, kind); }
 }
 async function checked(response: Response, stage: string) {
   if (response.ok) return response;
   const failure = await liveProviderFailure(response);
-  throw new LiveSessionError(stage, failure.diagnostic, failure.message, response.status);
+  throw new LiveSessionError(stage, failure.diagnostic, failure.message, response.status, failure.kind);
 }
 export async function prepareGeminiSession(config: AiConfig, context: string, history: { role: string; text: string }[], options: { signal?: AbortSignal; beforeRetry?: () => Promise<void>; beforeAttempt?: (candidate: AiConfig, index: number) => Promise<void> } = {}) {
   return runAiAttempts([config, ...(config.alternatives ?? []).filter(row => row.provider === 'gemini').slice(0, 2)], async connection => { try {

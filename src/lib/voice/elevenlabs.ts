@@ -13,9 +13,12 @@ const statusPattern = /^[a-z][a-z0-9_]{1,59}$/;
 export type ElevenLabsDiagnostic = { upstreamStatus: number; detail?: string; fields?: string[] };
 
 export class ElevenLabsError extends AiError {
-  constructor(readonly stage: Stage, readonly diagnostic: ElevenLabsDiagnostic, message: string, status: number) { super(message, status); }
-  get doNotRetry() { return ['quota_exceeded', 'payment_required', 'detected_unusual_activity'].includes(this.diagnostic.detail ?? ''); }
-  get retryOnProviderChange() { return ['quota_exceeded', 'payment_required'].includes(this.diagnostic.detail ?? ''); }
+  // ElevenLabs reports exhausted plan credits as quota_exceeded, even with HTTP 401.
+  constructor(readonly stage: Stage, readonly diagnostic: ElevenLabsDiagnostic, message: string, status: number) {
+    super(message, status, ['quota_exceeded', 'payment_required'].includes(diagnostic.detail ?? '') ? 'billing' : undefined);
+  }
+  /** A flagged account stops the call everywhere, as before; it is not a key to rotate. */
+  get doNotRetry() { return this.diagnostic.detail === 'detected_unusual_activity'; }
 }
 
 // ElevenLabs errors may echo request content. Keep only a status token and validation field paths.

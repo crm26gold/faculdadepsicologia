@@ -54,7 +54,22 @@ Na persistência remota, a API usa `personal_workspaces` e a função `save_pers
 
 `private.ai_resource_map` (somente proprietário) mostra o que está configurado e o que realmente atua em cada tarefa. Ele chama as mesmas funções do roteador, explica cada exclusão e não devolve chaves cifradas nem detalhes de membros, apenas contagens. As capacidades de cada provedor vêm de `src/lib/ai/resources.ts`, conferidas por testes contra os adaptadores; não provam cota nem créditos.
 
-O orçamento é reservado antes de cada tentativa efetiva. Credenciais pessoais usam limites por conta; as fontes do proprietário e da base também consomem o orçamento global. Um limite da Jornada interrompe o pedido inteiro. Nas rotas fixas e com alternativas, falhas de rede, acesso e serviço tentam a próxima conexão; cota (429), faturamento (402) e configuração inválida encerram o pedido, em até quatro tentativas. No automático, qualquer falha do provedor passa para a próxima conexão elegível, inclusive outra chave da mesma empresa, em até oito tentativas. Pular a empresa inteira só acontece no preparo da voz. Ainda não há registro persistente de saúde ou espera por provedor.
+O orçamento é reservado antes de cada tentativa efetiva, com limite único de candidatos (8 no automático, 4 nos demais modos). Credenciais pessoais usam limites por conta; as fontes do proprietário e da base também consomem o orçamento global. Conexão pulada não reserva orçamento.
+
+`src/lib/ai/provider-failure.ts` classifica cada falha pelo status HTTP e pelos códigos estruturados do corpo; frases inteiras de saldo só entram como último recurso, nunca "quota" sozinha. Só a classe é guardada: o texto do provedor não chega à mensagem nem ao log. `runAiAttempts` (`src/lib/ai/attempts.ts`) toma uma ação por classe:
+
+| Classe | Exemplos | Automático | Fixo, reserva da mesma empresa ou alternativas |
+| --- | --- | --- | --- |
+| `network` | sem resposta, tempo esgotado | próxima conexão | próxima conexão |
+| `server` | 5xx, resposta vazia | próxima conexão | próxima conexão |
+| `rate_limit` | 429 | próxima conexão | para |
+| `model` | 404, modelo ou recurso que a conexão não atende | próxima conexão | próxima conexão |
+| `auth` | 401, 403, chave inválida | pula só essa chave | pula só essa chave |
+| `billing` | 402, sem saldo, faturamento desativado | pula todas as chaves da empresa | pula todas as chaves da empresa; uma alternativa de outra empresa ainda é tentada |
+| `invalid` | 400, 422, falha sem status | para | para |
+| Recusa da Jornada | `BudgetLimitError`, conta bloqueada pelo provedor | para tudo | para tudo |
+
+Saldo é da conta, não da chave: trocar de chave da mesma empresa não resolve e só gastaria orçamento.
 
 No MCP, OAuth registra apenas hashes de códigos e tokens. Uma reutilização de renovação revoga a família inteira em transação, e o registro de clientes tem limites globais e por origem. `private.mcp_receipts` torna pedidos com `request_id` idempotentes por 90 dias. Alterações de workspace, comprovantes e confirmações pendentes são gravados atomicamente; ações destrutivas reaparecem nas Conversas do app e passam novamente pela verificação do registro antes da confirmação.
 

@@ -1,13 +1,13 @@
 import 'server-only';
 import { createHash } from 'node:crypto';
 import type { userSession } from '../supabase/server';
-import { dbError } from '../api-route';
+import { dbError, reply } from '../api-route';
 import { budgetPausedMessage } from '../usage';
 import { botServerSecret } from '../bot/secrets';
 import { AiError, type AiConfig, type AiCredentialSource } from './providers';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
-const unavailable = () => Response.json({ error: 'Não foi possível verificar o controle de uso agora.', code: 'jornada_budget_unavailable' }, { status: 503, headers: { 'Cache-Control': 'private, no-store' } });
+const unavailable = () => reply({ error: 'Não foi possível verificar o controle de uso agora.', code: 'jornada_budget_unavailable' }, 503, 'jornada_budget_unavailable');
 
 /** Retains the application refusal when a provider fallback requires another reservation. */
 export class BudgetLimitError extends AiError {

@@ -1,6 +1,7 @@
 import 'server-only';
 import { AiError, type AiConfig } from '../ai/providers';
 import { runAiAttempts } from '../ai/attempts';
+import { failureKind } from '../ai/provider-failure';
 import { MAX_CALL_SECONDS } from './protocol';
 import { XAI_LIVE_SOCKET, xaiClientSetup, xaiFailureMessage } from './xai-protocol';
 
@@ -8,15 +9,13 @@ const models = new Set(['grok-voice-latest','grok-voice-think-fast-2.0']);
 const reasons = new Set(['rate_limit_exceeded','insufficient_quota','insufficient_credits','payment_required','billing_disabled','authentication_error','permission_denied','invalid_api_key','invalid_request_error','invalid_request']);
 export class XaiSessionError extends AiError {
   readonly stage = 'token';
-  constructor(readonly diagnostic: { upstreamStatus:number; reason?:string }, message:string, status:number) { super(message,status); }
-  get doNotRetry() { return ['rate_limit_exceeded','insufficient_quota','insufficient_credits','payment_required','billing_disabled'].includes(this.diagnostic.reason ?? ''); }
-  get retryOnProviderChange() { return this.doNotRetry; }
+  constructor(readonly diagnostic: { upstreamStatus:number; reason?:string }, message:string, status:number, kind=failureKind(status,{codes:[diagnostic.reason]})) { super(message,status,kind); }
 }
 /** Only a five-minute client secret reaches the browser; the permanent key stays in this server call. */
 export async function prepareXaiSession(config:AiConfig, options:{signal?:AbortSignal;beforeRetry?:()=>Promise<void>;beforeAttempt?:(candidate:AiConfig,index:number)=>Promise<void>} = {}) {
   return runAiAttempts([config,...(config.alternatives??[]).filter(row=>row.provider==='xai').slice(0,2)],async connection=>{
     const model=connection.model==='auto:rapido'?'grok-voice-latest':connection.model;
-    if(!models.has(model)) throw new XaiSessionError({upstreamStatus:400},'Escolha um modelo de voz Grok compatível na tarefa Chamada ao vivo.',400);
+    if(!models.has(model)) throw new XaiSessionError({upstreamStatus:400},'Escolha um modelo de voz Grok compatível na tarefa Chamada ao vivo.',400,'model');
     const signal=options.signal?AbortSignal.any([options.signal,AbortSignal.timeout(20_000)]):AbortSignal.timeout(20_000);
     let response:Response;
     try { response=await fetch('https://api.x.ai/v1/realtime/client_secrets',{method:'POST',cache:'no-store',redirect:'error',signal,
