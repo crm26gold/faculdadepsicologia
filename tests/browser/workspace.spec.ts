@@ -34,6 +34,8 @@ test('ações do dia registram uma ideia e preparam o foco sem iniciar o cronôm
 
 test('busca distingue nenhum resultado e abre um curso encontrado pelo teclado', async ({ page }) => {
   await page.goto('/');
+  // Espera a hidratação ligar o atalho de teclado no document antes de apertar Ctrl+K.
+  await expect(page.getByRole('group', { name: 'Ações rápidas do dia' })).toBeVisible();
   await page.keyboard.press('Control+k');
   const dialog = page.getByRole('dialog', { name: 'Encontre no seu espaço', exact: true });
   const search = dialog.getByRole('textbox', { name: 'Buscar cursos, matérias, anotações e tarefas' });
