@@ -138,7 +138,7 @@ begin
  end if;
  capable:=case when t.id='voz' then provider_id in('gemini','openai','xai','elevenlabs') else provider_id<>'elevenlabs' end;
  if resource->>'kind'='personal' then
-  if t.id='voz' then return jsonb_build_object('source_id',sid,'state','incapable','reason','owner_voice_uses_admin'); end if;
+  if t.id='voz' then return jsonb_build_object('source_id',sid,'state','unusable','reason','owner_voice_uses_admin'); end if;
   return jsonb_build_object('source_id',sid,'state','unusable','reason',case when (resource->>'enabled')::boolean then 'not_selected' else 'disabled' end);
  end if;
  if not capable then
@@ -165,6 +165,7 @@ create function private.ai_resource_map() returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 declare owner_id uuid; base_on boolean; resources jsonb; routes jsonb:='[]'::jsonb; t public.ai_tasks; route_items jsonb; raw jsonb;
  owner_runtime jsonb; chain jsonb; members_chain jsonb; cfg private.whatsapp_bridge; stt_provider text; stt_conn uuid; stt_reason text; bridge jsonb;
+ assistant_runtime jsonb; assistant_members jsonb:='[]'::jsonb; served_by text; members_served_by text;
 begin
  if not private.is_owner() then raise exception 'Not authorized' using errcode='42501'; end if;
  select a.user_id into owner_id from public.app_owner a limit 1;
@@ -189,26 +190,34 @@ begin
   from private.ai_user_keys k where k.user_id=owner_id
  ) s;
  for t in select * from public.ai_tasks order by array_position(array['assistente','organizar','voz'],id) loop
+  raw:=private.ai_task_config(t.id);
   route_items:=case when coalesce(t.provider,'')<>'' then jsonb_build_array(jsonb_build_object('source_id',
    case when t.connection_id is null then 'provider:'||t.provider else 'connection:'||t.connection_id::text end,'role','primary','model',t.model)) else '[]'::jsonb end;
   if t.routing_mode='fallback' then
    route_items:=route_items||coalesce((select jsonb_agg(jsonb_build_object('source_id','connection:'||(e.f->>'connection_id'),'role','fallback','model',e.f->>'model') order by e.ord)
     from jsonb_array_elements(t.fallbacks) with ordinality e(f,ord)),'[]'::jsonb);
-  elsif t.routing_mode='legacy' then
+  elsif t.routing_mode='legacy' and raw is not null then
+   -- Same selection as ai_task_config: the first two enabled reserves, only behind a working primary.
    route_items:=route_items||coalesce((select jsonb_agg(jsonb_build_object('source_id','connection:'||c.id::text,'role','reserve','model',t.model) order by c.position)
-    from private.ai_connections c where c.provider=t.provider),'[]'::jsonb);
+    from (select x.id,x.position from private.ai_connections x where x.provider=t.provider and x.enabled order by x.position limit 2) c),'[]'::jsonb);
   end if;
-  raw:=private.ai_task_config(t.id);
   owner_runtime:=private.ai_runtime_for(owner_id,t.id);
-  chain:=private.ai_chain(owner_runtime);
   members_chain:=case when base_on and t.id<>'voz' and raw is not null then (
    select coalesce(jsonb_agg(x.e->>'source_id' order by x.ord),'[]'::jsonb)
    from jsonb_array_elements(jsonb_build_array(raw-'alternatives'-'routing')||coalesce(raw->'alternatives','[]'::jsonb)) with ordinality x(e,ord)
    where exists(select 1 from private.ai_member_base_sources a where a.source_id=x.e->>'source_id' and a.provider=x.e->>'provider' and a.audience='members'
     and a.cipher_hash=encode(extensions.digest(x.e->>'key_ciphertext','sha256'),'hex'))) else '[]'::jsonb end;
+  -- /api/ai/organize serves Organizar with the assistant route whenever Organizar resolves to nothing.
+  served_by:=null; members_served_by:=null;
+  if t.id='assistente' then assistant_runtime:=owner_runtime; assistant_members:=members_chain;
+  elsif t.id='organizar' then
+   if owner_runtime is null and assistant_runtime is not null then owner_runtime:=assistant_runtime; served_by:='assistente'; end if;
+   if jsonb_array_length(members_chain)=0 and jsonb_array_length(assistant_members)>0 then members_chain:=assistant_members; members_served_by:='assistente'; end if;
+  end if;
+  chain:=private.ai_chain(owner_runtime);
   routes:=routes||jsonb_build_array(jsonb_build_object('task',t.id,'enabled',t.enabled,'mode',t.routing_mode,'provider',t.provider,'model',t.model,
-   'routing_effective',owner_runtime->>'routing','chain',chain,'configured_chain',private.ai_chain(raw),
-   'members_chain',members_chain,'members_note',case when t.id='voz' then 'voice_not_shared' when not base_on then 'base_off' end,
+   'routing_effective',owner_runtime->>'routing','chain',chain,'configured_chain',private.ai_chain(raw),'served_by',served_by,
+   'members_chain',members_chain,'members_served_by',members_served_by,'members_note',case when t.id='voz' then 'voice_not_shared' when not base_on then 'base_off' end,
    'sources',(select coalesce(jsonb_agg(s.v order by (s.v->>'position')::int nulls last,s.v->>'source_id'),'[]'::jsonb)
     from (select private.ai_source_state(t,r.value,chain,route_items) v from jsonb_array_elements(resources) r) s where s.v is not null)));
  end loop;

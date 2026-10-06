@@ -721,7 +721,7 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   await expect(assistant.locator('li[data-state="blocked"]')).toContainText('Falta declarar as condições de privacidade');
   await expect(assistant.locator('li[data-state="available"]')).toContainText('Groq');
   await expect(panel.locator('.ai-route-map').filter({ hasText: 'Chamada ao vivo' }).locator('li[data-state="incapable"]')).toContainText('DeepSeek');
-  await expect(panel.getByText(/Disponíveis para reserva: Groq/)).toBeVisible();
+  await expect(panel.getByText(/Disponíveis como alternativa: Groq/)).toBeVisible();
   await expect(panel.getByText(/Hoje a Jornada só descobre as ferramentas/)).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Ligar base para membros' })).toBeDisabled();
   await assistant.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/resource-map-desktop.png' });

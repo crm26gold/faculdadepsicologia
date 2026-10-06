@@ -8,7 +8,7 @@ import { capabilityLabels, declarableProviders, modelDependentCapabilities, prov
 import { api } from './client';
 import { Modal } from '../modal';
 
-export type ResourceMapState = { map: AiResourceMap | null; unavailable: boolean; error: string; reload: () => Promise<void> };
+export type ResourceMapState = { map: AiResourceMap | null; unavailable: boolean; error: string; reload: () => Promise<boolean> };
 /** One owner-only read; the panel reuses it for the overview notice and the map view. */
 export function useResourceMap(enabled: boolean): ResourceMapState {
   const [map, setMap] = useState<AiResourceMap | null>(null);
@@ -18,13 +18,14 @@ export function useResourceMap(enabled: boolean): ResourceMapState {
     try {
       const data = await api<{ available: boolean; map?: AiResourceMap }>('/api/ai/resources');
       setUnavailable(!data.available); setMap(data.map ?? null); setError('');
-    } catch { setError('Não consegui abrir o mapa de recursos agora. Tente atualizar.'); }
+      return true;
+    } catch { setError('Não consegui abrir o mapa de recursos agora. Tente atualizar.'); return false; }
   }, []);
   useEffect(() => { if (enabled) void reload(); }, [enabled, reload]);
   return { map, unavailable, error, reload };
 }
 
-const modeLabels: Record<AiRouteMap['mode'], string> = { fixed: 'Rota fixa', fallback: 'Com reservas', auto: 'Automático', legacy: 'Modo antigo' };
+const modeLabels: Record<AiRouteMap['mode'], string> = { fixed: 'Rota fixa', fallback: 'Com alternativas', auto: 'Automático', legacy: 'Modo antigo' };
 const sttProviders = ['gemini', 'vertex', 'google_cloud', 'groq', 'openai'];
 
 export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onChanged?: () => void }) {
@@ -36,7 +37,11 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
   async function run(key: string, action: () => Promise<unknown>, success: string) {
     if (busy) return;
     setBusy(key); setMessage('');
-    try { await action(); setMessage(success); await state.reload(); onChanged?.(); }
+    try {
+      await action();
+      if (!await state.reload()) throw new Error('A alteração foi enviada, mas não consegui atualizar o mapa. Toque em Atualizar mapa.');
+      setMessage(success); onChanged?.();
+    }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não consegui concluir.'); }
     finally { setBusy(''); }
   }
@@ -57,21 +62,24 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
     <div className="section-heading"><div><h3>Mapa de recursos</h3><p className="muted small">O que está conectado e o que realmente atende cada tarefa agora. O servidor calcula o mapa com as mesmas regras que escolhem a conexão. Abrir esta tela não consulta os provedores nem gasta créditos.</p></div>
       <button type="button" className="button outline" disabled={!!busy} onClick={() => void run('refresh', async () => {}, 'Mapa atualizado.')}><RefreshCw size={15} aria-hidden="true" /> Atualizar mapa</button></div>
     {message && <p className="cm-message" role="status">{message}</p>}
+    {state.error && !message && <p className="cm-message" role="status">{state.error}</p>}
     {insights.length > 0 && <div className="ai-card ai-insights"><strong>O que merece sua atenção</strong><ul>{insights.map((insight, index) => <li key={index} data-level={insight.level}>
       {insight.level === 'warning' ? <AlertTriangle size={16} aria-hidden="true" /> : <Info size={16} aria-hidden="true" />}<span>{insight.text}</span></li>)}</ul></div>}
 
     <h3>Cada tarefa, agora</h3>
     <div className="ai-grid">{map.routes.map(route => <div className="ai-card ai-route-map" key={route.task}>
       <div className="section-heading"><strong>{aiTaskLabels[route.task].name}</strong><span className="ai-badge">{!route.enabled ? 'Desligada'
-        : route.routing_effective && route.routing_effective !== route.mode && route.mode !== 'legacy' ? `${modeLabels[route.mode]} · funcionando como automático` : modeLabels[route.mode]}</span></div>
-      <span className="muted small">{route.chain.length ? 'Atuando agora, nesta ordem:' : 'Nenhuma conexão está atuando nesta tarefa.'}</span>
+        : route.routing_effective && route.routing_effective !== route.mode && !route.served_by ? `${modeLabels[route.mode]} · funcionando como automático` : modeLabels[route.mode]}</span></div>
+      <span className="muted small">{!route.chain.length ? 'Nenhuma conexão está atuando nesta tarefa.'
+        : route.served_by ? `Sem conexão própria atuando, usa a rota da ${aiTaskLabels[route.served_by].name}, nesta ordem:` : 'Atuando agora, nesta ordem:'}</span>
       {route.chain.length > 0 && <ol className="ai-chain">{route.chain.map(item => <li key={item.source_id}><span>{name(item.source_id)}</span><small className="muted">{isAuto(item.model) ? autoModes[item.model].label : item.model}</small></li>)}</ol>}
       {route.sources.some(source => source.state !== 'active') && <ul className="ai-source-states">{route.sources.filter(source => source.state !== 'active').map(source => <li key={source.source_id} data-state={source.state}>
         <span className="ai-source-name">{name(source.source_id)}</span><span className="ai-state">{stateLabels[source.state]}</span>
-        {source.reason && source.state !== 'incapable' && <small className="muted">{reasonLabels[source.reason]}</small>}</li>)}</ul>}
+        {source.reason && source.reason !== 'capability' && <small className="muted">{reasonLabels[source.reason]}</small>}</li>)}</ul>}
       <span className="muted small"><Users size={13} aria-hidden="true" /> {route.members_note === 'voice_not_shared' ? 'Membros: a voz ao vivo não é compartilhada.'
         : route.members_note === 'base_off' ? 'Membros: a base está desligada; usam só as próprias chaves.'
-        : route.members_chain.length ? `Membros recebem: ${route.members_chain.map(name).join(', ')}.` : 'Membros: nenhuma conexão desta tarefa foi oferecida.'}</span>
+        : route.members_chain.length ? `Membros recebem${route.members_served_by ? `, pela rota da ${aiTaskLabels[route.members_served_by].name}` : ''}: ${route.members_chain.map(name).join(', ')}.`
+        : 'Membros: nenhuma conexão desta tarefa foi oferecida.'}</span>
     </div>)}</div>
 
     <h3>Suas chaves e conexões</h3>
@@ -79,7 +87,8 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
     {!configured.length && <p className="muted" role="status">Nenhuma chave cadastrada ainda. Use Conexões e chaves para conectar a primeira.</p>}
     <div className="ai-grid">{configured.map(resource => <ResourceCard key={`${resource.source_id}-${resource.updated_at}-${resource.declaration.privacy_basis}-${resource.declaration.audience}`} resource={resource} busy={busy}
       baseEnabled={map.base_enabled} onSave={(privacy, audience) => {
-        if (privacy && audience === 'members' && map.base_enabled && resource.declaration.audience !== 'members') setOffer({ resource, privacy_basis: privacy });
+        const offeredNow = resource.declaration.audience === 'members' && resource.declaration.current;
+        if (privacy && audience === 'members' && map.base_enabled && !offeredNow) setOffer({ resource, privacy_basis: privacy });
         else void savePolicy(resource, privacy, audience);
       }} />)}</div>
     {personal.length > 0 && <div className="ai-card"><strong>Suas chaves pessoais</strong><p className="muted small">Ficam em Meu espaço › Minhas chaves de IA e entram primeiro nas suas conversas de texto. Nunca atendem outra pessoa.</p>
@@ -87,7 +96,7 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
 
     <h3>Base para membros</h3>
     <div className="ai-card"><div className="section-heading"><strong>{map.base_enabled ? 'Base ligada' : 'Base desligada'}</strong><span className="ai-badge">{map.members.accounts} {map.members.accounts === 1 ? 'conta de membro' : 'contas de membros'}</span></div>
-      <p className="muted small">{map.members.with_personal_keys} {map.members.with_personal_keys === 1 ? 'membro usa' : 'membros usam'} chaves próprias. Detalhes das contas e das chaves dos membros não aparecem aqui. A base atende só texto; a voz ao vivo nunca é compartilhada.</p>
+      <p className="muted small">{map.members.with_personal_keys} {map.members.with_personal_keys === 1 ? 'membro usa' : 'membros usam'} chaves próprias. Detalhes das contas e das chaves dos membros não aparecem aqui. A base atende conversas e organização, inclusive áudios e fotos enviados por Telegram e WhatsApp; a chamada de voz ao vivo nunca é compartilhada.</p>
       <p className="muted small">Só entram na base as conexões que você marcou como “Eu e membros”. Declarar uma conexão para você não a oferece aos membros.</p>
       <button type="button" className={`button ${map.base_enabled ? 'outline' : 'primary'}`} disabled={!!busy || (!map.base_enabled && !offered)}
         onClick={() => { if (map.base_enabled) void run('base-off', () => api('/api/ai/resources', { action: 'set_base', enabled: false }), 'Base para membros desligada.'); else setBaseConfirm(true); }}>
@@ -104,7 +113,7 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
       <div className="ai-card"><div className="section-heading"><strong>MCP da Jornada · entrada</strong><span className="ai-badge">{map.mcp_inbound.owner_tokens + map.mcp_inbound.owner_oauth} {map.mcp_inbound.owner_tokens + map.mcp_inbound.owner_oauth === 1 ? 'acesso ativo' : 'acessos ativos'}</span></div>
         <span className="muted small">Assistentes externos, como ChatGPT ou Claude, consultam e registram na sua Jornada com o seu acesso. Isso não permite que a Jornada use o modelo ou a assinatura deles.</span>
         <span className="muted small">{map.mcp_inbound.owner_oauth} por login OAuth · {map.mcp_inbound.owner_tokens} por token · {map.mcp_inbound.members_with_access} {map.mcp_inbound.members_with_access === 1 ? 'membro com acesso próprio' : 'membros com acesso próprio'}</span></div>
-      <div className="ai-card"><div className="section-heading"><strong>Servidores MCP externos · saída</strong><span className="ai-badge">{map.mcp_outbound.length} cadastrados</span></div>
+      <div className="ai-card"><div className="section-heading"><strong>Servidores MCP externos · saída</strong><span className="ai-badge">{map.mcp_outbound.length} {map.mcp_outbound.length === 1 ? 'cadastrado' : 'cadastrados'}</span></div>
         <span className="muted small">Hoje a Jornada só descobre as ferramentas desses servidores. Ela ainda não executa ferramentas externas nem envia seus dados a eles.</span>
         {map.mcp_outbound.length > 0 && <ul className="ai-source-states">{map.mcp_outbound.map(item => <li key={item.id} data-state={item.enabled ? 'available' : 'unusable'}><span className="ai-source-name">{item.label}</span><span className="ai-state">{item.enabled ? 'Ligado' : 'Pausado'}</span><small className="muted">{item.host ?? 'endereço inválido'} · {item.has_key ? 'com token' : 'sem token'}</small></li>)}</ul>}</div>
     </div>
@@ -123,12 +132,14 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
 
 function ResourceCard({ resource, busy, baseEnabled, onSave }: { resource: AiResource; busy: string; baseEnabled: boolean; onSave: (privacy: 'paid' | 'no_training' | null, audience: 'owner' | 'members') => void }) {
   const [privacy, setPrivacy] = useState<'' | 'paid' | 'no_training'>(resource.declaration.current ? resource.declaration.privacy_basis ?? '' : '');
-  const [audience, setAudience] = useState<'owner' | 'members'>(resource.declaration.audience ?? 'owner');
+  const [audience, setAudience] = useState<'owner' | 'members'>(resource.declaration.current ? resource.declaration.audience ?? 'owner' : 'owner');
   const declarable = declarableProviders.includes(resource.provider);
   const capabilities = providerCapabilities[resource.provider];
   const dependent = modelDependentCapabilities[resource.provider] ?? [];
   const stale = !!resource.declaration.privacy_basis && !resource.declaration.current;
   const id = resource.source_id.replace(/[^a-z0-9]/gi, '-');
+  const paused = !resource.enabled;
+  const declared = !!resource.declaration.privacy_basis;
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSave(privacy || null, privacy ? audience : 'owner'); }
   return <form className="ai-card ai-resource" onSubmit={submit} aria-label={resourceName(resource)}>
     <div className="section-heading"><strong>{resourceName(resource)}</strong><span className="ai-badge">{resource.enabled ? 'Ligada' : 'Pausada'}</span></div>
@@ -137,7 +148,10 @@ function ResourceCard({ resource, busy, baseEnabled, onSave }: { resource: AiRes
       {dependent.map(capability => <li key={capability}>{capabilityLabels[capability]} (depende do modelo)</li>)}</ul>
     <span className="small">{resource.personal_data_ok ? 'Pode receber seus dados pessoais nas suas rotas.' : 'Fora das rotas com dados pessoais até a declaração.'}</span>
     {stale && <p className="cm-message" role="status">{reasonLabels.declaration_stale}</p>}
-    {declarable ? <>
+    {declarable && paused ? <>
+      <span className="muted small">Ligue esta conexão em Conexões e chaves para declarar as condições de privacidade.</span>
+      {declared && <button type="button" className="button outline" disabled={!!busy} onClick={() => onSave(null, 'owner')}>Retirar declaração</button>}
+    </> : declarable ? <>
       <label htmlFor={`${id}-privacy`}>Condições de privacidade</label>
       <select id={`${id}-privacy`} value={privacy} disabled={!!busy} onChange={event => setPrivacy(event.target.value as typeof privacy)}>
         <option value="">Ainda não conferi</option><option value="paid">Conferi: API paga</option>

@@ -74,9 +74,19 @@ const productionMap = (): AiResourceMap => ({
 test('o mapa explica a reserva inerte e sugere conexões disponíveis sem gastar créditos', () => {
   const insights = resourceInsights(productionMap());
   assert(insights.some(item => item.level === 'warning' && /Reserva Gemini · Google Gemini \(AI Studio\) está configurada, mas fora/.test(item.text)));
-  assert(insights.some(item => item.level === 'info' && /depende de uma só conexão. Disponíveis para reserva: Groq/.test(item.text)));
+  assert(insights.some(item => item.level === 'info' && /depende de uma só conexão. Disponíveis como alternativa: Groq/.test(item.text)));
   assert(insights.some(item => item.level === 'info' && /Transcrição do WhatsApp/.test(item.text)), 'disabled channel is informational');
   assert(!insights.some(item => item.task === 'voz'), 'single fixed voice route is a choice, not a warning');
+});
+
+test('Organizar servido pela rota do assistente é explicado, sem falso alerta de rota única', () => {
+  const map = productionMap();
+  map.routes.push({ ...map.routes[0], task: 'organizar', enabled: true, mode: 'fixed', routing_effective: 'fallback', served_by: 'assistente',
+    sources: [{ source_id: 'provider:gemini', state: 'blocked', role: 'primary', reason: 'declaration_missing' }] });
+  const insights = resourceInsights(map).filter(item => item.task === 'organizar');
+  assert.deepEqual(insights.map(item => item.level), ['warning', 'info']);
+  assert.match(insights[1].text, /usa a rota da Conversa do assistente/);
+  assert(!insights.some(item => /depende de uma só conexão|modo automático/.test(item.text)));
 });
 
 test('o mapa avisa quando chaves pessoais mudam o modo efetivo e quando a declaração venceu', () => {

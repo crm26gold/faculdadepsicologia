@@ -18,19 +18,23 @@ create function public.runtime_ids(runtime jsonb) returns text language sql immu
  from jsonb_array_elements(case when runtime is null then '[]'::jsonb else jsonb_build_array(runtime-'alternatives'-'routing')||coalesce(runtime->'alternatives','[]'::jsonb) end)
  with ordinality x(e,ord) $$;
 -- The map must equal the router for every task: configured routes and the owner's real runtime.
+-- Like /api/ai/organize, Organizar uses the assistant runtime whenever its own resolves to nothing.
+create function public.served_runtime(task text) returns jsonb language sql as $$
+ select coalesce(public.ai_runtime_for_current('synthetic-server-proof-over-thirty-two-characters',task),
+  case when task='organizar' then public.ai_runtime_for_current('synthetic-server-proof-over-thirty-two-characters','assistente') end) $$;
 create function public.expect_router_match(label text) returns void language plpgsql as $$
 declare task text;
 begin
  foreach task in array array['assistente','organizar','voz'] loop
   perform public.expect(public.map_ids(public.map_route(task)->'configured_chain')=public.runtime_ids(public.ai_runtime(task)),label||': configured chain equals router for '||task);
-  perform public.expect(public.map_ids(public.map_route(task)->'chain')=public.runtime_ids(public.ai_runtime_for_current('synthetic-server-proof-over-thirty-two-characters',task)),label||': owner chain equals runtime for '||task);
-  perform public.expect(public.map_route(task)->>'routing_effective' is not distinct from public.ai_runtime_for_current('synthetic-server-proof-over-thirty-two-characters',task)->>'routing',label||': effective routing mode for '||task);
+  perform public.expect(public.map_ids(public.map_route(task)->'chain')=public.runtime_ids(public.served_runtime(task)),label||': owner chain equals runtime for '||task);
+  perform public.expect(public.map_route(task)->>'routing_effective' is not distinct from public.served_runtime(task)->>'routing',label||': effective routing mode for '||task);
  end loop;
  perform public.expect(current_setting('test.map') not like '%v1.%' and current_setting('test.map') not like '%key_ciphertext%' and current_setting('test.map') not like '%cipher_hash%',label||': map never carries credentials');
  perform public.expect(current_setting('test.map') not like '%00000000-0000-4000-8000-000000000001%',label||': map never names a member account');
 end $$;
 grant execute on function public.expect(boolean,text),public.act_as(text),public.refresh_map(),public.map_route(text),public.map_state(text,text),
- public.map_ids(jsonb),public.runtime_ids(jsonb),public.expect_router_match(text) to authenticated,anon;
+ public.map_ids(jsonb),public.runtime_ids(jsonb),public.served_runtime(text),public.expect_router_match(text) to authenticated,anon;
 
 set role authenticated;
 select act_as('00000000-0000-4000-8000-00000000000a');
@@ -99,10 +103,35 @@ select refresh_map();
 select expect_router_match('personal and automatic');
 select expect(map_route('assistente')->>'mode'='fallback' and map_route('assistente')->>'routing_effective'='auto','saved fallback mode is reported next to the effective automatic mode');
 select expect(map_state('assistente','personal:groq')@>'{"state":"active","position":1,"role":"personal"}','owner personal key is first');
-select expect(map_state('voz','personal:groq')@>'{"state":"incapable","reason":"owner_voice_uses_admin"}','owner voice keeps the administration route');
+select expect(map_state('voz','personal:groq')@>'{"state":"unusable","reason":"owner_voice_uses_admin"}','owner voice keeps the administration route');
 select expect(map_state('organizar','provider:gemini')@>'{"state":"blocked","role":"auto","reason":"declaration_missing"}','automatic pool explains excluded Gemini');
 select expect(map_state('organizar','provider:mistral')@>'{"state":"blocked","role":"auto","reason":"disabled"}','paused key is excluded from the automatic pool');
 select expect(map_state('organizar','provider:groq')->>'state'='active' and map_state('organizar','provider:deepseek')->>'state'='active','enabled eligible keys are active in automatic mode');
+
+-- A switched-off Organizar is served by the assistant route, for the owner and for members.
+-- An enabled personal key would serve it directly, so pause it for this scenario.
+select ai_my_key_set('groq',false);
+select ai_save_route('organizar','deepseek',null,'auto:rapido',false,'auto','[]');
+select refresh_map();
+select expect_router_match('organizar served by assistant');
+select expect(map_route('organizar')->>'served_by'='assistente' and map_ids(map_route('organizar')->'chain')=map_ids(map_route('assistente')->'chain'),'disabled Organizar shows the assistant chain that really serves it');
+select expect(map_route('organizar')->>'members_served_by'='assistente' and map_ids(map_route('organizar')->'members_chain')='provider:deepseek','members are also served by the assistant base');
+select expect(map_route('assistente')->>'served_by' is null,'only Organizar borrows a route');
+
+-- Legacy reserves follow ai_task_config: the first two enabled ones, behind a working primary.
+select set_config('test.r1',ai_save_connection_details(null,'groq','Groq reserva 1',true,1,'v1.groq-r1','gr01','','','')::text,false);
+select set_config('test.r2',ai_save_connection_details(null,'groq','Groq reserva 2',false,2,'v1.groq-r2','gr02','','','')::text,false);
+select set_config('test.r3',ai_save_connection_details(null,'groq','Groq reserva 3',true,3,'v1.groq-r3','gr03','','','')::text,false);
+select set_config('test.r4',ai_save_connection_details(null,'groq','Groq reserva 4',true,4,'v1.groq-r4','gr04','','','')::text,false);
+reset role;
+update public.ai_tasks set routing_mode='legacy',provider='groq',connection_id=null,model='auto:rapido',enabled=true,fallbacks='[]' where id='organizar';
+set role authenticated;
+select act_as('00000000-0000-4000-8000-00000000000a');
+select refresh_map();
+select expect_router_match('legacy reserves');
+select expect(map_state('organizar','connection:'||current_setting('test.r1'))->>'state'='active' and map_state('organizar','connection:'||current_setting('test.r3'))->>'state'='active','first two enabled reserves are active');
+select expect(map_state('organizar','connection:'||current_setting('test.r2'))@>'{"state":"unusable","reason":"disabled"}','a paused reserve is not reported as a broken route item');
+select expect(map_state('organizar','connection:'||current_setting('test.r4'))->>'state'='available','a reserve beyond the legacy limit is only available');
 
 -- Transcription, channels and MCP are explained without exposing tokens or other accounts.
 select whatsapp_admin('save',jsonb_build_object('enabled',false,'stt_connection',current_setting('test.extra'),'stt_model','auto:rapido','voice','pt-BR-AntonioNeural'));

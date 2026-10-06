@@ -44,6 +44,8 @@ export type RouteSource = { source_id: string; state: SourceState; position?: nu
 export type AiRouteMap = {
   task: AiTaskId; enabled: boolean; mode: 'legacy' | 'fixed' | 'fallback' | 'auto'; provider: AiProviderId | null; model: string;
   routing_effective: string | null; chain: ChainItem[]; configured_chain: ChainItem[]; members_chain: string[];
+  /** Organizar falls back to the assistant route when its own resolves to nothing. */
+  served_by?: AiTaskId | null; members_served_by?: AiTaskId | null;
   members_note: 'base_off' | 'voice_not_shared' | null; sources: RouteSource[];
 };
 export type AiResourceMap = {
@@ -93,10 +95,14 @@ export function resourceInsights(map: AiResourceMap): Insight[] {
     if (!route.chain.length) insights.push({ level: 'warning', task: route.task, text: `${task}: nenhuma conexão está atuando agora.` });
     for (const source of route.sources.filter(item => item.state === 'blocked' && item.role && item.role !== 'auto'))
       insights.push({ level: 'warning', task: route.task, text: `${task}: ${name(source.source_id)} está configurada, mas fora. ${source.reason ? reasonLabels[source.reason] : ''}`.trim() });
+    if (route.served_by) {
+      insights.push({ level: 'info', task: route.task, text: `${task}: nenhuma conexão desta tarefa está atuando, e a Jornada usa a rota da ${aiTaskLabels[route.served_by].name}.` });
+      continue;
+    }
     const available = route.sources.filter(item => item.state === 'available').map(item => name(item.source_id));
     if (route.chain.length === 1 && route.task !== 'voz')
-      insights.push({ level: 'info', task: route.task, text: `${task} depende de uma só conexão.${available.length ? ` Disponíveis para reserva: ${available.join(', ')}.` : ''}` });
-    if (route.routing_effective && route.routing_effective !== route.mode && route.mode !== 'legacy')
+      insights.push({ level: 'info', task: route.task, text: `${task} depende de uma só conexão.${available.length ? ` Disponíveis como alternativa: ${available.join(', ')}.` : ''}` });
+    if (route.routing_effective && route.routing_effective !== route.mode)
       insights.push({ level: 'info', task: route.task, text: `${task}: suas chaves pessoais entram primeiro e fazem a rota funcionar no modo automático, que tenta a próxima conexão em qualquer falha.` });
   }
   for (const resource of map.resources.filter(item => item.declaration.privacy_basis && !item.declaration.current))
