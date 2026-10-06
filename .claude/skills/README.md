@@ -4,8 +4,8 @@ Skills from [mattpocock/skills](https://github.com/mattpocock/skills) (v1.3.1, c
 
 These are copied in as editable files (the "tinkerers" installation): nothing updates on its own.
 
-First use in this repo: run `/setup-matt-pocock-skills` (issue tracker, triage labels, where to save docs).
-Not sure which skill to use: `/ask-matt`.
+
+Skills kept from that set: code-review, codebase-design, diagnosing-bugs, domain-modeling, grilling, handoff, implement, pr, prototype, research, tdd, wizard, writing-for-agents. The rest were removed on 2026-10-06 (issue-tracker workflow not used here).
 
 ## Skills próprias do projeto
 

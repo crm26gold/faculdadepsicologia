@@ -12,7 +12,7 @@ O alvo é **economia primeiro, não barato primeiro**: o menor **custo por taref
 | Nível | Quem | Use para |
 | --- | --- | --- |
 | 0 | Ferramenta (`git`, `rg`, `tsc`, testes, SQL, scripts) | Tudo que dá para calcular, buscar ou verificar com precisão |
-| 1 · econômico | `haiku` (Haiku 4.5) | Busca, leitura e resumo de arquivos ou logs, extração, formatação, triagem, inventários, alterações mecânicas com teste |
+| 1 · econômico | `haiku` (Haiku 4.5) | Busca, leitura e resumo de arquivos ou logs, extração, formatação, classificação inicial, inventários, alterações mecânicas com teste |
 | 2 · intermediário | `sonnet` (Sonnet 5.5) | Padrão do trabalho técnico: edições, código comum, testes, documentação, refatoração, debugging moderado, síntese de fontes |
 | 3 · premium | `opus` (Opus 5.5) | Arquitetura, causa raiz difícil, segurança, decisões interdependentes, revisão crítica de mudança arriscada, falha comprovada do nível 2 |
 | 4 · reserva | `fable` (Fable 5.1) | Só quando o Opus falhou com contexto correto e o ganho justifica. Exige créditos de uso; se indisponível, o teto é o **Opus 5.5** (regra do proprietário) |
