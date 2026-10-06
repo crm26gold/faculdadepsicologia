@@ -2,12 +2,11 @@ import { aiCatalog, aiTaskLabels, personalProviderIds, type AiProviderId, type A
 
 // What each adapter in providers.ts and src/lib/voice actually implements. These are code facts,
 // not proof that a given key, plan or model has access or credits.
-export const capabilityIds = ['text', 'image', 'audio', 'transcription', 'live_voice', 'models'] as const;
-export type CapabilityId = typeof capabilityIds[number];
-export const capabilityLabels: Record<CapabilityId, string> = {
+export const capabilityLabels = {
   text: 'Escrever e planejar', image: 'Ler imagens', audio: 'Ouvir áudio gravado',
   transcription: 'Transcrever áudio', live_voice: 'Voz ao vivo', models: 'Listar modelos',
-};
+} satisfies Record<string, string>;
+export type CapabilityId = keyof typeof capabilityLabels;
 export const providerCapabilities: Record<AiProviderId, readonly CapabilityId[]> = {
   gemini: ['text', 'image', 'audio', 'live_voice', 'models'],
   vertex: ['text', 'image', 'audio'],
@@ -26,8 +25,6 @@ export const providerCapabilities: Record<AiProviderId, readonly CapabilityId[]>
 export const modelDependentCapabilities: Partial<Record<AiProviderId, readonly CapabilityId[]>> = {
   mistral: ['image'], groq: ['image'], openrouter: ['image'], compatible: ['image'],
 };
-/** Mirrors the capability rule in private.ai_source_state. */
-export const taskNeeds: Record<AiTaskId, CapabilityId> = { assistente: 'text', organizar: 'text', voz: 'live_voice' };
 /** Providers whose keys can carry a privacy declaration and, optionally, serve members. */
 export const declarableProviders: readonly AiProviderId[] = personalProviderIds;
 
@@ -51,10 +48,10 @@ export type AiRouteMap = {
 export type AiResourceMap = {
   version: 1; generated_at: string; base_enabled: boolean; resources: AiResource[]; routes: AiRouteMap[];
   channels: { channel: 'telegram' | 'whatsapp'; enabled: boolean; bot: string; owner_linked: boolean; member_links: number }[];
-  whatsapp: { enabled: boolean; configured: boolean; state: string; heartbeat: string | null;
+  whatsapp: { enabled: boolean; state: string;
     stt: { source_id: string | null; provider: AiProviderId | null; model: string; state: 'active' | 'blocked'; reason: SourceReason | null } } | null;
-  mcp_inbound: { owner_tokens: number; owner_oauth: number; owner_can_write: number; owner_last_used: string | null; members_with_access: number };
-  mcp_outbound: { id: string; label: string; host: string | null; protocol: string; enabled: boolean; has_key: boolean }[];
+  mcp_inbound: { owner_tokens: number; owner_oauth: number; members_with_access: number };
+  mcp_outbound: { id: string; label: string; host: string | null; enabled: boolean; has_key: boolean }[];
   members: { accounts: number; with_personal_keys: number };
 };
 
@@ -81,13 +78,17 @@ export function resourceName(resource: Pick<AiResource, 'provider' | 'label' | '
   if (resource.kind === 'personal') return `${company} · minha chave pessoal`;
   return resource.label && resource.kind === 'connection' ? `${resource.label} · ${company}` : company;
 }
+/** Names a source id from the map; an id with no resource behind it is a removed connection. */
+export function sourceNamer(map: AiResourceMap) {
+  const byId = new Map(map.resources.map(resource => [resource.source_id, resource]));
+  return (id: string | null) => { const found = id ? byId.get(id) : undefined; return found ? resourceName(found) : 'Conexão removida'; };
+}
 
 export type Insight = { level: 'warning' | 'info'; task?: AiTaskId; text: string };
 const afterColon = (text: string) => text.charAt(0).toLocaleLowerCase('pt-BR') + text.slice(1);
 /** Plain-language findings derived only from the map; nothing here contacts a provider. */
 export function resourceInsights(map: AiResourceMap): Insight[] {
-  const byId = new Map(map.resources.map(resource => [resource.source_id, resource]));
-  const name = (id: string) => { const found = byId.get(id); return found ? resourceName(found) : id; };
+  const name = sourceNamer(map);
   const insights: Insight[] = [];
   for (const route of map.routes) {
     const task = aiTaskLabels[route.task].name;

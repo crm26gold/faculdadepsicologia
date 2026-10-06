@@ -693,9 +693,9 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
       chain: [{ source_id: 'provider:elevenlabs', provider: 'elevenlabs', model: 'qwen36-35b-a3b', source: 'owner' }], configured_chain: [], members_chain: [], members_note: 'voice_not_shared',
       sources: [{ source_id: 'provider:elevenlabs', state: 'active', position: 1, role: 'primary' }, { source_id: 'provider:deepseek', state: 'incapable', reason: 'capability' }] }],
     channels: [{ channel: 'telegram', enabled: true, bot: 'JornadaPlenaBot', owner_linked: true, member_links: 0 }, { channel: 'whatsapp', enabled: false, bot: '', owner_linked: false, member_links: 0 }],
-    whatsapp: { enabled: false, configured: true, state: 'offline', heartbeat: null, stt: { source_id: reserveId, provider: 'gemini', model: 'auto:rapido', state: 'blocked', reason: 'declaration_missing' } },
-    mcp_inbound: { owner_tokens: 0, owner_oauth: 1, owner_can_write: 1, owner_last_used: null, members_with_access: 0 },
-    mcp_outbound: [{ id: '00000000-0000-4000-8000-000000000062', label: 'Agenda MCP', host: 'tools.example.invalid', protocol: '2026-07-28', enabled: true, has_key: true }],
+    whatsapp: { enabled: false, state: 'offline', stt: { source_id: reserveId, provider: 'gemini', model: 'auto:rapido', state: 'blocked', reason: 'declaration_missing' } },
+    mcp_inbound: { owner_tokens: 0, owner_oauth: 1, members_with_access: 0 },
+    mcp_outbound: [{ id: '00000000-0000-4000-8000-000000000062', label: 'Agenda MCP', host: 'tools.example.invalid', enabled: true, has_key: true }],
     members: { accounts: 3, with_personal_keys: 0 } };
   const posted = await mockApi(page, { home: homeFixture({ master: true }), ai });
   const policies: Record<string, unknown>[] = [];
@@ -734,6 +734,9 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   await expect.poll(() => policies[0]).toEqual({ action: 'set_source_policy', provider: 'gemini', connection_id: extra, privacy_basis: 'paid', audience: 'owner' });
   await expect(assistant.locator('.ai-chain li')).toHaveCount(2);
   await expect(panel.getByText('Reserva Gemini · Google Gemini (AI Studio): liberada só para você.')).toBeVisible();
+  Object.assign(map.whatsapp.stt, { source_id: 'provider:deepseek', provider: 'deepseek', reason: 'capability' });
+  await panel.getByRole('button', { name: 'Atualizar mapa' }).click();
+  await expect(panel.getByText('Escolha Gemini, Google Cloud, Groq ou OpenAI para transcrever.')).toBeVisible();
   expect(posted.filter(item => item.body.action === 'models' || item.body.action === 'test_task')).toHaveLength(0);
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 }); await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark')); await settleAnimations(page);

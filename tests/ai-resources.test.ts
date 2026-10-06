@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 const empty = pathToFileURL(`${process.cwd()}/node_modules/server-only/empty.js`).href;
 registerHooks({ resolve: (specifier, context, next) => specifier === 'server-only' ? { url: empty, shortCircuit: true } : next(specifier, context) });
 import { aiProviderIds, aiResourceAction, liveProviders, voiceOnlyProviders, type AiProviderId } from '../src/lib/ai/catalog';
-import { providerCapabilities, resourceInsights, taskNeeds, type AiResourceMap } from '../src/lib/ai/resources';
+import { providerCapabilities, resourceInsights, type AiResourceMap } from '../src/lib/ai/resources';
 
 const has = (provider: AiProviderId, capability: Parameters<typeof providerCapabilities[AiProviderId]['includes']>[0]) => providerCapabilities[provider].includes(capability);
 const config = (provider: AiProviderId) => ({ provider, model: 'modelo-teste', key: 'synthetic', base_url: 'https://compat.example.invalid/v1', gcp_project: '', gcp_location: '' });
@@ -13,8 +13,6 @@ const config = (provider: AiProviderId) => ({ provider, model: 'modelo-teste', k
 test('capacidades declaradas seguem o catálogo de voz e de texto', () => {
   assert.deepEqual(aiProviderIds.filter(id => has(id, 'live_voice')).sort(), [...liveProviders].sort());
   for (const id of aiProviderIds) assert.equal(has(id, 'text'), !voiceOnlyProviders.includes(id), `${id}: texto`);
-  assert.equal(taskNeeds.voz, 'live_voice');
-  assert.equal(taskNeeds.assistente, 'text');
 });
 
 test('capacidades de áudio, transcrição e imagem refletem o comportamento real do adaptador', async () => {
@@ -67,8 +65,8 @@ const productionMap = (): AiResourceMap => ({
       { source_id: 'provider:groq', state: 'available' }, { source_id: 'provider:gemini', state: 'unusable', reason: 'declaration_missing' }, { source_id: 'provider:elevenlabs', state: 'incapable', reason: 'capability' }] },
   { task: 'voz', enabled: true, mode: 'fixed', provider: 'elevenlabs', model: 'qwen36-35b-a3b', routing_effective: 'fixed',
     chain: [{ source_id: 'provider:elevenlabs', provider: 'elevenlabs', model: 'qwen36-35b-a3b', source: 'owner' }], configured_chain: [], members_chain: [], members_note: 'voice_not_shared', sources: [] }],
-  channels: [], whatsapp: { enabled: false, configured: true, state: 'offline', heartbeat: null, stt: { source_id: 'connection:extra', provider: 'gemini', model: 'auto:rapido', state: 'blocked', reason: 'declaration_missing' } },
-  mcp_inbound: { owner_tokens: 0, owner_oauth: 0, owner_can_write: 0, owner_last_used: null, members_with_access: 0 }, mcp_outbound: [], members: { accounts: 3, with_personal_keys: 0 },
+  channels: [], whatsapp: { enabled: false, state: 'offline', stt: { source_id: 'connection:extra', provider: 'gemini', model: 'auto:rapido', state: 'blocked', reason: 'declaration_missing' } },
+  mcp_inbound: { owner_tokens: 0, owner_oauth: 0, members_with_access: 0 }, mcp_outbound: [], members: { accounts: 3, with_personal_keys: 0 },
 });
 
 test('o mapa explica a reserva inerte e sugere conexões disponíveis sem gastar créditos', () => {

@@ -6,8 +6,7 @@ export type AiProviderId = typeof aiProviderIds[number];
 export const personalProviderIds = ['gemini', 'groq', 'mistral', 'deepseek', 'xai', 'openrouter', 'openai', 'anthropic'] as const;
 export type PersonalProviderId = typeof personalProviderIds[number];
 export type AiMyKeysState = { available: boolean; secretReady: boolean; isOwner: boolean; baseEnabled: boolean;
-  keys: { provider: PersonalProviderId; enabled: boolean; key_hint: string; updated_at: string; privacy_basis: 'paid' | 'no_training' | null }[];
-  baseSources?: { provider: AiProviderId; connection_id: string | null; label: string; privacy_basis: 'paid' | 'no_training' | null }[] };
+  keys: { provider: PersonalProviderId; enabled: boolean; key_hint: string; updated_at: string; privacy_basis: 'paid' | 'no_training' | null }[] };
 export const aiTaskIds = ['assistente', 'organizar', 'voz'] as const;
 export type AiTaskId = typeof aiTaskIds[number];
 
@@ -84,8 +83,6 @@ export const aiMyKeyAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('test'), provider: z.enum(personalProviderIds) }),
   z.object({ action: z.literal('set'), provider: z.enum(personalProviderIds), enabled: z.boolean() }),
   z.object({ action: z.literal('remove'), provider: z.enum(personalProviderIds) }),
-  z.object({ action: z.literal('set_base'), enabled: z.boolean() }),
-  z.object({ action: z.literal('set_base_source'), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), privacy_basis: z.enum(['paid', 'no_training']).nullable() }),
 ]);
 /** Resource map: a source's privacy declaration and its audience are saved together. */
 export const aiResourceAction = z.discriminatedUnion('action', [
