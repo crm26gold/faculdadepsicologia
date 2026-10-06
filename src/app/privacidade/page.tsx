@@ -3,6 +3,10 @@ import { LegalPage } from '@/components/legal/legal-page';
 
 export const metadata: Metadata = { title: 'Privacidade · Jornada Plena' };
 
+// Canal do titular: o proprietário preenche com um e-mail próprio, já criado e acompanhado
+// (docs/PRIVACIDADE_OPERACAO.md). Enquanto estiver vazio, a página indica o contato do item 10.
+const PRIVACY_CHANNEL: string = '';
+
 export default function PrivacyPage() {
   return <LegalPage title="Política de privacidade">
     <p>Esta política explica, em linguagem simples, quais dados o Jornada Plena usa, por quê, com quem são compartilhados e como você exerce seus direitos pela Lei Geral de Proteção de Dados (LGPD, Lei 13.709/2018).</p>
@@ -45,5 +49,29 @@ export default function PrivacyPage() {
     <p>O serviço é voltado a estudantes do ensino superior e profissionais. Menores de 18 anos devem usar com autorização dos responsáveis.</p>
     <h2>10. Contato</h2>
     <p>Para pedidos sobre seus dados, fale com a administração do Jornada Plena pelos canais da sua turma.</p>
+    <section aria-labelledby="pedidos-e-incidentes">
+      <h2 id="pedidos-e-incidentes">11. Como fazer um pedido e o que acontece num incidente</h2>
+      <p className="legal-version">Acréscimo de 6 de outubro de 2026. Detalha como exercer os direitos do item 7 e o que fazemos num incidente de segurança. Não muda quais dados usamos nem para quê.</p>
+      <p>A maior parte dos pedidos você resolve na hora, dentro do sistema:</p>
+      <ul>
+        <li><strong>Acesso e cópia:</strong> Meu espaço → Minha conta → “Baixar todos os meus dados” gera um arquivo com o que está na sua conta.</li>
+        <li><strong>Correção:</strong> edite o item onde ele está. O nome exibido muda em Minha conta; nome e e-mail vindos do Google são corrigidos na própria conta Google.</li>
+        <li><strong>Exclusão:</strong> Minha conta → “Excluir minha conta”, como explica o item 7.</li>
+      </ul>
+      <p>Para o que o sistema não faz sozinho, como confirmar se tratamos seus dados, saber com quem foram compartilhados, revogar uma autorização, pedir a exclusão sem conseguir entrar na conta ou fazer uma reclamação, escreva para {PRIVACY_CHANNEL ? <a href={`mailto:${PRIVACY_CHANNEL}`}>{PRIVACY_CHANNEL}</a> : 'a administração do Jornada Plena, pelo contato do item 10'}. Para proteger seus dados, respondemos no e-mail da sua conta Google.</p>
+      <h3>Prazos</h3>
+      <ul>
+        <li>Confirmamos o recebimento em até 5 dias úteis.</li>
+        <li>Respondemos por completo em até 15 dias, o prazo da LGPD (art. 19) para confirmar e dar acesso aos dados. Se não pudermos atender, explicamos o motivo, como um registro que a lei obriga a guardar.</li>
+      </ul>
+      <h3>Incidente de segurança</h3>
+      <p>Se um incidente puder ter atingido dados pessoais:</p>
+      <ul>
+        <li><strong>Contemos e avaliamos:</strong> interrompemos o problema e verificamos quais dados e contas foram atingidos e qual é o risco para as pessoas.</li>
+        <li><strong>Comunicamos:</strong> quando houver risco ou dano relevante, avisamos a Autoridade Nacional de Proteção de Dados (ANPD) e as pessoas afetadas em até três dias úteis (Resolução CD/ANPD nº 15/2024). O aviso diz o que aconteceu, quais dados, o que já fizemos e o que você pode fazer.</li>
+        <li><strong>Registramos:</strong> todo incidente fica registrado por pelo menos cinco anos, mesmo quando não precisa ser comunicado.</li>
+      </ul>
+      <p>Você também pode apresentar uma reclamação diretamente à ANPD, pelo site <a href="https://www.gov.br/anpd/pt-br">gov.br/anpd</a>.</p>
+    </section>
   </LegalPage>;
 }

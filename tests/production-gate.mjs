@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:net';
@@ -16,7 +16,7 @@ const credentials = [
   'APP_OWNER_USER_ID', 'APP_OWNER_EMAIL', 'OPENAI_API_KEY', 'ANTHROPIC_API_KEY', 'GOOGLE_CLIENT_SECRET', 'GOOGLE_CLIENT_ID',
 ];
 const cases = [
-  { name: 'produção sem configuração', env: {} },
+  { name: 'produção sem configuração', env: {}, smoke: true },
   { name: 'produção Vercel com flags antigas continua fechada', env: { VERCEL: '1', VERCEL_ENV: 'production', VERCEL_PROJECT_ID: projectId, FACULDADE_PROTECTED_PREVIEW: 'true', FACULDADE_LOCAL_PREVIEW: 'true' } },
   { name: 'preview Vercel sem opt-in', env: { VERCEL: '1', VERCEL_ENV: 'preview', VERCEL_PROJECT_ID: projectId } },
   { name: 'preview Vercel com opt-in antigo continua fechado', env: { VERCEL: '1', VERCEL_ENV: 'preview', VERCEL_PROJECT_ID: projectId, FACULDADE_PROTECTED_PREVIEW: 'true' } },
@@ -124,7 +124,12 @@ for (const scenario of cases) {
       assert.equal((await request('/auth/callback' + query)).status, demoRequested ? 404 : 503);
     }
     if (demoRequested) assert.equal((await request('/auth/logout', { method: 'POST', headers: { Origin: requestOrigin } })).status, 404);
-    console.log(`PASS: ${scenario.name}; ${demoRequested ? 'APIs e autenticação 404' : 'API anônima 401; origem indevida 403; senha 410; Google pendente 503'}.`);
+    if (scenario.smoke) {
+      // O smoke de produção (npm run smoke) precisa concordar com este contrato local.
+      const smoke = spawnSync(process.execPath, ['scripts/smoke-production.mjs', origin], { encoding: 'utf8', timeout: 90_000 });
+      assert.equal(smoke.status, 0, 'scripts/smoke-production.mjs reprovou o servidor local:\n' + smoke.stdout + smoke.stderr);
+    }
+    console.log(`PASS: ${scenario.name}; ${demoRequested ? 'APIs e autenticação 404' : 'API anônima 401; origem indevida 403; senha 410; Google pendente 503'}${scenario.smoke ? '; smoke de produção aprovado' : ''}.`);
   } catch (error) {
     throw new Error(`${scenario.name}: ${error.message}\n${logs}`, { cause: error });
   } finally {

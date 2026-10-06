@@ -28,7 +28,7 @@ Consulte a [auditoria e plano de ação](docs/AUDITORIA_E_PLANO_2026-09-26.md), 
 | Armazenamento privado na nuvem | Banco aplicado | Tabelas, RLS e RPC remotos verificados; registros persistidos confirmados em 27/09; leitura em outro dispositivo ainda a validar. |
 | Demo pública isolada | Publicada e testada | Origem separada, exemplos somente em memória, sem importação de backups, login ou API de dados pessoais. |
 | Salas, grupos e trabalhos em grupo | Implementado | Instituição > sala > grupo, convites por link, mural, enquetes com voto secreto, trabalhos divididos em partes com entrega, entrega em nome, revisão e documento final padronizado (copiar para Docs / PDF). |
-| Contatos e LGPD | Implementado | Agenda privada com aniversários; termos, privacidade, aceite versionado, exportação e exclusão da conta. |
+| Contatos e LGPD | Implementado; canal próprio a definir | Agenda privada com aniversários; termos, privacidade, aceite versionado, exportação e exclusão da conta. A política explica como fazer pedidos, os prazos e o processo de incidente; o atendimento é manual ([operação](docs/PRIVACIDADE_OPERACAO.md)). |
 | Planos | Infraestrutura | Acadêmico (grátis) e Pro; fase de lançamento com tudo liberado, controlada no painel master. Pagamento ainda não integrado. |
 | Vários cursos | Implementado | Graduação, pós, técnico, curso livre, extensão e idioma, cada um com matérias ou módulos. |
 | Metas e projetos | Implementado (Pro) | Metas com indicador e projetos ligados a metas. |
