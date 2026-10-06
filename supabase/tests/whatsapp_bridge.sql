@@ -24,11 +24,12 @@ do $$ begin perform whatsapp_server(repeat('s',64),repeat('t',64),'enqueue',curr
 select set_config('test.wa_job',jsonb_build_object('peer','5511999999999','id',current_setting('test.wa_id'),'lease','00000000-0000-4000-8000-000000000001')::text,false);
 select expect(whatsapp_server(repeat('s',64),repeat('t',64),'claim',current_setting('test.wa_job')::jsonb) is not null,'first worker claims');
 select expect(whatsapp_server(repeat('s',64),repeat('t',64),'claim',current_setting('test.wa_job')::jsonb) is null,'second worker cannot claim active lease');
-select set_config('test.wa_finish',(current_setting('test.wa_job')::jsonb||'{"revision":1,"next_data":{"version":"1","editorGeneration":9,"subjects":[],"notes":[],"tasks":[],"sessions":[]},"transcript":"pedido fictício","result":{"reply":"Feito.","applied":[]},"pending_mode":"keep"}'::jsonb)::text,false);
+select set_config('test.wa_finish',(current_setting('test.wa_job')::jsonb||'{"revision":1,"next_data":{"version":"1","editorGeneration":9,"subjects":[],"notes":[],"tasks":[],"sessions":[]},"transcript":"pedido fictício","result":{"reply":"Feito.","applied":[],"speak":true},"pending_mode":"keep"}'::jsonb)::text,false);
 do $$ begin perform whatsapp_server(repeat('s',64),repeat('t',64),'finish',current_setting('test.wa_finish')::jsonb||'{"revision":99999}'::jsonb); raise exception 'FALHA: stale revision'; exception when sqlstate 'PT409' then null; end $$;
 select expect(whatsapp_server(repeat('s',64),repeat('t',64),'result',current_setting('test.wa_job')::jsonb)->>'status'='working','conflict writes no completion receipt');
 select whatsapp_server(repeat('s',64),repeat('t',64),'finish',current_setting('test.wa_finish')::jsonb);
 select whatsapp_server(repeat('s',64),repeat('t',64),'finish',current_setting('test.wa_finish')::jsonb);
+select expect(whatsapp_server(repeat('s',64),repeat('t',64),'result',current_setting('test.wa_job')::jsonb)->'result'->'speak'='true'::jsonb,'voice-or-text choice travels in the receipt, no migration');
 reset role;
 select expect((select revision=2 from personal_workspaces where owner_id='00000000-0000-4000-8000-00000000000a'),'completed replay does not write workspace twice');
 select expect((select input_ciphertext is null from private.whatsapp_jobs where id=current_setting('test.wa_id')::uuid),'settled media removed');

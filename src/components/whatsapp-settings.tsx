@@ -50,7 +50,7 @@ export function WhatsAppAdmin() {
   return <section className="panel ai-settings wa-settings" aria-labelledby="whatsapp-title">
     <div className="section-heading"><h2 id="whatsapp-title"><MessageCircle size={20} aria-hidden="true" /> WhatsApp da Jornada</h2>
       {state && <span className="ai-badge">{!state.enabled ? 'Pausado' : names[state.state]}</span>}</div>
-    <p className="muted">Fale no seu WhatsApp. A Jornada organiza, consulta e responde em áudio. O número da ponte pode mudar; sua conta e seus registros continuam aqui.</p>
+    <p className="muted">Fale ou escreva no seu WhatsApp. A Jornada organiza, consulta e responde do mesmo jeito: áudio para áudio, texto para texto. O número da ponte pode mudar; sua conta e seus registros continuam aqui.</p>
     {error && <p role="alert">{error} <button className="button" onClick={() => void load()}>Tentar novamente</button></p>}
     {!state && !error && <p role="status">Carregando conexão…</p>}
     {state && <>
@@ -91,7 +91,7 @@ export function WhatsAppAdmin() {
           <label>Voz da resposta<select name="voice" defaultValue={state.voice}><option value="pt-BR-AntonioNeural">Antônio · português brasileiro</option><option value="pt-BR-FranciscaNeural">Francisca · português brasileiro</option></select></label></div>
         <label className="cm-check"><input name="enabled" type="checkbox" defaultChecked={state.enabled} disabled={!state.configured} /> Permitir pedidos pelo WhatsApp</label>
         <div className="button-row"><button className="button primary" disabled={busy}>Salvar configuração</button><button className="button" type="button" disabled={busy} onClick={() => void load()}><RefreshCw size={16} /> Atualizar conexão</button></div>
-        <p className="muted small">Groq transcreve com Whisper; OpenAI usa seu modelo próprio de transcrição. Groq não lê fotos nesta integração. Gemini permite escolha automática; no Google Cloud, informe o modelo habilitado no projeto. A voz da resposta usa o serviço online de leitura do Edge. Se a síntese falhar, a resposta chega em texto. Áudio e fotos são enviados à conexão escolhida; o texto da resposta vai ao serviço de voz.</p>
+        <p className="muted small">Groq transcreve com Whisper; OpenAI usa seu modelo próprio de transcrição. Groq não lê fotos nesta integração. Gemini permite escolha automática; no Google Cloud, informe o modelo habilitado no projeto. Respostas longas, acima de 600 caracteres, chegam em texto. A voz da resposta usa o serviço online de leitura do Edge. Se a síntese falhar, a resposta chega em texto. Áudio e fotos são enviados à conexão escolhida; o texto das respostas em áudio vai ao serviço de voz.</p>
       </form>
       <p className="muted small">{state.queued} pedido(s) aguardando · Sem acesso por grupos · Conexão não oficial: o WhatsApp pode interromper ou bloquear a sessão.</p>
     </>}
