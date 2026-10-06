@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { settleAnimations } from './axe-ready';
+import { waitingRequests, type AssistantJob } from '../../src/lib/assistant-jobs';
 // Calendar day in Brazil (the browser runs in America/Sao_Paulo; CI runs in UTC, which is already tomorrow after 21h).
 const spDay = (offset = 0) => { const base = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()); const date = new Date(`${base}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 
@@ -73,15 +74,20 @@ const admin = {
 };
 
 type Posted = { url: string; body: Record<string, unknown> };
-async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown; usage?: unknown } = {}) {
+// jobs: pedidos do assistente desta conta; elsewhere: conversas fora da primeira página, só abertas pelo id.
+async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown; usage?: unknown; jobs?: AssistantJob[]; elsewhere?: Record<string, unknown>[] } = {}) {
   const posted: Posted[] = [];
   let home = options.home ?? homeFixture();
   const conversations = new Map<string, Record<string, unknown>>();
+  const elsewhere = new Map((options.elsewhere ?? []).map(item => [item.id as string, item]));
+  const jobs = new Map((options.jobs ?? []).map(job => [job.id, structuredClone(job)]));
   const json = (route: Route, data: unknown, status = 200) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
   await page.route('**/api/**', async route => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === '/api/conversations') {
+      const id = url.searchParams.get('id');
+      if (request.method() === 'GET' && id) return json(route, { ok: true, data: { accountId: ME, items: [conversations.get(id) ?? elsewhere.get(id)].filter(Boolean), hasMore: false } });
       if (request.method() === 'GET') return json(route, { ok: true, data: { accountId: ME, items: [...conversations.values()], hasMore: false } });
       const body = request.postDataJSON();
       if (body.action === 'save') {
@@ -91,7 +97,17 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
       }
       conversations.delete(body.id); return json(route, { ok: true, data: null });
     }
-    if (url.pathname === '/api/assistant/jobs') return json(route, { ok: true, data: { accountId: ME, jobs: [] } });
+    if (url.pathname === '/api/assistant/jobs') {
+      if (request.method() === 'POST') {
+        const body = request.postDataJSON(), job = jobs.get(body.id);
+        posted.push({ url: url.pathname, body });
+        if (body.action === 'settle' && job?.result) { job.status = 'done'; job.result.pending = []; }
+        return json(route, { ok: true, data: {} });
+      }
+      const query = url.searchParams, list = [...jobs.values()].toSorted((a, b) => b.created_at.localeCompare(a.created_at));
+      if (query.get('status') === 'needs_confirmation') return json(route, { ok: true, data: { accountId: ME, waiting: waitingRequests(list.filter(job => job.status === 'needs_confirmation')) } });
+      return json(route, { ok: true, data: { accountId: ME, jobs: list.filter(job => query.get('id') ? job.id === query.get('id') : job.conversation_id === query.get('conversation')) } });
+    }
     if (request.method() === 'POST') {
       const body = request.postDataJSON() as Record<string, unknown>;
       posted.push({ url: url.pathname, body });
@@ -182,6 +198,61 @@ test('meu dia mostra trabalhos em grupo e aniversários; salas levam ao mural e 
   await page.getByRole('tab', { name: /Pessoas/ }).click();
   await expect(page.getByText('Colega Ana')).toBeVisible();
   await expect(page.getByText('Professora Bia')).toBeVisible();
+});
+
+test('meu dia lista os pedidos aguardando você e abre a confirmação exata, sem confirmar sozinho', async ({ page }) => {
+  // Dois pedidos na mesma conversa, que não está na primeira página carregada: o link abre exatamente o escolhido.
+  const CONVERSA = 'abababab-0000-4000-8000-000000000001', ANTIGO = 'abababab-0000-4000-8000-0000000000a1', NOVO = 'abababab-0000-4000-8000-0000000000a2';
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const job = (id: string, label: string, minutes: number): AssistantJob => ({ id, conversation_id: CONVERSA, status: 'needs_confirmation', created_at: ago(minutes), updated_at: ago(minutes),
+    input: { message: 'Pedido de Assistente externo', today: spDay(), history: [] },
+    result: { saved: true, reply: 'Para excluir, confirme no app.', applied: [], failed: [], pending: [{ action: { type: 'excluir', entity: 'compromisso', target: id }, fingerprint: '{}', label }] } });
+  const posted = await mockApi(page, {
+    jobs: [job(ANTIGO, 'Excluir compromisso: Prova de Ética (2026-10-08 14:00)', 25 * 60), job(NOVO, 'Excluir compromisso: Reunião do grupo (2026-10-09)', 2 * 60)],
+    elsewhere: [{ id: CONVERSA, title: 'Confirmação de assistente externo', mode: 'text', pinned: false, archived: false, updatedAt: ago(25 * 60), revision: 1, synced: true,
+      messages: [ANTIGO, NOVO].map(id => ({ id: `job:${id}`, from: 'assistant', text: 'Para excluir, confirme no app.', saved: true })) }],
+  });
+  const settled = () => posted.filter(item => item.body.action === 'settle').map(item => item.body.id);
+  await page.setViewportSize({ width: 1440, height: 1080 });
+  await page.goto('/');
+  await expect(page.getByRole('group', { name: 'Ações rápidas do dia' })).toBeVisible();
+  const card = page.getByRole('region', { name: 'Pedidos aguardando você (2)', exact: true });
+  await expect(card).toBeVisible();
+  await expect(card.getByRole('button')).toHaveText([/Reunião do grupo.*Pedido há 2 horas.*Revisar/, /Prova de Ética.*Pedido há 1 dia.*Revisar/]);
+  await page.screenshot({ path: 'test-results/meu-dia-pedidos-desktop-light.png' });
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await card.scrollIntoViewIfNeeded(); await settleAnimations(page);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (const button of await card.getByRole('button').all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await page.screenshot({ path: 'test-results/meu-dia-pedidos-mobile-dark.png' });
+
+  // Pelo teclado, o pedido mais antigo abre a própria confirmação, não a mais recente da conversa.
+  await card.getByRole('button', { name: /Prova de Ética/ }).focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Assistente', exact: true })).toBeVisible();
+  const confirmation = page.getByRole('region', { name: 'Confirmar alteração', exact: true });
+  await expect(confirmation).toContainText('Excluir compromisso: Prova de Ética (2026-10-08 14:00)');
+  await expect(confirmation).not.toContainText('Reunião do grupo');
+  await expect(confirmation).toBeFocused();
+  expect(settled()).toEqual([]);
+  await confirmation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect.poll(settled).toEqual([ANTIGO]);
+
+  const bar = page.getByRole('navigation', { name: 'Atalhos mobile' });
+  await bar.getByRole('button', { name: 'Ir para Meu dia', exact: true }).click();
+  const remaining = page.getByRole('region', { name: 'Pedidos aguardando você (1)', exact: true });
+  await expect(remaining.getByRole('button')).toHaveText([/Reunião do grupo/]);
+  await remaining.getByRole('button').click();
+  await expect(confirmation).toContainText('Reunião do grupo');
+  await confirmation.getByRole('button', { name: 'Cancelar', exact: true }).click();
+  await expect.poll(settled).toEqual([ANTIGO, NOVO]);
+  await bar.getByRole('button', { name: 'Ir para Meu dia', exact: true }).click();
+  await expect(page.getByRole('group', { name: 'Ações rápidas do dia' })).toBeVisible();
+  await expect(page.getByRole('region', { name: /Pedidos aguardando você/ })).toHaveCount(0);
 });
 
 test('trabalho em grupo: parte, entrega em nome, revisão e documento final padronizado', async ({ page }, info) => {

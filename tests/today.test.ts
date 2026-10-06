@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { greeting, monthCycles, todayAgenda, todayAlerts } from '../src/lib/today';
+import { greeting, monthCycles, todayAgenda, todayAlerts, waitingSince } from '../src/lib/today';
 import { emptyWorkspace, type Workspace } from '../src/lib/workspace';
+import { waitingRequests, type AssistantJob } from '../src/lib/assistant-jobs';
+import type { PendingCommand } from '../src/lib/commands';
 
 test('o mês vira quatro ciclos e o último absorve os dias que sobram', () => {
   const october = monthCycles('2026-10-01');
@@ -50,4 +52,38 @@ test('a agenda de hoje junta aulas da grade e compromissos, em ordem de horário
     tasks: [{ id: 't', title: 'Consulta médica', subjectId: '', date: '2026-10-01', time: '08:30', kind: 'Consulta', done: false, minutes: 60 }],
   } as Workspace;
   assert.deepEqual(todayAgenda(data, '2026-10-01').map(entry => [entry.time, entry.title, entry.kind]), [['08:30', 'Consulta médica', 'Consulta'], ['19:10', 'Neuropsicologia', 'Aula']]);
+});
+
+test('pedidos aguardando você: só confirmações pendentes, com o rótulo da ação e a hora do pedido', () => {
+  const pending = (label: string): PendingCommand => ({ action: { type: 'excluir', entity: 'compromisso', target: 't1' }, fingerprint: '{"conteudo":"privado"}', label });
+  const job = (id: string, status: AssistantJob['status'], labels: string[] | null): AssistantJob => ({ id, conversation_id: `conversa-${id}`, status,
+    created_at: '2026-10-06T11:00:00Z', updated_at: '2026-10-06T12:00:00Z',
+    input: { message: 'Mensagem com histórico', today: '2026-10-06', history: [{ role: 'user', text: 'algo privado' }] },
+    result: labels && { saved: true, reply: 'Confirme a exclusão.', applied: [], pending: labels.map(pending), failed: [] } });
+  const waiting = waitingRequests([
+    job('b', 'needs_confirmation', ['Excluir compromisso: Prova de Ética (2026-10-08 14:00)', 'Excluir anotação: Rascunho']),
+    job('feito', 'done', ['Excluir compromisso: já resolvido']),
+    job('vazio', 'needs_confirmation', []),
+    job('sem-resultado', 'needs_confirmation', null),
+    job('falhou', 'failed', ['Excluir compromisso: falhou']),
+    job('a', 'needs_confirmation', [`Substituir o texto de anotação: ${'x'.repeat(300)}`]),
+  ]);
+  // A ordem é a da consulta (mais recente primeiro); cada pedido aponta para a própria conversa.
+  assert.deepEqual(waiting.map(item => [item.id, item.conversationId, item.more]), [['b', 'conversa-b', 1], ['a', 'conversa-a', 0]]);
+  assert.equal(waiting[0].summary, 'Excluir compromisso: Prova de Ética (2026-10-08 14:00)');
+  assert.equal(waiting[0].requestedAt, '2026-10-06T11:00:00Z');
+  assert.equal(waiting[1].summary.length, 160);
+  // Meu dia recebe só o resumo: nada do histórico, da impressão do registro ou da ação a executar.
+  assert.deepEqual(Object.keys(waiting[0]).sort(), ['conversationId', 'id', 'more', 'requestedAt', 'summary']);
+  assert.doesNotMatch(JSON.stringify(waiting), /privado|histórico|fingerprint|target/);
+  assert.deepEqual(waitingRequests([]), []);
+});
+
+test('o tempo de espera de um pedido fica em palavras', () => {
+  const now = Date.parse('2026-10-06T12:00:00Z');
+  const ago = (minutes: number) => new Date(now - minutes * 60_000).toISOString();
+  assert.deepEqual([0, 0.5, 1, 59, 60, 61 * 3, 1440, 1440 * 2 + 30].map(minutes => waitingSince(ago(minutes), now)),
+    ['agora mesmo', 'agora mesmo', 'há 1 minuto', 'há 59 minutos', 'há 1 hora', 'há 3 horas', 'há 1 dia', 'há 2 dias']);
+  // Um relógio do aparelho atrasado em relação ao servidor não gera tempo negativo.
+  assert.equal(waitingSince(ago(-5), now), 'agora mesmo');
 });

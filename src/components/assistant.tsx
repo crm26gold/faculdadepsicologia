@@ -118,11 +118,12 @@ type ChatProps = {
   refreshWorkspace: () => Promise<Workspace>;
   messages: AssistantMessage[]; setMessages: (change: (previous: AssistantMessage[]) => AssistantMessage[]) => void;
   onOpenNote: (id: string) => void; onNavigate: (view: Applied['view']) => void;
+  focusJob?: string;
 };
 type CommandReply = { configured: boolean; reply?: string; actions?: CommandAction[]; model?: string };
 // The same conversation lives in the computer's bubble and in the Assistente tab (the phone's way in).
 // With AI connected it understands and acts (and can undo); without it, nothing is lost: it goes to "Para organizar".
-export function AssistantChat({ conversations, cloud, blocked, demo, data, update, ensureSaved, refreshWorkspace, messages, setMessages, onOpenNote, onNavigate }: ChatProps) {
+export function AssistantChat({ conversations, cloud, blocked, demo, data, update, ensureSaved, refreshWorkspace, messages, setMessages, onOpenNote, onNavigate, focusJob }: ChatProps) {
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -161,7 +162,10 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
   const currentMessages = useRef(messages); currentMessages.current = messages;
   const executor = useAssistantExecutor({ data, blocked, update, ensureSaved });
   const jobs = useAssistantJobs({ accountId: conversations.accountId, conversationId: conversations.active?.id, ready: cloud && conversations.ready && !blocked,
-    messages, setMessages, ensureSaved, refresh: refreshWorkspace, adopt: executor.adopt });
+    messages, setMessages, ensureSaved, refresh: refreshWorkspace, adopt: executor.adopt, prefer: focusJob });
+  // Opened from Meu dia: the confirmation receives focus as soon as it is offered; confirming stays a separate tap.
+  const confirmation = useRef<HTMLElement>(null);
+  useEffect(() => { if (focusJob && jobs.pendingId === focusJob) confirmation.current?.focus(); }, [focusJob, jobs.pendingId]);
   const [voice, setVoice] = useState(false);
   useEffect(() => { setVoice(!!recognition()); return () => { if (recognizer.current) try { recognizer.current.onend = null; recognizer.current.stop(); } catch {} cancelSpeech(); }; }, []);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [messages, heard]);
@@ -387,7 +391,7 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
       {listening && <div className="assistant-message me listening"><p>{heard || 'Ouvindo…'}</p></div>}
     </div>
     {problem && <p className="assistant-problem" role="alert">{problem}</p>}
-    {executor.pending.length > 0 && !callOpen && <section className="assistant-confirmation" aria-label="Confirmar alteração">
+    {executor.pending.length > 0 && !callOpen && <section ref={confirmation} tabIndex={-1} className="assistant-confirmation" aria-label="Confirmar alteração">
       <strong>Confirme a alteração</strong><ul>{executor.pending.map((item, index) => <li key={index}>{item.label}</li>)}</ul>
       <div><button type="button" className="button danger" disabled={locked} onClick={() => { void confirmPending().catch(error => setProblem(error instanceof Error ? error.message : 'Não consegui confirmar.')); }}>Confirmar</button><button type="button" className="button outline" disabled={locked} onClick={() => void cancelPending()}>Cancelar</button></div>
     </section>}

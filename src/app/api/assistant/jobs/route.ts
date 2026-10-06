@@ -1,7 +1,7 @@
 import { after } from 'next/server';
 import { z } from 'zod';
 import { dbError, readSession, reply, writeRequest } from '@/lib/api-route';
-import { jobInputSchema } from '@/lib/assistant-jobs';
+import { jobInputSchema, waitingRequests } from '@/lib/assistant-jobs';
 import { runAssistantJob } from '@/lib/ai/run-job';
 
 export const dynamic = 'force-dynamic';
@@ -16,13 +16,15 @@ export async function GET(request: Request) {
   const session = await readSession();
   if (session instanceof Response) return session;
   const params = new URL(request.url).searchParams;
-  const id = params.get('id'), conversation = params.get('conversation');
+  const id = params.get('id'), conversation = params.get('conversation'), waiting = params.get('status') === 'needs_confirmation';
   let query = session.client.from('assistant_jobs').select('id,conversation_id,status,input,result,created_at,updated_at').eq('user_id', session.user.id);
   if (id) { if (!z.uuid().safeParse(id).success) return reply({ error: 'Pedido inválido.' }, 400); query = query.eq('id', id); }
   else if (conversation) { if (!z.uuid().safeParse(conversation).success) return reply({ error: 'Conversa inválida.' }, 400); query = query.eq('conversation_id', conversation); }
+  else if (waiting) query = query.eq('status', 'needs_confirmation');
   else return reply({ error: 'Escolha uma conversa.' }, 400);
   const { data, error } = await query.order('created_at', { ascending: false }).limit(id ? 1 : 30);
-  return error ? dbError(error) : reply({ ok: true, data: { accountId: session.user.id, jobs: data ?? [] } });
+  if (error) return dbError(error);
+  return reply({ ok: true, data: { accountId: session.user.id, ...(waiting ? { waiting: waitingRequests(data ?? []) } : { jobs: data ?? [] }) } });
 }
 export async function POST(request: Request) {
   const input = await writeRequest(request, actions, 224_000);

@@ -7,7 +7,8 @@ import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, C
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Course, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { activeCourses, capitalize, courseKindLabels, courseOf, courseStatusLabels, courseUnits, ensureCourses, subjectsOfCourse, unitCount, unitPresets } from '@/lib/courses';
 import { calendarEntries, weekdays } from '@/lib/academic';
-import { greeting, monthCycles, todayAgenda, todayAlerts, type TodayAlert } from '@/lib/today';
+import { greeting, monthCycles, todayAgenda, todayAlerts, waitingSince, type TodayAlert } from '@/lib/today';
+import type { WaitingRequest } from '@/lib/assistant-jobs';
 import { isUnorganized } from '@/lib/capture';
 import { useWorkspace } from './use-workspace';
 import { Modal } from './modal';
@@ -116,6 +117,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [financeOpen, setFinanceOpen] = useState(0);
   const [bubbleHidden, setBubbleHidden] = useState(false);
   const [agendaFocus, setAgendaFocus] = useState<'late' | 'day' | null>(null);
+  const [waiting, setWaiting] = useState<WaitingRequest[]>([]);
+  const [focusJob, setFocusJob] = useState<string>();
   const userProfile = data.profile ?? defaultUserProfile;
   useEffect(() => {
     if (mode === 'demo') return;
@@ -146,6 +149,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     if (target && /^\/oauth\/authorize\?[^#\s]*$/.test(target)) window.location.assign(target);
   }, [cloud, home]);
   useEffect(() => { if (cloud && home && acceptedTerms(home)) api<ContactRow[]>('/api/contacts').then(setContacts).catch(() => setContacts([])); }, [cloud, home]);
+  // The person's own confirmations still waiting, read again on each return to Meu dia and after the assistant window closes.
+  const consented = cloud && !!home && acceptedTerms(home), accountId = home?.account.user_id;
+  useEffect(() => {
+    if (!consented || view !== 'today' || assistantOpen) return;
+    let current = true;
+    api<{ accountId: string; waiting?: WaitingRequest[] }>('/api/assistant/jobs?status=needs_confirmation')
+      .then(page => { if (current) setWaiting(page.accountId === accountId ? page.waiting ?? [] : []); }, () => { if (current) setWaiting([]); });
+    return () => { current = false; };
+  }, [consented, accountId, view, assistantOpen]);
   usePendingInvite(cloud && !!home && acceptedTerms(home), (spaceId, message) => {
     if (spaceId) { setCommunityRoute({ kind: 'space', id: spaceId }); setView('community'); setNotice('Convite aceito. Bem-vindo(a) à sala!'); refreshHome(); }
     else if (message) setNotice(message);
@@ -274,7 +286,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       window.history[modal ? 'replaceState' : 'pushState']({ app: 'jornada-plena', view: next }, '', `#${next}`);
     }
     if (next === 'studies') setStudiesRoute({ kind: 'list' });
-    setAgendaFocus(null); if (next !== 'notes' || next !== view) { setNotesPlace(null); setSelectedNote(''); }
+    setAgendaFocus(null); setFocusJob(undefined); if (next !== 'notes' || next !== view) { setNotesPlace(null); setSelectedNote(''); }
     setView(next);
     setMobileMenu(false);
     requestAnimationFrame(() => main.current?.focus());
@@ -339,6 +351,11 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     if (alert.date) setAgendaDate(alert.date);
     navigate(alert.target);
     if (alert.target === 'agenda') setAgendaFocus(alert.id === 'late' ? 'late' : 'day');
+  }
+  // A waiting request opens its own conversation with that confirmation; confirming stays there, with the person.
+  async function openWaiting(item: WaitingRequest) {
+    if (!await conversations.reveal(item.conversationId).catch(() => false)) { setNotice('Não consegui abrir a conversa deste pedido. Tente de novo em instantes.'); return; }
+    navigate('assistant'); setFocusJob(item.id);
   }
   function captureTask() { swapModal('form'); setCaptureOpen(false); setForm({ kind: 'task' }); }
   function captureFocus() { setCaptureOpen(false); navigate('focus'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }
@@ -561,6 +578,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               </div>
             </section>
 
+            {consented && waiting.length > 0 && <section className="panel today-waiting" aria-labelledby="today-waiting-title">
+              <h2 id="today-waiting-title">Pedidos aguardando você ({waiting.length})</h2>
+              <p>Exclusões e substituições que o assistente preparou. Nada muda até você confirmar na conversa.</p>
+              <ul>{waiting.map((item) => <li key={item.id}><button type="button" onClick={() => void openWaiting(item)}>
+                <span className="today-waiting-what"><strong>{item.summary}{item.more > 0 ? ` e mais ${item.more} ${item.more === 1 ? 'item' : 'itens'}` : ''}</strong><small>Pedido <time dateTime={item.requestedAt}>{waitingSince(item.requestedAt)}</time></small></span>
+                <span className="today-waiting-go">Revisar<ArrowRight size={14} aria-hidden="true" /></span>
+              </button></li>)}</ul>
+            </section>}
+
             {alerts.length > 0 && <section className="panel today-alerts" aria-labelledby="today-alerts-title">
               <h2 id="today-alerts-title">Atenção</h2>
               <ul>{alerts.map((alert) => <li key={alert.id} className={alert.tone}><button type="button" onClick={() => openAlert(alert)}><span className="today-alert-dot" aria-hidden="true" /><span>{alert.text}</span><ArrowRight size={14} aria-hidden="true" /></button></li>)}</ul>
@@ -686,7 +712,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'assistant' && <>
             <section className="assistant-inline" aria-label="Conversa com o assistente">
               {bubbleHidden && <button type="button" className="text-button desktop-only assistant-show-bubble" onClick={() => setBubble(false)}>Mostrar a bolinha nas outras telas</button>}
-              <AssistantChat refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => navigate(target)} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onOpenNote={openNote} />
+              <AssistantChat refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => navigate(target)} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onOpenNote={openNote} focusJob={focusJob} />
             </section>
           </>}
 
