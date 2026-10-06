@@ -84,6 +84,8 @@ test('menu da entrada fecha por teclado, fora, âncora e mudança para desktop',
   await expect(navigation).toBeVisible();
   await page.setViewportSize({ width: 900, height: 844 });
   await expect(navigation).toBeHidden();
+  // O CSS esconde o menu acima de 760px na hora; espera o handler do matchMedia fechar o <details> antes de voltar.
+  await expect(page.locator('details', { has: menu })).not.toHaveAttribute('open');
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(navigation).toBeHidden();
 });

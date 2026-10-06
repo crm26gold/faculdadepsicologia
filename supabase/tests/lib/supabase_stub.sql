@@ -57,6 +57,7 @@ values ('00000000-0000-4000-8000-00000000000a', '{"version": "1", "subjects": []
 \ir ../../migrations/20261005080206_whatsapp_ai_sources.sql
 \ir ../../migrations/20261005080218_ai_routing_capabilities.sql
 \ir ../../migrations/20261005080521_ai_member_source_indexes.sql
+\ir ../../migrations/20261006221308_ai_resource_map.sql
 
 create function public.expect(ok boolean, message text) returns void language plpgsql
 as $$ begin if not coalesce(ok, false) then raise exception 'FALHA: %', message; end if; end $$;

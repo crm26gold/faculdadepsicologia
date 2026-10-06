@@ -31,3 +31,6 @@ coverage/
 integrations/whatsapp-bridge/.state/
 integrations/whatsapp-bridge/bridge-config.json
 integrations/whatsapp-bridge/.wwebjs_cache/
+
+# Cópias de trabalho temporárias dos agentes do Claude Code
+.claude/worktrees/

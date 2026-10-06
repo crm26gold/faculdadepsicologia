@@ -225,7 +225,8 @@ export async function resolveModel(config: AiConfig): Promise<AiConfig> {
 }
 
 // Each alternative is a saved route explicitly authorized by the owner, with its own model.
-// A single four-attempt bound applies across all keys and models, with a budget reservation per retry.
+// One shared bound applies across all keys and models (four attempts, eight in automatic routing),
+// with a budget reservation per attempt.
 export async function generateResilient(config: AiConfig, input: Prompt): Promise<{ text: string; model: string; provider: AiProviderId }> {
   const seen = new Set<string>();
   const connections = [config, ...(config.alternatives ?? []).slice(0, 7)].filter(candidate => {

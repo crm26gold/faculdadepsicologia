@@ -74,7 +74,7 @@ function Header() {
     const dismissOutside = (event: globalThis.PointerEvent) => {
       if (menu.current?.open && event.target instanceof Node && !menu.current.contains(event.target)) closeMenu();
     };
-    const dismissOnDesktop = () => { if (desktop.matches) closeMenu(); };
+    const dismissOnDesktop = (event: MediaQueryListEvent) => { if (event.matches) closeMenu(); };
     document.addEventListener('pointerdown', dismissOutside);
     desktop.addEventListener('change', dismissOnDesktop);
     return () => {

@@ -25,6 +25,8 @@ const messages: Record<string, [number, string]> = {
   '40001': [409, 'Outra pessoa alterou isto agora. Recarregue e tente de novo.'],
   PT409: [409, 'Outra sessão alterou isto agora. Recarregue e tente de novo.'],
 };
+/** Função do banco ainda não publicada: o PostgREST não a encontra (PGRST202) ou o Postgres não a conhece (42883). */
+export const missingRpc = (error: { code?: string } | null) => ['PGRST202', '42883'].includes(error?.code ?? '');
 export function dbError(error: { code?: string } | null) {
   const [status, message] = messages[error?.code ?? ''] ?? [503, 'Não foi possível concluir agora. Tente novamente.'];
   return reply({ error: message }, status, error?.code);

@@ -1,10 +1,10 @@
 ---
 name: implement
-description: "Implement a piece of work based on a spec or set of tickets."
+description: "Implement a piece of work based on a spec, a report in docs/ or an agreed plan."
 disable-model-invocation: true
 ---
 
-Implement the work described by the user in the spec or tickets.
+Implement the work described by the user, the spec or the agreed plan.
 
 Use /tdd where possible, at pre-agreed seams.
 

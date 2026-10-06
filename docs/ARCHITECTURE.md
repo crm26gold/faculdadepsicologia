@@ -48,7 +48,11 @@ Na persistência remota, a API usa `personal_workspaces` e a função `save_pers
 
 `private.ai_user_keys` guarda chaves cifradas por conta e provedor. As RPCs públicas devolvem apenas metadados para a própria sessão; a leitura do conteúdo cifrado exige simultaneamente sessão e prova do servidor. Nenhuma chave é persistida no armazenamento do navegador. Pausar ou remover uma chave pessoal não altera registros da vida pessoal.
 
-`private.ai_runtime_for` combina fontes pessoais, do proprietário e da base autorizada, identificando a origem em cada candidato. Texto prioriza as APIs da própria pessoa; a voz do proprietário mantém a tarefa administrativa. Voz de membros usa apenas APIs pessoais compatíveis. A base compartilhada fica desligada por padrão, atende texto e exige autorização de privacidade presa ao hash da credencial atual; substituir a chave invalida a autorização. Gemini só recebe dados pessoais após declaração de faturamento pago, inclusive nas rotas fixas e reservas.
+`private.ai_runtime_for` combina fontes pessoais, do proprietário e da base autorizada, identificando a origem em cada candidato. Texto prioriza as APIs da própria pessoa; basta uma chave pessoal ligada para a rota inteira daquela pessoa funcionar como automática. A voz do proprietário mantém a tarefa administrativa. Voz de membros usa apenas APIs pessoais compatíveis.
+
+`private.ai_member_base_sources` guarda, por credencial (hash da chave atual), a declaração de privacidade e o público: `owner` vale só para as rotas do proprietário; `members` também oferece a fonte à base, que continua desligada por padrão e atende só texto. Substituir a chave invalida a declaração. Gemini só recebe dados pessoais com declaração de faturamento pago, inclusive nas rotas fixas, nas reservas e na transcrição do WhatsApp. Sem ela, a conexão fica fora da rota mesmo aparecendo como configurada.
+
+`private.ai_resource_map` (somente proprietário) mostra o que está configurado e o que realmente atua em cada tarefa. Ele chama as mesmas funções do roteador, explica cada exclusão e não devolve chaves cifradas nem detalhes de membros, apenas contagens. As capacidades de cada provedor vêm de `src/lib/ai/resources.ts`, conferidas por testes contra os adaptadores; não provam cota nem créditos.
 
 O orçamento é reservado antes de cada tentativa efetiva, com limite único de candidatos (8 no automático, 4 nos demais modos). Credenciais pessoais usam limites por conta; as fontes do proprietário e da base também consomem o orçamento global. Conexão pulada não reserva orçamento.
 

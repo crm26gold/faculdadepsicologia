@@ -16,7 +16,7 @@ As chaves pessoais têm prioridade para texto e não atendem outra conta. A voz 
 
 Em **Conexões e chaves**, a busca e o filtro mostram primeiro as conexões cadastradas. **Remover chave** exige confirmação, mostra tarefas afetadas e pausa as tarefas que dependem diretamente dela; conexões extras têm remoção própria. Depois escolha outra conexão em **Tarefas e modelos**. Seus registros continuam guardados.
 
-Gemini exige declaração de faturamento pago habilitado para processar dados pessoais. O proprietário declara as condições em **Meu espaço › Minhas chaves de IA › Privacidade das conexões e base para membros**; essa declaração não ativa a base compartilhada. Trocar a chave exige nova declaração. Essa condição decorre dos [termos da API Gemini](https://ai.google.dev/gemini-api/terms).
+Gemini exige declaração de faturamento pago habilitado para processar dados pessoais. O proprietário declara as condições em **Administração › Inteligência artificial › Mapa de recursos › Suas chaves e conexões**, nos campos “Condições de privacidade” e “Quem pode usar”. “Só eu” libera a fonte apenas para as rotas do proprietário; “Eu e membros” a oferece também à base, que continua com seu próprio interruptor. Trocar a chave exige nova declaração. O mapa mostra quais conexões estão realmente atuando em cada tarefa. Essa condição decorre dos [termos da API Gemini](https://ai.google.dev/gemini-api/terms).
 
 ### Gemini
 
