@@ -1,0 +1,3 @@
+interface:
+  display_name: "Avaliar recurso de IA"
+  short_description: "Capacidade, preço, política de dados e encaixe de uma API, voz ou MCP"
