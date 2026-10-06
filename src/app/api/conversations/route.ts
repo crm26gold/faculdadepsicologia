@@ -10,9 +10,13 @@ const actions = z.discriminatedUnion('action', [
 export async function GET(request: Request) {
   const session = await readSession();
   if (session instanceof Response) return session;
-  const page = Math.min(1000, Math.max(0, Number(new URL(request.url).searchParams.get('page')) || 0));
-  const { data, error } = await session.client.from('assistant_conversations').select('*').eq('user_id', session.user.id)
-    .order('updated_at', { ascending: false }).order('id').range(Math.floor(page) * 50, Math.floor(page) * 50 + 50);
+  const params = new URL(request.url).searchParams, id = params.get('id');
+  const page = Math.min(1000, Math.max(0, Number(params.get('page')) || 0));
+  if (id !== null && !z.uuid().safeParse(id).success) return reply({ error: 'Conversa inválida.' }, 400);
+  // One conversation by id: a link from Meu dia can open one outside the loaded page.
+  let query = session.client.from('assistant_conversations').select('*').eq('user_id', session.user.id);
+  if (id) query = query.eq('id', id);
+  const { data, error } = await query.order('updated_at', { ascending: false }).order('id').range(Math.floor(page) * 50, Math.floor(page) * 50 + 50);
   if (error) return dbError(error);
   const items = (data ?? []).slice(0, 50).map(row => ({ id: row.id, title: row.title, mode: row.mode, pinned: row.pinned, archived: row.archived,
     messages: row.messages, updatedAt: row.updated_at, revision: row.revision, synced: true }));

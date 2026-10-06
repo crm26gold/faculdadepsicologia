@@ -11,3 +11,9 @@ export type JobOutcome = { saved: boolean; reply: string; applied: Applied[]; pe
 export type AssistantJob = { id: string; conversation_id: string; status: 'queued' | 'working' | 'done' | 'needs_confirmation' | 'failed'; input: z.infer<typeof jobInputSchema>; result: JobOutcome | null; created_at: string; updated_at: string };
 export const jobFinished = (job: AssistantJob) => ['done', 'needs_confirmation', 'failed'].includes(job.status);
 export const jobCanResume = (job: AssistantJob, now = Date.now()) => job.status === 'failed' || job.status === 'queued' || (job.status === 'working' && now - Date.parse(job.updated_at) > 90_000);
+// Confirmations still waiting, for Meu dia: the first action label and when it was requested, in the
+// query's order (newest first). History, fingerprints and undo data stay on the server.
+export type WaitingRequest = { id: string; conversationId: string; requestedAt: string; summary: string; more: number };
+export const waitingRequests = (jobs: Pick<AssistantJob, 'id' | 'conversation_id' | 'status' | 'result' | 'created_at'>[]): WaitingRequest[] =>
+  jobs.flatMap(job => job.status === 'needs_confirmation' && typeof job.result?.pending?.[0]?.label === 'string'
+    ? [{ id: job.id, conversationId: job.conversation_id, requestedAt: job.created_at, summary: job.result.pending[0].label.slice(0, 160), more: job.result.pending.length - 1 }] : []);

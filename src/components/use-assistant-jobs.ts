@@ -6,7 +6,8 @@ import type { AssistantMessage } from '@/lib/conversations';
 import type { CommandAction } from '@/lib/commands';
 import { dateKey, type Workspace } from '@/lib/workspace';
 
-type Options = { accountId?: string; conversationId?: string; ready: boolean; messages: AssistantMessage[];
+// prefer: the job opened from Meu dia; its confirmation is the one offered, even if a newer one waits in the same conversation.
+type Options = { accountId?: string; conversationId?: string; ready: boolean; messages: AssistantMessage[]; prefer?: string;
   setMessages: (update: (previous: AssistantMessage[]) => AssistantMessage[]) => void;
   ensureSaved: () => Promise<void>; refresh: () => Promise<Workspace>; adopt: (result: JobOutcome, data: Workspace) => void };
 type JobPage = { accountId: string; jobs: AssistantJob[] };
@@ -31,8 +32,8 @@ export function useAssistantJobs(options: Options) {
     try {
       const data = completed.some(job => job.result?.saved) ? await latest.current.refresh() : null;
       if (scope.current !== target) return;
-      // Oldest first; the most recent pending command is the one offered for confirmation.
-      for (const job of completed.toReversed()) {
+      // Oldest first; the most recent pending command (or the preferred one) is the one offered for confirmation.
+      for (const job of completed.toReversed().sort((a, b) => Number(a.id === latest.current.prefer) - Number(b.id === latest.current.prefer))) {
         const result = job.result!;
         const known = latest.current.messages.find(item => item.id === `job:${job.id}`);
         const message: AssistantMessage = { id: `job:${job.id}`, from: 'assistant', text: result.reply, saved: result.saved, applied: result.applied.length ? result.applied : undefined };
@@ -97,5 +98,5 @@ export function useAssistantJobs(options: Options) {
       adopted.current.add(`${pendingId}:done`); setPendingId(undefined); await load();
     } catch { setError('A decisão foi tratada nesta conversa, mas o histórico do pedido não foi atualizado. Confira os registros antes de confirmar novamente.'); }
   }
-  return { jobs, working, error, run, resume, settle, reload: load };
+  return { jobs, working, error, pendingId, run, resume, settle, reload: load };
 }

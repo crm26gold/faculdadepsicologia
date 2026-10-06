@@ -133,13 +133,24 @@ export function useConversations(mode: 'local' | 'cloud' | 'demo', account?: str
       return { ...previous, items: records, activeId: records.some(row => row.id === previous.activeId) ? previous.activeId : records[0].id };
     });
   }
+  function append(result: RemotePage, target: string) {
+    if (target !== liveScope.current || result.accountId !== account) return false;
+    const records = result.items.flatMap(row => { const item = parseConversation(row); return item ? [item] : []; });
+    change(previous => ({ ...previous, items: [...previous.items, ...records.filter(item => !previous.items.some(row => row.id === item.id))] }), target);
+    return true;
+  }
   async function loadMore() {
     const target = scope;
     const result = await api<RemotePage>(`/api/conversations?page=${page.current + 1}`);
-    if (target !== liveScope.current || result.accountId !== account) return;
-    const records = result.items.flatMap(row => { const item = parseConversation(row); return item ? [item] : []; });
-    change(previous => ({ ...previous, items: [...previous.items, ...records.filter(item => !previous.items.some(row => row.id === item.id))] }));
+    if (!append(result, target)) return;
     page.current++; setHasMore(result.hasMore);
+  }
+  // Opens a conversation of this account even if it is not loaded yet (an external assistant may have just created it).
+  async function reveal(id: string) {
+    const target = scope;
+    if (mode === 'cloud' && account && !current.current.items.some(item => item.id === id) && !append(await api<RemotePage>(`/api/conversations?id=${id}`), target)) return false;
+    await open(id);
+    return current.current.activeId === id;
   }
   function recoverLegacy() {
     try {
@@ -149,6 +160,6 @@ export function useConversations(mode: 'local' | 'cloud' | 'demo', account?: str
     } catch { setError('Não consegui recuperar o histórico antigo. Os arquivos originais continuam neste aparelho.'); }
   }
   return { active, items, accountId: mode === 'cloud' ? account : undefined, messages: active?.messages ?? [], ready, error, status, hasMore, hasLegacy,
-    setMessages, startNew, open, edit, remove, loadMore, flush, recoverLegacy, reload: () => readRemote(scope) };
+    setMessages, startNew, open, reveal, edit, remove, loadMore, flush, recoverLegacy, reload: () => readRemote(scope) };
 }
 export type ConversationManager = ReturnType<typeof useConversations>;

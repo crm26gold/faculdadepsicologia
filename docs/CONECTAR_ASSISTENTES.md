@@ -7,7 +7,7 @@ A Jornada tem um servidor MCP próprio em `https://<endereço do app>/api/mcp`. 
 - **consultar_jornada:** resumo, agenda com datas, anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards e áreas. Só lê.
 - **registrar_na_jornada:** cria, edita, conclui, reagenda e registra (compromissos, anotações, finanças, foco, hábitos e registros de estudo), até oito ações por vez, com as mesmas validações do aplicativo. Exige uma chave com permissão de registrar.
 
-Exclusões e substituição do conteúdo inteiro de uma anotação nunca são aplicadas pelo MCP: ficam salvas em **Assistente › Conversas › Confirmação de assistente externo**. Abra a conversa, revise e confirme; se o registro tiver mudado, o pedido antigo é recusado. A chave acessa só a vida pessoal de quem a criou, nunca grupos, salas ou outras pessoas. Para evitar repetir uma alteração após falha de rede, envie o mesmo `request_id` (UUID) com o mesmo conteúdo; o comprovante é mantido por 90 dias.
+Exclusões e substituição do conteúdo inteiro de uma anotação nunca são aplicadas pelo MCP: ficam salvas em **Assistente › Conversas › Confirmação de assistente externo** e aparecem em **Meu dia › Pedidos aguardando você**, que abre a conversa certa. Abra a conversa, revise e confirme; se o registro tiver mudado, o pedido antigo é recusado. A chave acessa só a vida pessoal de quem a criou, nunca grupos, salas ou outras pessoas. Para evitar repetir uma alteração após falha de rede, envie o mesmo `request_id` (UUID) com o mesmo conteúdo; o comprovante é mantido por 90 dias.
 
 ## Criar a chave
 

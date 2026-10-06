@@ -14,6 +14,12 @@ export function monthCycles(today: string) {
 
 export const greeting = (hour: number) => hour < 5 ? 'Boa noite' : hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
 
+// How long a request has been waiting: "agora mesmo", "há 5 minutos", "há 3 horas", "há 2 dias".
+export function waitingSince(iso: string, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - Date.parse(iso)) / 60_000) || 0), relative = new Intl.RelativeTimeFormat('pt-BR');
+  return minutes < 1 ? 'agora mesmo' : minutes < 60 ? relative.format(-minutes, 'minute') : minutes < 1440 ? relative.format(-Math.floor(minutes / 60), 'hour') : relative.format(-Math.floor(minutes / 1440), 'day');
+}
+
 export type TodayAlert = { id: string; tone: 'urgent' | 'attention' | 'info'; text: string; target: 'agenda' | 'notes' | 'focus' | 'studies' | 'finances'; date?: string };
 // What deserves attention right now, most urgent first, without repeating today's agenda.
 export function todayAlerts(data: Workspace, today: string, now = Date.now()): TodayAlert[] {

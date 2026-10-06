@@ -182,6 +182,8 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
   await expect(page.getByRole('heading', { level: 1, name: 'Um passo de cada vez.', exact: true })).toBeVisible();
   await expect(page.getByText('Demonstração — dados fictícios. Não insira informações pessoais.', { exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Psicologia', exact: true })).toBeVisible();
+  // Sem conta não há pedidos do assistente para buscar nem mostrar.
+  await expect(page.getByRole('region', { name: /Pedidos aguardando você/ })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
