@@ -5,8 +5,16 @@ import { applicationOrigin } from '@/lib/auth-input';
 import { demoRequested } from '@/lib/config';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
-export const reply = (body: unknown, status = 200) =>
-  Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
+/** A 503 carries a short reference the owner can find in the log. The log keeps only the reference and the
+ * error code (never the message, request or row), and an unexpected code shape is not logged. */
+export function reply(body: unknown, status = 200, code?: string) {
+  if (status === 503 && body !== null && typeof body === 'object' && typeof (body as { error?: unknown }).error === 'string') {
+    const reference = crypto.randomUUID().slice(0, 8);
+    console.warn('[api]', { reference, status, code: code && /^[A-Za-z0-9_]{1,32}$/.test(code) ? code : 'none' });
+    body = { ...body, error: `${(body as { error: string }).error} Código de referência: ${reference}.`, reference };
+  }
+  return Response.json(body, { status, headers: { 'Cache-Control': 'private, no-store' } });
+}
 
 const messages: Record<string, [number, string]> = {
   '42501': [403, 'Você não tem permissão para isso.'],
@@ -19,7 +27,7 @@ const messages: Record<string, [number, string]> = {
 };
 export function dbError(error: { code?: string } | null) {
   const [status, message] = messages[error?.code ?? ''] ?? [503, 'Não foi possível concluir agora. Tente novamente.'];
-  return reply({ error: message }, status);
+  return reply({ error: message }, status, error?.code);
 }
 
 /** Leitura autenticada (GET). */

@@ -33,7 +33,7 @@ export async function prepareLiveSession(config: AiConfig, context: string, hist
         ? { provider: 'elevenlabs' as const, ...await prepareElevenLabsSession(single, context, history, { signal: options.signal }) }
         : first.provider === 'gemini' ? { provider: 'gemini' as const, ...await prepareGeminiSession(single, context, history, { signal: options.signal }) }
         : first.provider === 'xai' ? { provider: 'xai' as const, ...await prepareXaiSession(single,{signal:options.signal}) } : null;
-      if (!prepared) throw new AiError(`${aiCatalog[first.provider].name} não atende a Chamada ao vivo.`, 400);
+      if (!prepared) throw new AiError(`${aiCatalog[first.provider].name} não atende a Chamada ao vivo.`, 400, 'model');
       return { failures, credentials: { ...prepared, fallback } };
     } catch (error) {
       options.signal.throwIfAborted();

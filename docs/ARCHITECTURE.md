@@ -50,7 +50,22 @@ Na persistência remota, a API usa `personal_workspaces` e a função `save_pers
 
 `private.ai_runtime_for` combina fontes pessoais, do proprietário e da base autorizada, identificando a origem em cada candidato. Texto prioriza as APIs da própria pessoa; a voz do proprietário mantém a tarefa administrativa. Voz de membros usa apenas APIs pessoais compatíveis. A base compartilhada fica desligada por padrão, atende texto e exige autorização de privacidade presa ao hash da credencial atual; substituir a chave invalida a autorização. Gemini só recebe dados pessoais após declaração de faturamento pago, inclusive nas rotas fixas e reservas.
 
-O orçamento é reservado antes de cada tentativa efetiva, com limite único de candidatos. Credenciais pessoais usam limites por conta; as fontes do proprietário e da base também consomem o orçamento global. Um limite da Jornada interrompe o pedido inteiro. Cota de uma API no automático permite outra empresa, sem tentar gastar outra chave da mesma empresa.
+O orçamento é reservado antes de cada tentativa efetiva, com limite único de candidatos (8 no automático, 4 nos demais modos). Credenciais pessoais usam limites por conta; as fontes do proprietário e da base também consomem o orçamento global. Conexão pulada não reserva orçamento.
+
+`src/lib/ai/provider-failure.ts` classifica cada falha pelo status HTTP e pelos códigos estruturados do corpo; frases inteiras de saldo só entram como último recurso, nunca "quota" sozinha. Só a classe é guardada: o texto do provedor não chega à mensagem nem ao log. `runAiAttempts` (`src/lib/ai/attempts.ts`) toma uma ação por classe:
+
+| Classe | Exemplos | Automático | Fixo, reserva da mesma empresa ou alternativas |
+| --- | --- | --- | --- |
+| `network` | sem resposta, tempo esgotado | próxima conexão | próxima conexão |
+| `server` | 5xx, resposta vazia | próxima conexão | próxima conexão |
+| `rate_limit` | 429 | próxima conexão | para |
+| `model` | 404, modelo ou recurso que a conexão não atende | próxima conexão | próxima conexão |
+| `auth` | 401, 403, chave inválida | pula só essa chave | pula só essa chave |
+| `billing` | 402, sem saldo, faturamento desativado | pula todas as chaves da empresa | pula todas as chaves da empresa; uma alternativa de outra empresa ainda é tentada |
+| `invalid` | 400, 422, falha sem status | para | para |
+| Recusa da Jornada | `BudgetLimitError`, conta bloqueada pelo provedor | para tudo | para tudo |
+
+Saldo é da conta, não da chave: trocar de chave da mesma empresa não resolve e só gastaria orçamento.
 
 No MCP, OAuth registra apenas hashes de códigos e tokens. Uma reutilização de renovação revoga a família inteira em transação, e o registro de clientes tem limites globais e por origem. `private.mcp_receipts` torna pedidos com `request_id` idempotentes por 90 dias. Alterações de workspace, comprovantes e confirmações pendentes são gravados atomicamente; ações destrutivas reaparecem nas Conversas do app e passam novamente pela verificação do registro antes da confirmação.
 

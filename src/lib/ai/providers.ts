@@ -6,6 +6,7 @@ import { conversationTurns, type Turn } from './turns';
 import { chatImageContent, claudeImageContent, responsesImageContent, type AiImage } from './media';
 import { runAiAttempts } from './attempts';
 import { publicHttps } from './public-http';
+import { failureKind, failureMessage, providerSignals, type AiFailureKind } from './provider-failure';
 
 export type AiCredentialSource = 'owner' | 'personal' | 'base';
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[]; routing?: string; source?: AiCredentialSource };
@@ -13,28 +14,27 @@ export type AiConfig = { provider: AiProviderId; model: string; base_url: string
  * audioTask 'transcribe' also accepts Whisper-style transcription endpoints (Groq, OpenAI), which return only the words heard. */
 export type Prompt = { system: string; prompt: string; audioTask?: 'transcribe'; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void>; beforeAttempt?: (candidate: AiConfig, index: number) => Promise<void> };
 export class AiError extends Error {
-  constructor(message: string, readonly status = 0) { super(message); }
-  /** Busy, rate-limited or briefly broken: worth another try, maybe on another model. */
-  get transient() { return this.status === 0 || this.status === 429 || this.status >= 500; }
+  /** What runAiAttempts acts on. Local checks name it; provider answers derive it from status and codes. */
+  readonly kind: AiFailureKind;
+  constructor(message: string, readonly status = 0, kind?: AiFailureKind) { super(message); this.kind = kind ?? failureKind(status); }
 }
 
 const TIMEOUT = 30_000;
 async function call(provider: AiProviderId, url: string, init: RequestInit) {
-  let response: Response;
+  let response: Response, raw: string;
   try {
     const options = { ...init, signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(TIMEOUT)]) : AbortSignal.timeout(TIMEOUT), cache: 'no-store' as const, redirect: 'error' as const };
     response = provider === 'compatible' ? await publicHttps(url, options) : await fetch(url, options);
+    // Inside the try: a connection dropped while the body arrives is still a network failure.
+    raw = await response.text();
   }
-  catch { init.signal?.throwIfAborted(); throw new AiError(`${aiCatalog[provider].name}: sem resposta (rede ou tempo esgotado).`, 0); }
-  const raw = await response.text();
+  catch { init.signal?.throwIfAborted(); throw new AiError(failureMessage('network', aiCatalog[provider].name, 0), 0); }
   let body: any = null;
   try { body = JSON.parse(raw); } catch {}
   if (!response.ok) {
-    const reason = response.status === 401 || response.status === 403 ? 'Confira a chave e as permissões da API.'
-      : response.status === 429 ? 'O provedor atingiu a cota ou está sem créditos. Aguarde ou confira o painel da API.'
-      : response.status === 402 ? 'Confira os créditos e o faturamento da API.'
-      : response.status === 400 || response.status === 404 ? 'Confira o modelo e a configuração desta tarefa.' : 'O serviço está indisponível agora.';
-    throw new AiError(`${aiCatalog[provider].name} recusou (${response.status}). ${reason}`, response.status);
+    // The body is read only to classify the failure; its text never enters the message.
+    const kind = failureKind(response.status, providerSignals(body));
+    throw new AiError(failureMessage(kind, aiCatalog[provider].name, response.status), response.status, kind);
   }
   return body;
 }
@@ -47,7 +47,7 @@ function serviceAccount(key: string): ServiceAccount {
     const value = JSON.parse(key);
     if (typeof value.client_email === 'string' && typeof value.private_key === 'string') return value;
   } catch {}
-  throw new AiError('A credencial da Google Agent Platform precisa ser o arquivo JSON da conta de serviço.', 400);
+  throw new AiError('A credencial da Google Agent Platform precisa ser o arquivo JSON da conta de serviço.', 400, 'auth');
 }
 async function vertexToken(account: ServiceAccount, signal?: AbortSignal) {
   const cacheKey = createHash('sha256').update(`${account.client_email}:${account.private_key}`).digest('hex');
@@ -58,7 +58,7 @@ async function vertexToken(account: ServiceAccount, signal?: AbortSignal) {
   const unsigned = `${encode({ alg: 'RS256', typ: 'JWT' })}.${encode({ iss: account.client_email, scope: 'https://www.googleapis.com/auth/cloud-platform', aud: 'https://oauth2.googleapis.com/token', iat: now, exp: now + 3600 })}`;
   let signature: string;
   try { signature = createSign('RSA-SHA256').update(unsigned).sign(account.private_key, 'base64url'); }
-  catch { throw new AiError('A chave privada da conta de serviço do Vertex AI é inválida.'); }
+  catch { throw new AiError('A chave privada da conta de serviço do Vertex AI é inválida.', 0, 'auth'); }
   const body = await call('vertex', 'https://oauth2.googleapis.com/token', { method: 'POST', signal, headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion: `${unsigned}.${signature}` }) });
   if (typeof body.access_token !== 'string' || !body.access_token) throw new AiError('A conta de serviço não recebeu autorização.', 401);
@@ -68,9 +68,9 @@ async function vertexToken(account: ServiceAccount, signal?: AbortSignal) {
 }
 function vertexBase(config: AiConfig, account: ServiceAccount) {
   const project = config.gcp_project || account.project_id;
-  if (!project) throw new AiError('Informe o projeto do Google Cloud.');
+  if (!project) throw new AiError('Informe o projeto do Google Cloud.', 0, 'model');
   const location = config.gcp_location || 'us-central1';
-  if (!/^(?:global|[a-z]+(?:-[a-z]+)+[0-9])$/.test(location)) throw new AiError('Informe uma região válida da Google Agent Platform.', 400);
+  if (!/^(?:global|[a-z]+(?:-[a-z]+)+[0-9])$/.test(location)) throw new AiError('Informe uma região válida da Google Agent Platform.', 400, 'model');
   const host = location === 'global' ? 'aiplatform.googleapis.com' : `${location}-aiplatform.googleapis.com`;
   return `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${encodeURIComponent(location)}`;
 }
@@ -106,9 +106,9 @@ export async function generate(config: AiConfig, input: Prompt): Promise<string>
   const { system, prompt, maxTokens = 800 } = input;
   const json = { 'Content-Type': 'application/json' };
   if (input.audio && input.audioTask === 'transcribe' && transcribers[config.provider]) return transcribe(config, input.audio, input.signal);
-  if (input.audio && !(config.provider === 'gemini' || config.provider === 'google_cloud' || (config.provider === 'vertex' && !config.model.startsWith('claude')))) throw new AiError('Esta conexão não lê áudio gravado. Escolha uma conexão Gemini compatível ou envie texto.', 400);
-  if (input.image && config.provider === 'deepseek') throw new AiError('Esta conexão DeepSeek atende texto. Escolha um modelo com visão para ler a imagem.', 400);
-  if (input.image && config.provider === 'xai' && !['image/jpeg','image/png'].includes(input.image.mimeType)) throw new AiError('Esta conexão xAI lê imagens JPEG ou PNG. Use um desses formatos.',400);
+  if (input.audio && !(config.provider === 'gemini' || config.provider === 'google_cloud' || (config.provider === 'vertex' && !config.model.startsWith('claude')))) throw new AiError('Esta conexão não lê áudio gravado. Escolha uma conexão Gemini compatível ou envie texto.', 400, 'model');
+  if (input.image && config.provider === 'deepseek') throw new AiError('Esta conexão DeepSeek atende texto. Escolha um modelo com visão para ler a imagem.', 400, 'model');
+  if (input.image && config.provider === 'xai' && !['image/jpeg','image/png'].includes(input.image.mimeType)) throw new AiError('Esta conexão xAI lê imagens JPEG ou PNG. Use um desses formatos.',400,'model');
   const turns = conversationTurns(input.history, prompt).map((turn, index, all) => ({ role: turn.role, content: chatImageContent(turn.text, index === all.length - 1 ? input.image : undefined) }));
   const claudeTurns = conversationTurns(input.history, prompt).map((turn, index, all) => ({ role: turn.role, content: claudeImageContent(turn.text, index === all.length - 1 ? input.image : undefined) }));
   let text = '';
@@ -127,7 +127,7 @@ export async function generate(config: AiConfig, input: Prompt): Promise<string>
       break;
     }
     case 'google_cloud':
-      if (config.model.startsWith('claude')) throw new AiError('A chave Express desta conexão atende Gemini. Para Claude no Google Cloud, use a conexão de conta de serviço autorizada.', 400);
+      if (config.model.startsWith('claude')) throw new AiError('A chave Express desta conexão atende Gemini. Para Claude no Google Cloud, use a conexão de conta de serviço autorizada.', 400, 'model');
       text = geminiText(await call('google_cloud', `${config.gcp_project ? vertexBase(config,{ client_email:'',private_key:'' }) : 'https://aiplatform.googleapis.com/v1'}/publishers/google/models/${encodeURIComponent(config.model)}:generateContent`, { method: 'POST', signal: input.signal, headers: { ...json, 'x-goog-api-key': config.key }, body: geminiBody(input) }));
       break;
     case 'xai': {
@@ -145,18 +145,18 @@ export async function generate(config: AiConfig, input: Prompt): Promise<string>
     case 'groq':
     case 'openrouter':
     case 'compatible':
-      if (!(aiCatalog[config.provider].base || config.base_url)) throw new AiError('Informe o endereço base da API compatível.');
+      if (!(aiCatalog[config.provider].base || config.base_url)) throw new AiError('Informe o endereço base da API compatível.', 0, 'model');
       text = chatText(await call(config.provider, `${(aiCatalog[config.provider].base || config.base_url).replace(/\/+$/, '')}/chat/completions`, { method: 'POST', signal: input.signal, headers: { ...json, Authorization: `Bearer ${config.key}` },
         body: JSON.stringify({ model: config.model, max_tokens: maxTokens, messages: [{ role: 'system', content: system }, ...turns] }) }));
       break;
     case 'elevenlabs':
-      throw new AiError('ElevenLabs atende somente a Chamada ao vivo. Escolha outro provedor para texto.', 400);
+      throw new AiError('ElevenLabs atende somente a Chamada ao vivo. Escolha outro provedor para texto.', 400, 'model');
     case 'anthropic':
       text = claudeText(await call('anthropic', 'https://api.anthropic.com/v1/messages', { method: 'POST', signal: input.signal, headers: { ...json, 'x-api-key': config.key, 'anthropic-version': '2023-06-01' },
         body: JSON.stringify({ model: config.model, max_tokens: maxTokens, system, messages: claudeTurns }) }));
       break;
   }
-  if (!text) throw new AiError(`${aiCatalog[config.provider].name} respondeu sem texto. Confira o nome do modelo.`);
+  if (!text) throw new AiError(`${aiCatalog[config.provider].name} respondeu sem texto. Confira o nome do modelo.`, 0, 'server');
   return text;
 }
 
@@ -181,7 +181,7 @@ export async function listModelInventory(config: AiConfig, signal?: AbortSignal)
     case 'groq':
     case 'openrouter':
     case 'compatible':
-      if (!(aiCatalog[config.provider].base || config.base_url)) throw new AiError('Informe o endereço base da API compatível.');
+      if (!(aiCatalog[config.provider].base || config.base_url)) throw new AiError('Informe o endereço base da API compatível.', 0, 'model');
       ids = ((await call(config.provider, `${(aiCatalog[config.provider].base || config.base_url).replace(/\/+$/, '')}/models`, { signal, headers: { Authorization: `Bearer ${config.key}` } }))?.data ?? []).map((model: { id: string }) => model.id);
       break;
     case 'elevenlabs': {
@@ -244,7 +244,7 @@ export async function generateResilient(config: AiConfig, input: Prompt): Promis
     let model = candidate.model;
     if (input.audio && input.audioTask === 'transcribe' && transcribers[candidate.provider]) model = transcribers[candidate.provider]!.model;
     else if (isAuto(model)) {
-      if (!autoCapable.includes(candidate.provider)) throw new AiError('Escolha um modelo pelo nome para este provedor.', 400);
+      if (!autoCapable.includes(candidate.provider)) throw new AiError('Escolha um modelo pelo nome para este provedor.', 400, 'model');
       const ids = await cachedModels(candidate, input.signal);
       const choices = pickModels(candidate.provider, ids, model, 2);
       model = choices[Math.min(attempt, choices.length - 1)] ?? '';
