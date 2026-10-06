@@ -97,7 +97,7 @@ export function AdminPanel({ me, onOpenSpace }: { me: string; onOpenSpace: (id: 
         <div><label htmlFor="acc-plan">Plano</label><select id="acc-plan" name="plan" defaultValue={editing.plan}><option value="academic">Acadêmico (grátis)</option><option value="pro">Pro</option></select></div>
         <div><label htmlFor="acc-source">Origem</label><select id="acc-source" name="source" defaultValue={editing.plan_source}><option value="free">Gratuito</option><option value="paid">Pago</option><option value="courtesy">Cortesia</option></select></div>
         <div><label htmlFor="acc-until">Pro válido até (opcional)</label><input id="acc-until" name="pro_until" type="date" defaultValue={editing.pro_until?.slice(0, 10) ?? ''} /></div>
-        <div><label htmlFor="acc-credits">Créditos de IA</label><input id="acc-credits" name="credits" type="number" min={0} max={1000000} defaultValue={editing.ai_credits} /></div>
+        <div><label htmlFor="acc-credits">Créditos de IA (anotação; ainda não limita o uso)</label><input id="acc-credits" name="credits" type="number" min={0} max={1000000} defaultValue={editing.ai_credits} /></div>
       </div>
       <fieldset className="cm-targets"><legend>Funções liberadas</legend>
         <label className="cm-check"><input type="checkbox" name="features" value="create_classes" defaultChecked={editing.features.includes('create_classes')} /> Pode criar salas nas instituições em que participa</label>

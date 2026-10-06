@@ -1,4 +1,4 @@
-import { dbError, readSession, reply, writeRequest } from '@/lib/api-route';
+import { dbError, missingRpc, readSession, reply, writeRequest } from '@/lib/api-route';
 import { aiMyKeyAction } from '@/lib/ai/catalog';
 import { aiSecretReady, keyHint, openKey, sealKey } from '@/lib/ai/crypto';
 import { credentialIssue } from '@/lib/ai/credentials';
@@ -9,14 +9,13 @@ import { botServerSecret } from '@/lib/bot/secrets';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-const missing = (error: { code?: string } | null) => ['PGRST202', '42883'].includes(error?.code ?? '');
 const notReady = () => reply({ error: 'As chaves pessoais ainda não estão disponíveis. A atualização do banco está pendente.' }, 503);
 
 export async function GET() {
   const session = await readSession();
   if (session instanceof Response) return session;
   const result = await session.client.rpc('ai_my_keys');
-  if (missing(result.error)) return reply({ ok: true, data: { available: false, keys: [], isOwner: false, baseEnabled: false, secretReady: aiSecretReady() } });
+  if (missingRpc(result.error)) return reply({ ok: true, data: { available: false, keys: [], isOwner: false, baseEnabled: false, secretReady: aiSecretReady() } });
   if (result.error) return dbError(result.error);
   return reply({ ok: true, data: { ...result.data, secretReady: aiSecretReady() } });
 }
@@ -27,7 +26,7 @@ export async function POST(request: Request) {
   const { session, body } = input;
   // Check migration availability before spending a provider request or accepting a key.
   const state = await session.client.rpc('ai_my_keys');
-  if (missing(state.error)) return notReady();
+  if (missingRpc(state.error)) return notReady();
   if (state.error) return dbError(state.error);
   try {
     if (body.action === 'save' || body.action === 'test') {
@@ -62,11 +61,7 @@ export async function POST(request: Request) {
     }
     const result = body.action === 'set'
       ? await session.client.rpc('ai_my_key_set', { provider_id: body.provider, next_enabled: body.enabled })
-      : body.action === 'remove'
-        ? await session.client.rpc('ai_my_key_remove', { provider_id: body.provider })
-        : body.action === 'set_base'
-          ? await session.client.rpc('ai_set_member_base', { next_enabled: body.enabled })
-          : await session.client.rpc('ai_set_member_base_source', { provider_id: body.provider, connection_id: body.connection_id, next_privacy_basis: body.privacy_basis });
+      : await session.client.rpc('ai_my_key_remove', { provider_id: body.provider });
     return result.error ? dbError(result.error) : reply({ ok: true, data: null });
   } catch (cause) {
     if (cause instanceof AiError) return reply({ error: cause.message }, cause.status === 429 ? 429 : 502);

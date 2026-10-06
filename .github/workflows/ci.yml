@@ -65,7 +65,7 @@ jobs:
         run: |
           sudo systemctl start postgresql.service
           sudo -u postgres psql -q -c "create role \"$USER\" superuser login"
-          for test in supabase/tests/multiusuario_isolamento.sql supabase/tests/multiusuario_api.sql supabase/tests/whatsapp_bridge.sql supabase/tests/ai_personal_keys.sql supabase/tests/assistant_execution.sql; do
+          for test in supabase/tests/multiusuario_isolamento.sql supabase/tests/multiusuario_api.sql supabase/tests/whatsapp_bridge.sql supabase/tests/ai_personal_keys.sql supabase/tests/assistant_execution.sql supabase/tests/ai_resource_map.sql; do
             db="t_$(basename "$test" .sql)"
             createdb "$db"
             psql -d "$db" -v ON_ERROR_STOP=1 -q -f "$test"
