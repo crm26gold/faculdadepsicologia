@@ -29,7 +29,7 @@ Correção do próprio Claude: `supabase/tests/workspace_transaction.sql` fica f
 
 ## O que mudou
 
-- **Migração** `supabase/migrations/20261005163000_ai_resource_map.sql`, **preparada e não aplicada**:
+- **Migração** `supabase/migrations/20261006221308_ai_resource_map.sql`, **aplicada em 2026-10-06** (versão registrada `20261006221308`):
   - coluna `audience` (`owner` ou `members`, com padrão `members` para preservar o significado das linhas antigas; o remoto tem 0 linhas);
   - `ai_runtime_for` exige `audience='members'` para a base;
   - `ai_set_source_policy`; o antigo `ai_set_member_base_source` passa a significar "oferecer aos membros";
@@ -68,7 +68,7 @@ Chaves pessoais, remoção segura, OAuth e recibos do MCP, os quatro transportes
 
 ## Migração: preparada × aplicada
 
-Preparada com a versão local `20261005163000`; **não aplicada**. Depois da revisão e com autorização do proprietário:
+Preparada com a versão local `20261005163000` e **aplicada em 2026-10-06**, com autorização do proprietário, na versão `20261006221308`. Passos seguidos:
 
 1. Aplicar pelo MCP do Supabase.
 2. Renomear o arquivo para a versão atribuída.
