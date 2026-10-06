@@ -14,7 +14,8 @@ flowchart LR
   F --> G[Comandos validados e confirmação]
   G --> H[Seu espaço no Supabase]
   G --> I[Resposta confirmada]
-  I --> J[Voz brasileira e Ogg Opus]
+  I -->|Você mandou áudio| J[Voz brasileira e Ogg Opus]
+  I -->|Texto, resposta longa ou falha da voz| B
   J --> B
 ```
 
@@ -34,8 +35,14 @@ flowchart LR
 5. Quando aparecer **WhatsApp conectado**, toque em **Gerar código de vínculo**. Do **seu outro telefone**, envie `/vincular CODIGO` para o número temporário. O código expira em 15 minutos e só vale uma vez. A ponte não é dona da conta.
 6. Em **Inteligência e voz**, selecione uma conexão habilitada para transcrição: Groq (`whisper-large-v3-turbo`), OpenAI (`gpt-4o-mini-transcribe`) ou Google compatível. Gemini exige declaração de API paga no Mapa de recursos (Administração › Inteligência artificial); o mapa também mostra se a transcrição escolhida está atuando. Para fotos, use uma rota de texto com visão. A resposta usa a tarefa **Conversa do assistente**, que pode ser de outra empresa. Voz: Antônio ou Francisca, em português brasileiro.
 7. Envie um áudio de teste: “Crie uma anotação chamada teste do WhatsApp com o texto conexão validada”. Confira no Caderno e ouça a resposta. Depois teste consulta e exclusão com confirmação. Esse teste real é o critério de aceite; testes de código ou somente QR não o substituem.
+8. Confira a resistência a quedas, com o terminal da ponte à vista:
+   - **Texto recebe texto:** escreva “O que tenho hoje?”; a resposta chega escrita.
+   - **Áudio recebe áudio:** pergunte o mesmo por áudio; a resposta chega em voz.
+   - **Resposta longa sai em texto:** peça por áudio “Liste todas as minhas tarefas com os detalhes”; acima de 600 caracteres, a resposta chega escrita.
+   - **A rede cai e a mensagem chega depois:** com a ponte conectada, desligue o Wi-Fi do computador, mande uma mensagem do celular, espere um minuto e religue o Wi-Fi. A resposta chega sem você reenviar.
+   - **A ponte reconecta sozinha:** pare a ponte, desligue o Wi-Fi do computador e inicie a ponte de novo. O terminal mostra “Não consegui abrir o WhatsApp Web. Nova tentativa em 5 s.” Religue o Wi-Fi: sem reiniciar a ponte, o painel volta a **WhatsApp conectado** e uma mensagem enviada depois é respondida.
 
-Para iniciar novamente depois da instalação: `npm run whatsapp:start`. Mantenha o terminal e o computador ligados. Para serviço 24 horas, hospede **somente a ponte** em um servidor persistente; esta entrega não compra servidor nem reativa o faturamento Google Cloud.
+Para iniciar novamente depois da instalação: `npm run whatsapp:start`. Depois de atualizar o projeto, pare a ponte com Ctrl+C e inicie de novo; a ponte em execução continua com o código antigo. Mantenha o terminal e o computador ligados. Para serviço 24 horas, hospede **somente a ponte** em um servidor persistente; esta entrega não compra servidor nem reativa o faturamento Google Cloud.
 
 Outras pessoas vinculam o próprio telefone em **Meu espaço › WhatsApp da minha conta**, sem acesso ao QR ou à credencial da ponte. A ponte precisa estar online; o código vale 15 minutos. Cada conta usa suas APIs pessoais ou a base de texto expressamente autorizada. Desvincular cancela pedidos ainda aguardando e preserva registros já confirmados.
 
@@ -50,7 +57,9 @@ Outras pessoas vinculam o próprio telefone em **Meu espaço › WhatsApp da min
 - Exclusões e substituição completa de notas ficam pendentes por 15 minutos, vinculadas ao registro e a sua versão. Confirme com a frase exata **“confirmar 123456”**, usando o código recebido; “cancelar” descarta a confirmação. Mudanças posteriores no item invalidam a autorização antiga.
 - A credencial da ponte não permite consultar chaves de IA diretamente no banco: as funções internas exigem também uma prova que só o servidor da Jornada possui. A ponte não recebe `AI_KEYS_SECRET`, token de Supabase ou chave de provedor.
 - Os comandos passam pelas regras existentes de agenda, notas, finanças, hábitos, metas/projetos e foco. O assistente não executa SQL, shell, administração de credenciais ou envio a terceiros.
-- Texto da resposta é enviado ao serviço online Edge TTS. O áudio retornado é convertido localmente em Ogg Opus mono. Se a voz falhar, entrega-se a resposta confirmada em texto. Os arquivos temporários de síntese são removidos.
+- **Voz ou texto:** a resposta sai em voz só quando você manda áudio e ela tem até 600 caracteres. Texto recebe texto; respostas longas, erros e avisos de pedidos cancelados saem em texto. Só o texto das respostas em voz vai ao serviço online Edge TTS. O áudio retornado é convertido localmente em Ogg Opus mono. Se a voz falhar, entrega-se a resposta confirmada em texto. Os arquivos temporários de síntese são removidos.
+- **Falha ao falar com a Jornada:** se a ponte não consegue entregar à Jornada uma mensagem recebida, por erro de rede ou do servidor (5xx), ela tenta de novo depois de 0,5 s, 2 s e 5 s. Uma recusa (4xx, por exemplo telefone não vinculado ou limite atingido) não é repetida. Repetir não duplica o pedido: a fila reconhece a mensagem pelo identificador. Com mais de 20 mensagens em andamento, as novas são descartadas e o terminal mostra quantas; peça para reenviar.
+- **Queda do WhatsApp:** a ponte reconecta sozinha, esperando 5 s, 10 s, 20 s e assim por diante, até no máximo 5 minutos entre tentativas. Enquanto isso o painel mostra **Conectando ao WhatsApp** e a ponte não responde. Ela não reconecta quando a sessão foi encerrada no celular, aberta em outro lugar ou o número foi bloqueado; o terminal diz o que fazer. Os registros do terminal mostram só o código de estado do WhatsApp, nunca o conteúdo de mensagens.
 - Uma alteração e seu recibo são confirmados em uma única transação, com revisão e exclusividade temporária de execução. Reenviar a mesma mensagem não repete o comando. **A entrega no WhatsApp não tem garantia de exatamente uma vez**: se houver queda durante o envio, a ponte sinaliza “entrega incerta” e não reenvia automaticamente. Confira a conversa antes de pedir uma nova entrega.
 
 ## Operação e segurança

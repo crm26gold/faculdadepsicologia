@@ -6,6 +6,7 @@ import { generateResilient, type AiConfig } from '../ai/providers';
 import { applyCommands, commandAction, commandContext, commandSystem, executionSummary, parseCommand, type PendingCommand } from '../commands';
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, parseWorkspace } from '../workspace';
 import type { Turn } from '../ai/turns';
+import { speakReply } from '../voice/reply-mode';
 import { bridgeInput, confirmationIntent, validatedMedia } from './protocol';
 import { whatsappRpc } from './server';
 
@@ -65,9 +66,11 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
       if (executed.pending.length) reply = [executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',
         `Confirme ${executed.pending.map(item => item.label).join('; ')}. Envie ou fale “confirmar ${confirmation}”. Vale por 15 minutos. Para desistir, diga “cancelar”.`,
         executed.failed.length ? `Não consegui: ${executed.failed.join('; ')}.` : ''].filter(Boolean).join(' ');
+      reply = (reply || 'Nenhuma alteração foi feita.').slice(0, 4000);
+      // `speak` is the voice-or-text choice; `voice` stays the chosen voice. Failure receipts omit it and go in text.
       const result = await whatsappRpc(token, 'finish', { ...args, revision: current.workspace?.revision ?? 0,
         next_data: executed.applied.length ? { ...executed.data, editorGeneration: CURRENT_EDITOR_GENERATION } : null,
-        result: { reply: (reply || 'Nenhuma alteração foi feita.').slice(0, 4000), applied: executed.applied },
+        result: { reply, applied: executed.applied, speak: speakReply(media?.kind === 'audio', reply) },
         transcript, pending_mode: executed.pending.length ? 'replace' : confirmed || canceled ? 'clear' : 'keep', pending: executed.pending, confirmation });
       if (!result.error) return;
       if (result.error.code !== 'PT409' || attempt === 1) throw new Error('O espaço ou a conexão mudou. Confira o painel antes de enviar o pedido novamente.');

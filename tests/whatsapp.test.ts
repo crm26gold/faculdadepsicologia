@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { bridgeInput, confirmationIntent, freshMessage, validatedMedia, WA_MEDIA_LIMIT } from '../src/lib/whatsapp/protocol';
+import { speakReply } from '../src/lib/voice/reply-mode';
 test('WhatsApp: only private peers, explicit formats and bounded inputs', () => {
   assert.equal(bridgeInput.safeParse({ action: 'check', peer: '12000@g.us' }).success, false);
   assert.equal(bridgeInput.safeParse({ action: 'message', peer: '5511999999999', message_id: '1', timestamp: 1, text: 'x', url: 'http://localhost/secret' }).success, false);
@@ -22,4 +23,10 @@ test('WhatsApp: confirmation is an entire explicit command, not a model interpre
   assert.equal(freshMessage(now / 1000, now), true);
   assert.equal(freshMessage((now - 86_401_000) / 1000, now), false);
   assert.equal(freshMessage((now + 61_000) / 1000, now), false);
+});
+test('WhatsApp: voice answers only a voice message, and a long answer goes in text', () => {
+  assert.equal(speakReply(true, 'Anotação criada.'), true);
+  assert.equal(speakReply(false, 'Anotação criada.'), false);
+  assert.equal(speakReply(true, 'x'.repeat(600)), true);
+  assert.equal(speakReply(true, 'x'.repeat(601)), false);
 });
