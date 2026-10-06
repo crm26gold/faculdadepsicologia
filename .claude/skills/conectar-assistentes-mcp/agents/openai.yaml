@@ -1,0 +1,3 @@
+interface:
+  display_name: "Conectar assistentes por MCP"
+  short_description: "OAuth, ferramentas, MCP Apps e testes para ChatGPT e Claude"
