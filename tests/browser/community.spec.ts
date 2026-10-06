@@ -262,6 +262,10 @@ test('termos e privacidade são públicos e explicam exclusão e grupos', async 
   await page.goto('/privacidade');
   await expect(page.getByRole('heading', { name: 'Política de privacidade' })).toBeVisible();
   await expect(page.getByText(/Ex-membro/).first()).toBeVisible();
+  const requests = page.getByRole('region', { name: /Como fazer um pedido e o que acontece num incidente/ });
+  await expect(requests.getByText(/em até 15 dias/)).toBeVisible();
+  await expect(requests.getByText(/avisamos a Autoridade Nacional de Proteção de Dados \(ANPD\) e as pessoas afetadas/)).toBeVisible();
+  expect((await new AxeBuilder({ page }).include('.legal-page').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
   await page.goto('/termos');
   await expect(page.getByRole('heading', { name: 'Termos de uso' })).toBeVisible();
   await expect(page.getByText(/direito de arrependimento de 7 dias/)).toBeVisible();

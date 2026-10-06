@@ -16,7 +16,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "playwright test",
-    "test:gate": "node tests/production-gate.mjs"
+    "test:gate": "node tests/production-gate.mjs",
+    "smoke": "node scripts/smoke-production.mjs"
   },
   "dependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",

@@ -3,5 +3,6 @@
   "framework": "nextjs",
   "regions": ["gru1"],
   "buildCommand": "npm run build",
-  "installCommand": "npm ci"
+  "installCommand": "npm ci",
+  "ignoreCommand": "node scripts/vercel-ignore-build.mjs"
 }

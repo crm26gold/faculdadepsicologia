@@ -1,9 +1,10 @@
 # Only application source is needed for deployment. No local context or data.
+# Do not list /.git: in Git deployments Vercel applies this file right after the clone,
+# before the Ignored Build Step, which needs Git history. The Vercel CLI never uploads .git.
 /.agents
 /.codex
 /.claude
 /.codex-remote-attachments
-/.git
 /.next
 /.vercel
 /.local

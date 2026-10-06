@@ -76,6 +76,48 @@ Uma instalação privada nova começa vazia. Dados na chave local existente deve
 
 Cada espaço salvo guarda `editorGeneration`. Um build só lê gerações que constam na sua lista em `src/lib/workspace.ts`; uma geração desconhecida bloqueia o carregamento ("Não foi possível carregar seus dados") sem sobrescrever nada. A versão com Estudos/cursos grava a geração 7 (a anterior em produção gravava 5). Regra de publicação: depois que um build com geração 7 for ao ar e alguém salvar, nunca reverta (Instant Rollback, revert ou deploy antigo) para um build cuja lista não aceite a geração 7 — corrija para frente. Se for preciso uma rede de segurança, publique antes um build só-leitor que aceite as gerações 6 e 7 (e os campos opcionais `courses`, `courseId` e `semester` opcional) mantendo a gravação na geração 5.
 
+## Publicação em produção pela `main`
+
+A produção sai da `main`: cada merge cria um deployment de produção na Vercel. O caminho é sempre branch → PR → CI verde → merge.
+
+Depois que um merge publicar, confirme **SHA, READY, alias e smoke**, nesta ordem:
+
+1. **SHA:** o deployment de produção mais recente aponta para o commit do merge. A exceção são os commits só de documentação, explicados abaixo.
+2. **READY:** o estado desse deployment é `READY`, não `ERROR` nem `BUILDING`.
+3. **Alias:** o domínio de produção aponta para esse deployment.
+4. **Smoke:** rode `npm run smoke`. Para outra origem, use `npm run smoke -- https://outra-origem`.
+
+### Smoke de produção
+
+`scripts/smoke-production.mjs` confere o site como um visitante sem conta:
+
+- `/` e `/login` respondem 200;
+- `/api/me` sem sessão responde 401;
+- `POST /api/assistant/jobs` sem sessão responde 401, e com uma origem indevida responde 403;
+- as respostas trazem `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `X-Robots-Tag` com os valores de `next.config.ts`, e as APIs trazem `Cache-Control: no-store`.
+
+É só leitura: usa `fetch`, não envia cookies nem credenciais e nunca imprime o corpo das respostas. Sai com código 1 se algo falhar.
+
+O CI não chama a produção. Ele roda o mesmo script contra um servidor local em `npm run test:gate`, para que o smoke e o contrato do app não se separem.
+
+### Commits só de documentação
+
+O `vercel.json` define `ignoreCommand` como `node scripts/vercel-ignore-build.mjs`. A Vercel roda esse comando antes de cada build: a saída 0 cancela o build e a saída 1 segue.
+
+- **Quando cancela:** só em produção, e só quando todos os arquivos alterados estão em `docs/`, `.claude/` ou `supabase/tests/`, ou terminam em `.md`.
+- **Contra o quê compara:** com o commit da última publicação bem-sucedida (`VERCEL_GIT_PREVIOUS_SHA`) ou, sem ele, com `HEAD^`.
+- **Na dúvida, publica.** Isso inclui preview, SHA em formato inesperado, falha do `git`, commit fora do clone raso de 10 commits da Vercel e diff vazio, como uma nova publicação do mesmo commit para aplicar variáveis de ambiente.
+
+Consequências:
+
+- **Produção pode mostrar um SHA mais antigo que a `main`, e isso é esperado.** Acontece quando os commits mais recentes são só de documentação. Nesse caso, confira:
+  - o deployment mais novo está `CANCELED`, e o log mostra "Build ignorado: só documentação mudou desde …";
+  - o deployment `READY` de produção é o do último commit que mudou código;
+  - o smoke continua valendo.
+- **O deployment cancelado ainda conta na cota de deployments da Vercel.** A economia é no tempo de build e em não republicar o mesmo código.
+- **O `.vercelignore` não pode listar `.git`.** Em deployments pelo Git, a Vercel aplica esse arquivo logo depois do clone, antes do comando, e o comando precisa do histórico. A CLI da Vercel nunca envia `.git`.
+- **Para publicar um commit só de documentação mesmo assim:** use Redeploy no painel da Vercel e desmarque "Use project's Ignore Build Step".
+
 ## Preservação e publicação do repositório
 
 Não use limpeza de `localStorage`, redefinição de dados, exclusão de backups ou substituição de `.env.local` como etapa de publicação. A origem inclui protocolo, host e porta: mudar qualquer parte pode tornar os dados anteriores invisíveis sem que tenham sido apagados. Mantenha uma cópia exportada antes de uma mudança intencional de origem.
