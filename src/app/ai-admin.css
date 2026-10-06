@@ -54,7 +54,6 @@
 .ai-connection-filter { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem; }
 .ai-connection-filter .ai-search { flex: 1 1 260px; }
 .my-ai-keys h2 { display: flex; align-items: center; gap: .6rem; }
-.my-ai-keys .ai-card > label { display: flex; flex-direction: column; gap: .5rem; }
 .my-ai-keys .ai-card > .cm-check { flex-direction: row; }
 .ai-key-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .8rem; }
 .ai-key-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem; border: 1px solid var(--line); border-radius: .8rem; }
@@ -62,7 +61,6 @@
 .ai-secret-input { display: flex; align-items: stretch; gap: .5rem; }
 .ai-secret-input input { flex: 1; }
 .ai-control fieldset { min-width: 0; margin: 0; padding: 0; border: 0; display: contents; }
-.my-ai-keys details > * + * { margin-block-start: .9rem; }
 @media (pointer: coarse) { .ai-control input:not([type='checkbox']), .ai-control select, .ai-control .button, .ai-control .text-button { min-height: 48px; font-size: 1rem; } }
 .ai-route-steps, .ai-route-step, .ai-mcp-settings { display: flex; flex-direction: column; gap: 14px; }
 .ai-route-step { padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--canvas); }

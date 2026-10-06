@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AlertTriangle, Info, Network, RefreshCw, Users } from 'lucide-react';
 import { aiCatalog, aiTaskLabels } from '@/lib/ai/catalog';
 import { autoModes, isAuto } from '@/lib/ai/models';
-import { capabilityLabels, declarableProviders, modelDependentCapabilities, providerCapabilities, reasonLabels, resourceInsights, resourceName, stateLabels,
+import { capabilityLabels, declarableProviders, modelDependentCapabilities, providerCapabilities, reasonLabels, resourceInsights, resourceName, sourceNamer, stateLabels,
   type AiResource, type AiResourceMap, type AiRouteMap } from '@/lib/ai/resources';
 import { api } from './client';
 import { Modal } from '../modal';
@@ -26,7 +26,6 @@ export function useResourceMap(enabled: boolean): ResourceMapState {
 }
 
 const modeLabels: Record<AiRouteMap['mode'], string> = { fixed: 'Rota fixa', fallback: 'Com alternativas', auto: 'Automático', legacy: 'Modo antigo' };
-const sttProviders = ['gemini', 'vertex', 'google_cloud', 'groq', 'openai'];
 
 export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onChanged?: () => void }) {
   const [busy, setBusy] = useState('');
@@ -51,8 +50,7 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
     !privacy_basis ? `${resourceName(resource)}: declaração retirada.` : audience === 'members' ? `${resourceName(resource)}: oferecida aos membros.` : `${resourceName(resource)}: liberada só para você.`);
   if (state.unavailable) return <p className="muted" role="status">O mapa de recursos aguarda a atualização do banco. Suas conexões continuam funcionando como antes.</p>;
   if (!map) return <p className="muted" role="status">{state.error || 'Abrindo o mapa de recursos…'}{state.error && <button type="button" className="button outline" onClick={() => void state.reload()}>Atualizar mapa</button>}</p>;
-  const byId = new Map(map.resources.map(resource => [resource.source_id, resource]));
-  const name = (id: string | null) => { const found = id ? byId.get(id) : undefined; return found ? resourceName(found) : 'Conexão removida'; };
+  const name = sourceNamer(map);
   const insights = resourceInsights(map);
   const shared = map.resources.filter(resource => resource.kind !== 'personal');
   const configured = shared.filter(resource => resource.configured);
@@ -108,7 +106,7 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
       {map.channels.map(channel => <div className="ai-card" key={channel.channel}><div className="section-heading"><strong>{channel.channel === 'telegram' ? 'Telegram' : 'WhatsApp'}</strong><span className="ai-badge">{channel.enabled ? 'Ligado' : 'Desligado'}</span></div>
         <span className="muted small">{channel.channel === 'telegram' && channel.bot ? `@${channel.bot} · ` : ''}{channel.owner_linked ? 'Sua conta está vinculada' : 'Sua conta não está vinculada'} · {channel.member_links} {channel.member_links === 1 ? 'membro vinculado' : 'membros vinculados'}</span>
         {channel.channel === 'whatsapp' && map.whatsapp && <span className="small">Ponte: {map.whatsapp.state === 'ready' ? 'conectada' : 'desconectada'}. Transcrição de áudio: {map.whatsapp.stt.source_id ? name(map.whatsapp.stt.source_id) : 'não escolhida'} · {map.whatsapp.stt.state === 'active' ? 'atuando' : reasonLabels[map.whatsapp.stt.reason ?? 'not_configured']}</span>}
-        {channel.channel === 'whatsapp' && map.whatsapp?.stt.provider && !sttProviders.includes(map.whatsapp.stt.provider) && <span className="muted small">Escolha Gemini, Google Cloud, Groq ou OpenAI para transcrever.</span>}
+        {channel.channel === 'whatsapp' && map.whatsapp?.stt.reason === 'capability' && <span className="muted small">Escolha Gemini, Google Cloud, Groq ou OpenAI para transcrever.</span>}
       </div>)}
       <div className="ai-card"><div className="section-heading"><strong>MCP da Jornada · entrada</strong><span className="ai-badge">{map.mcp_inbound.owner_tokens + map.mcp_inbound.owner_oauth} {map.mcp_inbound.owner_tokens + map.mcp_inbound.owner_oauth === 1 ? 'acesso ativo' : 'acessos ativos'}</span></div>
         <span className="muted small">Assistentes externos, como ChatGPT ou Claude, consultam e registram na sua Jornada com o seu acesso. Isso não permite que a Jornada use o modelo ou a assinatura deles.</span>

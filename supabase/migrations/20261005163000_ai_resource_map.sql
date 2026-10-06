@@ -229,8 +229,8 @@ begin
   stt_reason:=case when cfg.stt_connection='' then 'not_configured' when stt_provider is null then 'missing'
    when stt_provider not in('gemini','vertex','google_cloud','groq','openai') then 'capability'
    else private.ai_source_reason(stt_provider,stt_conn,cfg.stt_model) end;
-  bridge:=jsonb_build_object('enabled',cfg.enabled,'configured',cfg.token_hash<>'',
-   'state',case when cfg.heartbeat is null or cfg.heartbeat<now()-interval '90 seconds' then 'offline' else cfg.state end,'heartbeat',cfg.heartbeat,
+  bridge:=jsonb_build_object('enabled',cfg.enabled,
+   'state',case when cfg.heartbeat is null or cfg.heartbeat<now()-interval '90 seconds' then 'offline' else cfg.state end,
    'stt',jsonb_build_object('source_id',case when stt_conn is not null then 'connection:'||stt_conn::text when stt_provider is not null then 'provider:'||stt_provider end,
     'provider',stt_provider,'model',cfg.stt_model,'state',case when stt_reason is null then 'active' else 'blocked' end,'reason',stt_reason));
  end if;
@@ -243,13 +243,11 @@ begin
   'mcp_inbound',(select jsonb_build_object(
     'owner_tokens',count(*) filter(where m.user_id=owner_id and m.client_id is null),
     'owner_oauth',count(*) filter(where m.user_id=owner_id and m.client_id is not null),
-    'owner_can_write',count(*) filter(where m.user_id=owner_id and m.can_write),
-    'owner_last_used',max(m.last_used_at) filter(where m.user_id=owner_id),
     'members_with_access',count(distinct m.user_id) filter(where m.user_id is distinct from owner_id))
    from private.mcp_tokens m where m.revoked_at is null
     and (coalesce(m.expires_at,'infinity'::timestamptz)>now() or coalesce(m.refresh_expires_at,'-infinity'::timestamptz)>now())),
   'mcp_outbound',coalesce((select jsonb_agg(jsonb_build_object('id',c.id,'label',c.label,'host',substring(c.url from '^https://([^/:?#]+)'),
-    'protocol',c.protocol,'enabled',c.enabled,'has_key',c.key_ciphertext<>'') order by c.label) from private.ai_connectors c),'[]'::jsonb),
+    'enabled',c.enabled,'has_key',c.key_ciphertext<>'') order by c.label) from private.ai_connectors c),'[]'::jsonb),
   'members',jsonb_build_object('accounts',(select count(*) from public.accounts a where a.user_id is distinct from owner_id),
    'with_personal_keys',(select count(distinct k.user_id) from private.ai_user_keys k where k.enabled and k.user_id is distinct from owner_id)));
 end;

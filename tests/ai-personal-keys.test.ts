@@ -19,9 +19,9 @@ test('Gemini pessoal só liga com declaração de faturamento pago e uma chave d
   assert(aiMyKeyAction.safeParse({...key,provider:'groq',enabled:true,privacy_basis:'no_training'}).success);
 });
 
-test('remoção principal é explícita e aprovação de compartilhamento distingue privacidade', () => {
+test('remoção principal é explícita e o controle antigo da base saiu das chaves pessoais', () => {
   assert(aiAdminAction.safeParse({ action: 'remove_provider', provider: 'groq' }).success);
   assert(!aiAdminAction.safeParse({ action: 'remove_provider', provider: 'unknown' }).success);
-  assert(aiMyKeyAction.safeParse({ action: 'set_base_source', provider: 'gemini', connection_id: null, privacy_basis: 'paid' }).success);
-  assert(!aiMyKeyAction.safeParse({ action: 'set_base_source', provider: 'gemini', connection_id: null, privacy_basis: 'free' }).success);
+  assert(!aiMyKeyAction.safeParse({ action: 'set_base', enabled: true }).success);
+  assert(!aiMyKeyAction.safeParse({ action: 'set_base_source', provider: 'gemini', connection_id: null, privacy_basis: 'paid' }).success);
 });
