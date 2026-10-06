@@ -13,6 +13,7 @@ Not sure which skill to use: `/ask-matt`.
 - `analisar-referencia`: vídeo, app, repositório ou ideia → mecanismo, filtro legal e plano para a Jornada.
 - `avaliar-recurso-ia`: API, voz, MCP ou assinatura → capacidade, preço, política de dados e encaixe no roteador.
 - `conectar-assistentes-mcp`: ChatGPT, Claude e outros clientes no MCP da Jornada: OAuth, ferramentas, MCP Apps, testes e uso do plano da pessoa.
+- `orquestrador-inteligente`: menor custo por tarefa concluída; ferramenta → Haiku → Sonnet → Opus (Fable como reserva).
 - `quatro-perguntas`: filtro do proprietário antes de criar ou aprovar qualquer peça: precisa existir? já tem no sistema? a linguagem resolve? cabe em uma linha? Simplicidade corta código, nunca proteção.
 
 Cada skill traz `agents/openai.yaml` para o Codex. A pesquisa que embasa os três está em `docs/PESQUISA_RECURSOS_IA_2026-10-05.md`.
