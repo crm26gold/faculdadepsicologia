@@ -74,3 +74,42 @@ test('desfazer tira exatamente o que o comando criou e reabre o que ele concluiu
   assert.equal(back.activeFocus, null);
   assert.equal(back.notes[0].id, 'later');
 });
+
+test('saldo inicial, semestre e perfil são ajustados pelo assistente e desfeitos sem apagar edições posteriores', () => {
+  const start: Workspace = { ...base(), profile: { name: 'Ana', course: '', semester: '', institution: '', campus: '', registration: '', email: '', phone: '', photoUrl: 'data:image/png;base64,AAAA' } };
+  const { data, applied, failed } = applyCommands(start, [
+    { type: 'saldo_inicial', amount: 1250.5 },
+    { type: 'semestre', start: '2026-08-03', end: '2026-12-18' },
+    { type: 'perfil', fields: { institution: 'Anhanguera', semester: '3º' } },
+  ], { today: '2026-10-02', now, newId: ids() });
+  assert.deepEqual(failed, []);
+  assert.deepEqual(data.finance, { openingCents: 125050, openingDate: '2026-10-02' });
+  assert.deepEqual(data.term, { start: '2026-08-03', end: '2026-12-18' });
+  assert.deepEqual([data.profile!.name, data.profile!.institution, data.profile!.semester, data.profile!.photoUrl], ['Ana', 'Anhanguera', '3º', 'data:image/png;base64,AAAA']);
+  assert.equal(applied[2].label, 'Perfil atualizado: semestre, instituição');
+  assert.doesNotThrow(() => workspaceSchema.parse(data));
+
+  const corrected = applyCommands(data, [{ type: 'saldo_inicial', amount: -80, date: '2026-10-01' }], { today: '2026-10-02', now, newId: ids() });
+  assert.match(corrected.applied[0].label, /antes: R\$\s?1\.250,50/);
+  assert.deepEqual(undoApplied(corrected.data, corrected.applied).finance, data.finance);
+
+  const undone = undoApplied(data, applied);
+  assert.deepEqual([undone.finance, undone.term, undone.profile], [undefined, {}, start.profile]);
+  const editedLater = { ...data, term: { start: '2026-08-10', end: '2026-12-18' } };
+  assert.deepEqual(undoApplied(editedLater, applied).term, editedLater.term);
+});
+
+test('ajustes inválidos não mudam nada e explicam o motivo', () => {
+  const { data, applied, failed } = applyCommands(base(), [
+    { type: 'semestre', start: '2026-12-18', end: '2026-08-03' },
+    { type: 'semestre' },
+    { type: 'perfil', fields: { email: 'não é e-mail' } },
+    { type: 'perfil', fields: { photoUrl: 'data:image/png;base64,AAAA' } as never },
+  ], { today: '2026-10-02', now, newId: ids() });
+  assert.equal(applied.length, 0);
+  assert.equal(failed.length, 4);
+  assert.match(failed[0], /fim do semestre/);
+  assert.match(failed[1], /início ou o fim/);
+  assert.match(failed[3], /Informe o que mudar/);
+  assert.deepEqual([data.term, data.profile, data.finance], [{}, undefined, undefined]);
+});
