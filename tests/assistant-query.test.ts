@@ -67,3 +67,14 @@ test('pendentes junta o que espera organização, cada grupo com total', () => {
   assert.equal(clean.found, 0);
   assert.match(clean.message, /Nada pendente/);
 });
+
+test('consulta de anotações diz onde cada uma está; cadernos dizem quantas têm', () => {
+  const start = { ...data(), notebooks: [{ id: 'nb-out', name: 'Caderno outubro', areaId: '', color: 'sage' }],
+    notes: [{ id: 'n1', title: 'O Modelo Biopsicossocial', content: '', subjectId: 'tec', areaId: 'studies', notebookId: '', updatedAt: '2026-10-07T10:00:00Z' },
+      { id: 'n2', title: 'Solta', content: '', subjectId: '', areaId: '', notebookId: '', updatedAt: '2026-10-07T09:00:00Z' }] } as Workspace;
+  const notes = queryWorkspace(start, { section: 'anotacao' }, today) as unknown as { items: { id: string; lugar: string; tipoDeLugar: string }[] };
+  assert.deepEqual(notes.items.map(item => [item.id, item.lugar, item.tipoDeLugar]), [
+    ['n1', 'Estudos › Psicologia › Técnicas de Entrevista e Observação', 'matéria'], ['n2', 'Para organizar', 'Para organizar']]);
+  const books = queryWorkspace(start, { section: 'caderno' }, today) as unknown as { items: { name: string; anotacoes: number }[] };
+  assert.equal(books.items[0].anotacoes, 0, 'o Caderno outubro está vazio, e a consulta diz isso');
+});

@@ -1,4 +1,5 @@
 import { addDays, formatDate, type Workspace } from '../workspace';
+import { placeOf, placeTrail } from '../notebooks';
 import { currentBalance, money, monthLabel, monthOf, monthSummary, openItems } from '../finance';
 import { todayAgenda } from '../today';
 
@@ -43,7 +44,7 @@ export function screenModel(data: Workspace, screen: Screen, today: string): Scr
       { title: 'Projetos', empty: 'Nenhum projeto.', rows: (data.projects ?? []).filter(project => project.status !== 'archived').slice(0, MAX).map(project => ({ primary: project.title, secondary: project.deadline ? `até ${formatDate(project.deadline)}` : undefined, badge: statusWords[project.status] })) },
     ] };
     case 'anotacoes': return { screen, title: 'Caderno', subtitle: 'Anotações mais recentes', sections: [{ title: 'Recentes', empty: 'Nenhuma anotação.',
-      rows: data.notes.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, MAX * 2).map(note => ({ primary: note.title, secondary: formatDate(note.updatedAt.slice(0, 10)) })) }] };
+      rows: data.notes.toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, MAX * 2).map(note => ({ primary: note.title, secondary: `${formatDate(note.updatedAt.slice(0, 10))} · ${placeTrail(data, placeOf(note)).at(-1)}` })) }] };
     case 'meu_dia': {
       const open = openItems(transactions, today);
       const habits = data.habits ?? [];

@@ -4,6 +4,7 @@ import { entities, normalized, records, recordTitle, type Entity } from './assis
 import { commandContext } from './commands';
 import { todayAgenda } from './today';
 import { isUnorganized } from './capture';
+import { placeOf, placeTrail } from './notebooks';
 
 export const assistantQuery = z.object({
   section: z.enum(['resumo', 'agenda', 'busca', 'pendentes', 'configuracoes', ...entities]).default('resumo'),
@@ -89,6 +90,9 @@ export function queryWorkspace(data: Workspace, input: unknown, today: string) {
   if (query.section === 'materia') selected.forEach((item, index) => { const source = items[index];
     Object.assign(item, { professor: source.professor || null, course: source.courseId ? related.courses.get(String(source.courseId)) ?? null : null }); });
   if (content) selected.forEach((item, index) => { item.text = String(items[index].content).replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, '').replace(/<[^>]*>/g, ' ').slice(0, 5000); });
+  if (query.section === 'anotacao') selected.forEach((item, index) => { const place = placeOf(items[index] as never);
+    Object.assign(item, { lugar: placeTrail(data, place).join(' › '), tipoDeLugar: { inbox: 'Para organizar', subject: 'matéria', notebook: 'caderno', area: 'área' }[place.kind] }); });
+  if (query.section === 'caderno') selected.forEach((item, index) => { item.anotacoes = data.notes.filter(note => note.notebookId === items[index].id).length; });
   if (query.section === 'habito') selected.forEach((item, index) => { item.doneToday = (items[index].completedDates as string[]).includes(today); });
   const finance = query.section === 'financeiro' ? { totalsInReais: {
     paidExpenses: items.filter(item => item.type === 'expense' && item.status !== 'pending').reduce((sum, item) => sum + Number(item.amountCents), 0) / 100,

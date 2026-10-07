@@ -206,3 +206,16 @@ test('legenda da foto aponta o destino que já existe; sem destino, Para organiz
   assert.equal(captionPlace(data, 'comprovante do mercado'), undefined);
   assert.equal(captionPlace(data, 'caderno que não existe'), undefined, 'nome desconhecido nunca vira erro nem caderno novo');
 });
+
+test('anotação tem um lugar só: pedir matéria e caderno juntos explica a regra; mover diz para onde foi', () => {
+  const start = { ...base(), notebooks: [{ id: 'nb-out', name: 'Caderno outubro', areaId: '', color: 'sage' as const }],
+    notes: [{ id: 'bio', title: 'O Modelo Biopsicossocial', content: '<p>x</p>', subjectId: 'ppb', areaId: 'studies', notebookId: '', updatedAt: '2026-10-07T10:00:00Z' }] };
+  const both = applyCommands(start, [{ type: 'anotacao', text: 'Resumo', subject: 'Processos Psicológicos Básicos', notebook: 'Caderno outubro' }], { today: '2026-10-07', now, newId: ids() });
+  assert.equal(both.applied.length, 0);
+  assert.match(both.failed[0], /um lugar só.*Cada matéria já é um caderno/);
+  const edit = applyCommands(start, [{ type: 'editar', entity: 'anotacao', target: 'bio', fields: { subject: 'ppb', notebook: 'Caderno outubro' } }], { today: '2026-10-07', now, newId: ids() });
+  assert.match(edit.failed[0], /um lugar só/);
+  const moved = applyCommands(start, [{ type: 'editar', entity: 'anotacao', target: 'bio', fields: { notebook: 'Caderno outubro' } }], { today: '2026-10-07', now, newId: ids() });
+  assert.equal(moved.applied[0].label, 'Anotação movida para Meus cadernos › Caderno outubro: O Modelo Biopsicossocial');
+  assert.deepEqual([moved.data.notes[0].notebookId, moved.data.notes[0].subjectId], ['nb-out', '']);
+});

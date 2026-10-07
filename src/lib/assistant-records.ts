@@ -61,7 +61,7 @@ export function changeRecord(data: Workspace, entity: Entity, fields: Record<str
   for (const key of Object.keys(fields)) if (!entityFields[entity].split(',').includes(key)) throw new Error(`O campo “${key}” não pode ser alterado em ${entity}.`);
   if (fields.replace !== undefined && typeof fields.replace !== 'boolean') throw new Error('O campo replace deve ser true ou false.');
   const places = ['area', 'subject', 'notebook'].filter(key => fields[key] !== undefined && fields[key] !== '');
-  if (entity === 'anotacao' && places.length > 1) throw new Error('Escolha apenas um destino para a anotação: matéria, caderno ou área.');
+  if (entity === 'anotacao' && places.length > 1) throw new Error('Uma anotação fica em um lugar só: uma matéria, um caderno ou uma área. Cada matéria já é um caderno. Diga qual dos dois a pessoa prefere.');
   const defaults: Record<Entity, Record<string, unknown>> = {
     compromisso: { subjectId: '', done: false, minutes: 30, kind: 'Compromisso' },
     anotacao: { title: 'Anotação', content: '', subjectId: '', updatedAt: new Date(now).toISOString() },
