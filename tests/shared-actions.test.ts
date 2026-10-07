@@ -48,6 +48,11 @@ test('negativas do banco viram mensagens claras, e a administração fala só co
   assert.match(result.failed[1], /^Só o administrador geral/);
   const read = await readShared(sessionTransport(denied), 'contas');
   assert.deepEqual(read, { error: 'Só o administrador geral consulta e altera a administração.' });
+  const renamed = client();
+  const account = await runSharedCommands(sessionTransport(renamed), [{ area: 'conta', acao: { action: 'rename', name: '  Ana Souza ' } },
+    { area: 'conta', acao: { action: 'delete_account' } }], null);
+  assert.deepEqual(renamed.calls, [{ fn: 'update_my_name', args: { new_name: 'Ana Souza' } }], 'excluir a conta nunca passa pelo assistente');
+  assert.deepEqual([account.done, account.failed.length], [['Nome exibido: Ana Souza'], 1]);
   const invite = client({ create_invitation: { data: 'inv-1', error: null } });
   const created = await runSharedCommands(sessionTransport(invite), [{ area: 'salas', acao: { action: 'create_invitation', space: SPACE, role: 'student', days: 7, uses: 30 } }], 'https://jornada.example');
   assert.match(created.done[0], /^Convite criado \(aluno, 7 dias, até 30 usos\): https:\/\/jornada\.example\/convite\/[A-Za-z0-9_-]{32}$/);

@@ -22,6 +22,8 @@ export function authorizationServer(origin: string) {
     registration_endpoint: `${origin}/api/oauth/register`, response_types_supported: ['code'], response_modes_supported: ['query'],
     grant_types_supported: ['authorization_code', 'refresh_token'], code_challenge_methods_supported: ['S256'],
     token_endpoint_auth_methods_supported: ['none'], scopes_supported: [...OAUTH_SCOPES],
+    // RFC 9207: every redirected authorization answer (granted or denied) carries iss; errors before the client is known stay on screen.
+    authorization_response_iss_parameter_supported: true,
   };
 }
 export const resourceMetadataUrl = (origin: string) => `${origin}/.well-known/oauth-protected-resource/api/mcp`;

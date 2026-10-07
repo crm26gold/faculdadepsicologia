@@ -1300,7 +1300,10 @@ test('finanças: saldo inicial, parcelas agrupadas, projeção, aviso do Meu dia
   await expect(page.locator('.fin-projection > strong')).toHaveText(/^-R\$\s4\.250,00$/);
   expect((await new AxeBuilder({ page }).include('.fin').analyze()).violations).toEqual([]);
 
-  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!));
+  // Saving to this device happens right after the change, not inside the click: wait for it.
+  const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1') ?? '{}'));
+  await expect.poll(async () => (await stored()).transactions?.length ?? 0).toBe(3);
+  const saved = await stored();
   expect(saved.editorGeneration).toBe(9);
   expect(saved.finance).toEqual({ openingCents: -50000, openingDate: day(0) });
   expect(saved.transactions.map((item: { amountCents: number; status: string }) => [item.amountCents, item.status])).toEqual([[125000, 'pending'], [125000, 'pending'], [125000, 'pending']]);
@@ -1320,7 +1323,7 @@ test('finanças: saldo inicial, parcelas agrupadas, projeção, aviso do Meu dia
   await page.locator('#fin-panel-bills').getByRole('button', { name: 'Excluir: Notebook' }).first().click();
   await page.getByRole('button', { name: /Este e os próximos \(2\)/ }).click();
   await expect(page.locator('#fin-panel-bills .fin-row')).toHaveCount(0);
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('faculdade-psi:personal:v1')!).transactions.length)).toBe(1);
+  await expect.poll(async () => (await stored()).transactions?.length).toBe(1);
 });
 
 test('a bolinha do assistente acompanha a altura da janela até ser arrastada, e a apresentação nunca cobre o topo', async ({ page }) => {

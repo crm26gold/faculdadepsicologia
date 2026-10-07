@@ -35,11 +35,14 @@ export const assistantAdminAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('usar_ia'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), model: z.string().trim().min(1).max(120).default('auto:rapido'),
     mode: z.enum(['auto', 'fixed']).default('auto'), enabled: z.boolean().default(true) }),
 ]);
+// The person's own account: only the display name; terms and account deletion stay on the screen.
+export const assistantAccountAction = z.object({ action: z.literal('rename'), name: z.string().trim().min(1).max(120) });
 export const sharedAction = z.discriminatedUnion('area', [
   z.object({ area: z.literal('salas'), acao: assistantSpaceAction }),
   z.object({ area: z.literal('trabalhos'), acao: assistantWorkAction }),
   z.object({ area: z.literal('contatos'), acao: assistantContactAction }),
   z.object({ area: z.literal('administracao'), acao: assistantAdminAction }),
+  z.object({ area: z.literal('conta'), acao: assistantAccountAction }),
 ]);
 export type SharedAction = z.infer<typeof sharedAction>;
 
@@ -129,6 +132,7 @@ async function administer(transport: Transport, acao: z.infer<typeof assistantAd
 /** Runs or proposes one assistant action; `origin` builds invitation links. */
 export async function runShared(transport: Transport, action: SharedAction, origin: string | null): Promise<SharedOutcome> {
   if (action.area === 'administracao') return administer(transport, action.acao);
+  if (action.area === 'conta') return run(transport, { fn: 'update_my_name', args: { new_name: action.acao.name } }, `Nome exibido: ${action.acao.name}`);
   if (action.area === 'contatos') {
     const acao = action.acao;
     return acao.action === 'delete' ? proposeDeletion(transport, 'delete_contact', acao.contact) : run(transport, contactCall(acao), `Contato salvo: ${acao.name}`);

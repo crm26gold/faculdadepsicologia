@@ -2,7 +2,7 @@
 
 ## O que foi implementado
 
-O WhatsApp Business de um número temporário funciona como transporte. A conta da Jornada, no Supabase `uccoaebzmvocqwqljmul`, continua sendo a proprietária do espaço, das permissões e do histórico. A integração usa **whatsapp-web.js 1.34.7**, conexão por QR e sessão exclusiva; não reutiliza tokens, banco ou sessão do ZapBot.
+O WhatsApp Business de um número temporário funciona como transporte. A conta da Jornada, no Supabase `uccoaebzmvocqwqljmul`, continua sendo a proprietária do espaço, das permissões e do histórico. A integração usa **whatsapp-web.js 1.34.7**, conexão por QR e sessão exclusiva, sem tokens, banco ou sessão de outros sistemas.
 
 ```mermaid
 flowchart LR
