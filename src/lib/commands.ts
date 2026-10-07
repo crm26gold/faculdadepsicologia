@@ -6,7 +6,7 @@ import { buildSeries, currentBalance, expenseCategories, incomeCategories, money
 import { finishFocus, pauseFocus, resumeFocus, startFocus } from './focus';
 import { changeRecord, collections, entities, entityCollection as entityCollectionOf, entityFields, entityView, findRecord, normalized, recordFields, records, recordTitle, removeRecord, validateChange, type Collection, type RecordItem } from './assistant-records';
 import { lifeAreas } from './life';
-import { placeFields, type Place } from './notebooks';
+import { placeFields, placeOf, placeTrail, type Place } from './notebooks';
 import { emptyProfile } from './life-data';
 import { todayAgenda } from './today';
 import { screens } from './screens/names';
@@ -144,6 +144,7 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           break;
         }
         case 'anotacao': {
+          if ([action.notebook, action.subject, action.area].filter(Boolean).length > 1) throw new Error('Uma anotação fica em um lugar só: uma matéria, um caderno ou uma área. Cada matéria já é um caderno. Diga qual dos dois a pessoa prefere.');
           const captured = captureNote(action.text, newId(), new Date(options.now).toISOString());
           const area = action.area ? matchByName(lifeAreas(next), action.area) : undefined;
           let subject = action.subject ? matchByName(next.subjects, action.subject) : undefined;
@@ -209,7 +210,9 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
             if (!confirmation) { pending.push(candidate); break; }
           }
           next = action.type === 'excluir' ? removeRecord(next, action.entity, item) : changeRecord(next, action.entity, action.fields, options.now, item);
-          applied.push({ label: `${action.type === 'excluir' ? `Excluído${direct ? ' (fica na lixeira por 30 dias)' : ''}` : 'Atualizado'}: ${recordTitle(item)}`, view: entityView[action.entity], id: item.id, undo: { kind: 'changes', items: differences(before, next) } });
+          const moved = action.type === 'editar' && action.entity === 'anotacao' && ['area', 'subject', 'notebook'].some(key => action.fields[key] !== undefined);
+          const movedTo = moved ? next.notes.find(note => note.id === item.id) : undefined;
+          applied.push({ label: `${action.type === 'excluir' ? `Excluído${direct ? ' (fica na lixeira por 30 dias)' : ''}` : movedTo ? `Anotação movida para ${placeTrail(next, placeOf(movedTo)).join(' › ')}` : 'Atualizado'}: ${recordTitle(item)}`, view: entityView[action.entity], id: item.id, undo: { kind: 'changes', items: differences(before, next) } });
           break;
         }
         case 'habito_feito': {
@@ -372,7 +375,7 @@ Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
 A resposta deve soar falada: frases curtas e claras, sem listas longas nem markdown; pode ser mais longa só quando a pessoa pedir explicação.
 Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa comum, "actions" fica vazio):
 - {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional)}
-- {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional),"link":"https://..."(opcional, para guardar um link)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Use só um destino.
+- {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional),"link":"https://..."(opcional, para guardar um link)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Cada anotação fica em UM lugar só (matéria, caderno ou área) e cada matéria já é um caderno: nunca prometa dois lugares; se a pessoa pedir matéria e caderno juntos, pergunte qual prefere.
 - {"type":"financeiro","flow":"expense"|"income","description":"...","amount":número em reais,"category":uma de [${expenseCategories.join(', ')}] para saídas ou [${incomeCategories.join(', ')}] para entradas,"date":"AAAA-MM-DD","pending":true se ainda vai pagar/receber,"nature":"fixed"|"variable"|"oneoff","installments":número de parcelas (opcional),"monthly":meses se repete todo mês (opcional)}
 - {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo
 - {"type":"concluir","title":"nome do compromisso"} — marcar como feito
