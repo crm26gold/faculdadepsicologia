@@ -18,27 +18,33 @@ function fakeDb(options: { storeFails?: boolean } = {}) {
   };
   return { calls, rpc };
 }
+const personalDeletion = { action: { type: 'excluir', entity: 'compromisso', target: 'task-1' }, fingerprint: '{}', label: 'Excluir compromisso: Dentista (2026-10-08)' } as const;
 
-test('robôs agem como a pessoa da conversa e guardam exclusões para confirmar no app', async () => {
-  const { botHome, botShared, splitShared } = await import('../src/lib/bot/shared');
+test('robôs agem como a pessoa da conversa e guardam o que precisa de confirmação num só pedido', async () => {
+  const { botHome, botShared, botSummary, splitShared, storeBotConfirmation } = await import('../src/lib/bot/shared');
   const db = fakeDb();
   const split = splitShared([{ type: 'anotacao', text: 'x' }, { type: 'coletivo', area: 'salas', acao: { action: 'create_post', space: SPACE, kind: 'announcement', title: 'Prova' } },
     { type: 'coletivo', area: 'salas', acao: { action: 'delete_post', post: POST } }] as never);
-  assert.equal(split.personal.length, 1);
-  assert.equal(split.shared.length, 2);
-  const out = await botShared(db, 'segredo', 'telegram', '555', split.shared);
+  assert.deepEqual([split.personal.length, split.shared.length], [1, 2]);
+  const shared = await botShared(db, 'segredo', 'telegram', '555', split.shared);
   assert.deepEqual(db.calls.filter(call => call.fn === 'bot_act').map(call => [call.args.channel_id, call.args.chat, call.args.operation]),
     [['telegram', '555', 'create_post'], ['telegram', '555', 'describe']]);
-  const stored = db.calls.find(call => call.fn === 'bot_store_confirmation')!;
-  assert.equal(stored.args.outcome.pending[0].label, 'Excluir publicação: Aviso (Grupo 1)');
-  assert.equal(stored.args.outcome.pending[0].action.type, 'excluir_coletivo');
-  assert.equal(out.text, 'Feito: Publicado no mural: Prova. Guardei para você confirmar no aplicativo, em Meu dia: Excluir publicação: Aviso (Grupo 1).');
+  assert.equal(db.calls.some(call => call.fn === 'bot_store_confirmation'), false, 'executar nunca guarda sozinho');
+  const waiting = [personalDeletion, ...shared.pending];
+  assert.equal(await storeBotConfirmation(db, 'segredo', 'telegram', '555', waiting), true);
+  const stored = db.calls.filter(call => call.fn === 'bot_store_confirmation');
+  assert.equal(stored.length, 1, 'um pedido só no Meu dia');
+  assert.deepEqual(stored[0].args.outcome.pending.map((item: { label: string }) => item.label), ['Excluir compromisso: Dentista (2026-10-08)', 'Excluir publicação: Aviso (Grupo 1)']);
+  assert.equal(botSummary(shared, waiting, true),
+    'Feito: Publicado no mural: Prova. Guardei para você confirmar no aplicativo, em Meu dia: Excluir compromisso: Dentista (2026-10-08); Excluir publicação: Aviso (Grupo 1).');
   assert.match(await botHome(db, 'segredo', 'whatsapp', '5511'), /Grupo 1 \(group, papel: leader, id 00000000-0000-4000-8000-0000000000b1\)/);
+  assert.equal(await storeBotConfirmation(db, 'segredo', 'telegram', '555', []), true, 'nada a guardar não chama o banco');
+  assert.equal(db.calls.filter(call => call.fn === 'bot_store_confirmation').length, 1);
 });
 
 test('se o pedido não puder ser guardado, o robô diz que nada foi excluído', async () => {
-  const { botShared } = await import('../src/lib/bot/shared');
-  const out = await botShared(fakeDb({ storeFails: true }), 'segredo', 'whatsapp', '5511', [{ type: 'coletivo', area: 'salas', acao: { action: 'delete_post', post: POST } }]);
-  assert.match(out.text, /^Não consegui: não consegui guardar o pedido de confirmação; nada foi excluído nem alterado\.$/);
-  assert.doesNotMatch(out.text, /Guardei/);
+  const { botSummary, storeBotConfirmation } = await import('../src/lib/bot/shared');
+  const stored = await storeBotConfirmation(fakeDb({ storeFails: true }), 'segredo', 'whatsapp', '5511', [personalDeletion]);
+  assert.equal(stored, false);
+  assert.equal(botSummary(null, [personalDeletion], stored), 'Não consegui guardar o pedido de confirmação; nada foi excluído nem alterado. Tente de novo.');
 });

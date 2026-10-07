@@ -7,7 +7,7 @@ import { botServerSecret } from '../bot/secrets';
 import type { botDatabase } from '../supabase/bot';
 import type { ConfirmablePending } from '../confirmable';
 import type { JobOutcome } from '../assistant-jobs';
-import { assistantContactAction, assistantSpaceAction, assistantWorkAction, readShared, runShared, type SharedAction, type SharedOutcome, type Transport } from '../shared-actions';
+import { assistantAccountAction, assistantContactAction, assistantSpaceAction, assistantWorkAction, readShared, runShared, type SharedAction, type SharedOutcome, type Transport } from '../shared-actions';
 
 // The collective layer for MCP clients. Every call goes through public.mcp_act, which runs the screen's
 // function as the key's owner (the person's actor), so each role can do exactly what it could do on screen.
@@ -79,4 +79,11 @@ export function registerCollectiveTools(server: McpServer, db: Database, access:
     inputSchema: z.object({ acao: assistantContactAction }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, async ({ acao }) => mcpShared(db, access, { area: 'contatos', acao }));
+
+  server.registerTool('minha_conta', {
+    title: 'Mudar meu nome exibido',
+    description: 'Muda o nome que as outras pessoas veem nas salas e grupos. Aceitar termos e excluir a conta são feitos só na tela.',
+    inputSchema: z.object({ acao: assistantAccountAction }),
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+  }, async ({ acao }) => mcpShared(db, access, { area: 'conta', acao }));
 }

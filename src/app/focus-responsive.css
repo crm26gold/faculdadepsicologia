@@ -105,7 +105,7 @@
 
 button.bento-metric-card .metric-value, button.bento-metric-card .metric-sub { display: block; }
 button.bento-metric-card { inline-size: 100%; text-align: start; font: inherit; color: inherit; cursor: pointer; }
-button.bento-metric-card:focus-visible { outline: 3px solid var(--focus, #2F6B55); outline-offset: 2px; }
+button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); outline-offset: 2px; }
 .metric-go { margin-inline-start: auto; color: var(--muted); }
 .focus-page { display: flex; flex-direction: column; gap: 16px; }
 .focus-page h2 { font-size: 1rem; margin-block-end: 10px; }

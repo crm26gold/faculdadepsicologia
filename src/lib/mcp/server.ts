@@ -62,7 +62,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     title: 'Registrar na Jornada',
     description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, excluir, habito_feito, controlar_foco, saldo_inicial (quanto a pessoa tem para o saldo de Finanças), semestre e perfil. Agrupe até oito ações do mesmo pedido. Não invente valores. Exclusões ficam pendentes para confirmação no aplicativo.',
     inputSchema: z.object({ acoes: z.array(commandAction).min(1).max(8).describe('Ações validadas, na ordem em que devem ser aplicadas.'), request_id: z.uuid().optional().describe('UUID do pedido; reutilize ao repetir o mesmo pedido após uma falha de conexão, por até 90 dias.') }),
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, async ({ acoes, request_id }) => {
     if (!access.canWrite) return { ...text('Esta chave só consulta. Crie uma chave com permissão de registrar em Meu espaço › Conectar assistentes.'), isError: true };
     const requestId = request_id ?? crypto.randomUUID();

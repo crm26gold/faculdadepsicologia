@@ -9,7 +9,7 @@ import type { Turn } from '../ai/turns';
 import { speakReply } from '../voice/reply-mode';
 import { bridgeInput, confirmationIntent, validatedMedia } from './protocol';
 import { whatsappRpc } from './server';
-import { botHome, botShared, splitShared } from '../bot/shared';
+import { botHome, botShared, botSummary, splitShared, storeBotConfirmation } from '../bot/shared';
 import { botServerSecret } from '../bot/secrets';
 import { botDatabase } from '../supabase/bot';
 
@@ -64,13 +64,16 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
     // Rooms, group work and contacts act as the linked person, once, before the personal commit loop.
     const { personal, shared: collective } = splitShared(plan.actions);
     const shared = collective.length ? await botShared(botDatabase()!, botServerSecret(), 'whatsapp', peer, collective) : null;
+    // Personal deletions keep the in-chat code; shared deletions and administration wait in the app's Meu dia.
+    const stored = shared ? await storeBotConfirmation(botDatabase()!, botServerSecret(), 'whatsapp', peer, shared.pending) : true;
+    const sharedText = shared ? botSummary(shared, shared.pending, stored) : '';
     let current = context;
     for (let attempt = 0; attempt < 2; attempt++) {
       const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
       const executed = applyCommands(data, personal, { today, now: Date.now(), ...(confirmed ? { confirmed: pending!.actions } : {}) });
       const confirmation = String(randomInt(100000, 1000000));
-      let reply = plan.actions.length ? [shared?.text ?? '', personal.length ? executionSummary(executed) : ''].filter(Boolean).join(' ') : plan.reply;
-      if (executed.pending.length) reply = [shared?.text ?? '', executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',
+      let reply = plan.actions.length ? [sharedText, personal.length ? executionSummary(executed) : ''].filter(Boolean).join(' ') : plan.reply;
+      if (executed.pending.length) reply = [sharedText, executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',
         `Confirme ${executed.pending.map(item => item.label).join('; ')}. Envie ou fale “confirmar ${confirmation}”. Vale por 15 minutos. Para desistir, diga “cancelar”.`,
         executed.failed.length ? `Não consegui: ${executed.failed.join('; ')}.` : ''].filter(Boolean).join(' ');
       reply = (reply || 'Nenhuma alteração foi feita.').slice(0, 4000);

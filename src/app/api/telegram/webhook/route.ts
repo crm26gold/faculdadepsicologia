@@ -7,7 +7,7 @@ import { botIntent, botReply, helpText, notLinkedText, todayIn } from '@/lib/bot
 import { botServerSecret, telegramWebhookSecret } from '@/lib/bot/secrets';
 import { downloadFile, sendMessage, sendTyping, TelegramError, type TelegramUpdate } from '@/lib/bot/telegram';
 import { storeTelegramPhoto } from '@/lib/bot/photo';
-import { botHome, botShared, splitShared } from '@/lib/bot/shared';
+import { botHome, botShared, botSummary, splitShared, storeBotConfirmation } from '@/lib/bot/shared';
 import type { AiImage } from '@/lib/ai/media';
 import { imageReview, imageReviewSystem } from '@/lib/ai/image-review';
 import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand, undoApplied, type Applied } from '@/lib/commands';
@@ -163,10 +163,12 @@ export async function POST(request: Request) {
       }
       if (saved.error) { await say('Entendi, mas não consegui salvar agora. Tente de novo em instantes.'); return ok(); }
     }
-    const pending = outcome.pending.length ? `Não excluí nem substituí conteúdo. Abra o Assistente na Jornada Plena, repita este pedido e confirme lá: ${outcome.pending.map(item => item.label).join('; ')}.` : '';
-    const actualReply = result.actions.length ? [shared?.text ?? '', personal.length ? executionSummary({ ...outcome, pending: [] }) : ''].filter(Boolean).join(' ')
+    // Personal and shared items that need a confirmation become one request in the person's Meu dia.
+    const waiting = [...outcome.pending, ...(shared?.pending ?? [])];
+    const stored = await storeBotConfirmation(db, serverSecret, CHANNEL, chat, waiting);
+    const actualReply = result.actions.length ? [botSummary(shared, waiting, stored), personal.length && (outcome.applied.length || outcome.failed.length) ? executionSummary({ ...outcome, pending: [] }) : ''].filter(Boolean).join(' ')
       : result.reply || 'Não entendi bem. Pode dizer de outro jeito?';
-    const text = botReply(`${heard ? `🎙️ “${heard.slice(0, 300)}”\n\n` : ''}${actualReply}${pending ? ` ${pending}` : ''}`, outcome.applied, []);
+    const text = botReply(`${heard ? `🎙️ “${heard.slice(0, 300)}”\n\n` : ''}${actualReply || 'Nenhuma alteração foi feita.'}`, outcome.applied, []);
     await log(text, outcome.applied.length ? outcome.applied : null);
     await say(text);
   } catch (error) {
