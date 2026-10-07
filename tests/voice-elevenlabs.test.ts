@@ -41,7 +41,7 @@ const config = (model = 'auto:rapido') => ({ provider: 'elevenlabs' as const, mo
 
 test('ferramentas do agente seguem o formato do ElevenLabs e as mesmas regras da voz', () => {
   const tools = elevenLabsTools();
-  assert.deepEqual(tools.map(tool => tool.name), ['consultar_jornada', 'organizar_jornada', 'confirmar_alteracao', 'cancelar_alteracao', 'desfazer_ultima_acao']);
+  assert.deepEqual(tools.map(tool => tool.name), ['consultar_jornada', 'consultar_coletivo', 'organizar_jornada', 'confirmar_alteracao', 'cancelar_alteracao', 'desfazer_ultima_acao']);
   for (const tool of tools) {
     assert.equal(tool.type, 'client');
     assert.equal(tool.expects_response, true);
@@ -52,7 +52,7 @@ test('ferramentas do agente seguem o formato do ElevenLabs e as mesmas regras da
   }
   assert.deepEqual(tools[0].parameters?.required, ['section']);
   assert.ok(tools[0].parameters?.properties.section.enum?.includes('agenda'));
-  assert.equal(tools[2].parameters, undefined);
+  assert.equal(tools.find(tool => tool.name === 'confirmar_alteracao')!.parameters, undefined);
   const agent = elevenLabsAgentConfig('gemini-2.5-flash', ['tool_1']);
   assert.equal(agent.platform_settings.auth.enable_auth, true, 'o agente só abre conversas com URL assinada');
   assert.equal(agent.platform_settings.privacy.record_voice, false);
@@ -106,10 +106,10 @@ test('primeira chamada cria ferramentas e agente; a seguinte reutiliza sem recri
     assert.doesNotMatch(JSON.stringify(session), new RegExp(KEY));
     assert.ok(fake.calls.every(call => call.key === KEY));
     const created = fake.calls.find(call => call.path === '/v1/convai/agents/create')!;
-    assert.deepEqual(created.body!.conversation_config.agent.prompt.tool_ids, ['tool_1', 'tool_2', 'tool_3', 'tool_4', 'tool_5']);
+    assert.deepEqual(created.body!.conversation_config.agent.prompt.tool_ids, ['tool_1', 'tool_2', 'tool_3', 'tool_4', 'tool_5', 'tool_6']);
     assert.equal(created.body!.tags[0], ELEVENLABS_AGENT_TAG);
     assert.match(created.body!.tags[1], /^jp-[0-9a-f]{12}$/);
-    assert.equal(fake.calls.filter(call => call.method === 'POST' && call.path === '/v1/convai/tools').length, 5);
+    assert.equal(fake.calls.filter(call => call.method === 'POST' && call.path === '/v1/convai/tools').length, 6);
     const before = fake.calls.length;
     await ensureElevenLabsAgent(KEY, 'auto:rapido', AbortSignal.timeout(5000));
     assert.equal(fake.calls.length, before, 'o agente preparado fica em cache');
@@ -127,7 +127,7 @@ test('agente existente é atualizado só quando a configuração mudou, preserva
     assert.equal(agent.agentId, 'agent_old');
     const patch = fake.calls.find(call => call.method === 'PATCH' && call.path === '/v1/convai/agents/agent_old')!;
     assert.equal(patch.body!.conversation_config.tts.voice_id, 'voz_escolhida');
-    assert.deepEqual(patch.body!.conversation_config.agent.prompt.tool_ids, ['old_0', 'old_1', 'old_2', 'old_3', 'old_4']);
+    assert.deepEqual(patch.body!.conversation_config.agent.prompt.tool_ids, ['old_0', 'old_1', 'old_2', 'old_3', 'old_4', 'old_5']);
     assert.equal(fake.calls.some(call => call.method === 'POST'), false, 'ferramentas e agente não são duplicados');
     version = patch.body!.tags[1];
   } finally { fake.restore(); resetElevenLabsCache(); }

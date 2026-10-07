@@ -30,6 +30,9 @@ export const commandAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('saldo_inicial'), amount: z.number().min(-1_000_000_000).max(1_000_000_000), date: daySchema.optional() }),
   z.object({ type: z.literal('semestre'), start: daySchema.optional(), end: daySchema.optional() }),
   z.object({ type: z.literal('perfil'), fields: profileSchema.omit({ photoUrl: true }).partial() }),
+  // Rooms, group work, contacts and administration run on the server with the person's login
+  // (shared-actions.ts validates `acao`); deletions and administration become confirmations.
+  z.object({ type: z.literal('coletivo'), area: z.enum(['salas', 'trabalhos', 'contatos', 'administracao']), acao: z.record(z.string(), z.unknown()) }),
 ]);
 export type CommandAction = z.infer<typeof commandAction>;
 export const commandResult = z.object({ reply: z.string().trim().max(3000).default(''), actions: z.array(commandAction).max(8).default([]) });
@@ -183,6 +186,7 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
             view: 'studies', undo: { kind: 'setting', key: 'term', before: previous, after: next.term } });
           break;
         }
+        case 'coletivo': throw new Error('Pedidos de salas, trabalhos, contatos e administração usam as ferramentas próprias deste assistente.');
         case 'perfil': {
           const changed = Object.keys(action.fields);
           if (!changed.length) throw new Error('Informe o que mudar no perfil.');
@@ -296,6 +300,12 @@ Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa
 - {"type":"saldo_inicial","amount":número em reais (negativo se a pessoa começa devendo),"date":"AAAA-MM-DD"(opcional, padrão hoje)} — quanto a pessoa tem para o saldo de Finanças partir dali; substitui o saldo inicial anterior
 - {"type":"semestre","start":"AAAA-MM-DD"(opcional),"end":"AAAA-MM-DD"(opcional)} — datas do semestre que limitam as aulas recorrentes
 - {"type":"perfil","fields":{name,course,semester,institution,campus,registration,email,phone}} — só os campos que a pessoa pediu para mudar
+- {"type":"coletivo","area":"salas"|"trabalhos"|"contatos"|"administracao","acao":{...}} — salas, grupos, mural, enquetes, trabalhos em grupo, contatos e administração, sempre com as permissões da própria pessoa. Use os IDs da lista "Salas e grupos da pessoa". Formatos de acao:
+  salas: {"action":"create_post","space":ID,"kind":"announcement"|"material"|"event","title":"…","body":"…","date":"AAAA-MM-DD"|null,"pinned":false}; {"action":"create_poll","space":ID,"question":"…","options":["…","…"]}; {"action":"vote","poll":ID,"choice":índice}; {"action":"create_space","kind":"institution"|"class"|"group","name":"…","parent":ID|null,"description":"","color":"sage"}; {"action":"update_space","space":ID,"name":"…","description":"…","color":"sage"}; {"action":"archive_space","space":ID,"archived":true|false}; {"action":"add_member","space":ID,"email":"…","role":"student"|"leader"}; {"action":"create_invitation","space":ID,"role":"student"|"leader","days":1-60,"uses":1-500}; {"action":"revoke_invitation","invitation":ID}; {"action":"delete_post","post":ID}; {"action":"delete_poll","poll":ID}
+  trabalhos: {"action":"create_assignments","spaces":[ID],"title":"…","subject":"","instructions":"","rules":"","due":"AAAA-MM-DD"|null,"parts":["…"]}; {"action":"update_assignment","assignment":ID,"title":"…","status":"open"|"delivered"|"archived"}; {"action":"add_part","assignment":ID,"title":"…","assignee":ID|null}; {"action":"save_part","part":ID,"status":"submitted"|"approved"|"needs_revision"|null}; {"action":"add_comment","part":ID,"kind":"comment"|"revision_request","body":"…"}; {"action":"resolve_comment","comment":ID}; {"action":"delete_assignment","assignment":ID}; {"action":"delete_part","part":ID}
+  contatos: {"action":"save","contact":ID|null,"name":"…","email":"","phone":"","birthdate":"AAAA-MM-DD"|null,"notes":""}; {"action":"delete","contact":ID}
+  administracao (só para o administrador geral): {"action":"atualizar_conta","account":ID,"plan":"academic"|"pro","source":"free"|"paid"|"courtesy","pro_until":"AAAA-MM-DD"|null,"credits":número,"features":["create_classes","ai"]}; {"action":"acesso_livre","value":true|false}; {"action":"usar_ia","task":"assistente"|"organizar"|"voz","provider":"groq"|"gemini"|"xai"|"openai"|"anthropic"|"deepseek"|"mistral"|"openrouter","model":"auto:rapido"}
+  Exclusões e administração ficam guardadas para a pessoa confirmar no aplicativo; diga isso. Tirar ou bloquear pessoas, mudar papéis, dar papel de professor ou administrador e chaves de API são só pela tela: explique onde fazer, sem criar ação.
 Tipos de registro e únicos campos aceitos em fields:
 ${entities.map(entity => `${entity}: ${entityFields[entity]}`).join('\n')}
 Campos de vínculo area,subject,project,goal,course,notebook recebem um ID existente ou nome inequívoco, nunca invente IDs. Cor: sage|lavender|sand|blue|rose. Status de meta/projeto: active|paused|completed|archived; curso: active|paused|completed.
