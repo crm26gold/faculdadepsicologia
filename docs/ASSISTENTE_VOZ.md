@@ -100,6 +100,10 @@ Nomes ambíguos e vínculos inválidos são recusados. Excluir um registro ou su
 
 Marcar uma conta paga é um registro; não transfere dinheiro. Mensagens externas e pagamentos bancários não são capacidades deste executor.
 
+## Cadernos e pendentes
+
+"Coloca aí, depois a gente organiza" guarda a anotação na hora, em **Para organizar**, sem perguntas. Com destino ("anota no caderno Receitas", "guarda em Processos Psicológicos Básicos"), ela vai direto para lá: um caderno que ainda não existe é criado, e uma matéria com o mesmo nome é usada como caderno. "Vamos organizar os pendentes" usa a lista de pendentes (anotações sem lugar, compromissos atrasados, contas vencidas e lançamentos sem categoria) e segue item por item: o assistente sugere o destino, pergunta "pode ser?" e passa ao próximo. "Deixa para depois" pula; ao parar, ele diz quantos faltam. Desfazer uma anotação que criou um caderno tira os dois.
+
 ## Lixeira e desfazer
 
 Tudo o que sai do espaço pessoal, pela tela ou por qualquer assistente, vai para a **lixeira** na mesma operação (tabela `personal_trash`, só da própria pessoa). Os itens ficam 30 dias, até 2 MB por conta, e os mais antigos saem primeiro. Em **Meu espaço › Minha conta › Lixeira** você restaura ou exclui de vez, com mais uma confirmação. Pela voz ou pelo texto, "restaura aquilo" traz de volta. Com a lixeira, até 5 exclusões por pedido acontecem na hora; acima disso, e para substituir o texto inteiro de uma anotação, o assistente pede confirmação.

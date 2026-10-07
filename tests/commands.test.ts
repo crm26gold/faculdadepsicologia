@@ -148,3 +148,43 @@ test('restaurar traz o item da lixeira de volta e recusa o que for ambíguo ou j
   assert.match(problems.failed[2], /não encontrei/);
   assert.match(applyCommands(base(), [{ type: 'restaurar', target: 'x' }], { today: '2026-10-02', now, newId: ids() }).failed[0], /lixeira não está disponível/);
 });
+
+test('anotação rápida vai direto ao caderno, à matéria ou à área; caderno novo é criado e o desfazer leva os dois', () => {
+  const start = { ...base(), notebooks: [{ id: 'nb-ideias', name: 'Ideias', areaId: '', color: 'sage' as const }] };
+  const { data, applied, failed } = applyCommands(start, [
+    { type: 'anotacao', text: 'Livro sobre hábitos', notebook: 'ideias' },
+    { type: 'anotacao', text: 'Resumo da aula 3', notebook: 'Processos Psicológicos Básicos' },
+    { type: 'anotacao', text: 'Treino de força', area: 'saude' },
+    { type: 'anotacao', text: 'Receita de pão', title: 'Pão de fermentação natural', notebook: 'Receitas' },
+    { type: 'anotacao', text: 'coloca aí, depois a gente organiza' },
+  ], { today: '2026-10-02', now, newId: ids() });
+  assert.deepEqual(failed, []);
+  assert.equal(workspaceSchema.safeParse(data).success, true);
+  assert.deepEqual(applied.map(item => item.label), [
+    'Anotação no caderno Ideias: Livro sobre hábitos',
+    'Anotação em Processos Psicológicos Básicos: Resumo da aula 3',
+    'Anotação em Saúde física: Treino de força',
+    'Anotação no caderno Receitas (caderno criado): Pão de fermentação natural',
+    'Anotação em Para organizar: coloca aí, depois a gente organiza',
+  ]);
+  const byTitle = (title: string) => data.notes.find(note => note.title === title)!;
+  assert.equal(byTitle('Livro sobre hábitos').notebookId, 'nb-ideias');
+  assert.equal(byTitle('Resumo da aula 3').subjectId, 'ppb', 'matéria já é um caderno: não duplica');
+  assert.equal(data.notebooks?.filter(book => book.name === 'Processos Psicológicos Básicos').length, 0);
+  assert.equal(byTitle('Treino de força').areaId, 'health');
+  const recipes = data.notebooks?.find(book => book.name === 'Receitas');
+  assert.ok(recipes);
+  assert.equal(byTitle('Pão de fermentação natural').notebookId, recipes.id);
+  const loose = byTitle('coloca aí, depois a gente organiza');
+  assert.deepEqual([loose.subjectId, loose.notebookId, loose.areaId], ['', '', '']);
+  const undone = undoApplied(data, applied.slice(3, 4));
+  assert.equal(undone.notebooks?.some(book => book.name === 'Receitas'), false);
+  assert.equal(undone.notes.some(note => note.title === 'Pão de fermentação natural'), false);
+});
+
+test('contexto conta os pendentes para organizar por voz', () => {
+  const start = { ...base(), notes: [{ id: 'solta', title: 'Ideia solta', content: '', subjectId: '', areaId: '', notebookId: '', updatedAt: '2026-10-01T10:00:00Z' }] };
+  const context = commandContext(start, '2026-10-02');
+  assert.match(context, /Pendentes: 1 anotações em Para organizar \(Ideia solta \[solta\]\); 1 compromissos atrasados\./);
+  assert.match(commandContext({ ...emptyWorkspace(), editorGeneration: CURRENT_EDITOR_GENERATION }, '2026-10-02'), /Pendentes: nada\./);
+});

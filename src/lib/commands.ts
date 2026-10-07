@@ -1,10 +1,11 @@
 import { z } from 'zod';
 import { addDays, CURRENT_EDITOR_GENERATION, daySchema, formatDate, profileSchema, taskKinds, termSchema, timeSchema, type Task, type Workspace } from './workspace';
-import { captureNote } from './capture';
+import { captureNote, isUnorganized } from './capture';
 import { buildSeries, currentBalance, expenseCategories, incomeCategories, money, monthOf, monthSummary, natures, projectTo } from './finance';
 import { finishFocus, pauseFocus, resumeFocus, startFocus } from './focus';
 import { changeRecord, collections, entities, entityCollection as entityCollectionOf, entityFields, entityView, findRecord, normalized, recordFields, records, recordTitle, removeRecord, validateChange, type Collection, type RecordItem } from './assistant-records';
 import { lifeAreas } from './life';
+import { placeFields, type Place } from './notebooks';
 import { emptyProfile } from './life-data';
 import { todayAgenda } from './today';
 import { screens } from './screens/names';
@@ -16,7 +17,9 @@ const name = z.string().trim().min(1).max(160);
 export const commandAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('compromisso'), title: name, date: daySchema, time: timeSchema.optional(), kind: z.enum(taskKinds).optional(),
     minutes: z.number().int().min(5).max(240).optional(), area: z.string().max(100).optional(), subject: z.string().max(100).optional() }),
-  z.object({ type: z.literal('anotacao'), text: z.string().trim().min(1).max(10_000) }),
+  // Without a destination it lands in "Para organizar"; a notebook that does not exist yet is created.
+  z.object({ type: z.literal('anotacao'), text: z.string().trim().min(1).max(10_000), title: z.string().trim().min(1).max(160).optional(),
+    notebook: z.string().trim().min(1).max(100).optional(), subject: name.optional(), area: name.optional() }),
   z.object({ type: z.literal('financeiro'), flow: z.enum(['income', 'expense']), description: name, amount: z.number().positive().max(1_000_000_000),
     category: z.string().max(100).optional(), date: daySchema, pending: z.boolean().optional(), nature: z.enum(['fixed', 'variable', 'oneoff']).optional(),
     installments: z.number().int().min(2).max(120).optional(), monthly: z.number().int().min(2).max(120).optional() }),
@@ -85,6 +88,12 @@ function matchByName<T extends { id: string; name: string }>(items: readonly T[]
   if (!found.length) throw new Error(`Não encontrei “${wanted}”.`);
   return found[0];
 }
+/** Like matchByName, but a missing name is an answer (undefined) instead of an error. */
+function findByName<T extends { id: string; name: string }>(items: readonly T[], wanted: string) {
+  const target = plain(wanted);
+  return items.some(item => plain(item.name) === target || item.id === wanted || plain(item.name).includes(target) || target.includes(plain(item.name)))
+    ? matchByName(items, wanted) : undefined;
+}
 const weekday = (day: string) => formatDate(day, { weekday: 'long' });
 
 /** Applies validated actions one by one; a failing action is reported and does not stop the others. */
@@ -117,9 +126,24 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           break;
         }
         case 'anotacao': {
-          const note = captureNote(action.text, newId(), new Date(options.now).toISOString());
+          const captured = captureNote(action.text, newId(), new Date(options.now).toISOString());
+          const area = action.area ? matchByName(lifeAreas(next), action.area) : undefined;
+          let subject = action.subject ? matchByName(next.subjects, action.subject) : undefined;
+          let notebook = action.notebook ? findByName(next.notebooks ?? [], action.notebook) : undefined;
+          // Every subject is already a notebook on screen, so "caderno de Psicologia Social" finds the subject.
+          const bookSubject = action.notebook && !notebook ? findByName(next.subjects, action.notebook) : undefined;
+          if (bookSubject) subject = bookSubject;
+          const createdNotebook = !!action.notebook && !notebook && !bookSubject;
+          if (createdNotebook) {
+            notebook = { id: newId(), name: action.notebook!, areaId: area?.id ?? '', color: 'sage' as const };
+            next = { ...next, notebooks: [...(next.notebooks ?? []), notebook] };
+          }
+          // One place per note, as on screen: a named notebook wins, then the subject, then the area.
+          const place: Place = notebook ? { kind: 'notebook', id: notebook.id } : subject ? { kind: 'subject', id: subject.id } : area ? { kind: 'area', id: area.id } : { kind: 'inbox' };
+          const note = { ...captured, ...(action.title ? { title: action.title } : {}), ...placeFields(next, place) };
           next = { ...next, notes: [note, ...next.notes] };
-          applied.push({ label: `Anotação em Para organizar: ${note.title}`, view: 'notes', id: note.id, undo: { kind: 'note', id: note.id } });
+          const where = notebook ? `no caderno ${notebook.name}${createdNotebook ? ' (caderno criado)' : ''}` : subject ? `em ${subject.name}` : area ? `em ${area.name}` : 'em Para organizar';
+          applied.push({ label: `Anotação ${where}: ${note.title}`, view: 'notes', id: note.id, undo: { kind: 'note', id: note.id } });
           break;
         }
         case 'financeiro': {
@@ -280,6 +304,17 @@ function finance(data: Workspace, today: string) {
 }
 
 /** What the model needs to know about this person's space, kept short to save tokens. */
+// What waits for a decision, so "vamos organizar os pendentes" works by voice and chat without a separate query.
+function pending(data: Workspace, today: string) {
+  const inbox = data.notes.filter(isUnorganized);
+  const late = data.tasks.filter(task => !task.done && task.date < today).length;
+  const overdue = (data.transactions ?? []).filter(item => item.status === 'pending' && item.date < today).length;
+  const loose = (data.transactions ?? []).filter(item => item.category === 'Outros').length;
+  const parts = [inbox.length ? `${inbox.length} anotações em Para organizar (${inbox.slice(0, 8).map(note => `${note.title} [${note.id}]`).join('; ')})` : '',
+    late ? `${late} compromissos atrasados` : '', overdue ? `${overdue} contas vencidas` : '', loose ? `${loose} lançamentos sem categoria` : ''].filter(Boolean);
+  return parts.length ? `Pendentes: ${parts.join('; ')}.` : 'Pendentes: nada.';
+}
+
 export function commandContext(data: Workspace, today: string, limit = 6000, search = '') {
   const agenda = todayAgenda(data, today).map(entry => `${entry.time ?? 'sem horário'} ${entry.title} (${entry.kind})${entry.done ? ' [feito]' : ''}`);
   const late = data.tasks.filter(task => !task.done && task.date < today).slice(0, 8).map(task => `${task.title} (${formatDate(task.date)})`);
@@ -293,6 +328,7 @@ export function commandContext(data: Workspace, today: string, limit = 6000, sea
     late.length ? `Atrasados: ${late.join('; ')}.` : '',
     upcoming.length ? `Próximos 7 dias: ${upcoming.join('; ')}.` : '',
     bills.length ? `Contas e recebimentos em aberto (15 dias): ${bills.join('; ')}.` : '',
+    pending(data, today),
     data.activeFocus ? `Há um foco ligado: ${data.activeFocus.activity}.` : '',
     finance(data, today),
     ...entities.map(entity => {
@@ -309,7 +345,7 @@ export function commandContext(data: Workspace, today: string, limit = 6000, sea
 export const commandSystem = `Você é o assistente pessoal da Jornada Plena, um organizador da vida inteira (estudos, trabalho, rotina, saúde, finanças, relações e projetos).
 Converse de verdade, como um bom assistente: natural, caloroso e direto, em português do Brasil. Responda perguntas, ajude a pensar, dê sugestões, lembre do que foi dito antes na conversa.
 Tenha serenidade, fale com calma e faça uma pergunta útil por vez. Não invente respostas para preencher silêncio. Dados incompletos devem ficar identificados como relatados, estimados ou pendentes, nunca apresentados como confirmados.
-Guarde o assunto em foco (curso, matéria, caderno, sala) e não pergunte de novo o que a pessoa já disse; pergunte só quando houver ambiguidade real nos dados, uma pergunta curta por vez. Pedido com pressa ("coloca aí, depois a gente organiza"): registre na hora como anotação, sem perguntas. Pedido para organizar: conduza com perguntas curtas, uma de cada vez, organizando enquanto a pessoa responde. Análises usam só o que está registrado; se faltar dado, diga isso.
+Guarde o assunto em foco (curso, matéria, caderno, sala) e não pergunte de novo o que a pessoa já disse; pergunte só quando houver ambiguidade real nos dados, uma pergunta curta por vez. Pedido com pressa ("coloca aí, depois a gente organiza"): registre na hora como anotação, sem perguntas; se a pessoa disser o caderno, a matéria ou a área, já guarde lá. "Vamos organizar os pendentes": use a lista "Pendentes" do contexto e conduza item por item: diga o item, sugira um destino e pergunte só "pode ser?"; com a resposta, aplique (editar com notebook, subject ou area) e passe ao próximo. Se a pessoa disser "deixa para depois" ou "pula", siga ao próximo sem insistir; ao parar, diga quantos faltam. Análises usam só o que está registrado; se faltar dado, diga isso.
 Ao registrar uma compra com total conhecido e preços individuais desconhecidos, crie um único gasto com o total informado e uma anotação com os itens, “valores individuais não informados”, origem do relato e comprovante pendente. Não divida o valor nem crie gastos extras por item. Um comprovante da MESMA compra pode completar a anotação e editar esse gasto após identificar o ID; preserve a informação anterior e explique a correção. Notas de compras futuras dão referência de preço, não comprovam valores de compras antigas.
 Quando a pessoa pedir para registrar, anotar, agendar, lançar um gasto ou um recebimento, começar um foco ou marcar algo como feito, você mesmo executa com as ações abaixo e conta o que fez, já com a categoria certa.
 Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
@@ -317,7 +353,7 @@ Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
 A resposta deve soar falada: frases curtas e claras, sem listas longas nem markdown; pode ser mais longa só quando a pessoa pedir explicação.
 Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa comum, "actions" fica vazio):
 - {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional)}
-- {"type":"anotacao","text":"o conteúdo a guardar"} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro
+- {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Use só um destino.
 - {"type":"financeiro","flow":"expense"|"income","description":"...","amount":número em reais,"category":uma de [${expenseCategories.join(', ')}] para saídas ou [${incomeCategories.join(', ')}] para entradas,"date":"AAAA-MM-DD","pending":true se ainda vai pagar/receber,"nature":"fixed"|"variable"|"oneoff","installments":número de parcelas (opcional),"monthly":meses se repete todo mês (opcional)}
 - {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo
 - {"type":"concluir","title":"nome do compromisso"} — marcar como feito
