@@ -118,7 +118,7 @@ test('consulta usa dados atuais, calcula finanças e limita notas ao conteúdo s
   assert.equal('totalsInReais' in result && result.totalsInReais?.paidExpenses, 32.5);
   assert.equal(JSON.stringify(queryWorkspace(data, { section: 'anotacao' }, today)).includes('<h2>'), false);
   assert.throws(() => queryWorkspace(data, { section: 'anotacao', includeContent: true }, today), /Escolha uma/);
-  const note = queryWorkspace(data, { section: 'anotacao', search: 'n1', includeContent: true }, today);
+  const note = queryWorkspace(data, { section: 'anotacao', search: 'n1', includeContent: true }, today) as { items: Record<string, unknown>[] };
   assert.ok(note.items && 'text' in note.items[0] && String(note.items[0].text).includes('Uma ideia de cada vez'));
   assert.throws(() => queryWorkspace(data, { section: 'agenda', from: '2026-02-30' }, today));
 });
