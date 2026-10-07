@@ -8,7 +8,7 @@ import { botServerSecret, telegramWebhookSecret } from '@/lib/bot/secrets';
 import { downloadFile, sendMessage, sendPhoto, sendTyping, TelegramError, type TelegramUpdate } from '@/lib/bot/telegram';
 const generatedAt = () => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date());
 import { storeTelegramPhoto } from '@/lib/bot/photo';
-import { botHome, botShared, botSummary, splitShared, storeBotConfirmation } from '@/lib/bot/shared';
+import { botHome, botShared, botSummary, botTrash, splitShared, storeBotConfirmation } from '@/lib/bot/shared';
 import { screenModel, screenText } from '@/lib/screens/screen-model';
 import { renderScreen } from '@/lib/screens/render';
 import type { AiImage } from '@/lib/ai/media';
@@ -157,14 +157,16 @@ export async function POST(request: Request) {
     const prints = own.flatMap(action => action.type === 'mostrar_tela' ? [action.tela] : []);
     const personal = own.filter(action => action.type !== 'mostrar_tela');
     const shared = collective.length ? await botShared(db, serverSecret, CHANNEL, chat, collective) : null;
-    let outcome = applyCommands(workspace, personal, { today, now });
+    const trash = await botTrash(db, serverSecret, CHANNEL, chat, personal);
+    const options = { today, now, deleteDirectly: trash !== null, trash: trash ?? undefined };
+    let outcome = applyCommands(workspace, personal, options);
     if (outcome.applied.length) {
       let saved = await save(outcome.data, revision);
       if (saved.error?.code === 'PT409' || saved.error?.code === '40001') {
         // The app saved something meanwhile: apply the same actions on the fresh copy.
         const fresh = await db.rpc('bot_context', { server_secret: serverSecret, channel_id: CHANNEL, chat });
         const again = parseWorkspace(JSON.stringify((fresh.data as Context).workspace?.data));
-        outcome = applyCommands(again, personal, { today, now });
+        outcome = applyCommands(again, personal, options);
         saved = await save(outcome.data, (fresh.data as Context).workspace?.revision ?? 0);
       }
       if (saved.error) { await say('Entendi, mas não consegui salvar agora. Tente de novo em instantes.'); return ok(); }

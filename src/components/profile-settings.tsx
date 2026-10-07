@@ -5,6 +5,7 @@ import { Camera, Check, Download, GraduationCap, Mail, MapPin, Phone, ShieldChec
 import { OrganizationPanel } from './life-organization';
 import type { Workspace } from '@/lib/workspace';
 import { emptyProfile, type UserProfileData } from '@/lib/life-data';
+import { TrashPanel } from './trash-panel';
 export { emptyProfile as defaultUserProfile } from '@/lib/life-data';
 export type { UserProfileData } from '@/lib/life-data';
 
@@ -267,6 +268,8 @@ export function ProfileSettings({
               </button>
             </div>
           )}
+
+          {mode === 'cloud' && <TrashPanel update={update} blocked={blocked} />}
 
           {(mode === 'cloud' || authenticated) && (
             <form action="/auth/logout" method="post" style={{ marginTop: '16px' }}>

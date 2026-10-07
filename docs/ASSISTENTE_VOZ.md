@@ -100,6 +100,10 @@ Nomes ambíguos e vínculos inválidos são recusados. Excluir um registro ou su
 
 Marcar uma conta paga é um registro; não transfere dinheiro. Mensagens externas e pagamentos bancários não são capacidades deste executor.
 
+## Lixeira e desfazer
+
+Tudo o que sai do espaço pessoal, pela tela ou por qualquer assistente, vai para a **lixeira** na mesma operação (tabela `personal_trash`, só da própria pessoa). Os itens ficam 30 dias, até 2 MB por conta, e os mais antigos saem primeiro. Em **Meu espaço › Minha conta › Lixeira** você restaura ou exclui de vez, com mais uma confirmação. Pela voz ou pelo texto, "restaura aquilo" traz de volta. Com a lixeira, até 5 exclusões por pedido acontecem na hora; acima disso, e para substituir o texto inteiro de uma anotação, o assistente pede confirmação.
+
 ## Ver a IA trabalhando e pedir um print
 
 **Acompanhar ao vivo.** Com a Jornada aberta e visível, o app confere a versão do seu espaço a cada 4 segundos (`/api/workspace?only=revision`). Quando uma mudança vem de fora (Claude, ChatGPT, Telegram, WhatsApp ou outro aparelho), ele abre a tela daquele item e mostra o que mudou: um ponteiro desliza até o item, que fica destacado por alguns segundos, e um aviso diz o que a IA fez. Edições ainda não salvas neste aparelho nunca são sobrescritas. **Pausar acompanhamento** guarda a escolha neste navegador.

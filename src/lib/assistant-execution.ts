@@ -1,5 +1,5 @@
 import { jobInputSchema, type JobOutcome } from './assistant-jobs';
-import { applyCommands, commandResult, executionSummary, type CommandAction, type CommandResult } from './commands';
+import { applyCommands, commandResult, executionSummary, type CommandAction, type CommandResult, type TrashEntry } from './commands';
 import type { ConfirmablePending } from './confirmable';
 import { screenNames, screenViews } from './screens/names';
 import { CURRENT_EDITOR_GENERATION, parseWorkspace, type Workspace } from './workspace';
@@ -18,6 +18,8 @@ export type ExecutionStore = {
   fail: (outcome: JobOutcome) => Promise<void>;
   /** Rooms, group work, contacts and administration, run with the person's own permissions. */
   shared?: (actions: SharedCommand[]) => Promise<SharedResult>;
+  /** The person's trash: with it, small deletions run at once and "restaura" works. */
+  trash?: () => Promise<TrashEntry[]>;
 };
 
 const unavailable = 'Pedidos de salas, trabalhos, contatos e administração não estão disponíveis neste canal.';
@@ -45,9 +47,11 @@ export async function executeAssistantJob(store: ExecutionStore) {
     const showText = shown?.type === 'mostrar_tela' ? `Abri ${screenNames[shown.tela]} para você ver.` : '';
     // Shared actions have effects outside this workspace, so they run once, before the commit loop.
     const shared = !collective.length ? null : store.shared ? await store.shared(collective) : { done: [], pending: [], failed: collective.map(() => unavailable) };
+    const needsTrash = personal.some(action => action.type === 'excluir' || action.type === 'restaurar');
+    const trash = store.trash && needsTrash ? await store.trash() : undefined;
     // A conflict retries the same validated proposal against fresh records, never the planner.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const executed = applyCommands(workspace.data, personal, { today: input.today, now: Date.now() });
+      const executed = applyCommands(workspace.data, personal, { today: input.today, now: Date.now(), deleteDirectly: !!store.trash, trash });
       const next = executed.applied.length ? parseWorkspace(JSON.stringify({ ...executed.data, editorGeneration: CURRENT_EDITOR_GENERATION })) : null;
       const reply = !plan.actions.length ? plan.reply || 'Pode dar mais um detalhe do que deseja?'
         : [shared ? sharedSummary(shared) : '', personal.length ? executionSummary(executed) : '', showText].filter(Boolean).join(' ');

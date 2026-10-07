@@ -3,7 +3,7 @@ import { addDays, CURRENT_EDITOR_GENERATION, daySchema, formatDate, profileSchem
 import { captureNote } from './capture';
 import { buildSeries, currentBalance, expenseCategories, incomeCategories, money, monthOf, monthSummary, natures, projectTo } from './finance';
 import { finishFocus, pauseFocus, resumeFocus, startFocus } from './focus';
-import { changeRecord, collections, entities, entityFields, entityView, findRecord, normalized, recordFields, records, recordTitle, removeRecord, validateChange, type Collection, type RecordItem } from './assistant-records';
+import { changeRecord, collections, entities, entityCollection as entityCollectionOf, entityFields, entityView, findRecord, normalized, recordFields, records, recordTitle, removeRecord, validateChange, type Collection, type RecordItem } from './assistant-records';
 import { lifeAreas } from './life';
 import { emptyProfile } from './life-data';
 import { todayAgenda } from './today';
@@ -36,6 +36,8 @@ export const commandAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('coletivo'), area: z.enum(['salas', 'trabalhos', 'contatos', 'administracao', 'conta']), acao: z.record(z.string(), z.unknown()) }),
   // Not a change: each channel shows the screen (the app opens it, Telegram gets an image, WhatsApp a summary).
   z.object({ type: z.literal('mostrar_tela'), tela: z.enum(screens) }),
+  // Brings an item back from the trash (ID from the trash list or an unambiguous title).
+  z.object({ type: z.literal('restaurar'), target: name }),
 ]);
 export type CommandAction = z.infer<typeof commandAction>;
 export const commandResult = z.object({ reply: z.string().trim().max(3000).default(''), actions: z.array(commandAction).max(8).default([]) });
@@ -86,8 +88,15 @@ function matchByName<T extends { id: string; name: string }>(items: readonly T[]
 const weekday = (day: string) => formatDate(day, { weekday: 'long' });
 
 /** Applies validated actions one by one; a failing action is reported and does not stop the others. */
-export function applyCommands(data: Workspace, actions: CommandAction[], options: { today: string; now: number; newId?: () => string; confirmed?: PendingCommand[] }) {
+// The person's trash (personal_trash), when the channel can read it: deletions there are recoverable for 30 days.
+export type TrashEntry = { id: string; collection: Collection; item_id: string; item: RecordItem; deleted_at: string };
+export const DIRECT_DELETE_LIMIT = 5;
+export function applyCommands(data: Workspace, actions: CommandAction[], options: { today: string; now: number; newId?: () => string; confirmed?: PendingCommand[];
+  /** With the database trash: up to DIRECT_DELETE_LIMIT deletions per request run at once and can be undone or restored. */
+  deleteDirectly?: boolean; trash?: TrashEntry[] }) {
   const newId = options.newId ?? (() => crypto.randomUUID());
+  const deletions = actions.slice(0, 8).filter(action => (action as { type?: string }).type === 'excluir').length;
+  const direct = options.deleteDirectly === true && deletions <= DIRECT_DELETE_LIMIT;
   let next = data;
   const applied: Applied[] = [];
   const failed: string[] = [];
@@ -147,7 +156,8 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
         case 'editar':
         case 'excluir': {
           const item = findRecord(next, action.entity, action.target);
-          const destructive = action.type === 'excluir' || (action.entity === 'anotacao' && action.fields.replace === true);
+          // A full note replacement always asks; deletions ask only beyond the direct limit or without a trash.
+          const destructive = (action.type === 'excluir' && !direct) || (action.type === 'editar' && action.entity === 'anotacao' && action.fields.replace === true);
           if (destructive) {
             const candidate: PendingCommand = { action: { ...action, target: item.id }, fingerprint: JSON.stringify(item),
               label: `${action.type === 'excluir' ? 'Excluir' : 'Substituir o texto de'} ${action.entity}: ${recordTitle(item)}${item.date ? ` (${item.date}${item.time ? ` ${item.time}` : ''})` : ''}` };
@@ -156,7 +166,7 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
             if (!confirmation) { pending.push(candidate); break; }
           }
           next = action.type === 'excluir' ? removeRecord(next, action.entity, item) : changeRecord(next, action.entity, action.fields, options.now, item);
-          applied.push({ label: `${action.type === 'excluir' ? 'Excluído' : 'Atualizado'}: ${recordTitle(item)}`, view: entityView[action.entity], id: item.id, undo: { kind: 'changes', items: differences(before, next) } });
+          applied.push({ label: `${action.type === 'excluir' ? `Excluído${direct ? ' (fica na lixeira por 30 dias)' : ''}` : 'Atualizado'}: ${recordTitle(item)}`, view: entityView[action.entity], id: item.id, undo: { kind: 'changes', items: differences(before, next) } });
           break;
         }
         case 'habito_feito': {
@@ -190,6 +200,20 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           break;
         }
         case 'mostrar_tela': throw new Error('mostrar uma tela não passa por aqui: no Claude e no ChatGPT, use a ferramenta ver_tela');
+        case 'restaurar': {
+          if (!options.trash) throw new Error('a lixeira não está disponível neste canal');
+          const wanted = normalized(action.target);
+          const matches = options.trash.filter(entry => entry.id === action.target || entry.item_id === action.target || normalized(recordTitle(entry.item)) === wanted);
+          if (!matches.length) throw new Error(`não encontrei “${action.target}” na lixeira`);
+          if (matches.length > 1 && !matches.every(entry => entry.item_id === matches[0].item_id)) throw new Error(`há mais de um “${action.target}” na lixeira; diga qual pelo ID`);
+          const entry = matches[0];
+          const list = (next[entry.collection] ?? []) as RecordItem[];
+          if (list.some(item => item.id === entry.item_id)) throw new Error(`“${recordTitle(entry.item)}” já está de volta`);
+          next = { ...next, [entry.collection]: [entry.item, ...list] } as Workspace;
+          const entity = (Object.keys(entityView) as (keyof typeof entityView)[]).find(key => entityCollectionOf[key] === entry.collection);
+          applied.push({ label: `Restaurado: ${recordTitle(entry.item)}`, view: entity ? entityView[entity] : 'agenda', id: entry.item_id, undo: { kind: 'changes', items: differences(before, next) } });
+          break;
+        }
         case 'coletivo': throw new Error('pedidos de salas, trabalhos, contatos e administração não passam por aqui: no Claude e no ChatGPT, use as ferramentas gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e administrar');
         case 'perfil': {
           const changed = Object.keys(action.fields);
@@ -299,7 +323,8 @@ Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa
 - {"type":"concluir","title":"nome do compromisso"} — marcar como feito
 - {"type":"criar","entity":"tipo de registro","fields":{...}} — criar os outros tipos de registro
 - {"type":"editar","entity":"tipo de registro","target":"ID exato ou nome inequívoco","fields":{...}} — mudar apenas os campos solicitados; reagendar é editar compromisso
-- {"type":"excluir","entity":"tipo de registro","target":"ID exato ou nome inequívoco"} — propõe exclusão de UM item, o aplicativo exige confirmação depois. Nunca diga que já excluiu.
+- {"type":"excluir","entity":"tipo de registro","target":"ID exato ou nome inequívoco"} — exclui UM item. Até 5 exclusões por pedido vão direto para a lixeira, onde ficam 30 dias e podem ser restauradas ou desfeitas; acima disso ficam aguardando confirmação. Diga que excluiu só o que voltar como feito.
+- {"type":"restaurar","target":"ID da lixeira ou nome do item"} — traz de volta um item da lixeira ("restaura aquilo"). Se houver mais de um com o mesmo nome, pergunte qual.
 - {"type":"habito_feito","target":"ID ou nome do hábito","date":"AAAA-MM-DD","done":true|false}
 - {"type":"controlar_foco","operation":"pausar"|"retomar"|"encerrar"}
 - {"type":"saldo_inicial","amount":número em reais (negativo se a pessoa começa devendo),"date":"AAAA-MM-DD"(opcional, padrão hoje)} — quanto a pessoa tem para o saldo de Finanças partir dali; substitui o saldo inicial anterior
