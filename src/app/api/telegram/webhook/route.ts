@@ -13,7 +13,8 @@ import { screenModel, screenText } from '@/lib/screens/screen-model';
 import { renderScreen } from '@/lib/screens/render';
 import type { AiImage } from '@/lib/ai/media';
 import { imageReview, imageReviewSystem } from '@/lib/ai/image-review';
-import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand, undoApplied, type Applied } from '@/lib/commands';
+import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand, undoApplied, type Applied, captionPlace } from '@/lib/commands';
+import { placeFields, placeName } from '@/lib/notebooks';
 import { demoRequested } from '@/lib/config';
 import { botDatabase } from '@/lib/supabase/bot';
 import { CURRENT_EDITOR_GENERATION, parseWorkspace, type Workspace } from '@/lib/workspace';
@@ -107,12 +108,18 @@ export async function POST(request: Request) {
   try { workspace = parseWorkspace(JSON.stringify(context.workspace?.data ?? { version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} })); }
   catch { await say('Não consegui abrir o seu espaço agora. Abra o aplicativo uma vez e tente de novo.'); return ok(); }
   let revision = context.workspace?.revision ?? 0;
-  let image: AiImage | undefined, photoNoteId = '';
+  let image: AiImage | undefined, photoNoteId = '', photoPlace = 'Para organizar';
   if (photo) {
     if (!await reserve('upload')) return ok();
     try {
       const attachment = await storeTelegramPhoto(await downloadFile(token, photo.file_id), serverSecret, chat, update.update_id, (message.caption || '').slice(0, 2000));
-      const append = (previous: Workspace) => ({ ...previous, notes: previous.notes.some(note => note.id === attachment.note.id) ? previous.notes : [attachment.note, ...previous.notes] });
+      // "guarda no caderno X" in the caption files the photo there; otherwise it waits in Para organizar.
+      const append = (previous: Workspace) => {
+        const place = captionPlace(previous, message.caption || '');
+        const note = place ? { ...attachment.note, ...placeFields(previous, place) } : attachment.note;
+        photoPlace = place ? placeName(previous, place) : 'Para organizar';
+        return { ...previous, notes: previous.notes.some(item => item.id === note.id) ? previous.notes : [note, ...previous.notes] };
+      };
       let next = append(workspace), saved = await save(next, revision);
       if (saved.error?.code === 'PT409' || saved.error?.code === '40001') {
         const fresh = await db.rpc('bot_context', { server_secret: serverSecret, channel_id: CHANNEL, chat });
@@ -132,7 +139,7 @@ export async function POST(request: Request) {
     await log(text, null); await say(text); return ok();
   }
 
-  if (!context.ai) { await say(`${photo ? 'Sua foto foi guardada em Para organizar. ' : ''}A inteligência artificial ainda não está ligada para sua conta. No aplicativo: Meu espaço › Minhas chaves de IA. O proprietário também pode configurar a base compartilhada.`); return ok(); }
+  if (!context.ai) { await say(`${photo ? `Sua foto foi guardada em ${photoPlace}. ` : ''}A inteligência artificial ainda não está ligada para sua conta. No aplicativo: Meu espaço › Minhas chaves de IA. O proprietário também pode configurar a base compartilhada.`); return ok(); }
   let config: AiConfig;
   try { config = runtimeConfig(context.ai); }
   catch { await say('Não consegui abrir a chave da IA. Salve a chave de novo no painel.'); return ok(); }
@@ -188,7 +195,7 @@ ${screenText(model)}`); }
     if (onlyPrint) await log(`Print enviado: ${prints.join(', ')}`, null);
   } catch (error) {
     const reason = error instanceof AiError || error instanceof TelegramError ? error.message : 'erro inesperado';
-    await say(`${photoNoteId ? 'A foto original está guardada em Para organizar. ' : ''}Não consegui responder agora (${reason}). Confira os registros antes de repetir qualquer ação.`);
+    await say(`${photoNoteId ? `A foto original está guardada em ${photoPlace}. ` : ''}Não consegui responder agora (${reason}). Confira os registros antes de repetir qualquer ação.`);
   }
   return ok();
 }

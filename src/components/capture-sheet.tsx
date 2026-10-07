@@ -2,6 +2,7 @@
 import { useState } from 'react';
 import { ArrowRight, CalendarPlus, Timer, Wallet } from 'lucide-react';
 import type { Workspace } from '@/lib/workspace';
+import { placeName, type Place } from '@/lib/notebooks';
 import { Modal } from './modal';
 import { QuickCaptureWidget } from './quick-capture';
 
@@ -11,12 +12,15 @@ type Props = {
   ensureSaved: () => Promise<void>;
   onClose: () => void; onOpenNote: (id: string) => void;
   onTask: () => void; onFocus: () => void; onMoney: () => void;
+  place?: Place;
 };
 // The center of the app: register anything now, organize it later.
 export function CaptureSheet({ onClose, onOpenNote, onTask, onFocus, onMoney, ...capture }: Props) {
   const [saved, setSaved] = useState('');
   return <Modal title="Registro rápido" onClose={onClose}>
-    <p className="capture-sheet-lead">Registre agora, organize depois. O que não tiver lugar fica em <strong>Para organizar</strong>.</p>
+    {capture.place && capture.place.kind !== 'inbox'
+      ? <p className="capture-sheet-lead">Pedido pelo assistente: o que você enviar aqui vai para <strong>{placeName(capture.data, capture.place)}</strong>. Foto, áudio, vídeo ou texto, até 25 MB.</p>
+      : <p className="capture-sheet-lead">Registre agora, organize depois. O que não tiver lugar fica em <strong>Para organizar</strong>.</p>}
     <QuickCaptureWidget {...capture} variant="sheet" onOpen={onOpenNote} onSaved={setSaved} />
     {saved && <p className="capture-sheet-saved"><button type="button" className="text-button" onClick={() => onOpenNote(saved)}>Abrir e organizar agora <ArrowRight size={14} aria-hidden="true" /></button></p>}
     <h3 className="capture-sheet-subtitle">Outros registros</h3>

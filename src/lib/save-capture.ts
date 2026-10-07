@@ -3,6 +3,7 @@ import { saveLocalMedia } from './local-media-db';
 import { mediaKind, mediaTypes } from './note-media';
 import { uploadNoteMedia } from './upload-note-media';
 import type { Workspace } from './workspace';
+import { placeFields, type Place } from './notebooks';
 
 const escape = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 export const mediaHtml = (type: string, src: string, name: string) => ({
@@ -14,17 +15,17 @@ export const mediaHtml = (type: string, src: string, name: string) => ({
 // A retry reuses the same note and the same uploaded file instead of duplicating them.
 export type CaptureDraft = { id: string; src: string };
 type Options = {
-  text: string; file: File | null; cloud: boolean; draft: CaptureDraft; signal?: AbortSignal;
+  text: string; file: File | null; cloud: boolean; draft: CaptureDraft; signal?: AbortSignal; place?: Place;
   update: (change: (previous: Workspace) => Workspace) => boolean;
   ensureSaved: () => Promise<void>;
 };
 
 // The text is saved first, so a failed upload never loses what the person wrote; the media is attached after.
-export async function saveCapture({ text, file, cloud, draft, signal, update, ensureSaved }: Options) {
+export async function saveCapture({ text, file, cloud, draft, signal, update, ensureSaved, place }: Options) {
   const id = draft.id || crypto.randomUUID();
   const note = captureNote(text.trim() || file?.name || 'Nova anotação rápida', id, new Date().toISOString());
   if (!draft.id) {
-    if (!update(previous => ({ ...previous, notes: [note, ...previous.notes] }))) throw new Error('Não foi possível registrar a ideia. Tente novamente.');
+    if (!update(previous => ({ ...previous, notes: [place ? { ...note, ...placeFields(previous, place) } : note, ...previous.notes] }))) throw new Error('Não foi possível registrar a ideia. Tente novamente.');
     draft.id = id;
   }
   await ensureSaved();

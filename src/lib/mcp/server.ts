@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import { assistantQuery, queryWorkspace } from '../assistant-query';
-import { applyCommands, commandAction, executionSummary, undoApplied, type TrashEntry } from '../commands';
+import { applyCommands, commandAction, executionSummary, findPlace, undoApplied, type TrashEntry } from '../commands';
 import { recordTitle } from '../assistant-records';
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, parseWorkspace } from '../workspace';
 import { botServerSecret } from '../bot/secrets';
@@ -13,6 +13,9 @@ import { registerCollectiveTools } from './collective';
 import { registerAdminTools } from './admin';
 import { screenModel, screens, screenText } from '../screens/screen-model';
 import { renderScreen } from '../screens/render';
+import { captureLink, CAPTURE_LINK_MINUTES } from '../capture-link';
+import { applicationOrigin } from '../auth-input';
+import { placeName, type Place } from '../notebooks';
 
 // The Jornada as an MCP server: external assistants (Claude Code, Codex, Gemini, Antigravity) reason
 // with their owner's own subscription and call these tools on that person's private life only.
@@ -43,6 +46,7 @@ Ferramentas:
 - registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
 - ver_tela devolve o print de uma tela.
+- Arquivos: você não consegue repassar foto, áudio, vídeo ou arquivo que vê na conversa. Use enviar_arquivo (com o destino, se ela disser) e entregue o link; vale 10 minutos. Links de sites vão em registrar_na_jornada com anotacao e link.
 - Parte coletiva: consultar_coletivo para ler e obter IDs; gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e minha_conta para agir, com o papel da pessoa em cada sala. Exclusões coletivas ficam para confirmar no aplicativo.
 - Administração (só o administrador geral): consultar_administracao e administrar.
 - Só pela tela: tirar ou bloquear pessoas, mudar papéis, plano e créditos de contas, chaves de API e privacidade. Explique onde fazer.
@@ -171,6 +175,25 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     const model = screenModel(data, tela, today());
     const png = await renderScreen(model, generatedAt());
     return { content: [{ type: 'image' as const, data: Buffer.from(png).toString('base64'), mimeType: 'image/png' }, { type: 'text' as const, text: screenText(model) }] };
+  });
+  server.registerTool('enviar_arquivo', {
+    title: 'Link para enviar foto, áudio, vídeo ou arquivo',
+    description: `Gera um link de ${CAPTURE_LINK_MINUTES} minutos que abre o Registro rápido da Jornada já no destino (caderno, matéria ou área; sem destino, Para organizar). Use quando a pessoa quiser guardar uma foto, áudio, vídeo ou arquivo: você não consegue repassar o arquivo em si. Ela abre o link no aparelho em que já está conectada à Jornada e envia por lá, com o próprio login, para o armazenamento privado (até 25 MB). Nada é gravado até ela enviar. Para guardar só um link de site, use registrar_na_jornada com anotacao e link.`,
+    inputSchema: z.object({ destino: z.string().trim().min(1).max(100).optional() }),
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, async ({ destino }) => {
+    const origin = applicationOrigin(process.env);
+    if (!origin) return { isError: true, content: [{ type: 'text' as const, text: 'O endereço do aplicativo não está configurado; não consigo gerar o link agora.' }] };
+    const current = await context();
+    const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
+    let place: Place = { kind: 'inbox' };
+    try {
+      if (destino) place = findPlace(data, destino) ?? place;
+      if (destino && place.kind === 'inbox') return { isError: true, content: [{ type: 'text' as const, text: `Não encontrei o caderno, a matéria ou a área "${destino}". Crie o caderno com registrar_na_jornada ({"type":"criar","entity":"caderno"}) ou gere o link sem destino.` }] };
+    } catch (error) { return { isError: true, content: [{ type: 'text' as const, text: error instanceof Error ? error.message : 'Destino ambíguo.' }] }; }
+    const url = captureLink(origin, place, Date.now());
+    return { content: [{ type: 'text' as const, text: JSON.stringify({ link: url, destino: placeName(data, place), validoPorMinutos: CAPTURE_LINK_MINUTES,
+      instrucao: 'Entregue o link à pessoa. Ela abre onde já está conectada à Jornada, escolhe o arquivo e envia. Depois, consulte anotacao para confirmar o que chegou.' }) }] };
   });
   registerCollectiveTools(server, db, access);
   registerAdminTools(server, db, access);

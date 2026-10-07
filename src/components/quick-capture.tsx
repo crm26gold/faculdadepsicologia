@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Send, Trash2, Download, Square, Video, RefreshCw, X } from 'lucide-react';
 import { CAPTURE_LIMIT, isUnorganized } from '@/lib/capture';
 import { MEDIA_LIMIT, mediaTypes, safeLink, validMedia } from '@/lib/note-media';
+import type { Place } from '@/lib/notebooks';
 import { saveCapture } from '@/lib/save-capture';
 import type { Workspace } from '@/lib/workspace';
 
@@ -21,6 +22,7 @@ export function QuickCaptureWidget({
   ensureSaved,
   variant = 'panel',
   onSaved,
+  place,
 }: {
   data: Workspace;
   blocked: boolean;
@@ -32,6 +34,7 @@ export function QuickCaptureWidget({
   ensureSaved: () => Promise<void>;
   variant?: 'panel' | 'sheet';
   onSaved?: (id: string) => void;
+  place?: Place;
 }) {
   const [text, setText] = useState('');
   const [file, setFile] = useState<File | null>(null);
@@ -322,7 +325,7 @@ export function QuickCaptureWidget({
       abort.current = new AbortController();
       const draft = { id: draftId.current, src: uploadedSource.current };
       let saved;
-      try { saved = await saveCapture({ text, file, cloud, draft, signal: abort.current.signal, update, ensureSaved }); }
+      try { saved = await saveCapture({ text, file, cloud, draft, signal: abort.current.signal, update, ensureSaved, place }); }
       finally { draftId.current = draft.id; uploadedSource.current = draft.src; }
       if (!mounted.current) return;
 

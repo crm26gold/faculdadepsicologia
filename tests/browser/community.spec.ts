@@ -916,3 +916,14 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await assistant.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/resource-map-mobile-dark.png' });
 });
+
+test('link de envio do assistente abre o Registro rápido no destino, sai do endereço e vence', async ({ page }) => {
+  await mockApi(page);
+  await page.goto(`/?capturar=area:health&ate=${Date.now() + 5 * 60_000}`);
+  const sheet = page.getByRole('dialog', { name: 'Registro rápido' });
+  await expect(sheet).toContainText('vai para Saúde física');
+  await expect(page).not.toHaveURL(/capturar=/);
+  await page.goto(`/?capturar=area:health&ate=${Date.now() - 60_000}`);
+  await expect(page.getByText('Este link de envio expirou. Peça outro ao assistente.')).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Registro rápido' })).toHaveCount(0);
+});

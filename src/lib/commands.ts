@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { addDays, CURRENT_EDITOR_GENERATION, daySchema, formatDate, profileSchema, taskKinds, termSchema, timeSchema, type Task, type Workspace } from './workspace';
 import { captureNote, isUnorganized } from './capture';
+import { safeLink } from './note-media';
 import { buildSeries, currentBalance, expenseCategories, incomeCategories, money, monthOf, monthSummary, natures, projectTo } from './finance';
 import { finishFocus, pauseFocus, resumeFocus, startFocus } from './focus';
 import { changeRecord, collections, entities, entityCollection as entityCollectionOf, entityFields, entityView, findRecord, normalized, recordFields, records, recordTitle, removeRecord, validateChange, type Collection, type RecordItem } from './assistant-records';
@@ -19,7 +20,8 @@ export const commandAction = z.discriminatedUnion('type', [
     minutes: z.number().int().min(5).max(240).optional(), area: z.string().max(100).optional(), subject: z.string().max(100).optional() }),
   // Without a destination it lands in "Para organizar"; a notebook that does not exist yet is created.
   z.object({ type: z.literal('anotacao'), text: z.string().trim().min(1).max(10_000), title: z.string().trim().min(1).max(160).optional(),
-    notebook: z.string().trim().min(1).max(100).optional(), subject: name.optional(), area: name.optional() }),
+    notebook: z.string().trim().min(1).max(100).optional(), subject: name.optional(), area: name.optional(),
+    link: z.string().trim().max(2000).refine(safeLink, 'link inválido').optional() }),
   z.object({ type: z.literal('financeiro'), flow: z.enum(['income', 'expense']), description: name, amount: z.number().positive().max(1_000_000_000),
     category: z.string().max(100).optional(), date: daySchema, pending: z.boolean().optional(), nature: z.enum(['fixed', 'variable', 'oneoff']).optional(),
     installments: z.number().int().min(2).max(120).optional(), monthly: z.number().int().min(2).max(120).optional() }),
@@ -88,6 +90,22 @@ function matchByName<T extends { id: string; name: string }>(items: readonly T[]
   if (!found.length) throw new Error(`Não encontrei “${wanted}”.`);
   return found[0];
 }
+const escapeHtml = (value: string) => value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+/** Where "caderno X" points: a personal notebook, then a subject (already a notebook on screen), then a life area. */
+export function findPlace(data: Workspace, wanted: string): Place | undefined {
+  const book = findByName(data.notebooks ?? [], wanted);
+  if (book) return { kind: 'notebook', id: book.id };
+  const subject = findByName(data.subjects, wanted);
+  if (subject) return { kind: 'subject', id: subject.id };
+  const area = findByName(lifeAreas(data), wanted);
+  return area ? { kind: 'area', id: area.id } : undefined;
+}
+/** "guarda no caderno Receitas" in a photo caption: the existing place it names, or nothing (never an error). */
+export function captionPlace(data: Workspace, caption: string): Place | undefined {
+  const named = caption.match(/(?:caderno|mat[ée]ria|[áa]rea)\s+(?:de\s+|da\s+|do\s+)?([^\n.,;:!?]{2,60})/i)?.[1]?.trim();
+  if (!named) return undefined;
+  try { return findPlace(data, named); } catch { return undefined; }
+}
 /** Like matchByName, but a missing name is an answer (undefined) instead of an error. */
 function findByName<T extends { id: string; name: string }>(items: readonly T[], wanted: string) {
   const target = plain(wanted);
@@ -140,7 +158,8 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           }
           // One place per note, as on screen: a named notebook wins, then the subject, then the area.
           const place: Place = notebook ? { kind: 'notebook', id: notebook.id } : subject ? { kind: 'subject', id: subject.id } : area ? { kind: 'area', id: area.id } : { kind: 'inbox' };
-          const note = { ...captured, ...(action.title ? { title: action.title } : {}), ...placeFields(next, place) };
+          const anchor = action.link ? `<p><a href="${escapeHtml(action.link)}" target="_blank" rel="noopener noreferrer nofollow">${escapeHtml(action.link)}</a></p>` : '';
+          const note = { ...captured, content: captured.content + anchor, ...(action.title ? { title: action.title } : {}), ...placeFields(next, place) };
           next = { ...next, notes: [note, ...next.notes] };
           const where = notebook ? `no caderno ${notebook.name}${createdNotebook ? ' (caderno criado)' : ''}` : subject ? `em ${subject.name}` : area ? `em ${area.name}` : 'em Para organizar';
           applied.push({ label: `Anotação ${where}: ${note.title}`, view: 'notes', id: note.id, undo: { kind: 'note', id: note.id } });
@@ -353,7 +372,7 @@ Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
 A resposta deve soar falada: frases curtas e claras, sem listas longas nem markdown; pode ser mais longa só quando a pessoa pedir explicação.
 Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa comum, "actions" fica vazio):
 - {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional)}
-- {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Use só um destino.
+- {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional),"link":"https://..."(opcional, para guardar um link)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Use só um destino.
 - {"type":"financeiro","flow":"expense"|"income","description":"...","amount":número em reais,"category":uma de [${expenseCategories.join(', ')}] para saídas ou [${incomeCategories.join(', ')}] para entradas,"date":"AAAA-MM-DD","pending":true se ainda vai pagar/receber,"nature":"fixed"|"variable"|"oneoff","installments":número de parcelas (opcional),"monthly":meses se repete todo mês (opcional)}
 - {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo
 - {"type":"concluir","title":"nome do compromisso"} — marcar como feito
