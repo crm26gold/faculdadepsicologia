@@ -927,3 +927,32 @@ test('link de envio do assistente abre o Registro rápido no destino, sai do end
   await expect(page.getByText('Este link de envio expirou. Peça outro ao assistente.')).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Registro rápido' })).toHaveCount(0);
 });
+
+test('o que os assistentes fizeram: lista as alterações das conexões e Desfazer tira só o que ninguém mudou', async ({ page }) => {
+  await mockApi(page, { home: homeFixture({ master: false }) });
+  const REQ = 'cdcdcdcd-0000-4000-8000-000000000001', DONE = 'cdcdcdcd-0000-4000-8000-000000000002';
+  const task = { id: 't-ia', title: 'Comprar pão', subjectId: '', date: spDay(), kind: 'Tarefa', done: false, minutes: 10 };
+  const saved: { tasks: { id: string }[] }[] = [];
+  await page.route('**/api/workspace**', async route => {
+    if (route.request().method() === 'PUT') { saved.push(route.request().postDataJSON().data); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1 + saved.length }) }); }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { version: 1, subjects: [], tasks: [task], notes: [], sessions: [], classes: [], term: {} }, revision: 1, accountId: 'x' }) });
+  });
+  await page.route(/\/api\/mcp-tokens(\?.*)?$/, route => {
+    const target = new URL(route.request().url()).searchParams.get('atividade');
+    const list = [{ request_id: REQ, created_at: new Date().toISOString(), connection: 'Claude', labels: ['Tarefa: Comprar pão · hoje'], undone: false },
+      { request_id: DONE, created_at: new Date(Date.now() - 3_600_000).toISOString(), connection: 'ChatGPT', labels: ['Anotação em Para organizar: ideia'], undone: true }];
+    const data = target === null ? { tokens: [], endpoint: 'https://jornada.example/api/mcp' }
+      : target ? [{ ...list[0], applied: [{ label: list[0].labels[0], view: 'agenda', id: 't-ia', undo: { kind: 'task', id: 't-ia' } }] }] : list;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) });
+  });
+  await page.goto('/#settings');
+  const history = page.getByRole('region', { name: 'O que os assistentes fizeram' });
+  await expect(history).toContainText('Tarefa: Comprar pão · hoje');
+  await expect(history).toContainText('Claude');
+  await expect(history.getByRole('listitem').filter({ hasText: 'ideia' })).toContainText('desfeito pelo assistente');
+  await expect(history.getByRole('listitem').filter({ hasText: 'ideia' }).getByRole('button', { name: 'Desfazer' })).toHaveCount(0);
+  await history.getByRole('listitem').filter({ hasText: 'Comprar pão' }).getByRole('button', { name: 'Desfazer' }).click();
+  await expect(history.getByRole('status')).toHaveText('Desfeito: Tarefa: Comprar pão · hoje.');
+  await expect.poll(() => saved.at(-1)?.tasks.some(item => item.id === 't-ia')).toBe(false);
+  expect((await new AxeBuilder({ page }).include('.assistant-activity').analyze()).violations).toEqual([]);
+});

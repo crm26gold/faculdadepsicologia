@@ -1,7 +1,9 @@
 'use client';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { Copy, KeyRound, Plug, Trash2 } from 'lucide-react';
+import { Copy, History, KeyRound, Plug, Trash2, Undo2 } from 'lucide-react';
 import { api } from './community/client';
+import { undoApplied, type Applied } from '@/lib/commands';
+import type { Workspace } from '@/lib/workspace';
 
 type Token = { id: string; label: string; hint: string; can_write: boolean; created_at: string; expires_at: string | null; last_used_at: string | null; oauth?: boolean };
 type State = { tokens: Token[]; endpoint: string | null };
@@ -17,8 +19,40 @@ export function connectionGuides(endpoint: string, token: string) {
   ];
 }
 
+type Activity = { request_id: string; created_at: string; connection: string; labels: string[]; undone: boolean };
+type Change = (change: (previous: Workspace) => Workspace) => boolean;
+
+/** What connected assistants changed (from their receipts), each with Desfazer: only what nobody changed since. */
+function AssistantActivity({ update }: { update: Change }) {
+  const [items, setItems] = useState<Activity[] | null>(null);
+  const [message, setMessage] = useState('');
+  const [busy, setBusy] = useState('');
+  useEffect(() => { api<Activity[]>('/api/mcp-tokens?atividade').then(setItems, () => setItems(null)); }, []);
+  if (!items) return null;
+  async function undo(item: Activity) {
+    setBusy(item.request_id); setMessage('');
+    try {
+      const [full] = await api<(Activity & { applied: Applied[] })[]>(`/api/mcp-tokens?atividade=${item.request_id}`);
+      let changed = false;
+      const saved = update(previous => { const next = undoApplied(previous, full?.applied ?? []); changed = JSON.stringify(next) !== JSON.stringify(previous); return next; });
+      setMessage(!saved ? 'Não consegui desfazer agora. Tente de novo.' : changed ? `Desfeito: ${item.labels.join('; ')}.` : 'Nada para desfazer: esses itens já foram alterados depois ou já estavam como antes.');
+    } catch (error) { setMessage(error instanceof Error ? error.message : 'Não consegui desfazer agora.'); }
+    finally { setBusy(''); }
+  }
+  return <section className="ai-card assistant-activity" aria-labelledby="assistant-activity-title">
+    <h3 id="assistant-activity-title"><History size={16} aria-hidden="true" /> O que os assistentes fizeram</h3>
+    <p className="muted small">Alterações feitas pelo Claude, ChatGPT e outros assistentes conectados nos últimos 90 dias. Desfazer só mexe no que ninguém mudou depois; o que foi excluído também fica na Lixeira por 30 dias.</p>
+    {items.length === 0 ? <p className="muted small">Nenhuma alteração feita por assistentes conectados.</p>
+      : <ul className="mcp-token-list">{items.map(item => <li key={item.request_id}>
+        <span><strong>{item.labels.join('; ')}</strong><br /><span className="muted small">{when(item.created_at)} · {item.connection}{item.undone ? ' · desfeito pelo assistente' : ''}</span></span>
+        {!item.undone && <button type="button" className="text-button" disabled={!!busy} onClick={() => void undo(item)}><Undo2 size={15} aria-hidden="true" />Desfazer</button>}
+      </li>)}</ul>}
+    {message && <p className="cm-message" role="status">{message}</p>}
+  </section>;
+}
+
 /** Each person connects their own assistants (and subscriptions) to their own private life. */
-export function AssistantConnections() {
+export function AssistantConnections({ update }: { update?: Change }) {
   const [state, setState] = useState<State | null>(null);
   const [created, setCreated] = useState<{ token: string; endpoint: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -73,5 +107,6 @@ export function AssistantConnections() {
       <button type="button" className="text-button cm-danger" disabled={busy} onClick={() => void revoke(token)}><Trash2 size={15} aria-hidden="true" />Revogar</button>
     </li>)}</ul>}
     {message && <p className="cm-message" role="status">{message}</p>}
+    {update && <AssistantActivity update={update} />}
   </section>;
 }

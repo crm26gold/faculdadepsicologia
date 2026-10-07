@@ -13,7 +13,7 @@ process.env.APP_ORIGIN ??= 'https://jornada.example';
 function fakeDatabase(options: { canWrite: boolean }) {
   const state = { workspace: { data: demoWorkspace(dateKey()) as unknown, revision: 3 }, saves: 0, calls: [] as string[], pending: [] as unknown[], receipts: new Map<string, { digest: unknown; outcome: any }>(),
     acts: [] as { operation: string; args: any }[], actReply: { data: '00000000-0000-4000-8000-0000000000aa' as unknown, error: null as null | { code: string } },
-    trash: null as null | unknown[], lastReceipt: null as null | { request_id: string; outcome: any } };
+    trash: null as null | unknown[], outcomes: [] as any[], lastReceipt: null as null | { request_id: string; outcome: any } };
   const db = { rpc: async (name: string, args: Record<string, unknown>) => {
     state.calls.push(name);
     assert.match(String(args.token), /^[a-f0-9]{64}$/, 'only the hash reaches the database');
@@ -29,6 +29,7 @@ function fakeDatabase(options: { canWrite: boolean }) {
       if (args.expected_revision !== state.workspace.revision) return { data: null, error: { code: 'PT409' } };
       if (args.next_data) { state.workspace = { data: args.next_data, revision: state.workspace.revision + 1 }; state.saves++; }
       const outcome = args.outcome as any;
+      state.outcomes.push(outcome);
       state.pending.push(...outcome.pending);
       const receipt = { ...outcome, conversation_id: outcome.pending.length ? '00000000-0000-4000-8000-000000000001' : null };
       if (outcome.applied.length) state.lastReceipt = { request_id: String(args.request_id), outcome };
@@ -300,7 +301,9 @@ test('servidor MCP: com a lixeira, excluir é direto, "desfazer" traz de volta e
   assert.equal(result.pendente_no_aplicativo.length, 0, 'excluir o que acabei de criar não fica pendente');
   assert.match(result.aplicado[0], /^Excluído \(fica na lixeira por 30 dias\)/);
   assert.equal(JSON.stringify(state.workspace.data).includes('Dentista criado por voz'), false);
+  const undoneRequest = state.lastReceipt!.request_id;
   const undone = await call(3, 'desfazer', {});
+  assert.equal(state.outcomes.at(-1).undid, undoneRequest, 'o histórico do app mostra o pedido como desfeito');
   assert.notEqual(undone.result.isError, true, undone.result.content[0].text);
   assert.match(JSON.parse(undone.result.content[0].text).desfeito[0], /^Excluído/);
   assert.equal(JSON.stringify(state.workspace.data).includes('Dentista criado por voz'), true, 'desfazer trouxe o compromisso de volta');

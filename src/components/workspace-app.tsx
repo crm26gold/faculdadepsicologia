@@ -742,7 +742,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           {view === 'settings' && <>
             {cloud && home && <AccountSettings home={home} refreshHome={refreshHome} />}
             {cloud && home && <TelegramLink key={`telegram-${home.account.user_id}`} />}
-            {cloud && home && <AssistantConnections />}
+            {cloud && home && <AssistantConnections update={update} />}
             {cloud && home && <MyAiKeys key={`ai-keys-${home.account.user_id}`} />}
             {cloud && home && <WhatsAppMyLink key={`whatsapp-${home.account.user_id}`} />}
             {!demo && <LegacyImport data={data} update={update} blocked={blocked} />}
