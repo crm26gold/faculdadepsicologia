@@ -11,9 +11,18 @@ const action = z.discriminatedUnion('action', [
 ]);
 
 // GET: the person's active keys (never the key itself). The endpoint is shown so apps can be configured.
-export async function GET() {
+// ?atividade lists what connected assistants changed; ?atividade=<id> brings what undoing that request needs.
+export async function GET(request: Request) {
   const session = await readSession();
   if (session instanceof Response) return session;
+  const activity = new URL(request.url).searchParams.get('atividade');
+  if (activity !== null) {
+    const target = activity ? z.uuid().safeParse(activity) : null;
+    if (target && !target.success) return reply({ error: 'Pedido inválido.' }, 400);
+    const { data, error } = await session.client.rpc('mcp_activity', target ? { target: target.data } : {});
+    if (error) return dbError(error);
+    return reply({ ok: true, data: data ?? [] });
+  }
   const { data, error } = await session.client.rpc('mcp_token_list');
   if (error) return dbError(error);
   const origin = applicationOrigin(process.env);

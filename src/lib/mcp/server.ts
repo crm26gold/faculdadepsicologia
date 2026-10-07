@@ -154,7 +154,8 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
       const undone = undoApplied(data, receipt.outcome.applied);
       if (JSON.stringify(undone) === JSON.stringify(data)) return text('Nada para desfazer: esses itens já foram alterados depois ou já estavam como antes.');
       const labels = receipt.outcome.applied.map(item => item.label);
-      const outcome: JobOutcome = { saved: true, reply: `Desfeito: ${labels.join('; ')}.`, applied: [], pending: [], failed: [] };
+      // "undid" lets the history in the app show this request as undone.
+      const outcome: JobOutcome = { saved: true, reply: `Desfeito: ${labels.join('; ')}.`, applied: [], pending: [], failed: [], undid: receipt.request_id };
       const saved = await db.rpc('mcp_commit', { server_secret: botServerSecret(), token: access.hash, request_id: crypto.randomUUID(),
         payload_hash: createHash('sha256').update(`desfazer:${receipt.request_id}`).digest('hex'),
         next_data: parseWorkspace(JSON.stringify({ ...undone, editorGeneration: CURRENT_EDITOR_GENERATION })), expected_revision: current.workspace?.revision ?? 0, outcome });
