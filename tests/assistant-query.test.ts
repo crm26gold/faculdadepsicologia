@@ -56,14 +56,14 @@ test('pendentes junta o que espera organização, cada grupo com total', () => {
       { id: 'f1', description: 'Luz', amountCents: 12000, type: 'expense', category: 'Moradia', date: '2026-10-05', status: 'pending' },
       { id: 'f2', description: 'Pix', amountCents: 5000, type: 'income', category: 'Outros', date: '2026-10-06', status: 'paid' },
     ] } as Workspace;
-  const result = queryWorkspace(start, { section: 'pendentes' }, today) as Record<string, { total: number; items: Record<string, unknown>[] }> & { found: number };
+  const result = queryWorkspace(start, { section: 'pendentes' }, today) as unknown as Record<string, { total: number; items: Record<string, unknown>[] }> & { found: number };
   assert.equal(result.anotacoesParaOrganizar.total, 1);
   assert.equal(result.compromissosAtrasados.items[0].id, 't-late');
   assert.equal(result.compromissosAtrasados.items[0].professor, 'Leonardo');
   assert.equal(result.contasVencidas.items[0].amountInReais, 120);
   assert.equal(result.lancamentosSemCategoria.items[0].id, 'f2');
   assert.equal(result.found, 4);
-  const clean = queryWorkspace({ ...emptyWorkspace() }, { section: 'pendentes' }, today) as { found: number; message: string };
+  const clean = queryWorkspace({ ...emptyWorkspace() }, { section: 'pendentes' }, today) as unknown as { found: number; message: string };
   assert.equal(clean.found, 0);
   assert.match(clean.message, /Nada pendente/);
 });
