@@ -1,5 +1,6 @@
 import { readSession, rpc, writeRequest } from '@/lib/api-route';
 import { contactAction } from '@/lib/community';
+import { contactCall } from '@/lib/community-calls';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,9 +14,6 @@ export async function POST(request: Request) {
   const input = await writeRequest(request, contactAction);
   if (input instanceof Response) return input;
   const { session, body } = input;
-  if (body.action === 'delete') return rpc(session, 'delete_contact', { target: body.contact });
-  return rpc(session, 'save_contact', {
-    target: body.contact, contact_name: body.name, contact_email: body.email, contact_phone: body.phone,
-    contact_birthdate: body.birthdate, contact_notes: body.notes,
-  });
+  const call = contactCall(body);
+  return rpc(session, call.fn, call.args);
 }

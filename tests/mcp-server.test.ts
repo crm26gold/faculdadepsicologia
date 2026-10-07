@@ -10,7 +10,8 @@ registerHooks({ resolve: (specifier, context, next) => specifier === 'server-onl
 process.env.AI_KEYS_SECRET ??= randomBytes(32).toString('base64');
 
 function fakeDatabase(options: { canWrite: boolean }) {
-  const state = { workspace: { data: demoWorkspace(dateKey()) as unknown, revision: 3 }, saves: 0, calls: [] as string[], pending: [] as unknown[], receipts: new Map<string, { digest: unknown; outcome: any }>() };
+  const state = { workspace: { data: demoWorkspace(dateKey()) as unknown, revision: 3 }, saves: 0, calls: [] as string[], pending: [] as unknown[], receipts: new Map<string, { digest: unknown; outcome: any }>(),
+    acts: [] as { operation: string; args: any }[], actReply: { data: '00000000-0000-4000-8000-0000000000aa' as unknown, error: null as null | { code: string } } };
   const db = { rpc: async (name: string, args: Record<string, unknown>) => {
     state.calls.push(name);
     assert.match(String(args.token), /^[a-f0-9]{64}$/, 'only the hash reaches the database');
@@ -31,6 +32,7 @@ function fakeDatabase(options: { canWrite: boolean }) {
       state.receipts.set(String(args.request_id), { digest: args.payload_hash, outcome: receipt });
       return { data: receipt, error: null };
     }
+    if (name === 'mcp_act') { state.acts.push({ operation: String(args.operation), args: args.args }); return state.actReply; }
     if (name === 'mcp_save') {
       if (args.expected_revision !== state.workspace.revision) return { data: null, error: { code: 'PT409' } };
       state.workspace = { data: args.next_data, revision: state.workspace.revision + 1 }; state.saves++;
@@ -63,7 +65,7 @@ test('servidor MCP: aperto de mão, catálogo, consulta e registro validado na v
   assert.equal(init.result.serverInfo.name, 'jornada-plena');
   assert.match(init.result.instructions, /Exclusões/);
   const list = await call(legacy(2, 'tools/list'));
-  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['consultar_jornada', 'registrar_na_jornada']);
+  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
   assert.equal(list.result.tools.find((tool: { name: string }) => tool.name === 'consultar_jornada').annotations.readOnlyHint, true);
   const query = await call(legacy(3, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'agenda' } }));
   assert.match(query.result.content[0].text, /"items"/);
@@ -123,7 +125,7 @@ test('servidor MCP: clientes da versão 2026-07-28 listam e consultam sem aperto
     body: JSON.stringify(mcpRequest('2026-07-28', id, method, params)) });
   const listed = await jornadaMcpHandler(db as never, access).fetch(modern(1, 'tools/list'));
   assert.equal(listed.status, 200);
-  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['consultar_jornada', 'registrar_na_jornada']);
+  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
   const asked = await jornadaMcpHandler(db as never, access).fetch(modern(2, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'resumo' } }));
   assert.match(JSON.stringify(mcpResult(await asked.text(), 2)), /summary/);
 });
@@ -164,4 +166,49 @@ test('servidor MCP: saldo inicial e semestre registrados pelo assistente voltam 
   assert.deepEqual(settings.semestre, { start: '2026-08-03', end: '2026-12-18' });
   assert.equal(settings.perfil.institution, 'Anhanguera');
   assert.equal('photoUrl' in settings.perfil, false);
+});
+
+test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e recusa o que é só da tela', async () => {
+  const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
+  const { createHash } = await import('node:crypto');
+  const { db, state } = fakeDatabase({ canWrite: true });
+  const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const call = async (id: number, name: string, args: unknown) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, 'tools/call', { name, arguments: args })));
+  const tools = (await body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/list')))).result.tools as { name: string; annotations: any }[];
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
+  assert.equal(tools.find(tool => tool.name === 'consultar_coletivo')!.annotations.readOnlyHint, true);
+
+  const space = '00000000-0000-4000-8000-0000000000b1';
+  const posted = await call(2, 'gerenciar_salas', { acao: { action: 'create_post', space, kind: 'announcement', title: 'Prova sexta' } });
+  assert.notEqual(posted.result.isError, true, posted.result.content[0].text);
+  assert.deepEqual(state.acts.at(-1), { operation: 'create_post', args: { target: space, post_kind: 'announcement', post_title: 'Prova sexta', post_body: '', post_link: '', post_date: null, post_pinned: false } });
+
+  const invite = await call(3, 'gerenciar_salas', { acao: { action: 'create_invitation', space, role: 'student', days: 7, uses: 30 } });
+  const link = JSON.parse(invite.result.content[0].text).link as string;
+  assert.equal(state.acts.at(-1)!.args.hashed_token, createHash('sha256').update(link.split('/convite/')[1]).digest('hex'), 'o banco recebe só o hash do link');
+
+  const before = state.acts.length;
+  for (const acao of [{ action: 'set_role', space, member: space, role: 'teacher' }, { action: 'remove_member', space, member: space },
+    { action: 'add_member', space, email: 'x@example.invalid', role: 'teacher' }, { action: 'delete_post', post: space }]) {
+    const refused = await call(4, 'gerenciar_salas', { acao });
+    assert.equal(refused.result?.isError ?? !!refused.error, true, `só na tela: ${acao.action}`);
+  }
+  const deletion = await call(5, 'gerenciar_trabalhos', { acao: { action: 'delete_assignment', assignment: space } });
+  assert.equal(deletion.result?.isError ?? !!deletion.error, true, 'excluir trabalho é só na tela');
+  assert.equal(state.acts.length, before, 'nada que é só da tela chega ao banco');
+
+  state.actReply = { data: null, error: { code: '42501' } };
+  const denied = await call(6, 'gerenciar_trabalhos', { acao: { action: 'add_comment', part: space, kind: 'comment', body: 'Revisei' } });
+  assert.equal(denied.result.isError, true);
+  assert.match(denied.result.content[0].text, /Sem permissão/);
+  state.actReply = { data: { spaces: [] }, error: null };
+  const home = await call(7, 'consultar_coletivo', { o_que: 'inicio' });
+  assert.equal(state.acts.at(-1)!.operation, 'app_home');
+  assert.match(home.result.content[0].text, /spaces/);
+
+  const reader = fakeDatabase({ canWrite: false });
+  const readAccess = await mcpAuthenticate(reader.db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const blocked = await body(await jornadaMcpHandler(reader.db as never, readAccess).fetch(legacy(8, 'tools/call', { name: 'gerenciar_contatos', arguments: { acao: { action: 'save', contact: null, name: 'Bia' } } })));
+  assert.equal(blocked.result.isError, true);
+  assert.equal(reader.state.acts.length, 0, 'chave só de consulta não grava');
 });
