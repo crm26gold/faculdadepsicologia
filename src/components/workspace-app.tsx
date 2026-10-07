@@ -586,9 +586,9 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 <div><span className="today-kicker">SEU DIA, COM MAIS PRESENÇA</span><h1 id="today-title">Um passo de cada vez.</h1><p className="today-date">{capitalize(formatDate(today, { weekday: 'long', day: 'numeric', month: 'long' }))}</p></div>
               </div>
               <div className="today-actions" role="group" aria-label="Ações rápidas do dia">
-                <button type="button" className="today-action" disabled={blocked} onClick={() => openForm({ kind: 'note' })}><PenLine size={18} aria-hidden="true" /><span>Registrar ideia</span><ArrowUpRight size={14} aria-hidden="true" /></button>
-                <button type="button" className="today-action" onClick={() => { navigate('focus'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }}><Clock3 size={18} aria-hidden="true" /><span>Entrar em foco</span><ArrowUpRight size={14} aria-hidden="true" /></button>
-                <button type="button" className="today-action" onClick={() => navigate('assistant')}><Sparkles size={18} aria-hidden="true" /><span>Abrir assistente</span><ArrowUpRight size={14} aria-hidden="true" /></button>
+                <button type="button" className="today-action" disabled={blocked} aria-label="Registrar ideia" onClick={() => openForm({ kind: 'note' })}><PenLine size={18} aria-hidden="true" /><span className="long">Registrar ideia</span><span className="short" aria-hidden="true">Ideia</span><ArrowUpRight size={14} aria-hidden="true" /></button>
+                <button type="button" className="today-action" aria-label="Entrar em foco" onClick={() => { navigate('focus'); setFocusRequest({ id: crypto.randomUUID(), subjectId: '' }); }}><Clock3 size={18} aria-hidden="true" /><span className="long">Entrar em foco</span><span className="short" aria-hidden="true">Foco</span><ArrowUpRight size={14} aria-hidden="true" /></button>
+                <button type="button" className="today-action" aria-label="Abrir assistente" onClick={() => navigate('assistant')}><Sparkles size={18} aria-hidden="true" /><span className="long">Abrir assistente</span><span className="short" aria-hidden="true">Assistente</span><ArrowUpRight size={14} aria-hidden="true" /></button>
               </div>
               </div>
               <div className="today-agenda-preview">

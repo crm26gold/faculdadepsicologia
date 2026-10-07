@@ -3,9 +3,11 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { AlertTriangle, Info, Network, RefreshCw, Users } from 'lucide-react';
 import { aiCatalog, aiTaskLabels } from '@/lib/ai/catalog';
 import { autoModes, isAuto } from '@/lib/ai/models';
-import { capabilityLabels, declarableProviders, modelDependentCapabilities, providerCapabilities, reasonLabels, resourceInsights, resourceName, sourceNamer, stateLabels,
+import { capabilityLabels, declarableProviders, modelDependentCapabilities, providerCapabilities, reasonLabels, resourceName, sourceNamer, stateLabels,
   type AiResource, type AiResourceMap, type AiRouteMap } from '@/lib/ai/resources';
 import { api } from './client';
+import { resourceIssues, type Issue } from '@/lib/ai/issues';
+import { IssueList } from './issue-guide';
 import { Modal } from '../modal';
 
 export type ResourceMapState = { map: AiResourceMap | null; unavailable: boolean; error: string; reload: () => Promise<boolean> };
@@ -25,9 +27,11 @@ export function useResourceMap(enabled: boolean): ResourceMapState {
   return { map, unavailable, error, reload };
 }
 
+// A source worth listing under a task: not active, able to do the task, and not the owner-voice note.
+const shown = (source: AiRouteMap['sources'][number]) => source.state !== 'active' && source.state !== 'incapable' && source.reason !== 'owner_voice_uses_admin';
 const modeLabels: Record<AiRouteMap['mode'], string> = { fixed: 'Rota fixa', fallback: 'Com alternativas', auto: 'Automático', legacy: 'Modo antigo' };
 
-export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onChanged?: () => void }) {
+export function ResourceMap({ state, onChanged, onResolve }: { state: ResourceMapState; onChanged?: () => void; onResolve?: (issue: Issue) => void }) {
   const [busy, setBusy] = useState('');
   const [message, setMessage] = useState('');
   const [baseConfirm, setBaseConfirm] = useState(false);
@@ -51,7 +55,6 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
   if (state.unavailable) return <p className="muted" role="status">O mapa de recursos aguarda a atualização do banco. Suas conexões continuam funcionando como antes.</p>;
   if (!map) return <p className="muted" role="status">{state.error || 'Abrindo o mapa de recursos…'}{state.error && <button type="button" className="button outline" onClick={() => void state.reload()}>Atualizar mapa</button>}</p>;
   const name = sourceNamer(map);
-  const insights = resourceInsights(map);
   const shared = map.resources.filter(resource => resource.kind !== 'personal');
   const configured = shared.filter(resource => resource.configured);
   const personal = map.resources.filter(resource => resource.kind === 'personal');
@@ -61,8 +64,7 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
       <button type="button" className="button outline" disabled={!!busy} onClick={() => void run('refresh', async () => {}, 'Mapa atualizado.')}><RefreshCw size={15} aria-hidden="true" /> Atualizar mapa</button></div>
     {message && <p className="cm-message" role="status">{message}</p>}
     {state.error && !message && <p className="cm-message" role="status">{state.error}</p>}
-    {insights.length > 0 && <div className="ai-card ai-insights"><strong>O que merece sua atenção</strong><ul>{insights.map((insight, index) => <li key={index} data-level={insight.level}>
-      {insight.level === 'warning' ? <AlertTriangle size={16} aria-hidden="true" /> : <Info size={16} aria-hidden="true" />}<span>{insight.text}</span></li>)}</ul></div>}
+    <div className="ai-card ai-insights"><strong>O que precisa da sua atenção</strong><IssueList issues={resourceIssues(map)} onResolve={issue => onResolve?.(issue)} /></div>
 
     <h3>Cada tarefa, agora</h3>
     <div className="ai-grid">{map.routes.map(route => <div className="ai-card ai-route-map" key={route.task}>
@@ -71,7 +73,7 @@ export function ResourceMap({ state, onChanged }: { state: ResourceMapState; onC
       <span className="muted small">{!route.chain.length ? 'Nenhuma conexão está atuando nesta tarefa.'
         : route.served_by ? `Sem conexão própria atuando, usa a rota da ${aiTaskLabels[route.served_by].name}, nesta ordem:` : 'Atuando agora, nesta ordem:'}</span>
       {route.chain.length > 0 && <ol className="ai-chain">{route.chain.map(item => <li key={item.source_id}><span>{name(item.source_id)}</span><small className="muted">{isAuto(item.model) ? autoModes[item.model].label : item.model}</small></li>)}</ol>}
-      {route.sources.some(source => source.state !== 'active') && <ul className="ai-source-states">{route.sources.filter(source => source.state !== 'active').map(source => <li key={source.source_id} data-state={source.state}>
+      {route.sources.some(shown) && <ul className="ai-source-states">{route.sources.filter(shown).map(source => <li key={source.source_id} data-state={source.state}>
         <span className="ai-source-name">{name(source.source_id)}</span><span className="ai-state">{stateLabels[source.state]}</span>
         {source.reason && source.reason !== 'capability' && <small className="muted">{reasonLabels[source.reason]}</small>}</li>)}</ul>}
       <span className="muted small"><Users size={13} aria-hidden="true" /> {route.members_note === 'voice_not_shared' ? 'Membros: a voz ao vivo não é compartilhada.'
@@ -139,7 +141,7 @@ function ResourceCard({ resource, busy, baseEnabled, onSave }: { resource: AiRes
   const paused = !resource.enabled;
   const declared = !!resource.declaration.privacy_basis;
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSave(privacy || null, privacy ? audience : 'owner'); }
-  return <form className="ai-card ai-resource" onSubmit={submit} aria-label={resourceName(resource)}>
+  return <form className="ai-card ai-resource" data-source={resource.source_id} onSubmit={submit} aria-label={resourceName(resource)}>
     <div className="section-heading"><strong>{resourceName(resource)}</strong><span className="ai-badge">{resource.enabled ? 'Ligada' : 'Pausada'}</span></div>
     <span className="muted small">{resource.kind === 'connection' ? 'Conexão extra' : 'Chave principal'}{resource.key_hint ? ` · chave …${resource.key_hint}` : ''}</span>
     <ul className="ai-capabilities" aria-label="O que este serviço faz na Jornada">{capabilities.map(capability => <li key={capability}>{capabilityLabels[capability]}</li>)}

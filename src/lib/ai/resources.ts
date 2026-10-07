@@ -83,32 +83,3 @@ export function sourceNamer(map: AiResourceMap) {
   const byId = new Map(map.resources.map(resource => [resource.source_id, resource]));
   return (id: string | null) => { const found = id ? byId.get(id) : undefined; return found ? resourceName(found) : 'Conexão removida'; };
 }
-
-export type Insight = { level: 'warning' | 'info'; task?: AiTaskId; text: string };
-const afterColon = (text: string) => text.charAt(0).toLocaleLowerCase('pt-BR') + text.slice(1);
-/** Plain-language findings derived only from the map; nothing here contacts a provider. */
-export function resourceInsights(map: AiResourceMap): Insight[] {
-  const name = sourceNamer(map);
-  const insights: Insight[] = [];
-  for (const route of map.routes) {
-    const task = aiTaskLabels[route.task].name;
-    if (!route.enabled) continue;
-    if (!route.chain.length) insights.push({ level: 'warning', task: route.task, text: `${task}: nenhuma conexão está atuando agora.` });
-    for (const source of route.sources.filter(item => item.state === 'blocked' && item.role && item.role !== 'auto'))
-      insights.push({ level: 'warning', task: route.task, text: `${task}: ${name(source.source_id)} está configurada, mas fora. ${source.reason ? reasonLabels[source.reason] : ''}`.trim() });
-    if (route.served_by) {
-      insights.push({ level: 'info', task: route.task, text: `${task}: nenhuma conexão desta tarefa está atuando, e a Jornada usa a rota da ${aiTaskLabels[route.served_by].name}.` });
-      continue;
-    }
-    const available = route.sources.filter(item => item.state === 'available').map(item => name(item.source_id));
-    if (route.chain.length === 1 && route.task !== 'voz')
-      insights.push({ level: 'info', task: route.task, text: `${task} depende de uma só conexão.${available.length ? ` Disponíveis como alternativa: ${available.join(', ')}.` : ''}` });
-    if (route.routing_effective && route.routing_effective !== route.mode)
-      insights.push({ level: 'info', task: route.task, text: `${task}: suas chaves pessoais entram primeiro e fazem a rota funcionar no modo automático, que tenta a próxima conexão em qualquer falha.` });
-  }
-  for (const resource of map.resources.filter(item => item.declaration.privacy_basis && !item.declaration.current))
-    insights.push({ level: 'warning', text: `${resourceName(resource)}: ${afterColon(reasonLabels.declaration_stale)}` });
-  if (map.whatsapp?.stt.state === 'blocked' && map.whatsapp.stt.reason)
-    insights.push({ level: map.whatsapp.enabled ? 'warning' : 'info', text: `Transcrição do WhatsApp: ${afterColon(reasonLabels[map.whatsapp.stt.reason])}` });
-  return insights;
-}

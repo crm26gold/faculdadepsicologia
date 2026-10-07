@@ -1,60 +1,66 @@
 /* Gerado por scripts/dark-theme.mjs — não edite à mão. Ajustes finos ficam nas regras [data-theme='dark'] escritas nos CSS. */
 /* src/app/globals.css */
 [data-theme='dark'] a {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .skip-link {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .button.cream {
-    background: hsl(69 28% 17%);
-    color: hsl(45 20% 90%)
+    background: hsl(212 42% 19%);
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .button.cream:hover {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .sidebar {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .brand-psi {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .sidebar-user-card {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .sidebar-user-card:hover {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%);
+    border-color: hsl(210 31% 25%)
 }
 [data-theme='dark'] .nav-item {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .nav-item:hover {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .nav-item.active {
-    color: hsl(160 61% 78%);
-    background: hsl(152 27% 15%)
+    color: hsl(206 69% 78%);
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .nav-chip {
-    color: hsl(45 20% 90%);
-    background: hsl(152 27% 12%)
+    border: 1px solid hsl(210 31% 25%);
+    color: hsl(210 50% 92%);
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .topbar {
-    background: hsl(152 27% 12% / 0.94)
+    background: hsl(212 44% 14% / 0.94)
 }
 [data-theme='dark'] .search-trigger {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
+}
+[data-theme='dark'] .search-trigger:hover {
+    border-color: hsl(210 31% 25%)
 }
 [data-theme='dark'] kbd {
-    color: hsl(45 20% 90%);
-    background: hsl(152 27% 12%)
+    border: 1px solid hsl(210 31% 25%);
+    color: hsl(210 50% 92%);
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .mode-banner {
-    color: hsl(45 20% 90%);
-    background: hsl(45 28% 17%)
+    color: hsl(210 50% 92%);
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .mode-banner button {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .metric-icon.lavender {
     background: hsl(269 28% 17%)
@@ -64,28 +70,28 @@
     color: hsl(163 70% 78%)
 }
 [data-theme='dark'] .metric-icon.blue {
-    background: hsl(152 27% 15%);
-    color: hsl(158 39% 78%)
+    background: hsl(210 28% 17%);
+    color: hsl(205 58% 78%)
 }
 [data-theme='dark'] .metric-icon.sand {
     background: hsl(48 28% 17%);
     color: hsl(26 70% 78%)
 }
 [data-theme='dark'] .task-row {
-    border-block-start: 1px solid hsl(152 20% 22%)
+    border-block-start: 1px solid hsl(210 30% 30%)
 }
 [data-theme='dark'] .task-checkbox input:checked + .check-visual {
-    background: hsl(152 27% 15%);
-    border-color: hsl(152 20% 22%)
+    background: hsl(212 44% 16%);
+    border-color: hsl(210 31% 25%)
 }
 [data-theme='dark'] .task-description em {
     color: hsl(23 54% 78%)
 }
 [data-theme='dark'] .is-done .task-description strong {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .subject-card {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .subject-card.sage .subject-symbol {
     background: hsl(152 28% 17%);
@@ -96,7 +102,7 @@
     color: hsl(163 70% 78%)
 }
 [data-theme='dark'] .subject-card.lavender .subject-symbol {
-    background: hsl(250 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .subject-card.lavender .subject-sem-tag {
     background: hsl(251 28% 17%);
@@ -111,15 +117,15 @@
     color: hsl(23 70% 78%)
 }
 [data-theme='dark'] .subject-card.blue .subject-symbol {
-    background: hsl(204 28% 17%);
-    color: hsl(158 39% 78%)
+    background: hsl(212 44% 14%);
+    color: hsl(205 58% 78%)
 }
 [data-theme='dark'] .subject-card.blue .subject-sem-tag {
-    background: hsl(152 27% 15%);
+    background: hsl(210 28% 17%);
     color: hsl(201 70% 78%)
 }
 [data-theme='dark'] .subject-card.rose .subject-symbol {
-    background: hsl(356 28% 17%);
+    background: hsl(212 44% 14%);
     color: hsl(345 70% 78%)
 }
 [data-theme='dark'] .subject-card.rose .subject-sem-tag {
@@ -127,103 +133,108 @@
     color: hsl(343 70% 78%)
 }
 [data-theme='dark'] .subject-focus-btn {
-    color: hsl(158 41% 78%);
-    background: hsl(152 27% 15%)
+    color: hsl(206 62% 78%);
+    background: hsl(210 28% 17%);
+    border: 1px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .subject-focus-btn:hover {
     background: hsl(213 28% 17%)
 }
 [data-theme='dark'] .add-subject-card {
-    background: hsl(45 28% 17%)
+    border: 1px dashed hsl(210 31% 25%);
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .add-subject-card:hover {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .week-strip button:hover {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .date-block {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .focus-card {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
+}
+[data-theme='dark'] .tiny-tag {
+    border: 1px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .duration-options {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .duration-options button {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .duration-options button[aria-pressed=true] {
-    background: hsl(152 27% 12%);
-    color: hsl(160 61% 78%)
+    background: hsl(212 44% 14%);
+    color: hsl(206 69% 78%)
 }
 [data-theme='dark'] .timer-digits {
-    color: hsl(160 61% 78%)
+    color: hsl(206 69% 78%)
 }
 [data-theme='dark'] .progress-ring {
-    background: conic-gradient(#10b981 var(--progress), hsl(44 28% 17%) 0)
+    background: conic-gradient(#10b981 var(--progress), hsl(210 28% 17%) 0)
 }
 [data-theme='dark'] .progress-ring > span {
-    background: hsl(152 27% 12%);
-    color: hsl(160 61% 78%)
+    background: hsl(212 44% 14%);
+    color: hsl(206 69% 78%)
 }
 [data-theme='dark'] .page-footer {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .modal {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] input:not([type=radio], [type=checkbox], [type=file]),
 [data-theme='dark'] select,
 [data-theme='dark'] textarea {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .error-banner {
     color: hsl(7 48% 78%);
     background: hsl(13 28% 17%)
 }
 [data-theme='dark'] .toast {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .notebook-layout {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .note-prose pre {
-    background: hsl(152 27% 15%)
+    background: hsl(212 44% 16%)
 }
 [data-theme='dark'] .assistant-panel {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .assistant-symbol {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-features > div {
-    background: hsl(152 27% 15%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .notice {
-    border: 1px solid hsl(152 20% 22%);
-    background: hsl(83 28% 17%)
+    border: 1px solid hsl(210 31% 25%);
+    background: hsl(212 42% 19%)
 }
 [data-theme='dark'] .access-page {
-    background: radial-gradient(ellipse at top right, hsl(74 28% 17%), transparent 60%), hsl(152 27% 15%)
+    background: radial-gradient(ellipse at top right, hsl(212 42% 19%), transparent 60%), hsl(212 44% 14%)
 }
 [data-theme='dark'] .demo-banner {
-    background: hsl(76 28% 17%);
-    color: hsl(157 31% 78%)
+    background: hsl(212 42% 19%);
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .quick-note-icon {
-    color: hsl(158 39% 78%)
+    color: hsl(205 58% 78%)
 }
 [data-theme='dark'] .nav-item {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .nav-item.active {
-    background: hsl(152 27% 15%);
-    color: hsl(160 61% 78%)
+    background: hsl(210 28% 17%);
+    color: hsl(206 69% 78%)
 }
 [data-theme='dark'] .nav-item:hover {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .mini-avatar,
 [data-theme='dark'] .avatar {
@@ -238,24 +249,24 @@
     background: hsl(217 28% 17%)
 }
 [data-theme='dark'] .note-index {
-    background: hsl(216 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .note-paper {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .rich-notebook .editor-toolbar {
     border: 1px solid hsl(214 30% 30%);
     background: hsl(215 28% 17%)
 }
 [data-theme='dark'] .rich-notebook .editor-toolbar select {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .rich-notebook .icon-button[aria-pressed=true] {
     background: hsl(214 28% 17%);
-    color: hsl(159 49% 78%)
+    color: hsl(205 62% 78%)
 }
 [data-theme='dark'] .editor-insert {
-    background: hsl(220 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .editor-insert button:hover {
     background: hsl(214 28% 17%)
@@ -270,11 +281,11 @@
     background: hsl(213 28% 17%)
 }
 [data-theme='dark'] .note-prose {
-    background: hsl(152 27% 12%);
-    border: 1px solid hsl(152 20% 22%)
+    background: hsl(212 44% 14%);
+    border: 1px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .note-prose blockquote {
-    background: hsl(213 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .note-prose pre {
     background: hsl(214 28% 17%)
@@ -283,57 +294,59 @@
     color: hsl(209 70% 78%)
 }
 [data-theme='dark'] .note-prose th {
-    background: hsl(152 27% 15%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .organization-form {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .organization-list li {
-    border-bottom: 1px solid hsl(152 20% 22%)
+    border-bottom: 1px solid hsl(210 30% 30%)
 }
 [data-theme='dark'] .organization-list button {
-    background: hsl(152 27% 12%);
+    background: hsl(212 44% 14%);
     color: hsl(208 68% 78%)
 }
 [data-theme='dark'] .capture-inbox textarea {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .quick-capture-widget {
-    background: hsl(152 27% 12%)
+    border: 1px solid hsl(210 31% 25%);
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .capture-badge-icon {
-    background: hsl(152 27% 15%);
-    color: hsl(158 39% 78%)
+    background: hsl(210 28% 17%);
+    color: hsl(205 58% 78%)
 }
 [data-theme='dark'] .capture-title-group h3 {
-    color: hsl(158 37% 78%)
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .capture-title-group p {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .unorganized-counter-chip {
     background: hsl(48 28% 17%);
     color: hsl(22 70% 78%)
 }
 [data-theme='dark'] .quick-capture-input-box {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .quick-capture-input-box:focus-within {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .quick-capture-input-box textarea {
-    color: hsl(158 37% 78%)
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .capture-toolbar {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%);
+    border-top: 1px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .media-pill-btn {
-    background: hsl(152 27% 12%);
-    color: hsl(158 37% 78%)
+    background: hsl(212 44% 14%);
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .media-pill-btn:hover {
-    background: hsl(44 28% 17%);
-    color: hsl(45 20% 90%)
+    background: hsl(210 28% 17%);
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .media-pill-btn.recording {
     background: hsl(0 28% 17%);
@@ -343,23 +356,24 @@
     color: hsl(163 70% 78%)
 }
 [data-theme='dark'] .unorganized-deck-title {
-    color: hsl(158 37% 78%)
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .unorganized-chip-card {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%);
+    border: 1px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .chip-content strong {
-    color: hsl(158 37% 78%)
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .chip-content small {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .chip-organize-btn {
     color: hsl(204 70% 78%);
-    background: hsl(152 27% 15%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .empty-unorganized-msg {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .permission-guide-box {
     background: hsl(214 28% 17%);
@@ -367,66 +381,69 @@
     color: hsl(224 64% 78%)
 }
 [data-theme='dark'] .permission-guide-title {
-    color: hsl(159 49% 78%)
+    color: hsl(205 62% 78%)
 }
 [data-theme='dark'] .permission-guide-text {
-    color: hsl(45 20% 90%)
+    color: hsl(211 46% 78%)
 }
 [data-theme='dark'] .permission-guide-steps {
-    background: hsl(152 27% 12%);
-    border: 1px solid hsl(152 20% 22%);
-    color: hsl(45 20% 90%)
+    background: hsl(212 44% 14%);
+    border: 1px solid hsl(210 31% 25%);
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .guide-action-btn.secondary {
-    background: hsl(152 27% 12%);
+    background: hsl(212 44% 14%);
     color: hsl(224 64% 78%)
 }
 [data-theme='dark'] .guide-action-btn.secondary:hover {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .topbar-back-button {
-    background: hsl(46 28% 17%);
-    color: hsl(158 37% 78%)
+    background: hsl(210 28% 17%);
+    color: hsl(208 67% 78%);
+    border: 1px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .topbar-back-button:hover {
-    background: hsl(44 28% 17%);
+    background: hsl(210 28% 17%);
     color: hsl(229 70% 78%)
 }
 [data-theme='dark'] .note-return-btn {
-    background: hsl(45 28% 17%);
-    color: hsl(158 37% 78%)
+    background: hsl(212 44% 14%);
+    border: 1px solid hsl(210 31% 25%);
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .note-return-btn:hover {
-    background: hsl(44 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .icon-button.danger:hover {
     color: hsl(0 70% 78%);
-    background: hsl(0 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .routine-bar-track {
-    background: hsl(44 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .routine-column {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .routine-col-header.morning {
     color: hsl(32 70% 78%)
 }
 [data-theme='dark'] .routine-col-header.afternoon {
-    color: hsl(156 33% 78%)
+    color: hsl(206 51% 78%)
 }
 [data-theme='dark'] .routine-item {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .routine-item.done {
     background: hsl(138 28% 17%);
     border-color: hsl(141 30% 30%)
 }
 [data-theme='dark'] .routine-item.done strong {
-    color: hsl(143 64% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .routine-check-btn {
-    background: hsl(152 27% 12%);
+    border: 1px solid hsl(210 31% 25%);
+    background: hsl(212 44% 14%);
     color: hsl(142 70% 78%)
 }
 [data-theme='dark'] .routine-streak-badge {
@@ -435,53 +452,53 @@
     color: hsl(17 70% 78%)
 }
 [data-theme='dark'] .profile-editor-panel {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .photo-upload-row {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .student-id-card {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .inst-badge {
-    background: hsl(152 27% 12% / 0.15)
+    background: hsl(212 44% 14% / 0.15)
 }
 [data-theme='dark'] .student-photo-frame {
-    border: 3px solid hsl(152 20% 22%)
+    border: 3px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .student-role-chip {
-    color: hsl(156 33% 78%)
+    color: hsl(206 51% 78%)
 }
 [data-theme='dark'] .meta-line {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .student-status-row {
     color: hsl(163 70% 78%);
     background: hsl(152 28% 17%)
 }
 [data-theme='dark'] .backup-card {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .integrations-panel {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .integration-row {
-    border-bottom: 1px solid hsl(46 30% 30%)
+    border-bottom: 1px solid hsl(210 30% 30%)
 }
 [data-theme='dark'] .flashcard-item-card {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .flashcard-big-card {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .flashcard-big-card.flipped {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .card-face-tag {
-    color: hsl(158 39% 78%)
+    color: hsl(205 58% 78%)
 }
 [data-theme='dark'] .rate-btn.hard {
-    background: hsl(0 28% 17%);
+    background: hsl(212 44% 14%);
     color: hsl(0 70% 78%);
     border-color: hsl(0 30% 30%)
 }
@@ -495,24 +512,24 @@
     border-color: hsl(141 30% 30%)
 }
 [data-theme='dark'] .planning-badge {
-    background: hsl(152 27% 15%);
-    color: hsl(158 39% 78%)
+    background: hsl(210 28% 17%);
+    color: hsl(205 58% 78%)
 }
 [data-theme='dark'] .planning-tab.active {
-    color: hsl(161 62% 78%);
-    background: hsl(152 27% 15%)
+    color: hsl(206 70% 78%);
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .planning-filters-bar {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .planning-empty {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .planning-card {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .planning-card.status-archived {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .pill-active {
     background: hsl(152 28% 17%);
@@ -524,36 +541,36 @@
 }
 [data-theme='dark'] .pill-completed {
     background: hsl(214 28% 17%);
-    color: hsl(159 49% 78%)
+    color: hsl(205 62% 78%)
 }
 [data-theme='dark'] .pill-archived {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .card-parent-link {
-    color: hsl(158 39% 78%);
-    background: hsl(204 28% 17%)
+    color: hsl(205 58% 78%);
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .metric-deck {
-    background: hsl(45 28% 17%);
-    border: 1px solid hsl(44 30% 30%)
+    background: hsl(212 44% 14%);
+    border: 1px solid hsl(210 30% 30%)
 }
 [data-theme='dark'] .metric-deck-label {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .metric-deck-value {
-    color: hsl(158 37% 78%)
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .planning-progress::-webkit-progress-bar {
-    background: hsl(44 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .card-actions-bar {
-    border-top: 1px solid hsl(46 30% 30%)
+    border-top: 1px solid hsl(210 30% 30%)
 }
 [data-theme='dark'] .status-btn {
-    background: hsl(46 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .status-btn:hover {
-    background: hsl(44 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .status-btn.finish {
     background: hsl(152 28% 17%);
@@ -563,32 +580,32 @@
     background: hsl(149 28% 17%)
 }
 [data-theme='dark'] .status-btn.danger {
-    background: hsl(0 28% 17%);
+    background: hsl(212 44% 14%);
     color: hsl(0 70% 78%)
 }
 [data-theme='dark'] .status-btn.danger:hover {
     background: hsl(0 28% 17%)
 }
 [data-theme='dark'] .project-tasks-section {
-    border-top: 1px solid hsl(46 30% 30%)
+    border-top: 1px solid hsl(210 30% 30%)
 }
 [data-theme='dark'] .project-task-item {
-    background: hsl(45 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .form-error-banner {
-    background: hsl(0 28% 17%);
+    background: hsl(212 44% 14%);
     color: hsl(0 70% 78%);
     border: 1px solid hsl(0 30% 30%)
 }
 [data-theme='dark'] .cm-crumb {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .cm-progress {
     background: hsl(212 28% 17%)
 }
 [data-theme='dark'] .cm-message {
-    background: hsl(152 27% 15%);
-    color: hsl(134 43% 78%)
+    background: hsl(212 44% 16%);
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .cm-warning {
     background: hsl(39 28% 17%);
@@ -598,8 +615,8 @@
     color: hsl(208 53% 78%)
 }
 [data-theme='dark'] .cm-status {
-    background: hsl(152 27% 15%);
-    color: hsl(45 20% 90%)
+    background: hsl(212 44% 16%);
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .cm-status.submitted {
     background: hsl(211 28% 17%);
@@ -610,31 +627,31 @@
     color: hsl(6 62% 78%)
 }
 [data-theme='dark'] .cm-status.approved {
-    background: hsl(131 28% 17%);
-    color: hsl(134 52% 78%)
+    background: hsl(212 42% 19%);
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .part-toolbar {
-    background: hsl(210 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .cm-comment {
-    background: hsl(47 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .cm-comment.revision {
     background: hsl(9 28% 17%);
     border: 1px solid hsl(9 30% 30%)
 }
 [data-theme='dark'] .cm-paper {
-    background: hsl(152 27% 12%);
-    color: hsl(45 20% 90%)
+    background: hsl(212 44% 14%);
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .cm-paper p {
-    color: hsl(45 20% 90%)
+    color: hsl(210 50% 92%)
 }
 [data-theme='dark'] .cm-paper-cover {
-    border-block-end: 1px solid hsl(152 20% 22%)
+    border-block-end: 1px solid hsl(210 31% 25%)
 }
 [data-theme='dark'] .cm-open {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .cm-tag {
     color: hsl(208 53% 78%)
@@ -649,40 +666,40 @@
     background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .cm-todo button {
-    background: hsl(47 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .button.cm-danger {
-    background: hsl(152 27% 12%);
+    background: hsl(212 44% 14%);
     color: hsl(6 62% 78%)
 }
 [data-theme='dark'] .cm-consent-icon {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 /* src/app/focus-responsive.css */
 [data-theme='dark'] .video-dot {
-    background: hsl(152 27% 12%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .tabbar-center > span:last-child {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .capture-sheet-actions svg {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-intro {
-    color: hsl(45 20% 90%)
+    color: hsl(211 36% 78%)
 }
 [data-theme='dark'] .assistant-intro p {
-    color: hsl(45 20% 90%)
+    color: hsl(211 36% 78%)
 }
 [data-theme='dark'] .assistant-bubble-mic {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-message.assistant {
-    border: 1px solid hsl(45 30% 30%);
-    color: hsl(45 20% 90%)
+    border: 1px solid hsl(210 31% 25%);
+    color: hsl(211 36% 78%)
 }
 [data-theme='dark'] .assistant-message.assistant p {
-    color: hsl(45 20% 90%)
+    color: hsl(211 36% 78%)
 }
 [data-theme='dark'] .assistant-problem {
     color: hsl(0 70% 78%)
@@ -691,66 +708,66 @@
     color: hsl(39 70% 78%)
 }
 [data-theme='dark'] .ai-status.ok {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .ai-badge {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .today-kicker {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .today-time {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .today-alerts .urgent button {
     background: hsl(4 28% 17%);
     color: hsl(0 66% 78%)
 }
 [data-theme='dark'] .today-alerts .attention button {
-    background: hsl(42 28% 17%);
+    background: hsl(210 28% 17%);
     color: hsl(39 70% 78%)
 }
 [data-theme='dark'] .notes-inbox-action {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .topbar-cycle {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .today-hero {
-    background: linear-gradient(180deg, hsl(45 28% 17%) 0%, hsl(45 28% 17%) 100%)
+    background: linear-gradient(180deg, hsl(212 44% 14%) 0%, hsl(210 28% 17%) 100%)
 }
 [data-theme='dark'] .today-new {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-once {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-live {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-applied li {
-    background: hsl(140 28% 17%);
-    color: hsl(152 54% 78%)
+    background: hsl(212 42% 19%);
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-applied li svg {
-    color: hsl(150 55% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .assistant-setup {
-    background: hsl(42 28% 17%);
+    background: hsl(210 28% 17%);
     color: hsl(41 70% 78%)
 }
 /* src/app/finance.css */
 [data-theme='dark'] .fin-hero {
-    background: linear-gradient(135deg, hsl(47 28% 17%), var(--surface))
+    background: linear-gradient(135deg, hsl(212 44% 14%), var(--surface))
 }
 [data-theme='dark'] .fin-balance strong {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .fin-tips li svg {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .fin-tips li.warn {
-    background: hsl(42 28% 17%)
+    background: hsl(210 28% 17%)
 }
 [data-theme='dark'] .fin-tips li.warn svg {
     color: hsl(39 70% 78%)
@@ -761,20 +778,20 @@
 }
 /* src/app/notes.css */
 [data-theme='dark'] .nb-inbox.has {
-    background: hsl(40 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .nb-inbox.has b {
-    color: hsl(158 37% 78%)
+    color: hsl(208 67% 78%)
 }
 [data-theme='dark'] .nb-add {
-    color: hsl(160 61% 78%)
+    color: hsl(205 72% 80%)
 }
 [data-theme='dark'] .nb-error,
 [data-theme='dark'] .nb-problem {
     color: hsl(4 60% 78%)
 }
 [data-theme='dark'] .nb-place.loose {
-    background: hsl(40 28% 17%)
+    background: hsl(212 44% 14%)
 }
 [data-theme='dark'] .nb-delete {
     color: hsl(4 60% 78%)

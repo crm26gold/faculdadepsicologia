@@ -1,8 +1,9 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { AlertTriangle, ArrowRight, BrainCircuit, ChevronDown, Gauge, KeyRound, LayoutDashboard, ListChecks, Network, Plug, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
-import { resourceInsights } from '@/lib/ai/resources';
+import { issueResolved, resourceIssues, type Issue, type IssueOption } from '@/lib/ai/issues';
 import { ResourceMap, useResourceMap } from './resource-map';
+import { IssueGuide, ResolvingBar } from './issue-guide';
 import { aiCatalog, aiTaskLabels, liveProviders, voiceOnlyProviders, type AiAdminState, type AiProviderId } from '@/lib/ai/catalog';
 import { autoCapable, autoModes, isAuto, modelNote, type AutoMode } from '@/lib/ai/models';
 import { api, ApiError } from './client';
@@ -40,6 +41,31 @@ export function AiSettings() {
   const operation = useRef(false);
   const modelVersions = useRef(new Map<string, number>());
   const resources = useResourceMap(!!state);
+  // "Apitou, eu clico e o sistema me guia": the open guide, and the problem being fixed while the person acts.
+  const [guide, setGuide] = useState<Issue | null>(null);
+  const [resolving, setResolving] = useState<{ issue: Issue; status: 'working' | 'checking' | 'resolved' | 'still' } | null>(null);
+  function goTo(option: IssueOption) {
+    if (guide) setResolving({ issue: guide, status: 'working' });
+    setGuide(null); setView(option.go.view);
+    // After the section renders: open the collapsed card, bring it into view, highlight it and focus its first field.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const element = option.go.target ? document.querySelector<HTMLElement>(option.go.target) : null;
+      if (!element) return;
+      const details = element.closest('details') ?? (element instanceof HTMLDetailsElement ? element : null);
+      if (details) details.open = true;
+      element.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      element.classList.add('ai-touched'); window.setTimeout(() => element.classList.remove('ai-touched'), 4000);
+      element.querySelector<HTMLElement>('select, input:not([type=hidden]), textarea, button')?.focus({ preventScroll: true });
+    }));
+  }
+  async function check() {
+    if (!resolving) return;
+    setResolving({ ...resolving, status: 'checking' });
+    if (!await resources.reload()) setResolving({ ...resolving, status: 'still' });
+  }
+  useEffect(() => {
+    if (resolving?.status === 'checking' && resources.map) setResolving({ ...resolving, status: issueResolved(resolving.issue.id, resources.map) ? 'resolved' : 'still' });
+  }, [resources.map, resolving]);
   const load = useCallback(async () => {
     try { setState(await api<AiAdminState>('/api/ai/admin')); setLoadError(''); }
     catch (error) { if (error instanceof ApiError && error.status === 403) setHidden(true); else setLoadError('Não consegui carregar a Administração. Tente atualizar o painel.'); }
@@ -80,7 +106,8 @@ export function AiSettings() {
     ? task.connection_id === removeTarget.connection.id || task.fallbacks?.some(fallback => fallback.connection_id === removeTarget.connection!.id)
     : task.provider === removeTarget.provider.id && !task.connection_id) : [];
   const availableCount = ready.length + reserves.filter(row => row.enabled).length;
-  const warnings = resources.map ? resourceInsights(resources.map).filter(insight => insight.level === 'warning') : [];
+  const issues = resources.map ? resourceIssues(resources.map) : [];
+  const warnings = issues.filter(issue => issue.level === 'warning');
   const visibleProviders = state.providers.filter(provider => (showAll || !!search.trim() || provider.has_key || reserves.some(row => row.provider === provider.id)) && `${aiCatalog[provider.id].name} ${provider.label} ${reserves.filter(row => row.provider === provider.id).map(row => row.label).join(' ')}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   function saveProvider(provider: Provider, event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const fields = new FormData(form);
@@ -120,22 +147,24 @@ export function AiSettings() {
     <div className="ai-control-heading"><div><span className="ai-eyebrow"><ShieldCheck size={14} aria-hidden="true" /> Administração privada</span><h2 id="ai-settings-title">Inteligência artificial</h2><p>O controle das suas conexões, em um só lugar.</p></div><button type="button" className="button outline" disabled={!!busy} onClick={() => void run('refresh', load)}><RefreshCw size={15} aria-hidden="true" /> Atualizar painel</button></div>
     <p className={state.secretReady ? 'ai-status ok' : 'ai-status'}>{state.secretReady ? <><ShieldCheck size={16} aria-hidden="true" /> Cofre de chaves pronto: as chaves ficam cifradas e nunca voltam para a tela.</> : <><KeyRound size={16} aria-hidden="true" /> Configure o segredo do cofre no servidor antes de cadastrar chaves.</>}</p>
     <nav className="ai-control-nav" aria-label="Seções da inteligência artificial">{views.map(item => <button key={item.id} type="button" aria-pressed={view === item.id} aria-controls={`ai-view-${item.id}`} onClick={() => setView(item.id)}><item.icon size={16} aria-hidden="true" />{item.label}</button>)}</nav>
+    {resolving && <ResolvingBar issue={resolving.issue} status={resolving.status} onCheck={() => void check()} onReopen={() => { setGuide(resolving.issue); setResolving(null); }} onDismiss={() => setResolving(null)} />}
+    {guide && <IssueGuide issue={guide} onClose={() => setGuide(null)} onGo={goTo} />}
     {loadError && <p className="cm-message" role="status">{loadError}</p>}{message && <p className="cm-message" role="status">{message}</p>}
     {liveResult && <div className="ai-card ai-diagnostic" role="status"><strong>{liveResult.connected ? 'Conexão de voz aceita' : 'Diagnóstico da chamada'}</strong><p>{liveResult.message}</p><span className="muted small">Código: {liveResult.reference} · etapa: {liveResult.stage}{liveResult.model ? ` · ${liveResult.model}` : ''} · {(liveResult.ms / 1000).toFixed(1)} s</span>{liveResult.diagnostic && <span className="muted small">{[liveResult.diagnostic.upstreamStatus, liveResult.diagnostic.upstreamCode, liveResult.diagnostic.reason, liveResult.diagnostic.configurationIssue, ...(liveResult.diagnostic.invalidFields ?? [])].filter(Boolean).join(' · ')}</span>}<span className="muted small">Este teste não usa seu microfone, não gera fala e não executa ações.</span></div>}
     <div id="ai-view-overview" className="ai-admin-content" hidden={view !== 'overview'}>
       <div className="ai-overview-grid"><div className="ai-metric"><Plug size={20} aria-hidden="true" /><strong>{ready.length}<small> / {state.providers.length}</small></strong><span>Provedores configurados e ligados</span></div><div className="ai-metric"><ListChecks size={20} aria-hidden="true" /><strong>{activeTasks.length}<small> / {state.tasks.length}</small></strong><span>Tarefas com configuração ativa</span></div><div className="ai-metric"><ShieldCheck size={20} aria-hidden="true" /><strong>{reserves.filter(connection => connection.enabled).length}</strong><span>Conexões extras ligadas</span></div></div>
       <p className="muted small">Os indicadores mostram a configuração salva. Uma chave cadastrada precisa ser testada; não é uma garantia de conexão ou de créditos.</p>
-      {warnings.length > 0 && <div className="ai-card ai-insights" role="status"><strong><AlertTriangle size={16} aria-hidden="true" /> {warnings.length === 1 ? 'Um ponto pede sua atenção' : `${warnings.length} pontos pedem sua atenção`}</strong><span className="muted small">{warnings[0].text}</span><button type="button" className="text-button" onClick={() => setView('resources')}>Abrir o mapa de recursos <ArrowRight size={14} aria-hidden="true" /></button></div>}
+      {issues.length > 0 && <div className="ai-card ai-insights" role="status"><strong><AlertTriangle size={16} aria-hidden="true" /> {issues.length === 1 ? 'Um ponto pede sua atenção' : `${issues.length} pontos pedem sua atenção`}</strong><span className="muted small">{(warnings[0] ?? issues[0]).title}</span><div className="button-row"><button type="button" className="button primary" onClick={() => setGuide(warnings[0] ?? issues[0])}>Resolver agora <ArrowRight size={14} aria-hidden="true" /></button><button type="button" className="text-button" onClick={() => setView('resources')}>Ver todos</button></div></div>}
       <div className="ai-card ai-next-step"><div><span className="ai-eyebrow">Seu próximo passo</span><h3>{!availableCount ? 'Conecte sua primeira API' : liveResult?.connected ? 'Experimente uma chamada' : 'Verifique a chamada ao vivo'}</h3><p>{!availableCount ? 'Escolha uma empresa, cadastre a chave e ligue a conexão.' : 'Confira a tarefa de voz e execute o diagnóstico. O resultado mostra a etapa exata da conexão.'}</p></div><button type="button" className="button primary" onClick={() => setView(availableCount ? 'tasks' : 'connections')}>{availableCount ? 'Configurar e testar' : 'Cadastrar conexão'}<ArrowRight size={16} aria-hidden="true" /></button></div>
       <h3>Sua Jornada usa IA para</h3><div className="ai-grid">{state.tasks.map(task => <div className="ai-card" key={task.id}><div className="section-heading"><strong>{aiTaskLabels[task.id].name}</strong><span className="ai-badge">{taskReady(task, state.providers, reserves) ? 'Configurada' : 'Pendente'}</span></div><span>{task.provider ? aiCatalog[task.provider].name : 'Escolha uma conexão'}</span><span className="muted small">{isAuto(task.model) ? autoModes[task.model].label : task.model || 'Modelo ainda não escolhido'}</span><button type="button" className="text-button" onClick={() => setView('tasks')}>Gerenciar tarefa <ArrowRight size={14} aria-hidden="true" /></button></div>)}</div>
       <div className="ai-explainer"><Sparkles size={22} aria-hidden="true" /><div><strong>Automático, com critérios claros</strong><p>A Jornada consulta os modelos disponíveis para sua chave e aplica sua preferência de qualidade, rapidez ou economia. A lista tem cache de até uma hora; você pode atualizar agora. A escolha segue regras de família e versão, sem gastar tokens com outra IA para escolher.</p></div></div>
     </div>
-    <div id="ai-view-resources" className="ai-admin-content" hidden={view !== 'resources'}><ResourceMap state={resources} onChanged={() => void load()} /></div>
+    <div id="ai-view-resources" className="ai-admin-content" hidden={view !== 'resources'}><ResourceMap state={resources} onChanged={() => void load()} onResolve={setGuide} /></div>
     <div id="ai-view-connections" className="ai-admin-content" hidden={view !== 'connections'}>
       <div><h3>Suas conexões</h3><p className="muted">Abra uma empresa para cadastrar ou trocar a chave, consultar os modelos e gerenciar conexões independentes.</p></div>
       <div className="ai-connection-filter"><label className="ai-search">Buscar empresa ou conexão<input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Google, Claude, DeepSeek…" /></label><button type="button" className="button outline" aria-pressed={showAll} onClick={() => setShowAll(!showAll)}>{showAll ? 'Mostrar cadastradas' : 'Adicionar empresa'}</button></div>
       {!visibleProviders.length && <p className="muted" role="status">{search ? 'Nenhuma conexão corresponde à busca.' : 'Nenhuma chave cadastrada. Toque em Adicionar empresa para começar.'}</p>}
-      <div className="ai-provider-list">{visibleProviders.map(provider => <details className="ai-provider" key={provider.id}><summary><span className="ai-provider-symbol"><Plug size={20} aria-hidden="true" /></span><span className="ai-provider-name"><strong>{aiCatalog[provider.id].name}</strong><small>{provider.has_key ? 'Chave principal cadastrada' : 'Sem chave principal'} · {reserves.filter(row => row.provider === provider.id).length} conexões extras</small></span><span className="ai-badge">{provider.enabled && provider.has_key || reserves.some(row => row.provider === provider.id && row.enabled) ? 'Ligado' : provider.has_key || reserves.some(row => row.provider === provider.id) ? 'Pausado' : 'Configurar'}</span><ChevronDown className="ai-provider-chevron" size={18} aria-hidden="true" /></summary>
+      <div className="ai-provider-list">{visibleProviders.map(provider => <details className="ai-provider" key={provider.id} data-provider={provider.id}><summary><span className="ai-provider-symbol"><Plug size={20} aria-hidden="true" /></span><span className="ai-provider-name"><strong>{aiCatalog[provider.id].name}</strong><small>{provider.has_key ? 'Chave principal cadastrada' : 'Sem chave principal'} · {reserves.filter(row => row.provider === provider.id).length} conexões extras</small></span><span className="ai-badge">{provider.enabled && provider.has_key || reserves.some(row => row.provider === provider.id && row.enabled) ? 'Ligado' : provider.has_key || reserves.some(row => row.provider === provider.id) ? 'Pausado' : 'Configurar'}</span><ChevronDown className="ai-provider-chevron" size={18} aria-hidden="true" /></summary>
         <ProviderForm key={`${provider.id}-${provider.updated_at}`} provider={provider} busy={busy} safe={state.secretReady} loading={!!loadingModels[provider.id]} list={models[provider.id]} error={modelErrors[provider.id]} onSave={event => saveProvider(provider, event)} onModels={() => void ensureModels(provider.id, true)} onRemove={() => setRemoveTarget({ provider })} />
         {reserves.filter(row => row.provider === provider.id).map(connection => <ReserveForm key={`${connection.id}-${connection.updated_at}`} connection={connection} busy={busy} onVerify={() => verifyReserve(connection)} onSave={event => { event.preventDefault(); const form = event.currentTarget; const fields = new FormData(form); void run(`c-${connection.id}`, async () => { await api('/api/ai/admin', { action: 'save_connection', id: connection.id, provider: connection.provider, label: String(fields.get('label')), position: Number(fields.get('position')), enabled: fields.get('enabled') === 'on', key: String(fields.get('key') ?? '') || null, base_url: String(fields.get('base_url') ?? ''), gcp_project: String(fields.get('gcp_project') ?? ''), gcp_location: String(fields.get('gcp_location') ?? '') }); form.reset(); invalidateModels(connection.id); return 'Conexão independente salva.'; }); }} onRemove={() => setRemoveTarget({ provider, connection })} />)}
       </details>)}</div>
@@ -196,7 +225,7 @@ function TaskForm({ task, providers, connections, models, loading, errors, activ
     const next = connections.find(row => row.id === value)?.provider || providers.find(row => row.id === value)?.id;
     setModel(voice && next === 'openai' ? 'gpt-live-1' : next && (autoCapable.includes(next) || (voice && ['elevenlabs','xai'].includes(next))) ? 'auto:rapido' : '');
   };
-  return <form className="ai-card ai-task-card" onSubmit={onSave}>
+  return <form className="ai-card ai-task-card" data-task={task.id} onSubmit={onSave}>
     <div className="section-heading"><strong>{aiTaskLabels[task.id].name}</strong><span className="ai-badge">{dirty ? 'Não salvo' : taskReady(task, providers, connections) ? 'Configurada' : 'Pendente'}</span></div>
     <span className="muted small">{aiTaskLabels[task.id].help}</span>
     <label>Provedor<select value={selected} onChange={event => choose(event.target.value)}><option value="">Nenhum</option>{providers.filter(row => voice ? liveProviders.includes(row.id) : !voiceOnlyProviders.includes(row.id)).map(row => <optgroup key={row.id} label={aiCatalog[row.id].name}><option value={row.id} disabled={!row.has_key || !row.enabled}>{row.label || 'Chave principal'}{!row.has_key ? ' · sem chave' : !row.enabled ? ' · pausada' : ''}</option>{connections.filter(c => c.provider === row.id).map(c => <option key={c.id} value={c.id} disabled={!c.enabled}>{c.label}{!c.enabled ? ' · pausada' : ''}</option>)}</optgroup>)}</select></label>
