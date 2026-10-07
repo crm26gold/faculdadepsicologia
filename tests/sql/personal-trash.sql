@@ -37,12 +37,16 @@ update public.personal_trash set expires_at = now() - interval '1 second' where 
 update public.personal_workspaces set data = jsonb_set(data, '{notes}', '[{"id":"lx-tick","title":"Atualização"}]'::jsonb) where owner_id = '00000000-0000-4000-8000-00000000000a';
 select expect(not exists(select 1 from public.personal_trash where item_id = 'lx-1'), 'vencido sai da lixeira');
 
--- Espaço: acima de 2 MB por conta, os mais antigos saem primeiro.
+-- Espaço: acima de 2 MB por conta, os mais antigos saem primeiro (cada exclusão com sua hora).
 update public.personal_workspaces set data = jsonb_set(data, '{notes}', (select jsonb_agg(jsonb_build_object('id', 'big-' || g, 'title', 'Grande ' || g, 'content', repeat('x', 400000))) from generate_series(1, 6) g))
  where owner_id = '00000000-0000-4000-8000-00000000000a';
+update public.personal_workspaces set data = jsonb_set(data, '{notes}', (select jsonb_agg(jsonb_build_object('id', 'big-' || g, 'title', 'Grande ' || g, 'content', repeat('x', 400000))) from generate_series(4, 6) g))
+ where owner_id = '00000000-0000-4000-8000-00000000000a';
+update public.personal_trash set deleted_at = now() - (4 - substr(item_id, 5)::int) * interval '1 hour' where item_id in ('big-1', 'big-2', 'big-3');
 update public.personal_workspaces set data = jsonb_set(data, '{notes}', '[]'::jsonb) where owner_id = '00000000-0000-4000-8000-00000000000a';
 select expect((select sum(size) <= 2000000 from public.personal_trash where owner_id = '00000000-0000-4000-8000-00000000000a'), 'lixeira não passa de 2 MB');
-select expect(exists(select 1 from public.personal_trash where item_id = 'lx-2'), 'os mais novos ficam');
+select expect(not exists(select 1 from public.personal_trash where item_id in ('big-1', 'big-2')), 'os mais antigos saem primeiro');
+select expect((select count(*) = 5 from public.personal_trash where item_id in ('lx-2', 'big-3', 'big-4', 'big-5', 'big-6')), 'os mais novos ficam');
 
 -- Pelo assistente, a pessoa lê só a própria lixeira.
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000000a', true);
