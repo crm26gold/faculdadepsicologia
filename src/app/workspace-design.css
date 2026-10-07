@@ -469,3 +469,18 @@ body { background: var(--canvas); color: var(--ink); }
   .modal .form-footer { flex-wrap: nowrap; gap: 8px; }
   .modal .form-footer .button { flex: 1 1 0; min-width: 0; padding-inline: 10px; white-space: nowrap; justify-content: center; }
 }
+
+/* Áreas da vida: one compact row per area, name on the left and small icon actions on the right. */
+.organization-list li > span { display: inline-flex; align-items: center; gap: 10px; min-width: 0; flex: 1 1 auto; font-weight: 500; color: var(--ink); }
+.organization-list .color-dot { inline-size: 10px; block-size: 10px; flex: none; }
+.color-dot.sage { background: #8ca88a; } .color-dot.lavender { background: #a99bd6; } .color-dot.sand { background: #d8b77a; } .color-dot.blue { background: #6fa3cf; } .color-dot.rose { background: #d99aa3; }
+.organization-list.compact li { flex-wrap: nowrap; padding-block: 8px; border-color: var(--line); }
+.organization-list.compact .button-row { display: flex; gap: 2px; flex: none; flex-wrap: nowrap; }
+.organization-list.compact button { display: grid; place-items: center; min-width: 40px; min-height: 40px; padding: 0; border: 1px solid transparent; border-radius: 10px; background: transparent; color: var(--muted); }
+.organization-list.compact button:hover:not(:disabled) { background: var(--ui-hover); border-color: var(--line); color: var(--ink); }
+.organization-list.compact button:disabled { opacity: .3; }
+[data-theme='dark'] .organization-list button { background: var(--surface); color: var(--ink); border-color: var(--line); }
+[data-theme='dark'] .organization-list.compact button { background: transparent; border-color: transparent; color: var(--muted); }
+/* Foco: period tabs stay on one line. */
+.planning-tab { white-space: nowrap; }
+.organization-list.compact li > span { overflow-wrap: break-word; hyphens: auto; }
