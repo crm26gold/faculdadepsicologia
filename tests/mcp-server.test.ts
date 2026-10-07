@@ -246,28 +246,25 @@ test('servidor MCP: administração só por proposta, com os dados reais da cont
   assert.equal(state.acts.at(-1)!.operation, 'admin_overview');
   assert.match(read.result.content[0].text, /ana@example\.invalid/);
 
-  const saves = state.saves;
-  const plan = await call(2, 'administrar', { acao: { action: 'atualizar_conta', account: ANA, plan: 'pro', source: 'courtesy', pro_until: '2026-12-31' } });
-  assert.notEqual(plan.result.isError, true, plan.result.content[0].text);
-  const proposal = state.pending.at(-1) as { action: { type: string; request: { url: string; body: Record<string, unknown> } }; label: string };
-  assert.deepEqual(proposal.action, { type: 'administrar', request: { url: '/api/admin', body: { action: 'update_account', account: ANA, plan: 'pro', source: 'courtesy',
-    pro_until: '2026-12-31', credits: 0, features: [], master: false } } });
-  assert.equal(proposal.label, 'Conta de Ana (ana@example.invalid): plano Pro até 31 de dez. de 2026, cortesia, 0 créditos, recursos: nenhum');
-  assert.equal(state.saves, saves, 'nada muda antes da confirmação');
+  const saves = state.saves, proposals = state.pending.length;
+  for (const [id, acao] of [[2, { action: 'atualizar_conta', account: ANA, plan: 'pro', source: 'courtesy', pro_until: '2026-12-31' }], [3, { action: 'atualizar_conta', account: ANA, master: true }]] as const) {
+    const refused = await call(id, 'administrar', { acao });
+    assert.equal(refused.result.isError, true, 'plano, créditos e master de uma conta são só pela tela');
+    assert.match(refused.result.content[0].text, /só pela tela, em Administração › Contas/);
+  }
+  assert.equal(state.pending.length, proposals, 'nenhuma proposta de conta é guardada');
+  assert.equal(state.saves, saves, 'nada muda');
   assert.equal(state.acts.some(act => act.operation.startsWith('admin_') && act.operation !== 'admin_overview'), false, 'mudança de administração nunca roda pelo assistente');
-
-  const smuggled = await call(3, 'administrar', { acao: { action: 'atualizar_conta', account: ANA, master: true } });
-  assert.equal((state.pending.at(-1) as typeof proposal).action.request.body.master, false, 'master vem sempre da conta como está');
-  assert.notEqual(smuggled.result?.isError, true);
+  type Proposal = { action: { type: string; request: { url: string; body: Record<string, unknown> } }; label: string };
 
   const open = await call(4, 'administrar', { acao: { action: 'acesso_livre', value: false } });
   assert.notEqual(open.result.isError, true);
-  assert.equal((state.pending.at(-1) as typeof proposal).label, 'Fechar o acesso livre para novas contas (hoje está aberto)');
+  assert.equal((state.pending.at(-1) as Proposal).label, 'Fechar o acesso livre para novas contas (hoje está aberto)');
 
   state.actReply = { data: { routes: [] }, error: null };
   const route = await call(5, 'administrar', { acao: { action: 'usar_ia', task: 'assistente', provider: 'groq' } });
   assert.notEqual(route.result.isError, true, route.result.content[0].text);
-  assert.deepEqual((state.pending.at(-1) as typeof proposal).action.request, { url: '/api/ai/admin', body: { action: 'save_route', task: 'assistente', provider: 'groq',
+  assert.deepEqual((state.pending.at(-1) as Proposal).action.request, { url: '/api/ai/admin', body: { action: 'save_route', task: 'assistente', provider: 'groq',
     connection_id: null, model: 'auto:rapido', enabled: true, routing_mode: 'auto', fallbacks: [] } });
   const voiceOnly = await call(6, 'administrar', { acao: { action: 'usar_ia', task: 'assistente', provider: 'elevenlabs' } });
   assert.equal(voiceOnly.result.isError, true);

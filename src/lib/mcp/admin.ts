@@ -19,7 +19,7 @@ export function registerAdminTools(server: McpServer, db: Database, access: Acce
 
   server.registerTool('administrar', {
     title: 'Propor mudança de administração',
-    description: 'Só para o administrador geral. Propõe, para ele confirmar no aplicativo: atualizar_conta (plano, origem, validade do Pro, créditos e recursos de uma pessoa, pelo ID da conta em consultar_administracao), acesso_livre (abrir ou fechar a entrada de novas contas) e usar_ia (qual empresa de IA atende uma tarefa, com a chave principal já cadastrada). Nada muda antes da confirmação. Dar ou tirar administrador, chaves de API e declarações de privacidade são feitos só na tela.',
+    description: 'Só para o administrador geral. Propõe, para ele confirmar no aplicativo: acesso_livre (abrir ou fechar a entrada de novas contas) e usar_ia (qual empresa de IA atende uma tarefa, com a chave principal já cadastrada). Nada muda antes da confirmação. Dar ou tirar administrador, plano e créditos de contas, chaves de API e declarações de privacidade são feitos só na tela.',
     inputSchema: z.object({ acao: assistantAdminAction }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, async ({ acao }) => mcpShared(db, access, { area: 'administracao', acao }));

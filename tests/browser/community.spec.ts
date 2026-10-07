@@ -280,22 +280,22 @@ test('exclusão coletiva proposta pelo assistente só roda pela rota da tela dep
 test('mudança de administração proposta pelo assistente só vai ao painel depois de Confirmar', async ({ page }) => {
   const CONVERSA = 'abababab-0000-4000-8000-000000000003', PEDIDO = 'abababab-0000-4000-8000-0000000000b2';
   const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
-  const body = { action: 'update_account' as const, account: COLEGA, plan: 'pro' as const, source: 'courtesy' as const, pro_until: '2026-12-31', credits: 0, features: [], master: false };
+  const body = { action: 'set_open_access' as const, value: false };
   const posted = await mockApi(page, {
     jobs: [{ id: PEDIDO, conversation_id: CONVERSA, status: 'needs_confirmation', created_at: ago(3), updated_at: ago(3),
       input: { message: 'Pedido de Assistente externo', today: spDay(), history: [] },
       result: { saved: true, reply: 'Pedido guardado.', applied: [], failed: [], pending: [{ action: { type: 'administrar', request: { url: '/api/admin', body } }, fingerprint: '{}',
-        label: 'Conta de Colega Ana (ana@example.invalid): plano Pro até 31 de dez. de 2026, cortesia, 0 créditos, recursos: nenhum' }] } }],
+        label: 'Fechar o acesso livre para novas contas (hoje está aberto)' }] } }],
     elsewhere: [{ id: CONVERSA, title: 'Confirmação de assistente externo', mode: 'text', pinned: false, archived: false, updatedAt: ago(3), revision: 1, synced: true,
       messages: [{ id: `job:${PEDIDO}`, from: 'assistant', text: 'Pedido guardado.', saved: true }] }],
   });
   await page.goto('/');
-  await page.getByRole('region', { name: 'Pedidos aguardando você (1)', exact: true }).getByRole('button', { name: /Colega Ana/ }).click();
+  await page.getByRole('region', { name: 'Pedidos aguardando você (1)', exact: true }).getByRole('button', { name: /acesso livre/ }).click();
   const confirmation = page.getByRole('region', { name: 'Confirmar alteração', exact: true });
-  await expect(confirmation).toContainText('plano Pro até 31 de dez. de 2026');
+  await expect(confirmation).toContainText('Fechar o acesso livre para novas contas');
   expect(posted.some(item => item.url === '/api/admin')).toBe(false);
   await confirmation.getByRole('button', { name: 'Confirmar', exact: true }).click();
-  await expect(page.getByText(/^Feito: Conta de Colega Ana/)).toBeVisible();
+  await expect(page.getByText(/^Feito: Fechar o acesso livre/)).toBeVisible();
   expect(posted.filter(item => item.url === '/api/admin').map(item => item.body)).toEqual([body]);
 });
 

@@ -1,9 +1,8 @@
 import { z } from 'zod';
-import { adminAction } from './community';
 import { aiProviderIds, aiTaskIds } from './ai/catalog';
 
 // What an assistant may propose but never run: collective deletions and, for the general administrator,
-// account plans, open access and which AI serves a task. The server stores the proposal worded by the
+// open access and which AI serves a task (account plans and credits change on the screen alone). The server stores the proposal worded by the
 // database; once the person confirms in the app, the screen's own route runs it with the person's login,
 // so the screen's permission checks decide. Runs in the browser and on the server.
 export const collectiveDeletions = { delete_post: 'post', delete_poll: 'poll', delete_assignment: 'assignment', delete_part: 'part', delete_contact: 'contact' } as const;
@@ -11,12 +10,12 @@ export type CollectiveDeletionFn = keyof typeof collectiveDeletions;
 export type CollectiveDeletion = { type: 'excluir_coletivo'; fn: CollectiveDeletionFn; target: string };
 export const deletionNouns = { post: 'publicação', poll: 'enquete', assignment: 'trabalho', part: 'parte do trabalho', contact: 'contato' } as const;
 
-// The only administrative requests a confirmation may replay. Making someone master is not one of them:
-// the server copies the account's current master flag into the proposal.
+// The only administrative requests a confirmation may replay. Account changes (plan, credits, master) are
+// not among them, so an older stored proposal can no longer run either.
 const routeChange = z.object({ action: z.literal('save_route'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), connection_id: z.null(),
   model: z.string().trim().min(1).max(120), enabled: z.boolean(), routing_mode: z.enum(['fixed', 'auto']), fallbacks: z.array(z.never()).max(0) });
 export const adminRequest = z.union([
-  z.object({ url: z.literal('/api/admin'), body: adminAction }),
+  z.object({ url: z.literal('/api/admin'), body: z.object({ action: z.literal('set_open_access'), value: z.boolean() }) }),
   z.object({ url: z.literal('/api/ai/admin'), body: routeChange }),
 ]);
 export type AdminRequest = z.infer<typeof adminRequest>;
@@ -47,6 +46,8 @@ const shown = (label: string) => label.replace(/^Excluir /, '');
 export async function confirmPending(items: ConfirmablePending[], post: Post) {
   const deleted: string[] = [], changed: string[] = [], failed: string[] = [];
   for (const item of items) {
+    // A proposal stored before a rule tightened (an account's plan or credits) is refused, never replayed.
+    if (!isConfirmable(item as { action: { type: string } })) { failed.push(`${shown(item.label)}: agora só pela tela`); continue; }
     const request = confirmRequest(item.action);
     const outcome = await post(request.url, request.body).catch(() => ({ ok: false, error: 'sem conexão' }));
     if (outcome.ok) (item.action.type === 'excluir_coletivo' ? deleted : changed).push(shown(item.label));

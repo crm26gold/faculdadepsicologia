@@ -27,14 +27,17 @@ test('com o login da pessoa, cada pedido vira a mesma função da tela; exclusã
     { area: 'salas', acao: { action: 'add_member', space: SPACE, email: 'x@example.invalid', role: 'teacher' } },
     { area: 'administracao', acao: { action: 'atualizar_conta', account: ANA, credits: 50 } },
   ], 'https://jornada.example');
-  assert.deepEqual(fake.calls.map(call => call.fn), ['create_post', 'assistant_describe', 'admin_overview'], 'só funções permitidas chegam ao banco');
+  assert.deepEqual(fake.calls.map(call => call.fn), ['create_post', 'assistant_describe'], 'só funções permitidas chegam ao banco');
   assert.deepEqual(fake.calls[0].args, { target: SPACE, post_kind: 'announcement', post_title: 'Prova sexta', post_body: '', post_link: '', post_date: null, post_pinned: false });
   assert.deepEqual(fake.calls[1].args, { kind: 'post', target: POST });
   assert.deepEqual(result.done, ['Publicado no mural: Prova sexta']);
-  assert.deepEqual(result.pending.map(item => item.label), ['Excluir publicação: Aviso (Grupo 1)', 'Conta de Ana (ana@example.invalid): plano Acadêmico, gratuito, 50 créditos, recursos: nenhum']);
-  const admin = result.pending[1].action as { request: { body: { master: boolean } } };
-  assert.equal(admin.request.body.master, true, 'master permanece como está na conta');
-  assert.equal(result.failed.length, 2, 'mudar papel e dar papel de professor são recusados');
+  assert.deepEqual(result.pending.map(item => item.label), ['Excluir publicação: Aviso (Grupo 1)']);
+  assert.equal(result.failed.length, 3, 'mudar papel, dar papel de professor e mudar plano ou créditos são recusados');
+  assert.match(result.failed[2], /só pela tela, em Administração › Contas/);
+  const { isConfirmable } = await import('../src/lib/confirmable');
+  const stored = { action: { type: 'administrar', request: { url: '/api/admin', body: { action: 'update_account', account: ANA, plan: 'pro', source: 'courtesy', pro_until: null,
+    credits: 50, features: [], master: false } } }, fingerprint: '{}', label: 'antigo' };
+  assert.equal(isConfirmable(stored), false, 'uma proposta de conta guardada antes também não roda mais');
 });
 
 test('negativas do banco viram mensagens claras, e a administração fala só com o administrador', async () => {
