@@ -395,3 +395,15 @@ body { background: var(--canvas); color: var(--ink); }
 @media (pointer: coarse) {
   .workspace-shell .nav-item, .workspace-shell .button, .navigation-drawer .nav-item { min-height: 48px; }
 }
+
+/* An assistant working elsewhere, shown on the open screen: pointer, a short outline and a notice. */
+.ai-presence { position: fixed; inset: 0; pointer-events: none; z-index: 80; }
+.ai-pointer { position: fixed; left: 0; top: 0; color: var(--ui-focus); transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1); will-change: transform; }
+.ai-pointer svg { display: block; fill: var(--ui-focus); stroke: var(--ui-glass); stroke-width: 1.5; filter: drop-shadow(0 2px 4px #0000002e); }
+.ai-touched { outline: 3px solid var(--ui-focus); outline-offset: 3px; border-radius: 12px; animation: ai-touched 1.2s ease-out 2; }
+@keyframes ai-touched { 0% { outline-color: transparent; } 40% { outline-color: var(--ui-focus); } 100% { outline-color: var(--ui-focus); } }
+.ai-presence-notice { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); pointer-events: auto;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px; max-width: min(560px, calc(100vw - 32px)); padding: 10px 16px;
+  background: var(--ui-glass); color: var(--ink); border: 1px solid var(--ui-focus); border-radius: 14px; box-shadow: var(--ui-shadow-hover); }
+.ai-presence-notice .text-button { min-height: 44px; }
+@media (prefers-reduced-motion: reduce) { .ai-pointer { transition: none; } .ai-touched { animation: none; } }

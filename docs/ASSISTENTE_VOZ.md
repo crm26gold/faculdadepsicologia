@@ -100,6 +100,19 @@ Nomes ambíguos e vínculos inválidos são recusados. Excluir um registro ou su
 
 Marcar uma conta paga é um registro; não transfere dinheiro. Mensagens externas e pagamentos bancários não são capacidades deste executor.
 
+## Ver a IA trabalhando e pedir um print
+
+**Acompanhar ao vivo.** Com a Jornada aberta e visível, o app confere a versão do seu espaço a cada 4 segundos (`/api/workspace?only=revision`). Quando uma mudança vem de fora (Claude, ChatGPT, Telegram, WhatsApp ou outro aparelho), ele abre a tela daquele item e mostra o que mudou: um ponteiro desliza até o item, que fica destacado por alguns segundos, e um aviso diz o que a IA fez. Edições ainda não salvas neste aparelho nunca são sobrescritas. **Pausar acompanhamento** guarda a escolha neste navegador.
+
+**Print.** Peça "me mande um print" ou "me mostra as finanças":
+
+- No assistente do app, a tela é aberta, exceto durante uma chamada ao vivo, para não encerrar a chamada.
+- No Telegram, chega uma imagem montada com os dados atuais.
+- No WhatsApp, chega por enquanto o resumo da tela em texto.
+- No Claude e no ChatGPT, use a ferramenta `ver_tela`.
+
+O print é desenhado no servidor (`src/lib/screens`); não é captura do seu monitor.
+
 ## Continuidade dos pedidos
 
 Pedidos aceitos por voz são registrados no banco antes do trabalho. Cada pedido tem identificador e resultado próprios. A função do servidor continua o processamento mesmo que a chamada seja encerrada. Interromper a fala não cancela um pedido já aceito. A alteração do workspace e seu comprovante de execução são gravados na mesma transação; repetir o identificador não reaplica uma alteração concluída.

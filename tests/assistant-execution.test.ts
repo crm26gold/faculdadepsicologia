@@ -142,3 +142,14 @@ test('canal sem parte coletiva relata o limite e não inventa execução', async
   assert.match(state.receipt!.failed[0], /não estão disponíveis neste canal/);
   assert.equal(state.receipt?.shared, undefined);
 });
+
+test('"me mande um print" abre a tela no app depois de salvar o resto', async () => {
+  const shot: CommandAction = { type: 'mostrar_tela', tela: 'financas' };
+  const balance: CommandAction = { type: 'saldo_inicial', amount: 100 };
+  const { state, store } = fixture(input([balance, shot]));
+  await executeAssistantJob(store);
+  assert.deepEqual(state.data.finance, { openingCents: 10000, openingDate: '2026-10-05' });
+  assert.equal(state.receipt?.show, 'finances');
+  assert.match(state.receipt!.reply, /Abri Finanças para você ver\.$/);
+  assert.equal(state.receipt?.failed.length, 0, 'mostrar uma tela não é tratado como alteração');
+});

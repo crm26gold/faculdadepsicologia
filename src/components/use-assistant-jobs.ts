@@ -9,7 +9,8 @@ import { dateKey, type Workspace } from '@/lib/workspace';
 // prefer: the job opened from Meu dia; its confirmation is the one offered, even if a newer one waits in the same conversation.
 type Options = { accountId?: string; conversationId?: string; ready: boolean; messages: AssistantMessage[]; prefer?: string;
   setMessages: (update: (previous: AssistantMessage[]) => AssistantMessage[]) => void;
-  ensureSaved: () => Promise<void>; refresh: () => Promise<Workspace>; adopt: (result: JobOutcome, data: Workspace) => void };
+  ensureSaved: () => Promise<void>; refresh: () => Promise<Workspace>; adopt: (result: JobOutcome, data: Workspace) => void;
+  onShow?: (view: NonNullable<JobOutcome['show']>) => void };
 type JobPage = { accountId: string; jobs: AssistantJob[] };
 export function useAssistantJobs(options: Options) {
   const latest = useRef(options); latest.current = options;
@@ -42,6 +43,8 @@ export function useAssistantJobs(options: Options) {
           latest.current.adopt(result, data);
           setPendingId(result.pending.length ? job.id : undefined);
         }
+        // "Show me" opens the screen only for a result that just arrived, never for history reloaded later.
+        if (result.show && !known && Date.now() - Date.parse(job.updated_at) < 120_000) latest.current.onShow?.(result.show);
         adopted.current.add(`${job.id}:${job.status}`);
       }
     } catch (cause) { if (scope.current === target) setError(cause instanceof Error ? cause.message : 'Não consegui recuperar o resultado.'); }

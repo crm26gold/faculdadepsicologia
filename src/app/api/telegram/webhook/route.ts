@@ -5,9 +5,12 @@ import { runtimeConfig, type SealedConfig } from '@/lib/ai/runtime';
 import type { Turn } from '@/lib/ai/turns';
 import { botIntent, botReply, helpText, notLinkedText, todayIn } from '@/lib/bot/core';
 import { botServerSecret, telegramWebhookSecret } from '@/lib/bot/secrets';
-import { downloadFile, sendMessage, sendTyping, TelegramError, type TelegramUpdate } from '@/lib/bot/telegram';
+import { downloadFile, sendMessage, sendPhoto, sendTyping, TelegramError, type TelegramUpdate } from '@/lib/bot/telegram';
+const generatedAt = () => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date());
 import { storeTelegramPhoto } from '@/lib/bot/photo';
 import { botHome, botShared, botSummary, splitShared, storeBotConfirmation } from '@/lib/bot/shared';
+import { screenModel, screenText } from '@/lib/screens/screen-model';
+import { renderScreen } from '@/lib/screens/render';
 import type { AiImage } from '@/lib/ai/media';
 import { imageReview, imageReviewSystem } from '@/lib/ai/image-review';
 import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand, undoApplied, type Applied } from '@/lib/commands';
@@ -149,7 +152,10 @@ export async function POST(request: Request) {
       prompt: said || 'Leia a foto, descreva os dados legíveis e pergunte o que quero organizar.', history: photo ? [] : context.history.slice(-12), image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(40_000), beforeAttempt: reserveCandidate })).text;
     const result = photo ? imageReview(raw) : parseCommand(raw);
     // Rooms, group work and contacts act as the linked person, once; the personal part follows as before.
-    const { personal, shared: collective } = splitShared(result.actions);
+    const { personal: own, shared: collective } = splitShared(result.actions);
+    // "Me mande um print" is answered with an image after everything else is saved.
+    const prints = own.flatMap(action => action.type === 'mostrar_tela' ? [action.tela] : []);
+    const personal = own.filter(action => action.type !== 'mostrar_tela');
     const shared = collective.length ? await botShared(db, serverSecret, CHANNEL, chat, collective) : null;
     let outcome = applyCommands(workspace, personal, { today, now });
     if (outcome.applied.length) {
@@ -169,8 +175,15 @@ export async function POST(request: Request) {
     const actualReply = result.actions.length ? [botSummary(shared, waiting, stored), personal.length && (outcome.applied.length || outcome.failed.length) ? executionSummary({ ...outcome, pending: [] }) : ''].filter(Boolean).join(' ')
       : result.reply || 'Não entendi bem. Pode dizer de outro jeito?';
     const text = botReply(`${heard ? `🎙️ “${heard.slice(0, 300)}”\n\n` : ''}${actualReply || 'Nenhuma alteração foi feita.'}`, outcome.applied, []);
-    await log(text, outcome.applied.length ? outcome.applied : null);
-    await say(text);
+    const onlyPrint = prints.length > 0 && result.actions.length === prints.length;
+    if (!onlyPrint) { await log(text, outcome.applied.length ? outcome.applied : null); await say(text); }
+    for (const tela of [...new Set(prints)].slice(0, 2)) {
+      const model = screenModel(outcome.data, tela, today);
+      try { await sendPhoto(token, chat, await renderScreen(model, generatedAt()), `${model.title} · ${model.subtitle}`); }
+      catch { await say(`Não consegui gerar a imagem agora. Resumo da tela:
+${screenText(model)}`); }
+    }
+    if (onlyPrint) await log(`Print enviado: ${prints.join(', ')}`, null);
   } catch (error) {
     const reason = error instanceof AiError || error instanceof TelegramError ? error.message : 'erro inesperado';
     await say(`${photoNoteId ? 'A foto original está guardada em Para organizar. ' : ''}Não consegui responder agora (${reason}). Confira os registros antes de repetir qualquer ação.`);

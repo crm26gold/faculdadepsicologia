@@ -10,6 +10,8 @@ import { botDatabase } from '../supabase/bot';
 import type { JobOutcome } from '../assistant-jobs';
 import { registerCollectiveTools } from './collective';
 import { registerAdminTools } from './admin';
+import { screenModel, screens, screenText } from '../screens/screen-model';
+import { renderScreen } from '../screens/render';
 
 // The Jornada as an MCP server: external assistants (Claude Code, Codex, Gemini, Antigravity) reason
 // with their owner's own subscription and call these tools on that person's private life only.
@@ -22,6 +24,7 @@ export class McpAccessError extends Error { constructor(readonly status: 401 | 4
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] });
+const generatedAt = () => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date());
 
 export const mcpInstructions = `Jornada Plena: organizador da vida pessoal da pessoa dona desta chave (agenda, anotações, finanças, hábitos, metas, projetos, estudos, flashcards e áreas da vida).
 Use consultar_jornada antes de afirmar dados e para obter IDs. Datas no formato AAAA-MM-DD no fuso America/Sao_Paulo; valores em reais.
@@ -92,6 +95,18 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
       if (saved.error?.code !== 'PT409') break;
     }
     return { ...text('Os dados mudaram enquanto eu salvava. Nada foi confirmado; consulte novamente antes de repetir.'), isError: true };
+  });
+  server.registerTool('ver_tela', {
+    title: 'Ver uma tela da Jornada (print)',
+    description: 'Devolve uma imagem com as informações atuais de uma tela da vida pessoal: meu_dia, financas, agenda, habitos, metas ou anotacoes. Use quando a pessoa pedir um print ou para ver como ficou depois de registrar algo. A imagem é montada com os dados da conta, não é captura do monitor.',
+    inputSchema: z.object({ tela: z.enum(screens) }),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async ({ tela }) => {
+    const current = await context();
+    const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
+    const model = screenModel(data, tela, today());
+    const png = await renderScreen(model, generatedAt());
+    return { content: [{ type: 'image' as const, data: Buffer.from(png).toString('base64'), mimeType: 'image/png' }, { type: 'text' as const, text: screenText(model) }] };
   });
   registerCollectiveTools(server, db, access);
   registerAdminTools(server, db, access);

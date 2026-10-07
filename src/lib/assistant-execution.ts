@@ -1,6 +1,7 @@
 import { jobInputSchema, type JobOutcome } from './assistant-jobs';
 import { applyCommands, commandResult, executionSummary, type CommandAction, type CommandResult } from './commands';
 import type { ConfirmablePending } from './confirmable';
+import { screenNames, screenViews } from './screens/names';
 import { CURRENT_EDITOR_GENERATION, parseWorkspace, type Workspace } from './workspace';
 
 type Snapshot = { data: Workspace; revision: number };
@@ -36,8 +37,12 @@ export async function executeAssistantJob(store: ExecutionStore) {
     const planned = input.actions ? { actions: input.actions, reply: '' } : await store.plan(input, workspace.data);
     const plan = commandResult.parse(planned);
     const execution = input.actions ? 'structured' : 'planned';
-    const personal = plan.actions.filter(action => action.type !== 'coletivo');
+    const personal = plan.actions.filter(action => action.type !== 'coletivo' && action.type !== 'mostrar_tela');
     const collective = plan.actions.filter((action): action is SharedCommand => action.type === 'coletivo');
+    // "Show me" opens that screen in the app once the rest is saved; the live view points at the change.
+    const shown = plan.actions.findLast(action => action.type === 'mostrar_tela');
+    const show = shown?.type === 'mostrar_tela' ? screenViews[shown.tela] : undefined;
+    const showText = shown?.type === 'mostrar_tela' ? `Abri ${screenNames[shown.tela]} para você ver.` : '';
     // Shared actions have effects outside this workspace, so they run once, before the commit loop.
     const shared = !collective.length ? null : store.shared ? await store.shared(collective) : { done: [], pending: [], failed: collective.map(() => unavailable) };
     // A conflict retries the same validated proposal against fresh records, never the planner.
@@ -45,10 +50,10 @@ export async function executeAssistantJob(store: ExecutionStore) {
       const executed = applyCommands(workspace.data, personal, { today: input.today, now: Date.now() });
       const next = executed.applied.length ? parseWorkspace(JSON.stringify({ ...executed.data, editorGeneration: CURRENT_EDITOR_GENERATION })) : null;
       const reply = !plan.actions.length ? plan.reply || 'Pode dar mais um detalhe do que deseja?'
-        : [shared ? sharedSummary(shared) : '', personal.length ? executionSummary(executed) : ''].filter(Boolean).join(' ');
+        : [shared ? sharedSummary(shared) : '', personal.length ? executionSummary(executed) : '', showText].filter(Boolean).join(' ');
       const outcome: JobOutcome = { saved: true, reply,
         applied: executed.applied, pending: [...executed.pending, ...(shared?.pending ?? [])], failed: [...(shared?.failed ?? []), ...executed.failed], execution,
-        ...(shared?.done.length ? { shared: shared.done } : {}),
+        ...(shared?.done.length ? { shared: shared.done } : {}), ...(show ? { show } : {}),
         ...('model' in planned && planned.model ? { model: planned.model } : {}) };
       const result = await store.commit(next, workspace.revision, outcome);
       if (!result.conflict) return;

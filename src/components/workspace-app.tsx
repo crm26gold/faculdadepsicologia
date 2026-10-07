@@ -36,6 +36,9 @@ import { CommunityPanel, usePendingInvite, type CommunityRoute } from './communi
 import { ConsentGate } from './community/consent-gate';
 import { api, formatDay as formatShortDay } from './community/client';
 import { WorkspaceNavigation } from './workspace-navigation';
+import { AiPresence } from './ai-presence';
+import { useLiveFollow } from './use-live-follow';
+import type { Touched } from '@/lib/live-follow';
 import { acceptedTerms, hasPro, statusLabels, upcomingBirthdays, type Contact as ContactRow, type Home } from '@/lib/community';
 
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
@@ -85,6 +88,7 @@ const subtitles: Record<View, string> = {
 const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
 const SHORTCUT_KEY = 'jornada-atalho-barra';
 const BUBBLE_KEY = 'jornada-assistente-escondido';
+const FOLLOW_KEY = 'jornada-acompanhar-ia';
 const viewTransitions: Variants = {
   ...Object.fromEntries(Object.keys(names).map((name) => [name, { opacity: 1, y: [8, 0] }])),
   still: { opacity: 1, y: 0 },
@@ -97,7 +101,7 @@ function download(data: Workspace) {
 }
 
 export function WorkspaceApp({ mode, hostedPreview = false, authenticated = false }: { mode: 'local' | 'cloud' | 'demo'; hostedPreview?: boolean; authenticated?: boolean }) {
-  const { data, ready, demo, status, error, blocked, update, ensureSaved, refresh } = useWorkspace(mode);
+  const { data, ready, demo, status, error, blocked, update, ensureSaved, refresh, revisionNow, snapshotNow } = useWorkspace(mode);
   const [view, setView] = useState<View>('today');
   const [mobileMenu, setMobileMenu] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -280,6 +284,12 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   });
 
   // A modal's own history entry is replaced (never stacked on) when leaving it for another place.
+  // Following assistants live: a change made elsewhere opens its screen and the pointer shows the item.
+  const [followPaused, setFollowPaused] = useState(() => { try { return localStorage.getItem(FOLLOW_KEY) === 'off'; } catch { return false; } });
+  const [aiTouch, setAiTouch] = useState<Touched | null>(null);
+  function pauseFollow() { setFollowPaused(true); setAiTouch(null); try { localStorage.setItem(FOLLOW_KEY, 'off'); } catch {} }
+  useLiveFollow({ enabled: cloud && ready && !demo && !followPaused && !!home, accountId: home?.account.user_id, revision: revisionNow, snapshot: snapshotNow, refresh,
+    onTouched: items => { navigate(items[0].view); setAiTouch({ ...items[0] }); } });
   function navigate(next: View) {
     const modal = !!window.history.state?.modal;
     if (modal || next !== view || (next === 'studies' && studiesRoute.kind === 'course')) {
@@ -765,6 +775,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setNotesPlace(null); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
     {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} />}
     {ready && !bubbleHidden && view !== 'assistant' && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} showIntro={view === 'today'} onOpen={openAssistant} onHide={() => setBubble(true)} />}
+    <AiPresence touch={aiTouch} onPause={pauseFollow} />
     {assistantOpen && <AssistantPanel refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => { closeAssistant(); navigate(target); }} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
     {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
     {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
