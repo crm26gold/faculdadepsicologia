@@ -8,6 +8,7 @@ const deletion = (fn: 'delete_post' | 'delete_poll' | 'delete_assignment' | 'del
   ({ action: { type: 'excluir_coletivo', fn, target: ID }, fingerprint: '{}', label });
 const admin = (request: unknown, label: string) => ({ action: { type: 'administrar', request }, fingerprint: '{}', label }) as ConfirmablePending;
 const plan = { url: '/api/admin', body: { action: 'update_account', account: ID, plan: 'pro', source: 'courtesy', pro_until: '2026-12-31', credits: 100, features: ['ai'], master: false } };
+const access = { url: '/api/admin', body: { action: 'set_open_access', value: false } };
 const route = { url: '/api/ai/admin', body: { action: 'save_route', task: 'assistente', provider: 'groq', connection_id: null, model: 'auto:rapido', enabled: true, routing_mode: 'auto', fallbacks: [] } };
 
 test('exclusões coletivas confirmadas usam a rota da tela de cada item', () => {
@@ -20,16 +21,18 @@ test('exclusões coletivas confirmadas usam a rota da tela de cada item', () => 
 });
 
 test('administração: só os formatos do painel na lista são reexecutados', () => {
-  assert.equal(isConfirmable(admin(plan, 'x')), true);
+  assert.equal(isConfirmable(admin(access, 'x')), true);
   assert.equal(isConfirmable(admin(route, 'x')), true);
-  assert.deepEqual(confirmRequest(admin(plan, 'x').action), plan);
+  assert.deepEqual(confirmRequest(admin(access, 'x').action), access);
   for (const forbidden of [
     { url: '/api/ai/admin', body: { action: 'save_provider', provider: 'groq', enabled: true, label: '', key: 'gsk_segredo' } },
     { url: '/api/ai/admin', body: { ...route.body, fallbacks: [{ connection_id: ID, model: 'x' }] } },
     { url: '/api/ai/admin', body: { ...route.body, connection_id: ID } },
     { url: '/api/spaces', body: { action: 'set_role', space: ID, member: ID, role: 'owner' } },
+    plan, // plano e créditos de outra conta: só pela tela
+    { url: '/api/admin', body: { ...plan.body, master: true } },
     { url: '/api/admin', body: { ...plan.body, plan: 'gratis' } },
-    { url: 'https://example.invalid/api/admin', body: plan.body },
+    { url: 'https://example.invalid/api/admin', body: access.body },
   ]) assert.equal(isConfirmable(admin(forbidden, 'x')), false, JSON.stringify(forbidden));
   assert.throws(() => confirmRequest(admin({ url: '/api/ai/admin', body: { action: 'remove_provider', provider: 'groq' } }, 'x').action));
 });
@@ -37,9 +40,9 @@ test('administração: só os formatos do painel na lista são reexecutados', ()
 test('a confirmação relata o que a tela aceitou e o motivo do que recusou', async () => {
   const calls: string[] = [];
   const outcome = await confirmPending([deletion('delete_post', 'Excluir publicação: Prova (Grupo 1)'), deletion('delete_assignment', 'Excluir trabalho: TCC (Turma A)'),
-    admin(plan, 'Conta de Ana: plano Pro')], async (url, body) => { calls.push(`${url}:${body.action}`); return url === '/api/work' ? { ok: false, error: 'Você não tem permissão para isso.' } : { ok: true }; });
-  assert.deepEqual(calls, ['/api/spaces:delete_post', '/api/work:delete_assignment', '/api/admin:update_account']);
-  assert.equal(confirmSummary(outcome), 'Excluído: publicação: Prova (Grupo 1). Feito: Conta de Ana: plano Pro. Não consegui: trabalho: TCC (Turma A): Você não tem permissão para isso.');
+    admin(access, 'Fechar o acesso livre'), admin(plan, 'Conta de Ana: plano Pro')], async (url, body) => { calls.push(`${url}:${body.action}`); return url === '/api/work' ? { ok: false, error: 'Você não tem permissão para isso.' } : { ok: true }; });
+  assert.deepEqual(calls, ['/api/spaces:delete_post', '/api/work:delete_assignment', '/api/admin:set_open_access'], 'proposta antiga de plano não chega ao painel');
+  assert.equal(confirmSummary(outcome), 'Excluído: publicação: Prova (Grupo 1). Feito: Fechar o acesso livre. Não consegui: trabalho: TCC (Turma A): Você não tem permissão para isso; Conta de Ana: plano Pro: agora só pela tela.');
   const offline = await confirmPending([deletion('delete_poll', 'Excluir enquete: Data (Grupo 2)')], async () => { throw new Error('rede'); });
   assert.deepEqual(offline.failed, ['enquete: Data (Grupo 2): sem conexão']);
 });

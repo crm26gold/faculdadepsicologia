@@ -29,8 +29,8 @@ export const assistantWorkAction = z.discriminatedUnion('action',
 export const assistantContactAction = z.discriminatedUnion('action', allowed(contactAction.options, ['save', 'delete']) as never) as unknown as z.ZodType<z.infer<typeof contactAction>>;
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 export const assistantAdminAction = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('atualizar_conta'), account: z.uuid(), plan: z.enum(['academic', 'pro']).optional(), source: z.enum(['free', 'paid', 'courtesy']).optional(),
-    pro_until: day.nullable().optional(), credits: z.number().int().min(0).max(1_000_000).optional(), features: z.array(z.enum(['create_classes', 'ai'])).max(20).optional() }),
+  // Recognised only to refuse it clearly: another person's plan and credits change on the screen alone.
+  z.looseObject({ action: z.literal('atualizar_conta') }),
   z.object({ action: z.literal('acesso_livre'), value: z.boolean() }),
   z.object({ action: z.literal('usar_ia'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), model: z.string().trim().min(1).max(120).default('auto:rapido'),
     mode: z.enum(['auto', 'fixed']).default('auto'), enabled: z.boolean().default(true) }),
@@ -75,11 +75,6 @@ export async function readShared(transport: Transport, what: SharedRead, id?: st
 const kinds = { institution: 'instituição', class: 'sala', group: 'grupo' } as const;
 const roles = { student: 'aluno', leader: 'líder' } as const;
 const taskNames = { assistente: 'Assistente', organizar: 'Organizar', voz: 'Chamada ao vivo' } as const;
-const plans = { academic: 'Acadêmico', pro: 'Pro' } as const;
-const sources = { free: 'gratuito', paid: 'pago', courtesy: 'cortesia' } as const;
-const featureNames = { create_classes: 'criar salas', ai: 'IA' } as const;
-const brDate = (value: string) => new Intl.DateTimeFormat('pt-BR', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`));
-type Account = { user_id: string; email: string; display_name: string; is_master: boolean; plan: 'academic' | 'pro'; plan_source: 'free' | 'paid' | 'courtesy'; pro_until: string | null; ai_credits: number; features: ('create_classes' | 'ai')[] };
 
 async function run(transport: Transport, call: DbCall | null, label: string, extra?: (data: unknown) => unknown): Promise<SharedOutcome> {
   if (!call) return { error: 'Esta parte ficou grande demais. Divida o texto em outra parte.' };
@@ -101,6 +96,7 @@ function proposeAdmin(request: AdminRequest, label: string, before: unknown): Sh
 }
 
 async function administer(transport: Transport, acao: z.infer<typeof assistantAdminAction>): Promise<SharedOutcome> {
+  if (acao.action === 'atualizar_conta') return { error: 'Plano, origem, validade do Pro, créditos e recursos de uma conta são só pela tela, em Administração › Contas.' };
   if (acao.action === 'usar_ia') {
     if (acao.task !== 'voz' && voiceOnlyProviders.includes(acao.provider)) return { error: `${aiCatalog[acao.provider].name} atende somente a Chamada ao vivo.` };
     if (acao.task === 'voz' && !liveModelAllowed(acao.provider, acao.model)) return { error: 'Para a Chamada ao vivo, escolha Gemini com modelo Live, OpenAI com gpt-live-1, xAI com grok-voice-latest ou ElevenLabs com um modelo do agente.' };
@@ -112,21 +108,9 @@ async function administer(transport: Transport, acao: z.infer<typeof assistantAd
   }
   const current = await transport.call('admin_overview', {});
   if (current.error) return { error: errorText(current.error, ownerOnly) };
-  const overview = current.data as { accounts: Account[]; settings: { open_access: boolean } };
-  if (acao.action === 'acesso_livre') {
-    const now = overview.settings.open_access;
-    return proposeAdmin({ url: '/api/admin', body: { action: 'set_open_access', value: acao.value } },
-      `${acao.value ? 'Abrir' : 'Fechar'} o acesso livre para novas contas (hoje está ${now ? 'aberto' : 'fechado'})`, { open_access: now });
-  }
-  const account = overview.accounts.find(item => item.user_id === acao.account);
-  if (!account) return { error: 'Não encontrei essa conta. Consulte "contas" para pegar o ID certo.' };
-  const next = { plan: acao.plan ?? account.plan, source: acao.source ?? account.plan_source, pro_until: acao.pro_until !== undefined ? acao.pro_until : account.pro_until,
-    credits: acao.credits ?? account.ai_credits, features: acao.features ?? account.features };
-  const who = account.display_name ? `${account.display_name} (${account.email})` : account.email;
-  const label = `Conta de ${who}: plano ${plans[next.plan]}${next.pro_until ? ` até ${brDate(next.pro_until)}` : ''}, ${sources[next.source]}, ${next.credits} créditos, recursos: ${next.features.map(item => featureNames[item]).join(', ') || 'nenhum'}`;
-  // The master flag is copied from the account as it is now: an assistant can never grant or remove it.
-  return proposeAdmin({ url: '/api/admin', body: { action: 'update_account', account: account.user_id, ...next, master: account.is_master } }, label,
-    { plan: account.plan, source: account.plan_source, pro_until: account.pro_until, credits: account.ai_credits, features: account.features });
+  const now = (current.data as { settings: { open_access: boolean } }).settings.open_access;
+  return proposeAdmin({ url: '/api/admin', body: { action: 'set_open_access', value: acao.value } },
+    `${acao.value ? 'Abrir' : 'Fechar'} o acesso livre para novas contas (hoje está ${now ? 'aberto' : 'fechado'})`, { open_access: now });
 }
 
 /** Runs or proposes one assistant action; `origin` builds invitation links. */
