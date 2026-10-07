@@ -118,7 +118,7 @@ type ChatProps = {
   ensureSaved: () => Promise<void>;
   refreshWorkspace: () => Promise<Workspace>;
   messages: AssistantMessage[]; setMessages: (change: (previous: AssistantMessage[]) => AssistantMessage[]) => void;
-  onOpenNote: (id: string) => void; onNavigate: (view: Applied['view']) => void;
+  onOpenNote: (id: string) => void; onNavigate: (view: Applied['view'] | 'today') => void;
   focusJob?: string;
 };
 type CommandReply = { configured: boolean; reply?: string; actions?: CommandAction[]; model?: string };
@@ -163,7 +163,7 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
   const currentMessages = useRef(messages); currentMessages.current = messages;
   const executor = useAssistantExecutor({ data, blocked, update, ensureSaved });
   const jobs = useAssistantJobs({ accountId: conversations.accountId, conversationId: conversations.active?.id, ready: cloud && conversations.ready && !blocked,
-    messages, setMessages, ensureSaved, refresh: refreshWorkspace, adopt: executor.adopt, prefer: focusJob });
+    messages, setMessages, ensureSaved, refresh: refreshWorkspace, adopt: executor.adopt, prefer: focusJob, onShow: view => { if (!callOpen) onNavigate(view); } });
   // Opened from Meu dia: the confirmation receives focus as soon as it is offered; confirming stays a separate tap.
   const confirmation = useRef<HTMLElement>(null);
   useEffect(() => { if (focusJob && jobs.pendingId === focusJob) confirmation.current?.focus(); }, [focusJob, jobs.pendingId]);

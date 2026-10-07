@@ -299,6 +299,28 @@ test('mudança de administração proposta pelo assistente só vai ao painel dep
   expect(posted.filter(item => item.url === '/api/admin').map(item => item.body)).toEqual([body]);
 });
 
+test('com o app aberto, uma mudança feita pela IA em outro lugar abre a tela e aponta o item', async ({ page }) => {
+  await mockApi(page);
+  const empty = { version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} };
+  let remote = { revision: 1, data: empty as Record<string, unknown> };
+  // Registered after mockApi, so these answers win for the space itself.
+  await page.route('**/api/workspace**', async route => {
+    const url = new URL(route.request().url());
+    if (route.request().method() === 'PUT') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: remote.revision + 1 }) });
+    if (url.searchParams.get('only') === 'revision') return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: remote.revision, accountId: ME }) });
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ...remote, accountId: ME }) });
+  });
+  await page.goto('/');
+  await expect(page.getByRole('group', { name: 'Ações rápidas do dia' })).toBeVisible();
+  remote = { revision: 2, data: { ...empty, tasks: [{ id: 'ia-1', title: 'Prova de Ética', subjectId: '', date: spDay(), kind: 'Prova', done: false, minutes: 60 }] } };
+  await expect(page.getByRole('status').filter({ hasText: 'A IA criou: Prova de Ética' })).toBeVisible({ timeout: 12_000 });
+  await expect(page).toHaveURL(/#agenda$/);
+  await expect(page.locator('.ai-touched')).toContainText('Prova de Ética');
+  await expect(page.locator('.ai-pointer')).toBeVisible();
+  await page.getByRole('button', { name: 'Pausar acompanhamento' }).click();
+  expect(await page.evaluate(() => localStorage.getItem('jornada-acompanhar-ia'))).toBe('off');
+});
+
 test('trabalho em grupo: parte, entrega em nome, revisão e documento final padronizado', async ({ page }, info) => {
   const posted = await mockApi(page);
   await page.goto('/#community');

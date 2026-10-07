@@ -24,6 +24,17 @@ export const deleteWebhook = (token: string) => call<boolean>(token, 'deleteWebh
 export const sendMessage = (token: string, chatId: string, text: string, link?: { text: string; url: string }) =>
   call<unknown>(token, 'sendMessage', { chat_id: chatId, text: text.slice(0, 4000), link_preview_options: { is_disabled: true },
     ...(link ? { reply_markup: { inline_keyboard: [[{ text: link.text, url: link.url }]] } } : {}) });
+/** Sends a PNG (the "print" of a screen) with a short caption. */
+export async function sendPhoto(token: string, chatId: string, png: Uint8Array, caption: string) {
+  const form = new FormData();
+  form.set('chat_id', chatId); form.set('caption', caption.slice(0, 1000));
+  form.set('photo', new Blob([new Uint8Array(png)], { type: 'image/png' }), 'jornada.png');
+  let response: Response;
+  try { response = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: form, signal: AbortSignal.timeout(TIMEOUT), cache: 'no-store' }); }
+  catch { throw new TelegramError('O Telegram não respondeu ao enviar a imagem.'); }
+  const json = await response.json().catch(() => null) as { ok?: boolean; description?: string } | null;
+  if (!response.ok || !json?.ok) throw new TelegramError(`Telegram recusou a imagem (${response.status}): ${String(json?.description ?? '').slice(0, 200)}`);
+}
 export const sendTyping = (token: string, chatId: string) => call<unknown>(token, 'sendChatAction', { chat_id: chatId, action: 'typing' }).catch(() => null);
 
 /** Downloads a voice note (limited in size) and returns it as base64 for the AI to transcribe. */

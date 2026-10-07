@@ -10,6 +10,7 @@ import { speakReply } from '../voice/reply-mode';
 import { bridgeInput, confirmationIntent, validatedMedia } from './protocol';
 import { whatsappRpc } from './server';
 import { botHome, botShared, botSummary, splitShared, storeBotConfirmation } from '../bot/shared';
+import { screenModel, screenText } from '../screens/screen-model';
 import { botServerSecret } from '../bot/secrets';
 import { botDatabase } from '../supabase/bot';
 
@@ -62,7 +63,10 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
       plan = parseCommand(answer.text);
     }
     // Rooms, group work and contacts act as the linked person, once, before the personal commit loop.
-    const { personal, shared: collective } = splitShared(plan.actions);
+    const { personal: own, shared: collective } = splitShared(plan.actions);
+    // The bridge sends text and voice for now: a requested "print" goes as the screen's summary.
+    const prints = own.flatMap(action => action.type === 'mostrar_tela' ? [action.tela] : []);
+    const personal = own.filter(action => action.type !== 'mostrar_tela');
     const shared = collective.length ? await botShared(botDatabase()!, botServerSecret(), 'whatsapp', peer, collective) : null;
     // Personal deletions keep the in-chat code; shared deletions and administration wait in the app's Meu dia.
     const stored = shared ? await storeBotConfirmation(botDatabase()!, botServerSecret(), 'whatsapp', peer, shared.pending) : true;
@@ -76,6 +80,7 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
       if (executed.pending.length) reply = [sharedText, executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',
         `Confirme ${executed.pending.map(item => item.label).join('; ')}. Envie ou fale “confirmar ${confirmation}”. Vale por 15 minutos. Para desistir, diga “cancelar”.`,
         executed.failed.length ? `Não consegui: ${executed.failed.join('; ')}.` : ''].filter(Boolean).join(' ');
+      if (prints.length) reply = [reply, ...[...new Set(prints)].slice(0, 2).map(tela => screenText(screenModel(executed.data, tela, today)))].filter(Boolean).join('\n\n');
       reply = (reply || 'Nenhuma alteração foi feita.').slice(0, 4000);
       // `speak` is the voice-or-text choice; `voice` stays the chosen voice. Failure receipts omit it and go in text.
       const result = await whatsappRpc(token, 'finish', { ...args, revision: current.workspace?.revision ?? 0,

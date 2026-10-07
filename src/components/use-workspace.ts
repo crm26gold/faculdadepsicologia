@@ -139,5 +139,5 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
     current.current = next; saved.current = next; setData(next); setStatus('Sincronizado');
     return next;
   }
-  return { data, ready, demo, status, error, blocked, update, resetDemo, ensureSaved, refresh };
+  return { data, ready, demo, status, error, blocked, update, resetDemo, ensureSaved, refresh, revisionNow: () => revision.current, snapshotNow: () => current.current };
 }

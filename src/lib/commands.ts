@@ -7,6 +7,7 @@ import { changeRecord, collections, entities, entityFields, entityView, findReco
 import { lifeAreas } from './life';
 import { emptyProfile } from './life-data';
 import { todayAgenda } from './today';
+import { screens } from './screens/names';
 
 // What the assistant may do on its own. The model only proposes these shapes; every action is validated
 // here and applied with the same rules as the screens. Shared by the chat, the voice mode and, later,
@@ -33,6 +34,8 @@ export const commandAction = z.discriminatedUnion('type', [
   // Rooms, group work, contacts and administration run on the server with the person's login
   // (shared-actions.ts validates `acao`); deletions and administration become confirmations.
   z.object({ type: z.literal('coletivo'), area: z.enum(['salas', 'trabalhos', 'contatos', 'administracao', 'conta']), acao: z.record(z.string(), z.unknown()) }),
+  // Not a change: each channel shows the screen (the app opens it, Telegram gets an image, WhatsApp a summary).
+  z.object({ type: z.literal('mostrar_tela'), tela: z.enum(screens) }),
 ]);
 export type CommandAction = z.infer<typeof commandAction>;
 export const commandResult = z.object({ reply: z.string().trim().max(3000).default(''), actions: z.array(commandAction).max(8).default([]) });
@@ -186,6 +189,7 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
             view: 'studies', undo: { kind: 'setting', key: 'term', before: previous, after: next.term } });
           break;
         }
+        case 'mostrar_tela': throw new Error('mostrar uma tela não passa por aqui: no Claude e no ChatGPT, use a ferramenta ver_tela');
         case 'coletivo': throw new Error('pedidos de salas, trabalhos, contatos e administração não passam por aqui: no Claude e no ChatGPT, use as ferramentas gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e administrar');
         case 'perfil': {
           const changed = Object.keys(action.fields);
@@ -307,6 +311,7 @@ Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa
   conta: {"action":"rename","name":"…"} — muda só o nome exibido da pessoa; aceitar termos e excluir a conta são só pela tela
   administracao (só para o administrador geral): {"action":"atualizar_conta","account":ID,"plan":"academic"|"pro","source":"free"|"paid"|"courtesy","pro_until":"AAAA-MM-DD"|null,"credits":número,"features":["create_classes","ai"]}; {"action":"acesso_livre","value":true|false}; {"action":"usar_ia","task":"assistente"|"organizar"|"voz","provider":"groq"|"gemini"|"xai"|"openai"|"anthropic"|"deepseek"|"mistral"|"openrouter","model":"auto:rapido"}
   Exclusões e administração ficam guardadas para a pessoa confirmar no aplicativo; diga isso. Tirar ou bloquear pessoas, mudar papéis, dar papel de professor ou administrador e chaves de API são só pela tela: explique onde fazer, sem criar ação.
+- {"type":"mostrar_tela","tela":"meu_dia"|"financas"|"agenda"|"habitos"|"metas"|"anotacoes"} — quando a pessoa pedir um print, para ver ou mostrar uma tela; coloque depois das outras ações do mesmo pedido, para mostrar como ficou
 Tipos de registro e únicos campos aceitos em fields:
 ${entities.map(entity => `${entity}: ${entityFields[entity]}`).join('\n')}
 Campos de vínculo area,subject,project,goal,course,notebook recebem um ID existente ou nome inequívoco, nunca invente IDs. Cor: sage|lavender|sand|blue|rose. Status de meta/projeto: active|paused|completed|archived; curso: active|paused|completed.

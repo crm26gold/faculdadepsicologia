@@ -14,6 +14,12 @@ export async function GET(request: Request) {
   const accountId = new URL(request.url).searchParams.get('accountId');
   if (accountId && accountId !== session.user.id) return response({ error: 'A conta mudou. Recarregue antes de continuar.' }, 409);
   if (process.env.FACULDADE_CLOUD_WORKSPACE !== 'true') return response({ error: 'Sincronização ainda não ativada.' }, 503);
+  // The open app asks only for the revision every few seconds, to follow changes made by assistants elsewhere.
+  if (new URL(request.url).searchParams.get('only') === 'revision') {
+    const { data, error } = await session.client.from('personal_workspaces').select('revision').eq('owner_id', session.user.id).maybeSingle();
+    if (error) return response({ error: 'Não foi possível consultar a versão.' }, 503);
+    return response({ revision: data?.revision ?? 0, accountId: session.user.id });
+  }
   const { data, error } = await session.client.from('personal_workspaces').select('data,revision').eq('owner_id', session.user.id).maybeSingle();
   if (error) return response({ error: 'Não foi possível carregar. Verifique a configuração do banco.' }, 503);
   return response({ ...(data ?? { data: emptyWorkspace(), revision: 0 }), accountId: session.user.id });
