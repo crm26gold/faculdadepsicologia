@@ -34,7 +34,7 @@ select expect(not exists(select 1 from public.personal_trash where item_id = 'lx
 update public.personal_workspaces set data = jsonb_set(data, '{tasks}', '[]'::jsonb) where owner_id = '00000000-0000-4000-8000-00000000000a';
 select expect((select count(*) = 2 from public.personal_trash where item_id in ('lx-1', 'lx-2')), 'excluir dois guarda os dois');
 update public.personal_trash set expires_at = now() - interval '1 second' where item_id = 'lx-1';
-update public.personal_workspaces set data = jsonb_set(data, '{notes}', '[]'::jsonb) where owner_id = '00000000-0000-4000-8000-00000000000a';
+update public.personal_workspaces set data = jsonb_set(data, '{notes}', '[{"id":"lx-tick","title":"Atualização"}]'::jsonb) where owner_id = '00000000-0000-4000-8000-00000000000a';
 select expect(not exists(select 1 from public.personal_trash where item_id = 'lx-1'), 'vencido sai da lixeira');
 
 -- Espaço: acima de 2 MB por conta, os mais antigos saem primeiro.
