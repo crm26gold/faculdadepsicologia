@@ -154,13 +154,13 @@ test('servidor MCP: saldo inicial e semestre registrados pelo assistente voltam 
   const call = async (request: Request) => body(await jornadaMcpHandler(db as never, access).fetch(request));
   await call(legacy(1, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'teste', version: '1' } }));
   const saved = await call(legacy(2, 'tools/call', { name: 'registrar_na_jornada', arguments: { acoes: [
-    { type: 'saldo_inicial', amount: 2300 }, { type: 'semestre', start: '2026-08-03', end: '2026-12-18' }, { type: 'perfil', fields: { institution: 'Anhanguera' } }] } }));
+    { type: 'saldo_inicial', amount: 2300, date: '2026-10-01' }, { type: 'semestre', start: '2026-08-03', end: '2026-12-18' }, { type: 'perfil', fields: { institution: 'Anhanguera' } }] } }));
   assert.notEqual(saved.result.isError, true, saved.result.content[0].text);
   assert.equal(JSON.parse(saved.result.content[0].text).aplicado.length, 3);
   assert.equal(state.saves, 1);
   const read = await call(legacy(3, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'configuracoes' } }));
   const settings = JSON.parse(read.result.content[0].text);
-  assert.deepEqual(settings.saldoInicial, { emReais: 2300, data: dateKey() });
+  assert.deepEqual(settings.saldoInicial, { emReais: 2300, data: '2026-10-01' });
   assert.deepEqual(settings.semestre, { start: '2026-08-03', end: '2026-12-18' });
   assert.equal(settings.perfil.institution, 'Anhanguera');
   assert.equal('photoUrl' in settings.perfil, false);
