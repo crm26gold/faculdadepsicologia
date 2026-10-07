@@ -77,6 +77,11 @@ reset role;
 select expect((select author_id from public.space_posts where id = current_setting('test.mpost')::uuid) = '00000000-0000-4000-8000-000000000001', 'publicação fica no nome da professora');
 set local role anon;
 
+-- A confirmação de uma exclusão mostra as palavras do banco, lidas como a pessoa (sob RLS).
+select expect(read_mcp(repeat('4', 64), 'describe', jsonb_build_object('kind', 'post', 'target', current_setting('test.mpost'))) = '{"title": "Slides", "where": "Grupo da IA"}'::jsonb, 'membro vê o que seria excluído');
+select expect(read_mcp(repeat('5', 64), 'describe', jsonb_build_object('kind', 'post', 'target', current_setting('test.mpost'))) is null, 'quem é de fora não descobre o item');
+select expect(read_mcp(repeat('2', 64), 'describe', jsonb_build_object('kind', 'post', 'target', current_setting('test.mpost'))) is not null, 'descrever é consulta: chave de leitura pode');
+
 -- Chave só de leitura não grava; o que é só da tela é recusado, mesmo para quem pode na tela.
 select expect(try_mcp(repeat('2', 64), 'create_post', jsonb_build_object('target', current_setting('test.mg'), 'post_kind', 'announcement', 'post_title', 'x')) = '42501', 'chave de leitura não publica');
 select expect(try_mcp(repeat('1', 64), 'add_member_by_email', jsonb_build_object('target', current_setting('test.mg'), 'member_email', 'grupo3@example.invalid', 'member_role', 'teacher')) = 'PT403', 'dar papel de condução é só na tela');
