@@ -9,6 +9,9 @@ import type { Turn } from '../ai/turns';
 import { speakReply } from '../voice/reply-mode';
 import { bridgeInput, confirmationIntent, validatedMedia } from './protocol';
 import { whatsappRpc } from './server';
+import { botHome, botShared, splitShared } from '../bot/shared';
+import { botServerSecret } from '../bot/secrets';
+import { botDatabase } from '../supabase/bot';
 
 type Context = { input_ciphertext: string; ai: SealedConfig | null; stt: SealedConfig | null;
   workspace: { data: unknown; revision: number } | null; history: Turn[]; pending: { confirmation: string; actions: PendingCommand[] } | null };
@@ -51,19 +54,23 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
     else {
       if (!context.ai) throw new Error('Ative a Conversa do assistente no painel de IA.');
       const data = context.workspace ? parseWorkspace(JSON.stringify(context.workspace.data)) : emptyWorkspace();
+      const rooms = await botHome(botDatabase()!, botServerSecret(), 'whatsapp', peer);
       const answer = await generateResilient(runtimeConfig(context.ai), {
-        system: `${commandSystem}\nCanal: WhatsApp. Responda para ouvir em voz, com calma, frases claras e uma pergunta útil por vez. Você não controla chaves, SQL, permissões ou outros contatos. Não afirme que mandou mensagens a terceiros ou guardou anexos.\nContexto atual:\n${commandContext(data, today, 20_000, transcript)}`,
+        system: `${commandSystem}\nCanal: WhatsApp. Responda para ouvir em voz, com calma, frases claras e uma pergunta útil por vez. Você não controla chaves, SQL, permissões ou outros contatos. Não afirme que mandou mensagens a terceiros ou guardou anexos.\nContexto atual:\n${commandContext(data, today, 20_000, transcript)}${rooms}`,
         prompt: transcript, history: context.history, json: true, maxTokens: 2400, signal: AbortSignal.timeout(45_000), beforeAttempt: reserve,
       });
       plan = parseCommand(answer.text);
     }
+    // Rooms, group work and contacts act as the linked person, once, before the personal commit loop.
+    const { personal, shared: collective } = splitShared(plan.actions);
+    const shared = collective.length ? await botShared(botDatabase()!, botServerSecret(), 'whatsapp', peer, collective) : null;
     let current = context;
     for (let attempt = 0; attempt < 2; attempt++) {
       const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
-      const executed = applyCommands(data, plan.actions, { today, now: Date.now(), ...(confirmed ? { confirmed: pending!.actions } : {}) });
+      const executed = applyCommands(data, personal, { today, now: Date.now(), ...(confirmed ? { confirmed: pending!.actions } : {}) });
       const confirmation = String(randomInt(100000, 1000000));
-      let reply = plan.actions.length ? executionSummary(executed) : plan.reply;
-      if (executed.pending.length) reply = [executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',
+      let reply = plan.actions.length ? [shared?.text ?? '', personal.length ? executionSummary(executed) : ''].filter(Boolean).join(' ') : plan.reply;
+      if (executed.pending.length) reply = [shared?.text ?? '', executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',
         `Confirme ${executed.pending.map(item => item.label).join('; ')}. Envie ou fale “confirmar ${confirmation}”. Vale por 15 minutos. Para desistir, diga “cancelar”.`,
         executed.failed.length ? `Não consegui: ${executed.failed.join('; ')}.` : ''].filter(Boolean).join(' ');
       reply = (reply || 'Nenhuma alteração foi feita.').slice(0, 4000);

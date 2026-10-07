@@ -124,6 +124,8 @@ O bot já vinculado continua recebendo texto e mensagens de voz. Fotos agora pod
 
 Envie **/voz** ou **/ligar** ao seu bot para receber um botão que abre a Jornada. A Bot API oficial não fornece chamadas telefônicas diretas para bots; esse botão abre a chamada no site. Não é necessário recriar o bot. O histórico de mensagens do Telegram ainda é separado do gerenciador de conversas do site, mas os registros usam o mesmo workspace.
 
+Na parte coletiva (salas, mural, enquetes, trabalhos em grupo e contatos), o bot age como a pessoa vinculada, por `public.bot_act`, com as mesmas regras da tela. Exclusões coletivas e mudanças de administração ficam numa conversa **Confirmação pelo Telegram** e aparecem em **Meu dia** para confirmar no aplicativo.
+
 ## Android e instalação
 
 Quando o navegador móvel oferecer instalação, o Assistente mostra **Instalar Jornada Plena**. Também é possível procurar **Instalar aplicativo** ou **Adicionar à tela inicial** no menu do Chrome. Isso cria acesso direto à Jornada.
