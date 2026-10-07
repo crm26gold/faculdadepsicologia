@@ -189,13 +189,25 @@ test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e 
 
   const before = state.acts.length;
   for (const acao of [{ action: 'set_role', space, member: space, role: 'teacher' }, { action: 'remove_member', space, member: space },
-    { action: 'add_member', space, email: 'x@example.invalid', role: 'teacher' }, { action: 'delete_post', post: space }]) {
+    { action: 'add_member', space, email: 'x@example.invalid', role: 'teacher' }]) {
     const refused = await call(4, 'gerenciar_salas', { acao });
     assert.equal(refused.result?.isError ?? !!refused.error, true, `só na tela: ${acao.action}`);
   }
-  const deletion = await call(5, 'gerenciar_trabalhos', { acao: { action: 'delete_assignment', assignment: space } });
-  assert.equal(deletion.result?.isError ?? !!deletion.error, true, 'excluir trabalho é só na tela');
   assert.equal(state.acts.length, before, 'nada que é só da tela chega ao banco');
+
+  // Excluir vira pedido guardado, com as palavras do banco; a exclusão não roda pelo assistente.
+  state.actReply = { data: { title: 'Prova sexta', where: 'Grupo 1' }, error: null };
+  const savesBefore = state.saves;
+  const proposal = await call(5, 'gerenciar_salas', { acao: { action: 'delete_post', post: space } });
+  assert.notEqual(proposal.result.isError, true, proposal.result.content[0].text);
+  assert.deepEqual(state.acts.at(-1), { operation: 'describe', args: { kind: 'post', target: space } });
+  assert.deepEqual(state.pending.at(-1), { action: { type: 'excluir_coletivo', fn: 'delete_post', target: space }, fingerprint: JSON.stringify({ title: 'Prova sexta', where: 'Grupo 1' }), label: 'Excluir publicação: Prova sexta (Grupo 1)' });
+  assert.deepEqual(JSON.parse(proposal.result.content[0].text).pendente_no_aplicativo, ['Excluir publicação: Prova sexta (Grupo 1)']);
+  assert.equal(state.saves, savesBefore, 'propor exclusão não grava a vida pessoal');
+  assert.equal(state.acts.some(act => act.operation.startsWith('delete_')), false, 'nenhuma exclusão roda pelo assistente');
+  state.actReply = { data: null, error: null };
+  const unknown = await call(5, 'gerenciar_trabalhos', { acao: { action: 'delete_assignment', assignment: space } });
+  assert.equal(unknown.result.isError, true, 'item que a pessoa não vê não vira pedido');
 
   state.actReply = { data: null, error: { code: '42501' } };
   const denied = await call(6, 'gerenciar_trabalhos', { acao: { action: 'add_comment', part: space, kind: 'comment', body: 'Revisei' } });

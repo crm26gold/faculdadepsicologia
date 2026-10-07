@@ -1,4 +1,5 @@
 import 'server-only';
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/server';
 import { contactAction, spaceAction, workAction } from '../community';
@@ -6,10 +7,13 @@ import { contactCall, invitationSecret, spaceCall, workCall, type DbCall } from 
 import { applicationOrigin } from '../auth-input';
 import { botServerSecret } from '../bot/secrets';
 import type { botDatabase } from '../supabase/bot';
+import { collectiveDeletions, deletionNouns, type CollectiveDeletionFn, type CollectivePending } from '../collective-deletions';
+import type { JobOutcome } from '../assistant-jobs';
 
 // The collective layer for assistants: the same screen actions, run in the database as the key's owner
-// (public.mcp_act), so each role can do exactly what it could do on screen. Removing or blocking people,
-// changing roles, administration and deletions are not offered here; they stay on the screen.
+// (public.mcp_act), so each role can do exactly what it could do on screen. Deletions are only proposed:
+// the person confirms them in the app, where the screen's route runs them. Removing or blocking people,
+// changing roles and administration are not offered here; they stay on the screen.
 type Database = NonNullable<ReturnType<typeof botDatabase>>;
 type Access = { hash: string; canWrite: boolean };
 const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] });
@@ -19,12 +23,12 @@ const allowed = <T extends { shape: { action: { value: string } } }>(options: re
   options.filter(option => names.includes(option.shape.action.value));
 const memberRoles = z.enum(['student', 'leader']);
 export const assistantSpaceAction = z.discriminatedUnion('action', [
-  ...allowed(spaceAction.options, ['create_space', 'update_space', 'archive_space', 'create_invitation', 'revoke_invitation', 'accept_invitation', 'create_post', 'create_poll', 'vote']),
+  ...allowed(spaceAction.options, ['create_space', 'update_space', 'archive_space', 'create_invitation', 'revoke_invitation', 'accept_invitation', 'create_post', 'create_poll', 'vote', 'delete_post', 'delete_poll']),
   z.object({ action: z.literal('add_member'), space: z.uuid(), email: z.email().max(254), role: memberRoles }),
 ] as never) as unknown as z.ZodType<z.infer<typeof spaceAction>>;
 export const assistantWorkAction = z.discriminatedUnion('action',
-  allowed(workAction.options, ['create_assignments', 'update_assignment', 'add_part', 'update_part', 'save_part', 'add_comment', 'resolve_comment']) as never) as unknown as z.ZodType<z.infer<typeof workAction>>;
-export const assistantContactAction = z.discriminatedUnion('action', allowed(contactAction.options, ['save']) as never) as unknown as z.ZodType<z.infer<typeof contactAction>>;
+  allowed(workAction.options, ['create_assignments', 'update_assignment', 'add_part', 'update_part', 'save_part', 'add_comment', 'resolve_comment', 'delete_assignment', 'delete_part']) as never) as unknown as z.ZodType<z.infer<typeof workAction>>;
+export const assistantContactAction = z.discriminatedUnion('action', allowed(contactAction.options, ['save', 'delete']) as never) as unknown as z.ZodType<z.infer<typeof contactAction>>;
 
 const messages: Record<string, string> = {
   '42501': 'Sem permissão para isso: a sua conta não pode fazer isso nesta sala, ou a chave do assistente só consulta.',
@@ -51,6 +55,25 @@ export function registerCollectiveTools(server: McpServer, db: Database, access:
     return 'error' in result ? failure(result.error!) : text(done(result.data));
   };
 
+  // A deletion becomes a stored confirmation worded by the database, never by the model.
+  const propose = async (fn: CollectiveDeletionFn, target: string) => {
+    if (!access.canWrite) return failure('Esta conexão só consulta. Conecte de novo marcando "Permitir registrar e editar".');
+    const kind = collectiveDeletions[fn];
+    const found = await act(db, access, { fn: 'describe', args: { kind, target } });
+    if ('error' in found) return failure(found.error!);
+    if (!found.data) return failure('Não encontrei esse item, ou a sua conta não tem acesso a ele. Consulte de novo para pegar o ID certo.');
+    const item = found.data as { title: string; where: string };
+    const pending: CollectivePending = { action: { type: 'excluir_coletivo', fn, target }, fingerprint: JSON.stringify(item), label: `Excluir ${deletionNouns[kind]}: ${item.title} (${item.where})` };
+    const context = await db.rpc('mcp_context', { server_secret: botServerSecret(), token: access.hash });
+    if (context.error || !context.data) return failure('Não consegui guardar o pedido agora. Nada foi excluído.');
+    const outcome: JobOutcome = { saved: true, reply: `Pedido guardado: ${pending.label}. Confirme no aplicativo.`, applied: [], pending: [pending], failed: [] };
+    const saved = await db.rpc('mcp_commit', { server_secret: botServerSecret(), token: access.hash, request_id: crypto.randomUUID(),
+      payload_hash: createHash('sha256').update(JSON.stringify(pending.action)).digest('hex'), next_data: null,
+      expected_revision: (context.data as { workspace: { revision: number } | null }).workspace?.revision ?? 0, outcome });
+    if (saved.error || !saved.data) return failure('Não consegui guardar o pedido agora. Nada foi excluído; tente de novo.');
+    return text({ pendente_no_aplicativo: [pending.label], onde_confirmar: 'Meu dia › Pedidos aguardando você, ou Assistente › Conversas › Confirmação de assistente externo.' });
+  };
+
   server.registerTool('consultar_coletivo', {
     title: 'Consultar salas, grupos e contatos',
     description: 'Mostra o que a pessoa vê na tela da parte coletiva: inicio (suas instituições, salas e grupos), sala (mural, enquetes, pessoas, grupos e trabalhos de uma sala pelo ID), trabalho (partes, comentários e entregas de um trabalho pelo ID) e contatos. Use para obter IDs antes de agir.',
@@ -66,10 +89,12 @@ export function registerCollectiveTools(server: McpServer, db: Database, access:
 
   server.registerTool('gerenciar_salas', {
     title: 'Gerenciar salas e grupos',
-    description: 'Age nas instituições, salas e grupos com as permissões da própria pessoa: criar, editar ou arquivar sala e grupo, adicionar aluno ou líder por e-mail, criar e cancelar convite (devolve o link), aceitar convite, publicar no mural, criar enquete e votar. Tirar pessoas, mudar papéis, dar papel de professor ou dono e excluir publicações são feitos só na tela.',
+    description: 'Age nas instituições, salas e grupos com as permissões da própria pessoa: criar, editar ou arquivar sala e grupo, adicionar aluno ou líder por e-mail, criar e cancelar convite (devolve o link), aceitar convite, publicar no mural, criar enquete e votar. Excluir publicação ou enquete fica guardado para a pessoa confirmar no aplicativo. Tirar pessoas, mudar papéis e dar papel de professor ou dono são feitos só na tela.',
     inputSchema: z.object({ acao: assistantSpaceAction }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, async ({ acao }) => {
+    if (acao.action === 'delete_post') return propose('delete_post', acao.post);
+    if (acao.action === 'delete_poll') return propose('delete_poll', acao.poll);
     if (acao.action === 'create_invitation') {
       const secret = invitationSecret();
       return write(spaceCall(acao, secret.hashed), () => ({ feito: 'Convite criado', link: `${applicationOrigin(process.env)}/convite/${secret.token}` }));
@@ -79,15 +104,18 @@ export function registerCollectiveTools(server: McpServer, db: Database, access:
 
   server.registerTool('gerenciar_trabalhos', {
     title: 'Gerenciar trabalhos em grupo',
-    description: 'Age nos trabalhos em grupo com as permissões da própria pessoa: criar trabalhos para grupos, editar trabalho e status, criar e editar partes e responsáveis, escrever ou entregar a própria parte, comentar e pedir revisão, resolver comentário. Excluir trabalho ou parte é feito só na tela.',
+    description: 'Age nos trabalhos em grupo com as permissões da própria pessoa: criar trabalhos para grupos, editar trabalho e status, criar e editar partes e responsáveis, escrever ou entregar a própria parte, comentar e pedir revisão, resolver comentário. Excluir trabalho ou parte fica guardado para a pessoa confirmar no aplicativo.',
     inputSchema: z.object({ acao: assistantWorkAction }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-  }, async ({ acao }) => write(workCall(acao), data => ({ feito: acao.action, resultado: data ?? null })));
+  }, async ({ acao }) => acao.action === 'delete_assignment' ? propose('delete_assignment', acao.assignment)
+    : acao.action === 'delete_part' ? propose('delete_part', acao.part)
+    : write(workCall(acao), data => ({ feito: acao.action, resultado: data ?? null })));
 
   server.registerTool('gerenciar_contatos', {
-    title: 'Salvar contatos',
-    description: 'Cria ou edita um contato privado da pessoa (nome, e-mail, telefone, aniversário e observações). Para editar, envie o ID do contato; para criar, contact null. Excluir contato é feito só na tela.',
+    title: 'Gerenciar contatos',
+    description: 'Cria ou edita um contato privado da pessoa (nome, e-mail, telefone, aniversário e observações). Para editar, envie o ID do contato; para criar, contact null. Excluir contato fica guardado para a pessoa confirmar no aplicativo.',
     inputSchema: z.object({ acao: assistantContactAction }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-  }, async ({ acao }) => write(contactCall(acao), data => ({ feito: 'Contato salvo', id: data ?? null })));
+  }, async ({ acao }) => acao.action === 'delete' ? propose('delete_contact', acao.contact)
+    : write(contactCall(acao), data => ({ feito: 'Contato salvo', id: data ?? null })));
 }

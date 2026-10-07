@@ -255,6 +255,28 @@ test('meu dia lista os pedidos aguardando você e abre a confirmação exata, se
   await expect(page.getByRole('region', { name: /Pedidos aguardando você/ })).toHaveCount(0);
 });
 
+test('exclusão coletiva proposta pelo assistente só roda pela rota da tela depois de Confirmar', async ({ page }) => {
+  const CONVERSA = 'abababab-0000-4000-8000-000000000002', PEDIDO = 'abababab-0000-4000-8000-0000000000b1', POST = 'abababab-0000-4000-8000-0000000000c1';
+  const ago = (minutes: number) => new Date(Date.now() - minutes * 60_000).toISOString();
+  const posted = await mockApi(page, {
+    jobs: [{ id: PEDIDO, conversation_id: CONVERSA, status: 'needs_confirmation', created_at: ago(5), updated_at: ago(5),
+      input: { message: 'Pedido de Assistente externo', today: spDay(), history: [] },
+      result: { saved: true, reply: 'Pedido guardado.', applied: [], failed: [], pending: [{ action: { type: 'excluir_coletivo', fn: 'delete_post', target: POST }, fingerprint: '{}', label: 'Excluir publicação: Prova sexta (Ética · Grupo 1)' }] } }],
+    elsewhere: [{ id: CONVERSA, title: 'Confirmação de assistente externo', mode: 'text', pinned: false, archived: false, updatedAt: ago(5), revision: 1, synced: true,
+      messages: [{ id: `job:${PEDIDO}`, from: 'assistant', text: 'Pedido guardado.', saved: true }] }],
+  });
+  await page.goto('/');
+  const card = page.getByRole('region', { name: 'Pedidos aguardando você (1)', exact: true });
+  await card.getByRole('button', { name: /Prova sexta/ }).click();
+  const confirmation = page.getByRole('region', { name: 'Confirmar alteração', exact: true });
+  await expect(confirmation).toContainText('Excluir publicação: Prova sexta (Ética · Grupo 1)');
+  expect(posted.some(item => item.url === '/api/spaces')).toBe(false);
+  await confirmation.getByRole('button', { name: 'Confirmar', exact: true }).click();
+  await expect(page.getByText('Excluído: publicação: Prova sexta (Ética · Grupo 1).')).toBeVisible();
+  expect(posted.filter(item => item.url === '/api/spaces').map(item => item.body)).toEqual([{ action: 'delete_post', post: POST }]);
+  await expect.poll(() => posted.filter(item => item.body.action === 'settle').map(item => item.body.id)).toEqual([PEDIDO]);
+});
+
 test('trabalho em grupo: parte, entrega em nome, revisão e documento final padronizado', async ({ page }, info) => {
   const posted = await mockApi(page);
   await page.goto('/#community');

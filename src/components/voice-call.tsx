@@ -5,11 +5,10 @@ import { AudioLines, Check, ChevronDown, Mic, MicOff, Paperclip, Phone, PhoneOff
 import { LiveVoiceConnection } from '@/lib/voice/client';
 import { callMediaControls } from '@/lib/voice/media-session';
 import type { CallState, LiveCredentials, VoiceTool, VoiceTranscript } from '@/lib/voice/protocol';
-import type { PendingCommand } from '@/lib/commands';
 
 type Caption = { id: string; from: 'me' | 'assistant'; text: string };
 type Props = {
-  available: boolean; blocked: boolean; pending: PendingCommand[]; executing: boolean;
+  available: boolean; blocked: boolean; pending: { label: string }[]; executing: boolean;
   onClose: () => void;
   credentials: (signal: AbortSignal, skip?: string[]) => Promise<LiveCredentials>;
   context: () => { context: string; history: { role: 'user' | 'assistant'; text: string }[] };

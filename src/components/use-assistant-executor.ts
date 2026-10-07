@@ -4,15 +4,16 @@ import { applyCommands, executionSummary, undoApplied, type Applied, type Comman
 import { dateKey, type Workspace } from '@/lib/workspace';
 import { confirmationIntent } from '@/lib/assistant-query';
 import type { VoiceTranscript } from '@/lib/voice/protocol';
-import type { JobOutcome } from '@/lib/assistant-jobs';
+import type { JobOutcome, PendingItem } from '@/lib/assistant-jobs';
+import { collectiveSummary, confirmCollective, isCollectivePending } from '@/lib/collective-deletions';
 
 export type Execution = ReturnType<typeof applyCommands> & { saved: boolean; reply: string };
 type Options = { data: Workspace; blocked: boolean; update: (change: (previous: Workspace) => Workspace) => boolean; ensureSaved: () => Promise<void> };
 export function useAssistantExecutor(options: Options) {
   const latest = useRef(options); latest.current = options;
   const running = useRef(false);
-  const pendingRef = useRef<{ items: PendingCommand[]; createdAt: number }>({ items: [], createdAt: 0 });
-  const [pending, setPending] = useState<PendingCommand[]>([]);
+  const pendingRef = useRef<{ items: PendingItem[]; createdAt: number }>({ items: [], createdAt: 0 });
+  const [pending, setPending] = useState<PendingItem[]>([]);
   const [executing, setExecuting] = useState(false);
   const lastApplied = useRef<Applied[]>([]);
 
@@ -55,8 +56,22 @@ export function useAssistantExecutor(options: Options) {
     const current = pendingRef.current;
     if (!current.items.length) throw new Error('Não há uma alteração aguardando confirmação.');
     if (transcript && (transcript.startedAt <= current.createdAt || confirmationIntent(transcript.text) !== 'confirm')) throw new Error('Para confirmar por voz, diga “confirmo a exclusão” ou “confirmo a substituição”. Você também pode tocar em Confirmar.');
+    // Collective deletions run through the screen's own routes with this login; the screen decides permission.
+    const collective = current.items.filter(isCollectivePending);
+    const personal = current.items.filter((item): item is PendingCommand => !isCollectivePending(item));
+    const shared = collective.length ? await confirmCollective(collective, async (url, body) => {
+      signal?.throwIfAborted();
+      const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal });
+      const answer = await response.json().catch(() => ({})) as { error?: string };
+      return { ok: response.ok, error: answer.error };
+    }) : null;
+    if (!personal.length) {
+      cancel();
+      return { data: latest.current.data, applied: [], pending: [], failed: shared?.failed ?? [], saved: true, reply: shared ? collectiveSummary(shared) : 'Nenhuma alteração foi feita.' } satisfies Execution;
+    }
     // The engine compares both the exact action and the item's pre-confirmation fingerprint.
-    return run(current.items.map(item => item.action), signal, current.items);
+    const done = await run(personal.map(item => item.action), signal, personal);
+    return shared ? { ...done, failed: [...shared.failed, ...done.failed], reply: [collectiveSummary(shared), done.reply].filter(Boolean).join(' ') } : done;
   }
   async function undo(applied = lastApplied.current) {
     if (running.current || latest.current.blocked) throw new Error('Aguarde o salvamento antes de desfazer.');
