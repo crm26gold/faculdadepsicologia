@@ -484,3 +484,7 @@ body { background: var(--canvas); color: var(--ink); }
 /* Foco: period tabs stay on one line. */
 .planning-tab { white-space: nowrap; }
 .organization-list.compact li > span { overflow-wrap: break-word; hyphens: auto; }
+
+/* A notice about a failure reads as one, in the warning tone. */
+.toast.problem { border-color: #d98a2b; }
+.toast.problem svg:first-child { color: #d98a2b; }

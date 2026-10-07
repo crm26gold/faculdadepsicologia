@@ -17,6 +17,15 @@ export const jobCanResume = (job: AssistantJob, now = Date.now()) => job.status 
 // Confirmations still waiting, for Meu dia: the first action label and when it was requested, in the
 // query's order (newest first). History, fingerprints and undo data stay on the server.
 export type WaitingRequest = { id: string; conversationId: string; requestedAt: string; summary: string; more: number };
-export const waitingRequests = (jobs: Pick<AssistantJob, 'id' | 'conversation_id' | 'status' | 'result' | 'created_at'>[]): WaitingRequest[] =>
-  jobs.flatMap(job => job.status === 'needs_confirmation' && typeof job.result?.pending?.[0]?.label === 'string'
-    ? [{ id: job.id, conversationId: job.conversation_id, requestedAt: job.created_at, summary: job.result.pending[0].label.slice(0, 160), more: job.result.pending.length - 1 }] : []);
+/** The same actions asked twice (an assistant retrying) are one request: same key. */
+export const pendingKey = (result: Pick<JobOutcome, 'pending'> | null | undefined) => JSON.stringify((result?.pending ?? []).map(item => item.action));
+export const waitingRequests = (jobs: Pick<AssistantJob, 'id' | 'conversation_id' | 'status' | 'result' | 'created_at'>[]): WaitingRequest[] => {
+  const seen = new Set<string>();
+  return jobs.flatMap(job => {
+    if (job.status !== 'needs_confirmation' || typeof job.result?.pending?.[0]?.label !== 'string') return [];
+    const key = pendingKey(job.result);
+    if (seen.has(key)) return [];
+    seen.add(key);
+    return [{ id: job.id, conversationId: job.conversation_id, requestedAt: job.created_at, summary: job.result.pending[0].label.slice(0, 160), more: job.result.pending.length - 1 }];
+  });
+};

@@ -9,7 +9,7 @@ const messageSchema = z.object({
   applied: z.array(z.object({ label: z.string().max(1000), view: z.string().max(40), id: z.string().optional(), undo: z.record(z.string(), z.unknown()) })).max(100).optional(),
 });
 export const conversationSchema = z.object({
-  id: z.uuid(), title: z.string().trim().min(1).max(100), updatedAt: z.iso.datetime(),
+  id: z.uuid(), title: z.string().trim().min(1).max(100), updatedAt: z.iso.datetime({ offset: true }).transform(value => new Date(value).toISOString()),
   mode: z.enum(['text', 'voice', 'mixed']).default('text'), pinned: z.boolean().default(false), archived: z.boolean().default(false),
   // Device copies retain every message, even when they exceed a server upload limit.
   messages: z.array(messageSchema), revision: z.number().int().min(0).default(0), synced: z.boolean().default(false),

@@ -5,7 +5,8 @@ export const colors = ['sage', 'lavender', 'sand', 'blue', 'rose'] as const;
 const identifier = z.string().min(1).max(100);
 export const taskKinds = ['Compromisso', 'Tarefa', 'Reunião', 'Consulta', 'Treino', 'Lazer', 'Prática', 'Pagamento', 'Estudo', 'Prova', 'Trabalho', 'Aula'] as const;
 const areaSchema = z.object({ id: identifier, name: z.string().trim().min(1).max(100), color: z.enum(colors), hidden: z.boolean().default(false) });
-const notebookSchema = z.object({ id: identifier, name: z.string().trim().min(1).max(100), areaId: z.string().max(100), color: z.enum(colors) });
+// A notebook may live inside a subject ("Psicologia Social › Caderno outubro"); without one it is a personal notebook.
+const notebookSchema = z.object({ id: identifier, name: z.string().trim().min(1).max(100), areaId: z.string().max(100), color: z.enum(colors), subjectId: z.string().max(100).optional() });
 export const daySchema = z.string().refine((value) => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const parsed = new Date(`${value}T12:00:00Z`);
@@ -76,7 +77,7 @@ export const taskSchema = z.object({
 });
 export const noteSchema = z.object({
   id: identifier, title: z.string().max(160), subjectId: z.string().max(100),
-  content: z.string().max(200_000), updatedAt: z.string().datetime(),
+  content: z.string().max(200_000), updatedAt: z.string().datetime({ offset: true }),
   areaId: z.string().max(100).optional(), notebookId: z.string().max(100).optional(),
 });
 export const classSchema = z.object({

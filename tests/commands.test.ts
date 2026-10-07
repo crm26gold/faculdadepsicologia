@@ -207,15 +207,34 @@ test('legenda da foto aponta o destino que já existe; sem destino, Para organiz
   assert.equal(captionPlace(data, 'caderno que não existe'), undefined, 'nome desconhecido nunca vira erro nem caderno novo');
 });
 
-test('anotação tem um lugar só: pedir matéria e caderno juntos explica a regra; mover diz para onde foi', () => {
+test('caderno dentro da matéria: anotar com os dois guarda no caderno da matéria; vincular pelo editar; área + caderno é recusado', async () => {
+  const { placeTrail, placeOf, placeGroups } = await import('../src/lib/notebooks');
   const start = { ...base(), notebooks: [{ id: 'nb-out', name: 'Caderno outubro', areaId: '', color: 'sage' as const }],
     notes: [{ id: 'bio', title: 'O Modelo Biopsicossocial', content: '<p>x</p>', subjectId: 'ppb', areaId: 'studies', notebookId: '', updatedAt: '2026-10-07T10:00:00Z' }] };
-  const both = applyCommands(start, [{ type: 'anotacao', text: 'Resumo', subject: 'Processos Psicológicos Básicos', notebook: 'Caderno outubro' }], { today: '2026-10-07', now, newId: ids() });
-  assert.equal(both.applied.length, 0);
-  assert.match(both.failed[0], /um lugar só.*Cada matéria já é um caderno/);
-  const edit = applyCommands(start, [{ type: 'editar', entity: 'anotacao', target: 'bio', fields: { subject: 'ppb', notebook: 'Caderno outubro' } }], { today: '2026-10-07', now, newId: ids() });
-  assert.match(edit.failed[0], /um lugar só/);
-  const moved = applyCommands(start, [{ type: 'editar', entity: 'anotacao', target: 'bio', fields: { notebook: 'Caderno outubro' } }], { today: '2026-10-07', now, newId: ids() });
-  assert.equal(moved.applied[0].label, 'Anotação movida para Meus cadernos › Caderno outubro: O Modelo Biopsicossocial');
+  // Existing personal notebook named with the subject: it is linked to the subject and the note goes inside.
+  const linked = applyCommands(start, [{ type: 'anotacao', text: 'Resumo', subject: 'Processos Psicológicos Básicos', notebook: 'Caderno outubro' }], { today: '2026-10-07', now, newId: ids() });
+  assert.deepEqual(linked.failed, []);
+  assert.equal(linked.applied[0].label, 'Anotação no caderno Processos Psicológicos Básicos › Caderno outubro (caderno vinculado à matéria): Resumo');
+  assert.equal(linked.data.notebooks?.[0].subjectId, 'ppb');
+  assert.deepEqual(placeTrail(linked.data, placeOf(linked.data.notes[0])), ['Estudos', 'Psicologia', 'Processos Psicológicos Básicos', 'Caderno outubro']);
+  assert.ok(placeGroups(linked.data).some(group => group.options.some(option => option.label === 'Processos Psicológicos Básicos › Caderno outubro')), 'a escolha de lugar mostra o caderno dentro da matéria');
+  assert.equal(placeGroups(linked.data).find(group => group.label === 'Meus cadernos'), undefined, 'o caderno sai de "Meus cadernos"');
+  // A notebook that does not exist is created already inside the subject.
+  const created = applyCommands(start, [{ type: 'anotacao', text: 'Prova', subject: 'Processos Psicológicos Básicos', notebook: 'Provas' }], { today: '2026-10-07', now, newId: ids() });
+  assert.equal(created.applied[0].label, 'Anotação no caderno Processos Psicológicos Básicos › Provas (caderno criado): Prova');
+  assert.equal(created.data.notebooks?.find(book => book.name === 'Provas')?.subjectId, 'ppb');
+  // "Vincule o caderno à matéria" by editing the notebook; then moving the note with both names works.
+  const tied = applyCommands(start, [{ type: 'editar', entity: 'caderno', target: 'Caderno outubro', fields: { subject: 'Processos Psicológicos Básicos' } }], { today: '2026-10-07', now, newId: ids() });
+  assert.deepEqual(tied.failed, []);
+  assert.equal(tied.data.notebooks?.[0].subjectId, 'ppb');
+  const moved = applyCommands(tied.data, [{ type: 'editar', entity: 'anotacao', target: 'bio', fields: { subject: 'ppb', notebook: 'Caderno outubro' } }], { today: '2026-10-07', now, newId: ids() });
+  assert.deepEqual(moved.failed, []);
+  assert.equal(moved.applied[0].label, 'Anotação movida para Estudos › Psicologia › Processos Psicológicos Básicos › Caderno outubro: O Modelo Biopsicossocial');
   assert.deepEqual([moved.data.notes[0].notebookId, moved.data.notes[0].subjectId], ['nb-out', '']);
+  // Two places that cannot be one are still refused with the rule.
+  const both = applyCommands(start, [{ type: 'anotacao', text: 'x', area: 'saude', notebook: 'Caderno outubro' }], { today: '2026-10-07', now, newId: ids() });
+  assert.match(both.failed[0], /um lugar só/);
+  const unlinked = applyCommands(start, [{ type: 'editar', entity: 'anotacao', target: 'bio', fields: { subject: 'ppb', notebook: 'Caderno outubro' } }], { today: '2026-10-07', now, newId: ids() });
+  assert.match(unlinked.failed[0], /vincule o caderno à matéria/);
+  assert.equal(workspaceSchema.safeParse(linked.data).success, true);
 });

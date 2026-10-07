@@ -20,7 +20,7 @@ export function placeOf(note: Pick<Note, 'subjectId' | 'notebookId' | 'areaId'>)
 /** The fields a note gets when it moves somewhere; the old location is fully cleared. */
 export function placeFields(data: Workspace, place: Place): Pick<Note, 'subjectId' | 'notebookId' | 'areaId'> {
   if (place.kind === 'subject') return { subjectId: place.id, notebookId: '', areaId: 'studies' };
-  if (place.kind === 'notebook') return { subjectId: '', notebookId: place.id, areaId: data.notebooks?.find(book => book.id === place.id)?.areaId ?? '' };
+  if (place.kind === 'notebook') { const book = data.notebooks?.find(item => item.id === place.id); return { subjectId: '', notebookId: place.id, areaId: subjectOf(data, book) ? 'studies' : book?.areaId ?? '' }; }
   if (place.kind === 'area') return { subjectId: '', notebookId: '', areaId: place.id };
   return { subjectId: '', notebookId: '', areaId: '' };
 }
@@ -34,16 +34,25 @@ export function placeName(data: Workspace, place: Place) {
   return lifeAreas(data).find(item => item.id === place.id)?.name ?? 'Área removida';
 }
 /** Breadcrumb trail, e.g. ["Estudos", "Psicologia", "Ética"] or ["Meus cadernos", "Diário"]. */
-export function placeTrail(data: Workspace, place: Place) {
+export function placeTrail(data: Workspace, place: Place): string[] {
   if (place.kind === 'subject') {
     const subject = data.subjects.find(item => item.id === place.id);
     const course = data.courses?.find(item => item.id === subject?.courseId);
     return ['Estudos', ...(course ? [course.name] : []), placeName(data, place)];
   }
-  if (place.kind === 'notebook') return ['Meus cadernos', placeName(data, place)];
+  if (place.kind === 'notebook') {
+    const subject = subjectOf(data, data.notebooks?.find(item => item.id === place.id));
+    return subject ? [...placeTrail(data, { kind: 'subject', id: subject.id }), placeName(data, place)] : ['Meus cadernos', placeName(data, place)];
+  }
   if (place.kind === 'area') return ['Áreas da vida', placeName(data, place)];
   return ['Para organizar'];
 }
+
+/** The subject a notebook lives in, when it still exists. */
+export const subjectOf = (data: Workspace, book?: { subjectId?: string }) => book?.subjectId ? data.subjects.find(subject => subject.id === book.subjectId) : undefined;
+/** Notebooks inside a subject, and the personal ones (no subject, or a subject that was removed). */
+export const notebooksOf = (data: Workspace, subjectId: string) => (data.notebooks ?? []).filter(book => book.subjectId === subjectId && subjectOf(data, book));
+export const personalNotebooks = (data: Workspace) => (data.notebooks ?? []).filter(book => !subjectOf(data, book));
 
 export type PlaceGroup = { label: string; options: { key: string; label: string; count: number }[] };
 /** Everything a note can belong to, grouped the way the library shows it. Paused/finished courses stay reachable. */
@@ -52,12 +61,15 @@ export function placeGroups(data: Workspace): PlaceGroup[] {
   const option = (place: Place) => ({ key: placeKey(place), label: placeName(data, place), count: count(place) });
   const active = new Set(activeCourses(data).map(course => course.id));
   const courses = (data.courses ?? []).toSorted((a, b) => Number(active.has(b.id)) - Number(active.has(a.id)));
+  // Each subject, followed by its own notebooks as "Matéria › Caderno".
+  const withBooks = (subject: { id: string; name: string }) => [option({ kind: 'subject', id: subject.id }),
+    ...notebooksOf(data, subject.id).map(book => ({ ...option({ kind: 'notebook', id: book.id }), label: `${subject.name} › ${book.name}` }))];
   const orphan = data.subjects.filter(subject => !subject.courseId || !data.courses?.some(course => course.id === subject.courseId));
   return [
     { label: 'Para organizar', options: [option({ kind: 'inbox' })] },
-    ...courses.map(course => ({ label: `Estudos · ${course.name}`, options: subjectsOfCourse(data, course.id).map(subject => option({ kind: 'subject', id: subject.id })) })),
-    ...(orphan.length ? [{ label: 'Estudos', options: orphan.map(subject => option({ kind: 'subject', id: subject.id })) }] : []),
-    { label: 'Meus cadernos', options: (data.notebooks ?? []).map(book => option({ kind: 'notebook', id: book.id })) },
+    ...courses.map(course => ({ label: `Estudos · ${course.name}`, options: subjectsOfCourse(data, course.id).flatMap(withBooks) })),
+    ...(orphan.length ? [{ label: 'Estudos', options: orphan.flatMap(withBooks) }] : []),
+    { label: 'Meus cadernos', options: personalNotebooks(data).map(book => option({ kind: 'notebook', id: book.id })) },
     { label: 'Áreas da vida, sem caderno', options: lifeAreas(data).filter(area => !area.hidden || count({ kind: 'area', id: area.id })).map(area => option({ kind: 'area', id: area.id })) },
   ].filter(group => group.options.length);
 }

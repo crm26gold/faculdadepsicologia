@@ -144,7 +144,8 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           break;
         }
         case 'anotacao': {
-          if ([action.notebook, action.subject, action.area].filter(Boolean).length > 1) throw new Error('Uma anotação fica em um lugar só: uma matéria, um caderno ou uma área. Cada matéria já é um caderno. Diga qual dos dois a pessoa prefere.');
+          // Notebook + subject is one place: the notebook inside that subject. Any other pair is two places.
+          if (action.area && (action.notebook || action.subject)) throw new Error('Uma anotação fica em um lugar só: uma matéria, um caderno ou uma área. Diga qual dos dois a pessoa prefere.');
           const captured = captureNote(action.text, newId(), new Date(options.now).toISOString());
           const area = action.area ? matchByName(lifeAreas(next), action.area) : undefined;
           let subject = action.subject ? matchByName(next.subjects, action.subject) : undefined;
@@ -153,8 +154,14 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           const bookSubject = action.notebook && !notebook ? findByName(next.subjects, action.notebook) : undefined;
           if (bookSubject) subject = bookSubject;
           const createdNotebook = !!action.notebook && !notebook && !bookSubject;
+          let linkedNotebook = false;
+          if (notebook && subject && action.subject) {
+            if (notebook.subjectId && notebook.subjectId !== subject.id) throw new Error(`O caderno “${notebook.name}” fica em outra matéria. Diga em qual caderno ou matéria a anotação deve ficar.`);
+            if (!notebook.subjectId) { const id = notebook.id; notebook = { ...notebook, subjectId: subject.id }; linkedNotebook = true;
+              next = { ...next, notebooks: (next.notebooks ?? []).map(book => book.id === id ? { ...book, subjectId: subject!.id } : book) }; }
+          }
           if (createdNotebook) {
-            notebook = { id: newId(), name: action.notebook!, areaId: area?.id ?? '', color: 'sage' as const };
+            notebook = { id: newId(), name: action.notebook!, areaId: area?.id ?? '', color: 'sage' as const, ...(subject && action.subject ? { subjectId: subject.id } : {}) };
             next = { ...next, notebooks: [...(next.notebooks ?? []), notebook] };
           }
           // One place per note, as on screen: a named notebook wins, then the subject, then the area.
@@ -162,7 +169,8 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           const anchor = action.link ? `<p><a href="${escapeHtml(action.link)}" target="_blank" rel="noopener noreferrer nofollow">${escapeHtml(action.link)}</a></p>` : '';
           const note = { ...captured, content: captured.content + anchor, ...(action.title ? { title: action.title } : {}), ...placeFields(next, place) };
           next = { ...next, notes: [note, ...next.notes] };
-          const where = notebook ? `no caderno ${notebook.name}${createdNotebook ? ' (caderno criado)' : ''}` : subject ? `em ${subject.name}` : area ? `em ${area.name}` : 'em Para organizar';
+          const inside = notebook?.subjectId ? next.subjects.find(item => item.id === notebook!.subjectId)?.name : undefined;
+          const where = notebook ? `no caderno ${inside ? `${inside} › ` : ''}${notebook.name}${createdNotebook ? ' (caderno criado)' : linkedNotebook ? ' (caderno vinculado à matéria)' : ''}` : subject ? `em ${subject.name}` : area ? `em ${area.name}` : 'em Para organizar';
           applied.push({ label: `Anotação ${where}: ${note.title}`, view: 'notes', id: note.id, undo: { kind: 'note', id: note.id } });
           break;
         }
@@ -375,7 +383,7 @@ Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
 A resposta deve soar falada: frases curtas e claras, sem listas longas nem markdown; pode ser mais longa só quando a pessoa pedir explicação.
 Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa comum, "actions" fica vazio):
 - {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional)}
-- {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional),"link":"https://..."(opcional, para guardar um link)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Cada anotação fica em UM lugar só (matéria, caderno ou área) e cada matéria já é um caderno: nunca prometa dois lugares; se a pessoa pedir matéria e caderno juntos, pergunte qual prefere.
+- {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional),"link":"https://..."(opcional, para guardar um link)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Cada anotação fica em UM lugar só (matéria, caderno ou área). Um caderno pode ficar dentro de uma matéria: com notebook e subject juntos, a anotação vai para o caderno dentro dessa matéria (o caderno é criado ou vinculado se preciso). Para vincular um caderno existente: editar caderno com subject.
 - {"type":"financeiro","flow":"expense"|"income","description":"...","amount":número em reais,"category":uma de [${expenseCategories.join(', ')}] para saídas ou [${incomeCategories.join(', ')}] para entradas,"date":"AAAA-MM-DD","pending":true se ainda vai pagar/receber,"nature":"fixed"|"variable"|"oneoff","installments":número de parcelas (opcional),"monthly":meses se repete todo mês (opcional)}
 - {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo
 - {"type":"concluir","title":"nome do compromisso"} — marcar como feito
