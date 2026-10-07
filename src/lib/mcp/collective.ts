@@ -7,17 +7,18 @@ import { contactCall, invitationSecret, spaceCall, workCall, type DbCall } from 
 import { applicationOrigin } from '../auth-input';
 import { botServerSecret } from '../bot/secrets';
 import type { botDatabase } from '../supabase/bot';
-import { collectiveDeletions, deletionNouns, type CollectiveDeletionFn, type CollectivePending } from '../collective-deletions';
+import { collectiveDeletions, deletionNouns, type CollectiveDeletionFn, type ConfirmablePending } from '../confirmable';
 import type { JobOutcome } from '../assistant-jobs';
 
 // The collective layer for assistants: the same screen actions, run in the database as the key's owner
 // (public.mcp_act), so each role can do exactly what it could do on screen. Deletions are only proposed:
 // the person confirms them in the app, where the screen's route runs them. Removing or blocking people,
 // changing roles and administration are not offered here; they stay on the screen.
-type Database = NonNullable<ReturnType<typeof botDatabase>>;
-type Access = { hash: string; canWrite: boolean };
-const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] });
-const failure = (message: string) => ({ ...text(message), isError: true });
+export type Database = NonNullable<ReturnType<typeof botDatabase>>;
+export type Access = { hash: string; canWrite: boolean };
+export const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] });
+export const failure = (message: string) => ({ ...text(message), isError: true });
+export const readOnlyConnection = 'Esta conexão só consulta. Conecte de novo marcando "Permitir registrar e editar".';
 
 const allowed = <T extends { shape: { action: { value: string } } }>(options: readonly T[], names: string[]) =>
   options.filter(option => names.includes(option.shape.action.value));
@@ -40,11 +41,24 @@ const messages: Record<string, string> = {
   '40001': 'Outra pessoa alterou isto agora. Consulte de novo antes de repetir.',
 };
 
-async function act(db: Database, access: Access, call: DbCall) {
+export async function act(db: Database, access: Access, call: DbCall, denied = messages['42501']) {
   const { data, error } = await db.rpc('mcp_act', { server_secret: botServerSecret(), token: access.hash, operation: call.fn, args: call.args });
   if (['PGRST202', '42883'].includes(error?.code ?? '')) return { error: 'Esta função do assistente está aguardando a atualização do banco.' };
+  if (error?.code === '42501') return { error: denied };
   if (error) return { error: messages[error.code ?? ''] ?? 'Não consegui concluir agora. Nada foi confirmado; consulte antes de repetir.' };
   return { data };
+}
+
+/** Stores a proposal as a durable confirmation for the key's owner; nothing changes until they confirm. */
+export async function storeConfirmation(db: Database, access: Access, pending: ConfirmablePending) {
+  const context = await db.rpc('mcp_context', { server_secret: botServerSecret(), token: access.hash });
+  if (context.error || !context.data) return failure('Não consegui guardar o pedido agora. Nada foi alterado.');
+  const outcome: JobOutcome = { saved: true, reply: `Pedido guardado: ${pending.label}. Confirme no aplicativo.`, applied: [], pending: [pending], failed: [] };
+  const saved = await db.rpc('mcp_commit', { server_secret: botServerSecret(), token: access.hash, request_id: crypto.randomUUID(),
+    payload_hash: createHash('sha256').update(JSON.stringify(pending.action)).digest('hex'), next_data: null,
+    expected_revision: (context.data as { workspace: { revision: number } | null }).workspace?.revision ?? 0, outcome });
+  if (saved.error || !saved.data) return failure('Não consegui guardar o pedido agora. Nada foi alterado; tente de novo.');
+  return text({ pendente_no_aplicativo: [pending.label], onde_confirmar: 'Meu dia › Pedidos aguardando você, ou Assistente › Conversas › Confirmação de assistente externo.' });
 }
 
 export function registerCollectiveTools(server: McpServer, db: Database, access: Access) {
@@ -63,15 +77,7 @@ export function registerCollectiveTools(server: McpServer, db: Database, access:
     if ('error' in found) return failure(found.error!);
     if (!found.data) return failure('Não encontrei esse item, ou a sua conta não tem acesso a ele. Consulte de novo para pegar o ID certo.');
     const item = found.data as { title: string; where: string };
-    const pending: CollectivePending = { action: { type: 'excluir_coletivo', fn, target }, fingerprint: JSON.stringify(item), label: `Excluir ${deletionNouns[kind]}: ${item.title} (${item.where})` };
-    const context = await db.rpc('mcp_context', { server_secret: botServerSecret(), token: access.hash });
-    if (context.error || !context.data) return failure('Não consegui guardar o pedido agora. Nada foi excluído.');
-    const outcome: JobOutcome = { saved: true, reply: `Pedido guardado: ${pending.label}. Confirme no aplicativo.`, applied: [], pending: [pending], failed: [] };
-    const saved = await db.rpc('mcp_commit', { server_secret: botServerSecret(), token: access.hash, request_id: crypto.randomUUID(),
-      payload_hash: createHash('sha256').update(JSON.stringify(pending.action)).digest('hex'), next_data: null,
-      expected_revision: (context.data as { workspace: { revision: number } | null }).workspace?.revision ?? 0, outcome });
-    if (saved.error || !saved.data) return failure('Não consegui guardar o pedido agora. Nada foi excluído; tente de novo.');
-    return text({ pendente_no_aplicativo: [pending.label], onde_confirmar: 'Meu dia › Pedidos aguardando você, ou Assistente › Conversas › Confirmação de assistente externo.' });
+    return storeConfirmation(db, access, { action: { type: 'excluir_coletivo', fn, target }, fingerprint: JSON.stringify(item), label: `Excluir ${deletionNouns[kind]}: ${item.title} (${item.where})` });
   };
 
   server.registerTool('consultar_coletivo', {

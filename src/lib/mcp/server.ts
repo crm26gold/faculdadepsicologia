@@ -9,6 +9,7 @@ import { botServerSecret } from '../bot/secrets';
 import { botDatabase } from '../supabase/bot';
 import type { JobOutcome } from '../assistant-jobs';
 import { registerCollectiveTools } from './collective';
+import { registerAdminTools } from './admin';
 
 // The Jornada as an MCP server: external assistants (Claude Code, Codex, Gemini, Antigravity) reason
 // with their owner's own subscription and call these tools on that person's private life only.
@@ -93,6 +94,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     return { ...text('Os dados mudaram enquanto eu salvava. Nada foi confirmado; consulte novamente antes de repetir.'), isError: true };
   });
   registerCollectiveTools(server, db, access);
+  registerAdminTools(server, db, access);
   return server;
 }
 

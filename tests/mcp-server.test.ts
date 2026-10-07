@@ -65,7 +65,7 @@ test('servidor MCP: aperto de mão, catálogo, consulta e registro validado na v
   assert.equal(init.result.serverInfo.name, 'jornada-plena');
   assert.match(init.result.instructions, /Exclusões/);
   const list = await call(legacy(2, 'tools/list'));
-  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
+  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
   assert.equal(list.result.tools.find((tool: { name: string }) => tool.name === 'consultar_jornada').annotations.readOnlyHint, true);
   const query = await call(legacy(3, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'agenda' } }));
   assert.match(query.result.content[0].text, /"items"/);
@@ -125,7 +125,7 @@ test('servidor MCP: clientes da versão 2026-07-28 listam e consultam sem aperto
     body: JSON.stringify(mcpRequest('2026-07-28', id, method, params)) });
   const listed = await jornadaMcpHandler(db as never, access).fetch(modern(1, 'tools/list'));
   assert.equal(listed.status, 200);
-  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
+  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
   const asked = await jornadaMcpHandler(db as never, access).fetch(modern(2, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'resumo' } }));
   assert.match(JSON.stringify(mcpResult(await asked.text(), 2)), /summary/);
 });
@@ -175,7 +175,7 @@ test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e 
   const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
   const call = async (id: number, name: string, args: unknown) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, 'tools/call', { name, arguments: args })));
   const tools = (await body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/list')))).result.tools as { name: string; annotations: any }[];
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'registrar_na_jornada']);
   assert.equal(tools.find(tool => tool.name === 'consultar_coletivo')!.annotations.readOnlyHint, true);
 
   const space = '00000000-0000-4000-8000-0000000000b1';
@@ -223,4 +223,49 @@ test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e 
   const blocked = await body(await jornadaMcpHandler(reader.db as never, readAccess).fetch(legacy(8, 'tools/call', { name: 'gerenciar_contatos', arguments: { acao: { action: 'save', contact: null, name: 'Bia' } } })));
   assert.equal(blocked.result.isError, true);
   assert.equal(reader.state.acts.length, 0, 'chave só de consulta não grava');
+});
+
+test('servidor MCP: administração só por proposta, com os dados reais da conta e sem nunca mexer em master', async () => {
+  const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
+  const { db, state } = fakeDatabase({ canWrite: true });
+  const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const call = async (id: number, name: string, args: unknown) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, 'tools/call', { name, arguments: args })));
+  const ANA = '00000000-0000-4000-8000-0000000000d1';
+  state.actReply = { data: { settings: { open_access: true }, accounts: [{ user_id: ANA, email: 'ana@example.invalid', display_name: 'Ana', is_master: false,
+    plan: 'academic', plan_source: 'free', pro_until: null, ai_credits: 0, features: [] }] }, error: null };
+
+  const read = await call(1, 'consultar_administracao', { o_que: 'contas' });
+  assert.equal(state.acts.at(-1)!.operation, 'admin_overview');
+  assert.match(read.result.content[0].text, /ana@example\.invalid/);
+
+  const saves = state.saves;
+  const plan = await call(2, 'administrar', { acao: { action: 'atualizar_conta', account: ANA, plan: 'pro', source: 'courtesy', pro_until: '2026-12-31' } });
+  assert.notEqual(plan.result.isError, true, plan.result.content[0].text);
+  const proposal = state.pending.at(-1) as { action: { type: string; request: { url: string; body: Record<string, unknown> } }; label: string };
+  assert.deepEqual(proposal.action, { type: 'administrar', request: { url: '/api/admin', body: { action: 'update_account', account: ANA, plan: 'pro', source: 'courtesy',
+    pro_until: '2026-12-31', credits: 0, features: [], master: false } } });
+  assert.equal(proposal.label, 'Conta de Ana (ana@example.invalid): plano Pro até 31 de dez. de 2026, cortesia, 0 créditos, recursos: nenhum');
+  assert.equal(state.saves, saves, 'nada muda antes da confirmação');
+  assert.equal(state.acts.some(act => act.operation.startsWith('admin_') && act.operation !== 'admin_overview'), false, 'mudança de administração nunca roda pelo assistente');
+
+  const smuggled = await call(3, 'administrar', { acao: { action: 'atualizar_conta', account: ANA, master: true } });
+  assert.equal((state.pending.at(-1) as typeof proposal).action.request.body.master, false, 'master vem sempre da conta como está');
+  assert.notEqual(smuggled.result?.isError, true);
+
+  const open = await call(4, 'administrar', { acao: { action: 'acesso_livre', value: false } });
+  assert.notEqual(open.result.isError, true);
+  assert.equal((state.pending.at(-1) as typeof proposal).label, 'Fechar o acesso livre para novas contas (hoje está aberto)');
+
+  state.actReply = { data: { routes: [] }, error: null };
+  const route = await call(5, 'administrar', { acao: { action: 'usar_ia', task: 'assistente', provider: 'groq' } });
+  assert.notEqual(route.result.isError, true, route.result.content[0].text);
+  assert.deepEqual((state.pending.at(-1) as typeof proposal).action.request, { url: '/api/ai/admin', body: { action: 'save_route', task: 'assistente', provider: 'groq',
+    connection_id: null, model: 'auto:rapido', enabled: true, routing_mode: 'auto', fallbacks: [] } });
+  const voiceOnly = await call(6, 'administrar', { acao: { action: 'usar_ia', task: 'assistente', provider: 'elevenlabs' } });
+  assert.equal(voiceOnly.result.isError, true);
+
+  state.actReply = { data: null, error: { code: '42501' } };
+  const student = await call(7, 'consultar_administracao', { o_que: 'uso' });
+  assert.equal(student.result.isError, true);
+  assert.match(student.result.content[0].text, /Só o administrador geral/);
 });

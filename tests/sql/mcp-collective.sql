@@ -26,6 +26,8 @@ select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000004
 select public.mcp_token_create('Claude do aluno', repeat('4', 64), '4444', true, null);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000005', true);
 select public.mcp_token_create('Claude de fora', repeat('5', 64), '5555', true, null);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000000a', true);
+select public.mcp_token_create('Claude do administrador', repeat('6', 64), '6666', true, null);
 reset role;
 
 -- Mesmo resultado pela tela e pelo assistente, papel por papel (cada tentativa é desfeita se falhar).
@@ -92,6 +94,15 @@ select expect(try_mcp(repeat('1', 64), 'add_member_by_email', jsonb_build_object
 select expect(try_mcp(repeat('9', 64), 'app_home', '{}') = '42501', 'chave desconhecida não entra');
 do $$ begin perform public.mcp_act('segredo-errado-com-mais-de-trinta-e-dois-caracteres', repeat('1', 64), 'app_home', '{}'); raise exception 'FALHA: segredo errado';
 exception when insufficient_privilege then null; end $$;
+
+-- Administração: só o administrador geral lê pelo assistente, e o mesmo que a tela mostra a ele.
+select expect(jsonb_array_length(read_mcp(repeat('6', 64), 'admin_overview', '{}')->'accounts') >= 5, 'administrador lê as contas pelo assistente');
+select expect(read_mcp(repeat('6', 64), 'ai_resource_map', '{}') ? 'routes', 'administrador lê o mapa de recursos');
+select expect(read_mcp(repeat('6', 64), 'ai_resource_map', '{}')::text not like '%ciphertext%', 'mapa sem chaves cifradas');
+select expect(try_mcp(repeat(p, 64), 'admin_overview', '{}') = '42501', 'só o administrador lê contas: ' || p) from unnest(array['1', '3', '4', '5']) p;
+select expect(try_mcp(repeat('1', 64), 'ai_resource_map', '{}') = '42501', 'professora não lê o mapa de recursos');
+select expect(try_mcp(repeat('6', 64), op, '{}') = 'PT403', 'administração só pela tela: ' || op)
+  from unnest(array['admin_update_account', 'admin_set_open_access', 'ai_save_route', 'ai_save_provider', 'ai_set_source_policy']) op;
 
 -- Contatos continuam privados por pessoa.
 select expect(try_mcp(repeat('5', 64), 'save_contact', jsonb_build_object('contact_name', 'Colega da Duda')) = 'ok', 'contato salvo pelo assistente');
