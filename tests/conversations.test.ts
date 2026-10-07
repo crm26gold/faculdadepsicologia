@@ -33,3 +33,11 @@ test('busca encontra mensagens sem exigir acentos e fixadas vêm primeiro', () =
   assert.equal(sortConversations([a, b], 'pao')[0].id, a.id);
   assert.equal(sortConversations([a, b])[0].id, b.id);
 });
+
+test('conversa vinda da conta é aceita com a data no formato do banco (+00:00), como a confirmação criada pelo Claude', () => {
+  const row = { id: '0f0e0d0c-0b0a-4908-8706-050403020100', title: 'Confirmação de assistente externo', mode: 'text', pinned: false, archived: false, revision: 1, synced: true,
+    updatedAt: '2026-10-07T10:12:33.123456+00:00', messages: [{ id: 'job:0f0e0d0c-0b0a-4908-8706-050403020101', from: 'assistant', text: 'Confirme no aplicativo.', saved: true }] };
+  const parsed = parseConversation(row);
+  assert.ok(parsed, 'antes, toda conversa lida da conta era descartada');
+  assert.equal(parsed.updatedAt, '2026-10-07T10:12:33.123Z');
+});

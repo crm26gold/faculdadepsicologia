@@ -52,3 +52,10 @@ test('Meu dia mostra o pedido com o texto do banco', () => {
     result: { saved: true, reply: '', applied: [], failed: [], pending: [deletion('delete_post', 'Excluir publicação: Prova (Grupo 1)')] } }]);
   assert.deepEqual(waiting, [{ id: 'j1', conversationId: 'c1', requestedAt: '2026-10-07T10:00:00Z', summary: 'Excluir publicação: Prova (Grupo 1)', more: 0 }]);
 });
+
+test('o mesmo pedido repetido pelo assistente aparece uma vez no Meu dia', () => {
+  const job = (id: string, created_at: string) => ({ id, conversation_id: `c-${id}`, status: 'needs_confirmation' as const, created_at,
+    result: { saved: true, reply: '', applied: [], failed: [], pending: [deletion('delete_post', 'Excluir publicação: Prova (Grupo 1)')] } });
+  const waiting = waitingRequests([job('novo', '2026-10-07T11:00:00Z'), job('velho', '2026-10-07T10:00:00Z')]);
+  assert.deepEqual(waiting.map(item => item.id), ['novo']);
+});

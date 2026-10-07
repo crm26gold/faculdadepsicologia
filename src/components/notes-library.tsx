@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { ArrowLeft, BookOpen, ChevronRight, FileText, FolderPlus, GraduationCap, Inbox, LockKeyhole, NotebookPen, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
 import { activeCourses, subjectsOfCourse } from '@/lib/courses';
 import { lifeAreas } from '@/lib/life';
-import { noteExcerpt, notesIn, parsePlace, placeFields, placeGroups, placeKey, placeName, placeOf, placeTrail, type Place } from '@/lib/notebooks';
+import { noteExcerpt, notebooksOf, notesIn, parsePlace, personalNotebooks, placeFields, placeGroups, placeKey, placeName, placeOf, placeTrail, type Place } from '@/lib/notebooks';
 import type { Note, Workspace } from '@/lib/workspace';
 import { api } from './community/client';
 
@@ -33,7 +33,7 @@ export function NotesLibrary({ data, blocked, demo, cloud, status, update, place
     const value: Note = { id, title: '', content: '', updatedAt: new Date().toISOString(), ...placeFields(data, target) };
     if (update(previous => ({ ...previous, notes: [value, ...previous.notes] }))) { setFresh(id); onNote(id); }
   }
-  if (place) return <PlaceView {...{ data, blocked, place, onPlace, onNote, onManage }} onCreate={() => create(place)} />;
+  if (place) return <PlaceView {...{ data, blocked, place, onPlace, onNote, onManage, update }} onCreate={() => create(place)} />;
   return <LibraryHome {...{ data, blocked, update, onPlace, onNote }} onCreate={() => create({ kind: 'inbox' })} />;
 }
 
@@ -54,13 +54,15 @@ function LibraryHome({ data, blocked, update, onPlace, onNote, onCreate }: Pick<
     const name = String(fields.get('name') ?? '').trim();
     if (!name) { setMessage('Dê um nome ao caderno.'); return; }
     const id = crypto.randomUUID();
-    if (update(previous => ({ ...previous, notebooks: [...(previous.notebooks ?? []), { id, name, areaId: String(fields.get('area') ?? ''), color: 'lavender' }] }))) {
+    const subjectId = String(fields.get('subject') ?? '');
+    if (update(previous => ({ ...previous, notebooks: [...(previous.notebooks ?? []), { id, name, areaId: subjectId ? 'studies' : String(fields.get('area') ?? ''), color: 'lavender', ...(subjectId ? { subjectId } : {}) }] }))) {
       setAdding(false); setMessage(''); onPlace({ kind: 'notebook', id });
     }
   }
-  const tile = (target: Place, label: string, color?: string) => { const total = count(target); const last = notesIn(data, target)[0]; return <li key={placeKey(target)}>
+  const tile = (target: Place, label: string, color?: string) => { const books = target.kind === 'subject' ? notebooksOf(data, target.id) : [];
+    const total = count(target) + books.reduce((sum, book) => sum + count({ kind: 'notebook', id: book.id }), 0); const last = notesIn(data, target)[0]; return <li key={placeKey(target)}>
     <button type="button" className={`nb-tile ${color ?? ''}`} onClick={() => onPlace(target)}>
-      <strong>{label}</strong><small>{countLabel(total)}{last ? ` · ${when(last.updatedAt)}` : ''}</small>
+      <strong>{label}</strong><small>{countLabel(total)}{books.length ? ` · ${books.length === 1 ? '1 caderno' : `${books.length} cadernos`}` : ''}{last ? ` · ${when(last.updatedAt)}` : ''}</small>
     </button></li>; };
 
   return <div className="nb">
@@ -81,9 +83,10 @@ function LibraryHome({ data, blocked, update, onPlace, onNote, onCreate }: Pick<
       <section className="nb-section" aria-labelledby="nb-mine">
         <h2 id="nb-mine"><NotebookPen size={17} aria-hidden="true" />Meus cadernos</h2>
         <ul className="nb-grid">
-          {(data.notebooks ?? []).map(book => tile({ kind: 'notebook', id: book.id }, book.name, book.color))}
+          {personalNotebooks(data).map(book => tile({ kind: 'notebook', id: book.id }, book.name, book.color))}
           <li>{adding ? <form className="nb-tile nb-new" onSubmit={addNotebook}>
             <label htmlFor="nb-new-name">Nome do caderno</label><input id="nb-new-name" name="name" maxLength={100} placeholder="Ex.: Diário, Ideias, Trabalho" autoFocus />
+            <label htmlFor="nb-new-subject">Dentro da matéria · opcional</label><select id="nb-new-subject" name="subject" defaultValue=""><option value="">Nenhuma (caderno pessoal)</option>{data.subjects.map(subject => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select>
             <label htmlFor="nb-new-area">Área da vida · opcional</label><select id="nb-new-area" name="area" defaultValue=""><option value="">Nenhuma</option>{lifeAreas(data).filter(area => !area.hidden).map(area => <option key={area.id} value={area.id}>{area.name}</option>)}</select>
             {message && <span role="alert" className="nb-error">{message}</span>}
             <span className="nb-new-actions"><button type="button" className="text-button" onClick={() => { setAdding(false); setMessage(''); }}>Cancelar</button><button className="button primary">Criar</button></span>
@@ -99,8 +102,18 @@ function LibraryHome({ data, blocked, update, onPlace, onNote, onCreate }: Pick<
   </div>;
 }
 
-function PlaceView({ data, blocked, place, onPlace, onNote, onManage, onCreate }: Pick<Props, 'data' | 'blocked' | 'onPlace' | 'onNote' | 'onManage'> & { place: Place; onCreate: () => void }) {
+function PlaceView({ data, blocked, place, onPlace, onNote, onManage, onCreate, update }: Pick<Props, 'data' | 'blocked' | 'onPlace' | 'onNote' | 'onManage' | 'update'> & { place: Place; onCreate: () => void }) {
   const notes = notesIn(data, place);
+  const books = place.kind === 'subject' ? notebooksOf(data, place.id) : [];
+  const [naming, setNaming] = useState(false);
+  function addBook(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (place.kind !== 'subject') return;
+    const name = String(new FormData(event.currentTarget).get('name') ?? '').trim();
+    if (!name) return;
+    const id = crypto.randomUUID(), subjectId = place.id;
+    if (update(previous => ({ ...previous, notebooks: [...(previous.notebooks ?? []), { id, name, areaId: 'studies', color: 'lavender', subjectId }] }))) { setNaming(false); onPlace({ kind: 'notebook', id }); }
+  }
   const trail = placeTrail(data, place);
   const inbox = place.kind === 'inbox';
   return <div className="nb">
@@ -109,6 +122,12 @@ function PlaceView({ data, blocked, place, onPlace, onNote, onManage, onCreate }
       <div><h2>{inbox ? `Para organizar (${notes.length})` : placeName(data, place)}</h2><p>{inbox ? 'O que você registrou e ainda não tem lugar. Abra, escolha onde fica ou peça a sugestão da IA.' : countLabel(notes.length)}</p></div>
       <button type="button" className="button primary" disabled={blocked} onClick={onCreate}><Plus size={16} aria-hidden="true" />Nova anotação</button>
     </header>
+    {place.kind === 'subject' && <section className="nb-section" aria-label="Cadernos desta matéria">
+      <ul className="nb-grid">{books.map(book => { const total = notesIn(data, { kind: 'notebook', id: book.id }).length; return <li key={book.id}><button type="button" className={`nb-tile ${book.color}`} onClick={() => onPlace({ kind: 'notebook', id: book.id })}><strong>{book.name}</strong><small>{countLabel(total)}</small></button></li>; })}
+        <li>{naming ? <form className="nb-tile nb-new" onSubmit={addBook}><label htmlFor="nb-subject-book">Nome do caderno</label><input id="nb-subject-book" name="name" maxLength={100} placeholder="Ex.: Caderno outubro, Resumos" autoFocus />
+          <span className="nb-new-actions"><button type="button" className="text-button" onClick={() => setNaming(false)}>Cancelar</button><button className="button primary">Criar</button></span></form>
+          : <button type="button" className="nb-tile nb-add" disabled={blocked} onClick={() => setNaming(true)}><FolderPlus size={20} aria-hidden="true" /><strong>Novo caderno nesta matéria</strong><small>Resumos, provas, mês a mês…</small></button>}</li>
+      </ul></section>}
     {notes.length ? <NoteList data={data} notes={notes} onNote={onNote} organize={inbox} /> : <div className="nb-empty-state"><FileText size={34} aria-hidden="true" /><p>{inbox ? 'Tudo organizado. Nada esperando por aqui.' : 'Nenhuma anotação ainda. A primeira já nasce aqui dentro.'}</p></div>}
     {place.kind === 'notebook' && <button type="button" className="text-button nb-manage" onClick={onManage}>Renomear ou apagar este caderno</button>}
   </div>;

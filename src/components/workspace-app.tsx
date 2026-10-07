@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Users, Wallet, X } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Users, Wallet, X } from 'lucide-react';
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Course, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { activeCourses, capitalize, courseKindLabels, courseOf, courseStatusLabels, courseUnits, ensureCourses, subjectsOfCourse, unitCount, unitPresets } from '@/lib/courses';
 import { calendarEntries, weekdays } from '@/lib/academic';
@@ -791,7 +791,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     <AiPresence touch={aiTouch} onPause={pauseFollow} />
     {assistantOpen && <AssistantPanel refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => { closeAssistant(); navigate(target); }} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}
     {cloud && home && !acceptedTerms(home) && <ConsentGate onAccepted={refreshHome} />}
-    {notice && <div className="toast" role="status"><Check size={16} aria-hidden="true" /><span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
+    {notice && <div className={`toast${/^(Não|Erro)/.test(notice) ? ' problem' : ''}`} role="status">{/^(Não|Erro)/.test(notice) ? <AlertCircle size={16} aria-hidden="true" /> : <Check size={16} aria-hidden="true" />}<span>{notice}</span><button className="icon-button" aria-label="Dispensar aviso" onClick={() => setNotice('')}><X size={16} aria-hidden="true" /></button></div>}
   </div>;
 }
 

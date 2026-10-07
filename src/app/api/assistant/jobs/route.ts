@@ -1,7 +1,7 @@
 import { after } from 'next/server';
 import { z } from 'zod';
 import { dbError, readSession, reply, writeRequest } from '@/lib/api-route';
-import { jobInputSchema, waitingRequests } from '@/lib/assistant-jobs';
+import { jobInputSchema, waitingRequests, pendingKey } from '@/lib/assistant-jobs';
 import { runAssistantJob } from '@/lib/ai/run-job';
 
 export const dynamic = 'force-dynamic';
@@ -38,7 +38,13 @@ export async function POST(request: Request) {
     if (existing.error) return dbError(existing.error);
     if (existing.data.status !== 'needs_confirmation') return reply({ ok: true, data: {} });
     const { error } = await session.client.from('assistant_jobs').update({ status: 'done', result: { ...existing.data.result, pending: [] }, updated_at: new Date().toISOString() }).eq('user_id', session.user.id).eq('id', body.id).eq('status', 'needs_confirmation');
-    return error ? dbError(error) : reply({ ok: true, data: {} });
+    if (error) return dbError(error);
+    // Identical copies of this request (the same actions, asked again by a retrying assistant) are settled with it.
+    const key = pendingKey(existing.data.result);
+    const others = await session.client.from('assistant_jobs').select('id,result').eq('user_id', session.user.id).eq('status', 'needs_confirmation').neq('id', body.id).limit(50);
+    for (const row of others.data ?? []) if (pendingKey(row.result) === key)
+      await session.client.from('assistant_jobs').update({ status: 'done', result: { ...row.result, pending: [] }, updated_at: new Date().toISOString() }).eq('user_id', session.user.id).eq('id', row.id).eq('status', 'needs_confirmation');
+    return reply({ ok: true, data: {} });
   }
   if (body.action === 'resume') id = body.id;
   else {

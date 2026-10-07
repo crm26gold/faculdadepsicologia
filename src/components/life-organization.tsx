@@ -43,7 +43,8 @@ export function OrganizationPanel({ data, update, blocked }: Props) {
         const value = { id, name, color, hidden: list.find((item) => item.id === id)?.hidden ?? false };
         return { ...previous, areas: editing.id ? list.map((item) => item.id === id ? value : item) : [...list, value] };
       }
-      const value = { id, name, color, areaId: String(fields.get('area') ?? '') };
+      const subjectId = String(fields.get('subject') ?? '');
+      const value = { id, name, color, areaId: subjectId ? 'studies' : String(fields.get('area') ?? ''), ...(subjectId ? { subjectId } : {}) };
       const list = previous.notebooks ?? [];
       return { ...previous, notebooks: editing.id ? list.map((item) => item.id === id ? value : item) : [...list, value] };
     });
@@ -64,6 +65,7 @@ export function OrganizationPanel({ data, update, blocked }: Props) {
     {editing && <form className="entry-form organization-form" key={`${editing.kind}:${editing.id}`} onSubmit={save}>
       <h3>{editing.id ? 'Editar' : 'Criar'} {editing.kind === 'area' ? 'área' : 'caderno'}</h3>
       <label htmlFor="organization-name">Nome</label><input id="organization-name" name="name" required maxLength={100} defaultValue={current?.name ?? ''} />
+      {editing.kind === 'notebook' && <><label htmlFor="organization-subject">Dentro da matéria · opcional</label><select id="organization-subject" name="subject" defaultValue={books.find((book) => book.id === editing.id)?.subjectId ?? ''}><option value="">Nenhuma (caderno pessoal)</option>{data.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></>}
       {editing.kind === 'notebook' && <><label htmlFor="organization-area">Área do caderno · opcional</label><AreaSelect data={data} id="organization-area" name="area" value={books.find((book) => book.id === editing.id)?.areaId ?? ''} /></>}
       <label htmlFor="organization-color">Cor</label><select id="organization-color" name="color" defaultValue={current?.color ?? 'blue'}>{colors.map((color, index) => <option key={color} value={color}>{['Verde', 'Lilás', 'Areia', 'Azul', 'Rosa'][index]}</option>)}</select>
       <div className="button-row"><button className="button primary" disabled={blocked}>Salvar organização</button><button type="button" className="button outline" onClick={() => setEditing(null)}>Cancelar</button></div>
