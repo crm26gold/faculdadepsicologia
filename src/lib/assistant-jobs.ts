@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { daySchema } from './workspace';
 import { commandAction, type Applied, type PendingCommand } from './commands';
-import type { CollectivePending } from './collective-deletions';
+import type { ConfirmablePending } from './confirmable';
 
 export const proposedActions = z.array(commandAction).min(1).max(8);
 
@@ -9,7 +9,7 @@ export const jobInputSchema = z.object({ message: z.string().trim().min(1).max(2
   history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(3000) })).max(12).default([]),
   actions: proposedActions.optional() });
 // A confirmation can hold personal changes and collective deletions proposed by an assistant.
-export type PendingItem = PendingCommand | CollectivePending;
+export type PendingItem = PendingCommand | ConfirmablePending;
 export type JobOutcome = { saved: boolean; reply: string; applied: Applied[]; pending: PendingItem[]; failed: string[]; model?: string; execution?: 'structured' | 'planned' };
 export type AssistantJob = { id: string; conversation_id: string; status: 'queued' | 'working' | 'done' | 'needs_confirmation' | 'failed'; input: z.infer<typeof jobInputSchema>; result: JobOutcome | null; created_at: string; updated_at: string };
 export const jobFinished = (job: AssistantJob) => ['done', 'needs_confirmation', 'failed'].includes(job.status);
