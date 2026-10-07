@@ -6,6 +6,7 @@ import { runtimeConfig, runtimeForSession } from './runtime';
 import { generateResilient } from './providers';
 import { beforeAttemptBudget } from './budget';
 import { homeContext, runSharedCommands, sessionTransport } from '../shared-actions';
+import type { TrashEntry } from '../commands';
 import { applicationOrigin } from '../auth-input';
 import type { userSession } from '../supabase/server';
 
@@ -44,6 +45,11 @@ export async function runAssistantJob(session: Session, id: string) {
       return { conflict: Boolean(result.error) };
     },
     shared: actions => runSharedCommands(sessionTransport(session.client), actions, applicationOrigin(process.env)),
+    trash: async () => {
+      const { data, error } = await session.client.from('personal_trash').select('id,collection,item_id,item,deleted_at').order('deleted_at', { ascending: false }).limit(50);
+      if (error) throw new Error('Não consegui abrir a lixeira agora. Nada foi excluído.');
+      return (data ?? []) as TrashEntry[];
+    },
     fail: async outcome => {
       await session.client.from('assistant_jobs').update({ status: 'failed', result: outcome, lease: null, lease_until: null, updated_at: new Date().toISOString() }).eq('user_id', session.user.id).eq('id', id).eq('lease', runId).eq('status', 'working');
       console.warn('[assistant-job]', { id, outcome: 'failed' });

@@ -153,3 +153,22 @@ test('"me mande um print" abre a tela no app depois de salvar o resto', async ()
   assert.match(state.receipt!.reply, /Abri Finanças para você ver\.$/);
   assert.equal(state.receipt?.failed.length, 0, 'mostrar uma tela não é tratado como alteração');
 });
+
+test('no assistente do app e na voz, excluir com a lixeira é direto e "restaura" traz de volta', async () => {
+  const removal: CommandAction = { type: 'excluir', entity: 'compromisso', target: 'Dentista' };
+  const { state, store } = fixture(input([appointment]));
+  await executeAssistantJob(store);
+  const second = fixture(input([removal]));
+  second.state.data = state.data; second.state.revision = state.revision;
+  let reads = 0;
+  second.store.trash = async () => { reads++; return []; };
+  await executeAssistantJob(second.store);
+  assert.equal(reads, 1, 'a lixeira é lida uma vez por pedido');
+  assert.deepEqual([second.state.data.tasks.length, second.state.receipt?.pending.length], [0, 0]);
+  const third = fixture(input([{ type: 'restaurar', target: 'Dentista' }]));
+  third.state.data = second.state.data; third.state.revision = second.state.revision;
+  third.store.trash = async () => [{ id: 'lx-1', collection: 'tasks', item_id: state.data.tasks[0].id, item: state.data.tasks[0] as never, deleted_at: '2026-10-05T10:00:00Z' }];
+  await executeAssistantJob(third.store);
+  assert.equal(third.state.data.tasks[0].title, 'Dentista');
+  assert.match(third.state.receipt!.reply, /Restaurado: Dentista/);
+});

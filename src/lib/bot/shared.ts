@@ -1,6 +1,6 @@
 import 'server-only';
 import { applicationOrigin } from '../auth-input';
-import type { CommandAction } from '../commands';
+import type { CommandAction, TrashEntry } from '../commands';
 import type { PendingItem } from '../assistant-jobs';
 import { botTransport, homeContext, runSharedCommands } from '../shared-actions';
 
@@ -42,4 +42,11 @@ export function botSummary(shared: { done: string[]; failed: string[] } | null, 
     waiting.length && stored ? `Guardei para você confirmar no aplicativo, em Meu dia: ${waiting.map(item => item.label).join('; ')}.` : '',
     waiting.length && !stored ? 'Não consegui guardar o pedido de confirmação; nada foi excluído nem alterado. Tente de novo.' : '',
     shared?.failed.length ? `Não consegui: ${shared.failed.join('; ')}.` : ''].filter(Boolean).join(' ');
+}
+
+/** The linked person's trash; null when this database does not have it yet (deletions then wait for confirmation). */
+export async function botTrash(db: Database, serverSecret: string, channel: Channel, chat: string, actions: { type: string }[]) {
+  if (!actions.some(action => action.type === 'excluir' || action.type === 'restaurar')) return null;
+  const { data, error } = await db.rpc('bot_act', { server_secret: serverSecret, channel_id: channel, chat, operation: 'trash_list', args: {} });
+  return error ? null : (data as TrashEntry[]);
 }

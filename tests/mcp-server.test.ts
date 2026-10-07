@@ -12,7 +12,8 @@ process.env.APP_ORIGIN ??= 'https://jornada.example';
 
 function fakeDatabase(options: { canWrite: boolean }) {
   const state = { workspace: { data: demoWorkspace(dateKey()) as unknown, revision: 3 }, saves: 0, calls: [] as string[], pending: [] as unknown[], receipts: new Map<string, { digest: unknown; outcome: any }>(),
-    acts: [] as { operation: string; args: any }[], actReply: { data: '00000000-0000-4000-8000-0000000000aa' as unknown, error: null as null | { code: string } } };
+    acts: [] as { operation: string; args: any }[], actReply: { data: '00000000-0000-4000-8000-0000000000aa' as unknown, error: null as null | { code: string } },
+    trash: null as null | unknown[], lastReceipt: null as null | { request_id: string; outcome: any } };
   const db = { rpc: async (name: string, args: Record<string, unknown>) => {
     state.calls.push(name);
     assert.match(String(args.token), /^[a-f0-9]{64}$/, 'only the hash reaches the database');
@@ -30,10 +31,14 @@ function fakeDatabase(options: { canWrite: boolean }) {
       const outcome = args.outcome as any;
       state.pending.push(...outcome.pending);
       const receipt = { ...outcome, conversation_id: outcome.pending.length ? '00000000-0000-4000-8000-000000000001' : null };
+      if (outcome.applied.length) state.lastReceipt = { request_id: String(args.request_id), outcome };
       state.receipts.set(String(args.request_id), { digest: args.payload_hash, outcome: receipt });
       return { data: receipt, error: null };
     }
+    // An older database has no trash: the door refuses the operation, and deletions keep waiting for confirmation.
+    if (name === 'mcp_act' && args.operation === 'trash_list') return state.trash ? { data: state.trash, error: null } : { data: null, error: { code: 'PT403' } };
     if (name === 'mcp_act') { state.acts.push({ operation: String(args.operation), args: args.args }); return state.actReply; }
+    if (name === 'mcp_last_outcome') return { data: state.lastReceipt, error: null };
     if (name === 'mcp_save') {
       if (args.expected_revision !== state.workspace.revision) return { data: null, error: { code: 'PT409' } };
       state.workspace = { data: args.next_data, revision: state.workspace.revision + 1 }; state.saves++;
@@ -66,7 +71,7 @@ test('servidor MCP: aperto de mão, catálogo, consulta e registro validado na v
   assert.equal(init.result.serverInfo.name, 'jornada-plena');
   assert.match(init.result.instructions, /Exclusões/);
   const list = await call(legacy(2, 'tools/list'));
-  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
+  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
   assert.equal(list.result.tools.find((tool: { name: string }) => tool.name === 'consultar_jornada').annotations.readOnlyHint, true);
   const query = await call(legacy(3, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'agenda' } }));
   assert.match(query.result.content[0].text, /"items"/);
@@ -126,7 +131,7 @@ test('servidor MCP: clientes da versão 2026-07-28 listam e consultam sem aperto
     body: JSON.stringify(mcpRequest('2026-07-28', id, method, params)) });
   const listed = await jornadaMcpHandler(db as never, access).fetch(modern(1, 'tools/list'));
   assert.equal(listed.status, 200);
-  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
+  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
   const asked = await jornadaMcpHandler(db as never, access).fetch(modern(2, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'resumo' } }));
   assert.match(JSON.stringify(mcpResult(await asked.text(), 2)), /summary/);
 });
@@ -177,7 +182,7 @@ test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e 
   const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
   const call = async (id: number, name: string, args: unknown) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, 'tools/call', { name, arguments: args })));
   const tools = (await body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/list')))).result.tools as { name: string; annotations: any }[];
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
   assert.equal(tools.find(tool => tool.name === 'consultar_coletivo')!.annotations.readOnlyHint, true);
 
   const space = '00000000-0000-4000-8000-0000000000b1';
@@ -284,4 +289,27 @@ test('servidor MCP: ver_tela devolve um print (PNG) com os dados atuais e o resu
   assert.equal(image.mimeType, 'image/png');
   assert.equal(Buffer.from(image.data, 'base64').subarray(1, 4).toString(), 'PNG');
   assert.match(summary.text, /^Finanças · /);
+});
+
+test('servidor MCP: com a lixeira, excluir é direto, "desfazer" traz de volta e a lixeira lista o que saiu', async () => {
+  const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
+  const { db, state } = fakeDatabase({ canWrite: true });
+  state.trash = [];
+  const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const call = async (id: number, name: string, args: unknown) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, 'tools/call', { name, arguments: args })));
+  await call(1, 'registrar_na_jornada', { acoes: [{ type: 'compromisso', title: 'Dentista criado por voz', date: dateKey(), time: '15:00' }] });
+  const removed = await call(2, 'registrar_na_jornada', { acoes: [{ type: 'excluir', entity: 'compromisso', target: 'Dentista criado por voz' }] });
+  const result = JSON.parse(removed.result.content[0].text);
+  assert.equal(result.pendente_no_aplicativo.length, 0, 'excluir o que acabei de criar não fica pendente');
+  assert.match(result.aplicado[0], /^Excluído \(fica na lixeira por 30 dias\)/);
+  assert.equal(JSON.stringify(state.workspace.data).includes('Dentista criado por voz'), false);
+  const undone = await call(3, 'desfazer', {});
+  assert.notEqual(undone.result.isError, true, undone.result.content[0].text);
+  assert.match(JSON.parse(undone.result.content[0].text).desfeito[0], /^Excluído/);
+  assert.equal(JSON.stringify(state.workspace.data).includes('Dentista criado por voz'), true, 'desfazer trouxe o compromisso de volta');
+  state.trash = [{ id: 'lx-1', collection: 'tasks', item_id: 'x', item: { id: 'x', title: 'Academia' }, deleted_at: '2026-10-07T10:00:00Z' }];
+  const listed = JSON.parse((await call(4, 'lixeira', {})).result.content[0].text);
+  assert.deepEqual(listed.itens, [{ id: 'lx-1', titulo: 'Academia', secao: 'tasks', excluido_em: '2026-10-07T10:00:00Z' }]);
+  state.lastReceipt = null;
+  assert.match((await call(5, 'desfazer', {})).result.content[0].text, /Não há ação desta conexão para desfazer/);
 });

@@ -321,6 +321,37 @@ test('com o app aberto, uma mudança feita pela IA em outro lugar abre a tela e 
   expect(await page.evaluate(() => localStorage.getItem('jornada-acompanhar-ia'))).toBe('off');
 });
 
+test('lixeira: o que foi excluído aparece em Minha conta, Restaurar traz de volta e Excluir de vez pede confirmação', async ({ page }) => {
+  await mockApi(page);
+  const saved: Record<string, unknown>[] = [];
+  const purged: string[] = [];
+  const rows = [
+    { id: 'abababab-0000-4000-8000-0000000000d1', collection: 'tasks', item_id: 'lx-task', item: { id: 'lx-task', title: 'Dentista excluído', subjectId: '', date: spDay(), kind: 'Compromisso', done: false, minutes: 30 }, deleted_at: new Date().toISOString() },
+    { id: 'abababab-0000-4000-8000-0000000000d2', collection: 'notes', item_id: 'lx-note', item: { id: 'lx-note', title: 'Ideia antiga', content: '<p>x</p>', subjectId: '', updatedAt: new Date().toISOString() }, deleted_at: new Date().toISOString() },
+  ];
+  await page.route('**/api/trash', async route => {
+    if (route.request().method() === 'POST') { purged.push(route.request().postDataJSON().id); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: null }) }); }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: rows }) });
+  });
+  await page.route('**/api/workspace**', async route => {
+    if (route.request().method() === 'PUT') { saved.push(route.request().postDataJSON().data); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1 + saved.length }) }); }
+    return route.fallback();
+  });
+  await page.goto('/#settings');
+  const trash = page.getByRole('region', { name: 'Lixeira', exact: true });
+  await expect(trash.getByText('Dentista excluído')).toBeVisible();
+  await trash.getByRole('listitem').filter({ hasText: 'Dentista excluído' }).getByRole('button', { name: 'Restaurar' }).click();
+  await expect(trash.getByRole('status')).toHaveText('Restaurado: Dentista excluído (Agenda).');
+  await expect(trash.getByRole('listitem').filter({ hasText: 'Dentista excluído' })).toHaveCount(0);
+  await expect.poll(() => saved.some(data => JSON.stringify(data).includes('lx-task'))).toBe(true);
+  const note = trash.getByRole('listitem').filter({ hasText: 'Ideia antiga' });
+  await note.getByRole('button', { name: 'Excluir de vez' }).click();
+  expect(purged).toEqual([]);
+  await note.getByRole('button', { name: 'Confirmar exclusão definitiva' }).click();
+  await expect.poll(() => purged).toEqual(['abababab-0000-4000-8000-0000000000d2']);
+  await expect(trash.getByText('A lixeira está vazia.')).toBeVisible();
+});
+
 test('trabalho em grupo: parte, entrega em nome, revisão e documento final padronizado', async ({ page }, info) => {
   const posted = await mockApi(page);
   await page.goto('/#community');

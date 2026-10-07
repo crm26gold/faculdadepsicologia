@@ -3,7 +3,8 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import { assistantQuery, queryWorkspace } from '../assistant-query';
-import { applyCommands, commandAction, executionSummary } from '../commands';
+import { applyCommands, commandAction, executionSummary, undoApplied, type TrashEntry } from '../commands';
+import { recordTitle } from '../assistant-records';
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, parseWorkspace } from '../workspace';
 import { botServerSecret } from '../bot/secrets';
 import { botDatabase } from '../supabase/bot';
@@ -39,7 +40,8 @@ Ritmo:
 - Pedido para organizar, ou dados bagunçados: conduza com perguntas curtas, uma de cada vez, organizando enquanto a pessoa responde. Ela guia; você organiza.
 Ferramentas:
 - consultar_jornada: section "busca" procura em todas as seções; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
-- registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado"; exclusões e substituição do conteúdo inteiro de uma anotação ficam para ela confirmar no aplicativo.
+- registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
+- desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
 - ver_tela devolve o print de uma tela.
 - Parte coletiva: consultar_coletivo para ler e obter IDs; gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e minha_conta para agir, com o papel da pessoa em cada sala. Exclusões coletivas ficam para confirmar no aplicativo.
 - Administração (só o administrador geral): consultar_administracao e administrar.
@@ -66,6 +68,11 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     if (error || !data) throw new Error('Não consegui abrir a Jornada desta chave agora.');
     return data as { can_write: boolean; workspace: Workspace };
   };
+  // The person's trash, read as the person; null when this database does not have it yet.
+  const readTrash = async (): Promise<TrashEntry[] | null> => {
+    const { data, error } = await db.rpc('mcp_act', { server_secret: botServerSecret(), token: access.hash, operation: 'trash_list', args: {} });
+    return error ? null : (data as TrashEntry[]);
+  };
   server.registerTool('consultar_jornada', {
     title: 'Consultar a Jornada',
     description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (procura em todas as seções), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Conteúdo completo de anotação só com includeContent e search.',
@@ -78,7 +85,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   });
   server.registerTool('registrar_na_jornada', {
     title: 'Registrar na Jornada',
-    description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, excluir, habito_feito, controlar_foco, saldo_inicial (quanto a pessoa tem para o saldo de Finanças), semestre e perfil. Agrupe até oito ações do mesmo pedido. Não invente valores. Exclusões ficam pendentes para confirmação no aplicativo.',
+    description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, excluir, habito_feito, controlar_foco, saldo_inicial (quanto a pessoa tem para o saldo de Finanças), semestre, perfil e restaurar (da lixeira). Agrupe até oito ações do mesmo pedido. Não invente valores. Até 5 exclusões por pedido vão direto para a lixeira (30 dias; dá para restaurar ou usar desfazer); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente de confirmação.',
     inputSchema: z.object({ acoes: z.array(commandAction).min(1).max(8).describe('Ações validadas, na ordem em que devem ser aplicadas.'), request_id: z.uuid().optional().describe('UUID do pedido; reutilize ao repetir o mesmo pedido após uma falha de conexão, por até 90 dias.') }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, async ({ acoes, request_id }) => {
@@ -94,10 +101,12 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
       if (prior.error) return { ...text(prior.error.code === 'PT409' ? 'Esse identificador pertence a outro pedido. Nenhuma nova alteração foi feita.' : 'Não consegui verificar esse pedido agora. Confira a Jornada antes de repetir.'), isError: true };
       if (prior.data) return receiptText(prior.data as Receipt);
     }
+    const trash = acoes.some(action => action.type === 'excluir' || action.type === 'restaurar') ? await readTrash() : null;
     for (let attempt = 0; attempt < 2; attempt++) {
       const current = await context();
       const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
-      const executed = applyCommands(data, acoes, { today: today(), now: Date.now() });
+      // With the database trash, small deletions run at once; without it they wait for confirmation as before.
+      const executed = applyCommands(data, acoes, { today: today(), now: Date.now(), deleteDirectly: trash !== null, trash: trash ?? undefined });
       const result = { resumo: executionSummary(executed), aplicado: executed.applied.map(item => item.label),
         pendente_no_aplicativo: executed.pending.map(item => item.label), falhou: executed.failed };
       if (!executed.applied.length && !executed.pending.length) return { ...text(result), isError: true };
@@ -111,6 +120,46 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     }
     return { ...text('Os dados mudaram enquanto eu salvava. Nada foi confirmado; consulte novamente antes de repetir.'), isError: true };
   });
+  server.registerTool('lixeira', {
+    title: 'Ver a lixeira',
+    description: 'Lista o que foi excluído nos últimos 30 dias (mais recentes primeiro), com o ID para restaurar. Para trazer de volta, use registrar_na_jornada com {"type":"restaurar","target":"ID"}.',
+    inputSchema: z.object({}),
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  }, async () => {
+    const trash = await readTrash();
+    if (trash === null) return { ...text('A lixeira ainda não está disponível nesta conta.'), isError: true };
+    const items = trash.map(entry => ({ id: entry.id, titulo: recordTitle(entry.item), secao: entry.collection, excluido_em: entry.deleted_at }));
+    return text(items.length ? { encontrados: items.length, itens: items } : { encontrados: 0, mensagem: 'A lixeira está vazia.' });
+  });
+
+  server.registerTool('desfazer', {
+    title: 'Desfazer a última ação',
+    description: 'Desfaz a última ação feita por esta conexão nas últimas 24 horas (criar, editar, concluir, excluir, ajustar). Itens que alguém mudou depois ficam como estão, e a resposta diz o que foi desfeito.',
+    inputSchema: z.object({}),
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
+  }, async () => {
+    if (!access.canWrite) return { ...text('Esta conexão só consulta. Conecte de novo marcando "Permitir registrar e editar".'), isError: true };
+    const last = await db.rpc('mcp_last_outcome', { server_secret: botServerSecret(), token: access.hash });
+    if (['PGRST202', '42883'].includes(last.error?.code ?? '')) return { ...text('Desfazer pelo assistente está aguardando a atualização do banco.'), isError: true };
+    if (last.error) return { ...text('Não consegui consultar a última ação agora.'), isError: true };
+    const receipt = last.data as { request_id: string; outcome: JobOutcome } | null;
+    if (!receipt) return text('Não há ação desta conexão para desfazer nas últimas 24 horas.');
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const current = await context();
+      const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
+      const undone = undoApplied(data, receipt.outcome.applied);
+      if (JSON.stringify(undone) === JSON.stringify(data)) return text('Nada para desfazer: esses itens já foram alterados depois ou já estavam como antes.');
+      const labels = receipt.outcome.applied.map(item => item.label);
+      const outcome: JobOutcome = { saved: true, reply: `Desfeito: ${labels.join('; ')}.`, applied: [], pending: [], failed: [] };
+      const saved = await db.rpc('mcp_commit', { server_secret: botServerSecret(), token: access.hash, request_id: crypto.randomUUID(),
+        payload_hash: createHash('sha256').update(`desfazer:${receipt.request_id}`).digest('hex'),
+        next_data: parseWorkspace(JSON.stringify({ ...undone, editorGeneration: CURRENT_EDITOR_GENERATION })), expected_revision: current.workspace?.revision ?? 0, outcome });
+      if (!saved.error) return text({ desfeito: labels });
+      if (saved.error.code !== 'PT409') break;
+    }
+    return { ...text('Os dados mudaram enquanto eu desfazia. Nada foi confirmado; tente de novo.'), isError: true };
+  });
+
   server.registerTool('ver_tela', {
     title: 'Ver uma tela da Jornada (print)',
     description: 'Devolve uma imagem com as informações atuais de uma tela da vida pessoal: meu_dia, financas, agenda, habitos, metas ou anotacoes. Use quando a pessoa pedir um print ou para ver como ficou depois de registrar algo. A imagem é montada com os dados da conta, não é captura do monitor.',

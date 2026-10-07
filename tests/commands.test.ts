@@ -113,3 +113,38 @@ test('ajustes inválidos não mudam nada e explicam o motivo', () => {
   assert.match(failed[3], /Informe o que mudar/);
   assert.deepEqual([data.term, data.profile, data.finance], [{}, undefined, undefined]);
 });
+
+test('com a lixeira, até 5 exclusões são diretas; acima disso, e substituir o texto de uma nota, pedem confirmação', () => {
+  const many = (count: number) => Array.from({ length: count }, (_, index) => ({ id: `t${index}`, title: `Item ${index}`, subjectId: '', date: '2026-10-05', kind: 'Tarefa' as const, done: false, minutes: 10 }));
+  const start: Workspace = { ...base(), tasks: many(7), notes: [{ id: 'n1', title: 'Nota', content: '<p>a</p>', subjectId: '', updatedAt: '2026-10-01T10:00:00Z' }] };
+  const small = applyCommands(start, many(2).map(task => ({ type: 'excluir', entity: 'compromisso', target: task.id })), { today: '2026-10-02', now, newId: ids(), deleteDirectly: true });
+  assert.deepEqual([small.applied.length, small.pending.length, small.data.tasks.length], [2, 0, 5]);
+  assert.match(small.applied[0].label, /lixeira por 30 dias/);
+  assert.equal(undoApplied(small.data, small.applied).tasks.length, 7, 'desfazer traz de volta');
+  const large = applyCommands(start, many(6).map(task => ({ type: 'excluir', entity: 'compromisso', target: task.id })), { today: '2026-10-02', now, newId: ids(), deleteDirectly: true });
+  assert.deepEqual([large.applied.length, large.pending.length], [0, 6], 'exclusão grande pede confirmação');
+  const replace = applyCommands(start, [{ type: 'editar', entity: 'anotacao', target: 'n1', fields: { text: 'novo', replace: true } }], { today: '2026-10-02', now, newId: ids(), deleteDirectly: true });
+  assert.equal(replace.pending.length, 1);
+  const noTrash = applyCommands(start, [{ type: 'excluir', entity: 'compromisso', target: 't0' }], { today: '2026-10-02', now, newId: ids() });
+  assert.equal(noTrash.pending.length, 1, 'sem lixeira, continua pedindo confirmação');
+});
+
+test('restaurar traz o item da lixeira de volta e recusa o que for ambíguo ou já estiver de volta', () => {
+  const trash = [
+    { id: 'lx-a', collection: 'tasks' as const, item_id: 'gone', item: { id: 'gone', title: 'Dentista', subjectId: '', date: '2026-10-05', kind: 'Compromisso', done: false, minutes: 30 }, deleted_at: '2026-10-02T10:00:00Z' },
+    { id: 'lx-b', collection: 'notes' as const, item_id: 'n9', item: { id: 'n9', title: 'Ideia', content: '<p>x</p>', subjectId: '', updatedAt: '2026-10-01T10:00:00Z' }, deleted_at: '2026-10-02T09:00:00Z' },
+    { id: 'lx-c', collection: 'notes' as const, item_id: 'n8', item: { id: 'n8', title: 'Ideia', content: '<p>y</p>', subjectId: '', updatedAt: '2026-10-01T09:00:00Z' }, deleted_at: '2026-10-02T08:00:00Z' },
+  ];
+  const restored = applyCommands(base(), [{ type: 'restaurar', target: 'dentista' }], { today: '2026-10-02', now, newId: ids(), trash });
+  assert.deepEqual(restored.failed, []);
+  assert.equal(restored.data.tasks.find(task => task.id === 'gone')?.title, 'Dentista');
+  assert.equal(restored.applied[0].label, 'Restaurado: Dentista');
+  const byId = applyCommands(base(), [{ type: 'restaurar', target: 'lx-b' }], { today: '2026-10-02', now, newId: ids(), trash });
+  assert.equal(byId.data.notes[0].id, 'n9');
+  const problems = applyCommands(restored.data, [{ type: 'restaurar', target: 'Ideia' }, { type: 'restaurar', target: 'gone' }, { type: 'restaurar', target: 'Nada' }], { today: '2026-10-02', now, newId: ids(), trash });
+  assert.equal(problems.applied.length, 0);
+  assert.match(problems.failed[0], /mais de um/);
+  assert.match(problems.failed[1], /já está de volta/);
+  assert.match(problems.failed[2], /não encontrei/);
+  assert.match(applyCommands(base(), [{ type: 'restaurar', target: 'x' }], { today: '2026-10-02', now, newId: ids() }).failed[0], /lixeira não está disponível/);
+});

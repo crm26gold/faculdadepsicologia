@@ -9,7 +9,7 @@ import type { Turn } from '../ai/turns';
 import { speakReply } from '../voice/reply-mode';
 import { bridgeInput, confirmationIntent, validatedMedia } from './protocol';
 import { whatsappRpc } from './server';
-import { botHome, botShared, botSummary, splitShared, storeBotConfirmation } from '../bot/shared';
+import { botHome, botShared, botSummary, botTrash, splitShared, storeBotConfirmation } from '../bot/shared';
 import { screenModel, screenText } from '../screens/screen-model';
 import { botServerSecret } from '../bot/secrets';
 import { botDatabase } from '../supabase/bot';
@@ -71,10 +71,11 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
     // Personal deletions keep the in-chat code; shared deletions and administration wait in the app's Meu dia.
     const stored = shared ? await storeBotConfirmation(botDatabase()!, botServerSecret(), 'whatsapp', peer, shared.pending) : true;
     const sharedText = shared ? botSummary(shared, shared.pending, stored) : '';
+    const trash = confirmed ? null : await botTrash(botDatabase()!, botServerSecret(), 'whatsapp', peer, personal);
     let current = context;
     for (let attempt = 0; attempt < 2; attempt++) {
       const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
-      const executed = applyCommands(data, personal, { today, now: Date.now(), ...(confirmed ? { confirmed: pending!.actions } : {}) });
+      const executed = applyCommands(data, personal, { today, now: Date.now(), ...(confirmed ? { confirmed: pending!.actions } : {}), deleteDirectly: trash !== null, trash: trash ?? undefined });
       const confirmation = String(randomInt(100000, 1000000));
       let reply = plan.actions.length ? [sharedText, personal.length ? executionSummary(executed) : ''].filter(Boolean).join(' ') : plan.reply;
       if (executed.pending.length) reply = [sharedText, executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',
