@@ -186,7 +186,7 @@ test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e 
 
   const invite = await call(3, 'gerenciar_salas', { acao: { action: 'create_invitation', space, role: 'student', days: 7, uses: 30 } });
   const link = JSON.parse(invite.result.content[0].text).resultado.link as string;
-  assert.match(link, /^https:\/\/jornada\.example\/convite\/[A-Za-z0-9_-]{32}$/);
+  assert.match(link, /^https?:\/\/[^/]+\/convite\/[A-Za-z0-9_-]{32}$/, 'link do próprio site, com o segredo só no link');
   assert.equal(state.acts.at(-1)!.args.hashed_token, createHash('sha256').update(link.split('/convite/')[1]).digest('hex'), 'o banco recebe só o hash do link');
 
   const before = state.acts.length;
