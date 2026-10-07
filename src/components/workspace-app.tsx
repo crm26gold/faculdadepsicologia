@@ -16,6 +16,7 @@ import { MobileDisclosure } from './mobile-disclosure';
 import { FocusTimer } from './focus-timer';
 import { FocusHistory } from './focus-history';
 import { CaptureSheet } from './capture-sheet';
+import { readCaptureLink } from '@/lib/capture-link';
 import { AssistantBubble, AssistantChat, AssistantPanel } from './assistant';
 import { useConversations } from './use-conversations';
 import { CaptureInbox } from './capture-inbox';
@@ -115,6 +116,9 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [imported, setImported] = useState<Workspace | null>(null);
   const [notice, setNotice] = useState('');
   const [captureOpen, setCaptureOpen] = useState(false);
+  const [capturePlace, setCapturePlace] = useState<Place | undefined>();
+  // Read before the history setup below rewrites the address without its query.
+  const [initialSearch] = useState(() => typeof window === 'undefined' ? '' : window.location.search);
   const [assistantOpen, setAssistantOpen] = useState(false);
   const [shortcut, setShortcut] = useState<View>('studies');
   const [financeRequest, setFinanceRequest] = useState(0);
@@ -274,6 +278,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [form, captureOpen, assistantOpen, mobileMenu, searchOpen, imported, view, studiesRoute]);
+  // A capture link from an assistant ("manda o arquivo") opens Registro rápido at that destination, once.
+  useEffect(() => {
+    const link = readCaptureLink(initialSearch, Date.now());
+    if (!link) return;
+    if (window.location.search) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+    if ('expired' in link) { setNotice('Este link de envio expirou. Peça outro ao assistente.'); return; }
+    setCapturePlace(link.place); pushModal('capture'); setCaptureOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialSearch]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -349,7 +362,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function swapModal(modal: 'form') { const state = window.history.state ?? {}; if (state.modal) window.history.replaceState({ ...state, modal }, '', window.location.hash || `#${view}`); else pushModal(modal); }
 
   function openCapture() { if (captureOpen) return; pushModal('capture'); setCaptureOpen(true); }
-  function closeCapture() { setCaptureOpen(false); popModal('capture'); }
+  function closeCapture() { setCaptureOpen(false); setCapturePlace(undefined); popModal('capture'); }
   function openAssistant() { pushModal('assistant'); setAssistantOpen(true); }
   function closeAssistant() { setAssistantOpen(false); popModal('assistant'); }
   function openNote(id: string) { setCaptureOpen(false); setAssistantOpen(false); navigate('notes'); setSelectedNote(id); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }
@@ -773,7 +786,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       </div>
     </Modal>}
     {!demo && imported && <Modal title="Restaurar este backup?" onClose={() => setImported(null)}><p>Ele contém {imported.subjects.length} matérias, {imported.notes.length} anotações e {imported.tasks.length} compromissos. Isso substituirá os dados deste espaço.</p><p>Exporte uma cópia atual antes de continuar.</p><div className="button-row"><button className="button outline" onClick={() => download(data)}>Exportar versão atual</button><button className="button primary" disabled={blocked} onClick={() => { update(() => ensureCourses(imported)); setImported(null); setSelectedNote(''); setNotesPlace(null); setNotice('Restauração enviada. Confira o indicador de salvamento antes de sair.'); }}>Confirmar restauração</button></div></Modal>}
-    {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} />}
+    {captureOpen && <CaptureSheet data={data} blocked={blocked} status={status} cloud={cloud} demo={demo} update={update} ensureSaved={ensureSaved} onClose={closeCapture} onOpenNote={openNote} onTask={captureTask} onFocus={captureFocus} onMoney={captureMoney} place={capturePlace} />}
     {ready && !bubbleHidden && view !== 'assistant' && !(cloud && home && !acceptedTerms(home)) && <AssistantBubble persist={!demo} showIntro={view === 'today'} onOpen={openAssistant} onHide={() => setBubble(true)} />}
     <AiPresence touch={aiTouch} onPause={pauseFollow} />
     {assistantOpen && <AssistantPanel refreshWorkspace={() => refresh(home?.account.user_id)} conversations={conversations} cloud={cloud} blocked={blocked} demo={demo} data={data} onNavigate={(target) => { closeAssistant(); navigate(target); }} update={update} ensureSaved={ensureSaved} messages={assistantMessages} setMessages={setAssistantMessages} onClose={closeAssistant} onOpenNote={openNote} />}

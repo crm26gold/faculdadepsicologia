@@ -188,3 +188,21 @@ test('contexto conta os pendentes para organizar por voz', () => {
   assert.match(context, /Pendentes: 1 anotações em Para organizar \(Ideia solta \[solta\]\); 1 compromissos atrasados\./);
   assert.match(commandContext({ ...emptyWorkspace(), editorGeneration: CURRENT_EDITOR_GENERATION }, '2026-10-02'), /Pendentes: nada\./);
 });
+
+test('anotação guarda um link seguro; javascript: e afins são recusados', () => {
+  const { data, applied } = applyCommands(base(), [{ type: 'anotacao', text: 'Artigo sobre memória', link: 'https://example.org/artigo?x=1&y=2', notebook: 'Leituras' }], { today: '2026-10-02', now, newId: ids() });
+  assert.equal(applied[0].label, 'Anotação no caderno Leituras (caderno criado): Artigo sobre memória');
+  assert.match(data.notes[0].content, /<a href="https:\/\/example\.org\/artigo\?x=1&amp;y=2" target="_blank" rel="noopener noreferrer nofollow">/);
+  const parsed = parseCommand(JSON.stringify({ reply: 'ok', actions: [{ type: 'anotacao', text: 'x', link: 'javascript:alert(1)' }] }));
+  assert.deepEqual(parsed.actions, []);
+});
+
+test('legenda da foto aponta o destino que já existe; sem destino, Para organizar', async () => {
+  const { captionPlace } = await import('../src/lib/commands');
+  const data = { ...base(), notebooks: [{ id: 'nb-receitas', name: 'Receitas', areaId: '', color: 'sage' as const }] };
+  assert.deepEqual(captionPlace(data, 'guarda no caderno Receitas, por favor'), { kind: 'notebook', id: 'nb-receitas' });
+  assert.deepEqual(captionPlace(data, 'Foto do quadro, matéria de Processos Psicológicos Básicos'), { kind: 'subject', id: 'ppb' });
+  assert.deepEqual(captionPlace(data, 'treino na área Saúde física'), { kind: 'area', id: 'health' });
+  assert.equal(captionPlace(data, 'comprovante do mercado'), undefined);
+  assert.equal(captionPlace(data, 'caderno que não existe'), undefined, 'nome desconhecido nunca vira erro nem caderno novo');
+});

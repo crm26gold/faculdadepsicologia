@@ -102,7 +102,7 @@ Marcar uma conta paga é um registro; não transfere dinheiro. Mensagens externa
 
 ## Cadernos e pendentes
 
-"Coloca aí, depois a gente organiza" guarda a anotação na hora, em **Para organizar**, sem perguntas. Com destino ("anota no caderno Receitas", "guarda em Processos Psicológicos Básicos"), ela vai direto para lá: um caderno que ainda não existe é criado, e uma matéria com o mesmo nome é usada como caderno. "Vamos organizar os pendentes" usa a lista de pendentes (anotações sem lugar, compromissos atrasados, contas vencidas e lançamentos sem categoria) e segue item por item: o assistente sugere o destino, pergunta "pode ser?" e passa ao próximo. "Deixa para depois" pula; ao parar, ele diz quantos faltam. Desfazer uma anotação que criou um caderno tira os dois.
+Um link dito ou colado ("salva esse link em Leituras") fica na anotação, só com endereços http, https ou mailto. "Coloca aí, depois a gente organiza" guarda a anotação na hora, em **Para organizar**, sem perguntas. Com destino ("anota no caderno Receitas", "guarda em Processos Psicológicos Básicos"), ela vai direto para lá: um caderno que ainda não existe é criado, e uma matéria com o mesmo nome é usada como caderno. "Vamos organizar os pendentes" usa a lista de pendentes (anotações sem lugar, compromissos atrasados, contas vencidas e lançamentos sem categoria) e segue item por item: o assistente sugere o destino, pergunta "pode ser?" e passa ao próximo. "Deixa para depois" pula; ao parar, ele diz quantos faltam. Desfazer uma anotação que criou um caderno tira os dois. No Telegram, uma foto com legenda como "guarda no caderno Receitas" já vai para esse caderno, matéria ou área, se ele existir; sem destino reconhecido, fica em Para organizar.
 
 ## Lixeira e desfazer
 
