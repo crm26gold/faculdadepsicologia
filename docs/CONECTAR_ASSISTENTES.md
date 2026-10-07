@@ -4,7 +4,7 @@ A Jornada tem um servidor MCP próprio em `https://<endereço do app>/api/mcp`. 
 
 ## O que o assistente consegue fazer
 
-- **consultar_jornada:** resumo, agenda com datas, anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configurações (saldo inicial, datas do semestre e perfil, sem a foto). Só lê.
+- **consultar_jornada:** resumo, agenda (cada aula com curso, matéria, professor, início, fim e local), **busca** em todas as seções, anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configurações (saldo inicial, datas do semestre e perfil, sem a foto). Só lê. Um campo `null` significa "não cadastrado", e `found: 0` vem com a mensagem de onde procurou, para a IA dizer que não encontrou em vez de inventar.
 - **registrar_na_jornada:** cria, edita, conclui, reagenda e registra (compromissos, anotações, finanças, foco, hábitos e registros de estudo), até oito ações por vez, com as mesmas validações do aplicativo. Também ajusta o saldo inicial de Finanças, as datas do semestre e o perfil (a foto continua só na tela). Exige permissão de registrar.
 - **consultar_coletivo:** o que a pessoa vê na tela da parte coletiva: início (instituições, salas e grupos), uma sala (mural, enquetes, pessoas, grupos e trabalhos), um trabalho (partes, comentários e entregas) e os contatos. Só lê.
 - **gerenciar_salas, gerenciar_trabalhos e gerenciar_contatos:** as mesmas ações da tela, com as permissões da própria pessoa em cada sala. Criar, editar e arquivar salas e grupos; adicionar aluno ou líder; convites (o link volta na resposta); mural; enquetes e votos; trabalhos em grupo, partes, escrita, entrega e comentários; contatos.
