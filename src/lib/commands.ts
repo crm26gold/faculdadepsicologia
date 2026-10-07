@@ -186,7 +186,7 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
             view: 'studies', undo: { kind: 'setting', key: 'term', before: previous, after: next.term } });
           break;
         }
-        case 'coletivo': throw new Error('Pedidos de salas, trabalhos, contatos e administração usam as ferramentas próprias deste assistente.');
+        case 'coletivo': throw new Error('pedidos de salas, trabalhos, contatos e administração ainda não passam por este canal: use o assistente no aplicativo, a chamada ao vivo ou, no Claude e no ChatGPT, as ferramentas gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e administrar');
         case 'perfil': {
           const changed = Object.keys(action.fields);
           if (!changed.length) throw new Error('Informe o que mudar no perfil.');
