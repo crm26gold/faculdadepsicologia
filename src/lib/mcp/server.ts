@@ -47,7 +47,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   };
   server.registerTool('consultar_jornada', {
     title: 'Consultar a Jornada',
-    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (com datas), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards e áreas. Use antes de responder ou de alterar algo. Conteúdo completo de anotação só com includeContent e search.',
+    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (com datas), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. Conteúdo completo de anotação só com includeContent e search.',
     inputSchema: assistantQuery,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async args => {
@@ -57,7 +57,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   });
   server.registerTool('registrar_na_jornada', {
     title: 'Registrar na Jornada',
-    description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, habito_feito e controlar_foco. Agrupe até oito ações do mesmo pedido. Não invente valores. Exclusões ficam pendentes para confirmação no aplicativo.',
+    description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, excluir, habito_feito, controlar_foco, saldo_inicial (quanto a pessoa tem para o saldo de Finanças), semestre e perfil. Agrupe até oito ações do mesmo pedido. Não invente valores. Exclusões ficam pendentes para confirmação no aplicativo.',
     inputSchema: z.object({ acoes: z.array(commandAction).min(1).max(8).describe('Ações validadas, na ordem em que devem ser aplicadas.'), request_id: z.uuid().optional().describe('UUID do pedido; reutilize ao repetir o mesmo pedido após uma falha de conexão, por até 90 dias.') }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ acoes, request_id }) => {

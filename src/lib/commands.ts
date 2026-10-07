@@ -1,10 +1,11 @@
 import { z } from 'zod';
-import { addDays, CURRENT_EDITOR_GENERATION, daySchema, formatDate, taskKinds, timeSchema, type Task, type Workspace } from './workspace';
+import { addDays, CURRENT_EDITOR_GENERATION, daySchema, formatDate, profileSchema, taskKinds, termSchema, timeSchema, type Task, type Workspace } from './workspace';
 import { captureNote } from './capture';
 import { buildSeries, currentBalance, expenseCategories, incomeCategories, money, monthOf, monthSummary, natures, projectTo } from './finance';
 import { finishFocus, pauseFocus, resumeFocus, startFocus } from './focus';
 import { changeRecord, collections, entities, entityFields, entityView, findRecord, normalized, recordFields, records, recordTitle, removeRecord, validateChange, type Collection, type RecordItem } from './assistant-records';
 import { lifeAreas } from './life';
+import { emptyProfile } from './life-data';
 import { todayAgenda } from './today';
 
 // What the assistant may do on its own. The model only proposes these shapes; every action is validated
@@ -25,6 +26,10 @@ export const commandAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('excluir'), entity: z.enum(entities), target: name }),
   z.object({ type: z.literal('habito_feito'), target: name, date: daySchema, done: z.boolean().default(true) }),
   z.object({ type: z.literal('controlar_foco'), operation: z.enum(['pausar', 'retomar', 'encerrar']) }),
+  // Single settings, not lists: where the money starts, the semester dates and the profile (the photo stays on the screen).
+  z.object({ type: z.literal('saldo_inicial'), amount: z.number().min(-1_000_000_000).max(1_000_000_000), date: daySchema.optional() }),
+  z.object({ type: z.literal('semestre'), start: daySchema.optional(), end: daySchema.optional() }),
+  z.object({ type: z.literal('perfil'), fields: profileSchema.omit({ photoUrl: true }).partial() }),
 ]);
 export type CommandAction = z.infer<typeof commandAction>;
 export const commandResult = z.object({ reply: z.string().trim().max(3000).default(''), actions: z.array(commandAction).max(8).default([]) });
@@ -32,10 +37,13 @@ export type CommandResult = z.infer<typeof commandResult>;
 type Delta = { collection: Collection; id: string; before?: RecordItem; after?: RecordItem; index?: number };
 export type Undo = { kind: 'task' | 'note' | 'transactions' | 'focus' | 'reopen'; id: string }
   | { kind: 'changes'; items: Delta[] }
-  | { kind: 'focus_state'; before: Workspace['activeFocus']; after: Workspace['activeFocus']; items: Delta[] };
-export type Applied = { label: string; view: 'agenda' | 'notes' | 'finances' | 'focus' | typeof entityView[keyof typeof entityView]; id?: string; undo: Undo };
+  | { kind: 'focus_state'; before: Workspace['activeFocus']; after: Workspace['activeFocus']; items: Delta[] }
+  | { kind: 'setting'; key: Setting; before: unknown; after: unknown };
+type Setting = 'finance' | 'term' | 'profile';
+export type Applied = { label: string; view: 'agenda' | 'notes' | 'finances' | 'focus' | 'studies' | 'settings' | typeof entityView[keyof typeof entityView]; id?: string; undo: Undo };
 export type PendingCommand = { action: Extract<CommandAction, { type: 'excluir' | 'editar' }>; fingerprint: string; label: string };
 
+const profileLabels = { name: 'nome', course: 'curso', semester: 'semestre', institution: 'instituição', campus: 'campus', registration: 'matrícula', email: 'e-mail', phone: 'telefone' };
 function differences(before: Workspace, after: Workspace): Delta[] {
   return collections.flatMap(collection => {
     const old = new Map(((before[collection] ?? []) as RecordItem[]).map(item => [item.id, item]));
@@ -158,10 +166,36 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
             undo: { kind: 'focus_state', before: before.activeFocus, after: next.activeFocus, items: differences(before, next) } });
           break;
         }
+        case 'saldo_inicial': {
+          const cents = Math.round(action.amount * 100), date = action.date ?? options.today, previous = next.finance;
+          next = { ...next, finance: { openingCents: cents, openingDate: date } };
+          applied.push({ label: `Saldo inicial: ${money(cents)} em ${formatDate(date)}${previous ? ` (antes: ${money(previous.openingCents)} em ${formatDate(previous.openingDate)})` : ''}`,
+            view: 'finances', undo: { kind: 'setting', key: 'finance', before: previous, after: next.finance } });
+          break;
+        }
+        case 'semestre': {
+          if (!action.start && !action.end) throw new Error('Informe o início ou o fim do semestre.');
+          const term = termSchema.safeParse({ start: action.start ?? next.term.start, end: action.end ?? next.term.end });
+          if (!term.success) throw new Error('O fim do semestre deve ser depois do início.');
+          const previous = next.term;
+          next = { ...next, term: term.data };
+          applied.push({ label: `Semestre: ${term.data.start ? formatDate(term.data.start) : 'sem início'} a ${term.data.end ? formatDate(term.data.end) : 'sem fim'}`,
+            view: 'studies', undo: { kind: 'setting', key: 'term', before: previous, after: next.term } });
+          break;
+        }
+        case 'perfil': {
+          const changed = Object.keys(action.fields);
+          if (!changed.length) throw new Error('Informe o que mudar no perfil.');
+          const previous = next.profile;
+          next = { ...next, profile: profileSchema.parse({ ...emptyProfile, ...previous, ...action.fields }) };
+          applied.push({ label: `Perfil atualizado: ${changed.map(key => profileLabels[key as keyof typeof profileLabels] ?? key).join(', ')}`,
+            view: 'settings', undo: { kind: 'setting', key: 'profile', before: previous, after: next.profile } });
+          break;
+        }
       }
       next = validateChange({ ...next, editorGeneration: CURRENT_EDITOR_GENERATION });
       const last = applied.at(-1);
-      if (applied.length > appliedLength && last && last.undo.kind !== 'changes' && last.undo.kind !== 'focus_state') {
+      if (applied.length > appliedLength && last && !['changes', 'focus_state', 'setting'].includes(last.undo.kind)) {
         last.undo = last.undo.kind === 'focus' ? { kind: 'focus_state', before: before.activeFocus ?? null, after: next.activeFocus, items: differences(before, next) }
           : { kind: 'changes', items: differences(before, next) };
       }
@@ -179,6 +213,8 @@ export function undoApplied(data: Workspace, applied: Applied[]): Workspace {
   let next = data;
   for (const { undo } of applied.toReversed()) {
     if (undo.kind === 'changes') next = restoreChanges(next, undo.items);
+    // A setting is restored only while it still holds what this command wrote.
+    if (undo.kind === 'setting' && JSON.stringify(next[undo.key]) === JSON.stringify(undo.after)) next = { ...next, [undo.key]: undo.key === 'term' ? undo.before ?? {} : undo.before };
     if (undo.kind === 'focus_state' && JSON.stringify(next.activeFocus) === JSON.stringify(undo.after)) next = { ...restoreChanges(next, undo.items), activeFocus: undo.before };
     if (undo.kind === 'task') next = { ...next, tasks: next.tasks.filter(task => task.id !== undo.id) };
     if (undo.kind === 'reopen') next = { ...next, tasks: next.tasks.map(task => task.id === undo.id ? { ...task, done: false } : task) };
@@ -257,6 +293,9 @@ Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa
 - {"type":"excluir","entity":"tipo de registro","target":"ID exato ou nome inequívoco"} — propõe exclusão de UM item, o aplicativo exige confirmação depois. Nunca diga que já excluiu.
 - {"type":"habito_feito","target":"ID ou nome do hábito","date":"AAAA-MM-DD","done":true|false}
 - {"type":"controlar_foco","operation":"pausar"|"retomar"|"encerrar"}
+- {"type":"saldo_inicial","amount":número em reais (negativo se a pessoa começa devendo),"date":"AAAA-MM-DD"(opcional, padrão hoje)} — quanto a pessoa tem para o saldo de Finanças partir dali; substitui o saldo inicial anterior
+- {"type":"semestre","start":"AAAA-MM-DD"(opcional),"end":"AAAA-MM-DD"(opcional)} — datas do semestre que limitam as aulas recorrentes
+- {"type":"perfil","fields":{name,course,semester,institution,campus,registration,email,phone}} — só os campos que a pessoa pediu para mudar
 Tipos de registro e únicos campos aceitos em fields:
 ${entities.map(entity => `${entity}: ${entityFields[entity]}`).join('\n')}
 Campos de vínculo area,subject,project,goal,course,notebook recebem um ID existente ou nome inequívoco, nunca invente IDs. Cor: sage|lavender|sand|blue|rose. Status de meta/projeto: active|paused|completed|archived; curso: active|paused|completed.

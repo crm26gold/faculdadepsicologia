@@ -5,7 +5,7 @@ import { commandContext } from './commands';
 import { todayAgenda } from './today';
 
 export const assistantQuery = z.object({
-  section: z.enum(['resumo', 'agenda', ...entities]).default('resumo'),
+  section: z.enum(['resumo', 'agenda', 'configuracoes', ...entities]).default('resumo'),
   search: z.string().max(160).default(''),
   from: daySchema.optional(), to: daySchema.optional(),
   includeContent: z.boolean().default(false),
@@ -13,6 +13,11 @@ export const assistantQuery = z.object({
 export function queryWorkspace(data: Workspace, input: unknown, today: string) {
   const query = assistantQuery.parse(input);
   if (query.section === 'resumo') return { today, summary: commandContext(data, today) };
+  // The single settings, read only when asked: opening balance, semester and profile without the photo.
+  if (query.section === 'configuracoes') {
+    const { photoUrl: _photo, ...profile } = data.profile ?? { photoUrl: '' };
+    return { today, saldoInicial: data.finance ? { emReais: data.finance.openingCents / 100, data: data.finance.openingDate } : null, semestre: data.term, perfil: profile };
+  }
   if (query.from && query.to && query.from > query.to) throw new Error('A data final deve vir depois da inicial.');
   const matches = (item: { id: string; date?: unknown; title?: unknown; name?: unknown; description?: unknown; front?: unknown }) => {
     const title = recordTitle(item);
