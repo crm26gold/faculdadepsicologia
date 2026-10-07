@@ -5,7 +5,8 @@ import { pathToFileURL } from 'node:url';
 const empty = pathToFileURL(`${process.cwd()}/node_modules/server-only/empty.js`).href;
 registerHooks({ resolve: (specifier, context, next) => specifier === 'server-only' ? { url: empty, shortCircuit: true } : next(specifier, context) });
 import { aiProviderIds, aiResourceAction, liveProviders, voiceOnlyProviders, type AiProviderId } from '../src/lib/ai/catalog';
-import { providerCapabilities, resourceInsights, type AiResourceMap } from '../src/lib/ai/resources';
+import { providerCapabilities, type AiResourceMap } from '../src/lib/ai/resources';
+import { resourceIssues } from '../src/lib/ai/issues';
 
 const has = (provider: AiProviderId, capability: Parameters<typeof providerCapabilities[AiProviderId]['includes']>[0]) => providerCapabilities[provider].includes(capability);
 const config = (provider: AiProviderId) => ({ provider, model: 'modelo-teste', key: 'synthetic', base_url: 'https://compat.example.invalid/v1', gcp_project: '', gcp_location: '' });
@@ -70,28 +71,28 @@ const productionMap = (): AiResourceMap => ({
 });
 
 test('o mapa explica a reserva inerte e sugere conexões disponíveis sem gastar créditos', () => {
-  const insights = resourceInsights(productionMap());
-  assert(insights.some(item => item.level === 'warning' && /Reserva Gemini · Google Gemini \(AI Studio\) está configurada, mas fora/.test(item.text)));
-  assert(insights.some(item => item.level === 'info' && /depende de uma só conexão. Disponíveis como alternativa: Groq/.test(item.text)));
-  assert(insights.some(item => item.level === 'info' && /Transcrição do WhatsApp/.test(item.text)), 'disabled channel is informational');
-  assert(!insights.some(item => item.task === 'voz'), 'single fixed voice route is a choice, not a warning');
+  const issues = resourceIssues(productionMap());
+  const reserve = issues.find(item => item.id === 'declaration_missing:connection:extra')!;
+  assert.equal(reserve.title, 'Reserva Gemini · Google Gemini (AI Studio): aguardando sua declaração de privacidade');
+  assert.deepEqual(reserve.affects, ['Conversa do assistente', 'Transcrição do WhatsApp'], 'canal desligado entra como afetado, sem alerta próprio');
+  assert.match(issues.find(item => item.id === 'single:assistente')!.why, /Disponíveis como alternativa: Groq/);
+  assert(!issues.some(item => item.id.endsWith(':voz')), 'single fixed voice route is a choice, not a warning');
 });
 
-test('Organizar servido pela rota do assistente é explicado, sem falso alerta de rota única', () => {
+test('Organizar servido pela rota do assistente não ganha falso alerta de rota única ou vazia', () => {
   const map = productionMap();
-  map.routes.push({ ...map.routes[0], task: 'organizar', enabled: true, mode: 'fixed', routing_effective: 'fallback', served_by: 'assistente',
+  map.routes.push({ ...map.routes[0], task: 'organizar', enabled: true, mode: 'fixed', routing_effective: 'fallback', served_by: 'assistente', chain: [],
     sources: [{ source_id: 'provider:gemini', state: 'blocked', role: 'primary', reason: 'declaration_missing' }] });
-  const insights = resourceInsights(map).filter(item => item.task === 'organizar');
-  assert.deepEqual(insights.map(item => item.level), ['warning', 'info']);
-  assert.match(insights[1].text, /usa a rota da Conversa do assistente/);
-  assert(!insights.some(item => /depende de uma só conexão|modo automático/.test(item.text)));
+  const issues = resourceIssues(map);
+  assert.deepEqual(issues.find(item => item.id === 'declaration_missing:provider:gemini')!.affects, ['Organizar registros']);
+  assert(!issues.some(item => item.id === 'single:organizar' || item.id === 'empty:organizar'));
 });
 
-test('o mapa avisa quando chaves pessoais mudam o modo efetivo e quando a declaração venceu', () => {
+test('o mapa avisa quando a declaração venceu porque a chave foi trocada', () => {
   const map = productionMap();
-  map.routes[0].routing_effective = 'auto';
   map.resources[4].declaration = { privacy_basis: 'paid', audience: 'owner', current: false };
-  const insights = resourceInsights(map);
-  assert(insights.some(item => /funcionar no modo automático/.test(item.text)));
-  assert(insights.some(item => item.level === 'warning' && /a chave foi trocada depois da declaração/i.test(item.text)));
+  const stale = resourceIssues(map).find(item => item.id === 'declaration_stale:connection:extra')!;
+  assert.equal(stale.level, 'warning');
+  assert.match(stale.title, /a chave mudou depois da declaração/);
 });
+

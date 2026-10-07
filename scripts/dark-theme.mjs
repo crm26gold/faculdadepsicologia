@@ -35,19 +35,27 @@ function hsl({ r, g, b }) {
 const css = (h, s, l, a = 1) => a < 1 ? `hsl(${h.toFixed(0)} ${(s * 100).toFixed(0)}% ${(l * 100).toFixed(0)}% / ${a.toFixed(2)})` : `hsl(${h.toFixed(0)} ${(s * 100).toFixed(0)}% ${(l * 100).toFixed(0)}%)`;
 
 // kind: 'bg' | 'border' | 'text'
+// Targets follow the approved ocean identity (the same values as the [data-theme='dark'] tokens in
+// workspace-design.css): neutral and old warm/green paper tints become ocean surfaces, so no screen falls
+// back to the old forest or cream palette. Semantic colors (red, purple, vivid success green) keep their hue.
+const OCEAN = 212;
+const legacyTint = (h, s) => h >= 25 && h <= 175 && s < 0.7;
 function darken(token, kind) {
   if (darkVars[token] && kind !== 'text') return null;
   const color = parse(darkVars[token] ?? token);
   if (!color) return null;
   const { h, s, l } = hsl(color);
-  const neutral = s < 0.3;
+  // Near-white paper counts as neutral even with a faint warm tint (#fffefb).
+  const neutral = s < 0.3 || l > 0.97;
   if (kind === 'text') {
     if (l >= 0.45 && !(color.a < 1)) return null;
-    return neutral ? css(45, 0.2, 0.9, color.a) : css(h, Math.min(s, 0.7), 0.78, color.a);
+    if (neutral) return css(210, 0.5, 0.92, color.a);
+    return legacyTint(h, s) ? css(205, 0.72, 0.8, color.a) : css(h, Math.min(s, 0.7), 0.78, color.a);
   }
   if (l < 0.82) return null;
-  if (kind === 'border') return neutral ? css(152, 0.2, 0.22, color.a) : css(h, 0.3, 0.3, color.a);
-  if (neutral) return css(152, 0.27, l > 0.97 ? 0.12 : 0.15, color.a);
+  if (kind === 'border') return neutral || legacyTint(h, s) ? css(210, 0.31, 0.25, color.a) : css(h, 0.3, 0.3, color.a);
+  if (neutral) return css(OCEAN, 0.44, l > 0.97 ? 0.14 : 0.16, color.a);
+  if (legacyTint(h, s)) return css(OCEAN, 0.42, 0.19, color.a);
   return css(h, Math.min(s, 0.28), 0.17, color.a);
 }
 

@@ -112,7 +112,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .focus-chart, .focus-breakdown, .focus-log { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; min-inline-size: 0; }
 .focus-chart-bars { display: flex; align-items: flex-end; gap: 4px; block-size: 140px; }
 .focus-chart-day { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; block-size: 100%; gap: 4px; min-inline-size: 0; }
-.focus-chart-bar { inline-size: 100%; max-inline-size: 36px; border-radius: 4px 4px 0 0; background: #2F6B55; }
+.focus-chart-bar { inline-size: 100%; max-inline-size: 36px; border-radius: 4px 4px 0 0; background: #245d86; }
 .focus-chart-day small { font-size: .72rem; color: var(--muted); }
 .focus-breakdowns { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
 .focus-breakdown ul { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -120,7 +120,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .focus-bar-label strong { overflow-wrap: anywhere; font-weight: 600; }
 .focus-bar-label small { flex-shrink: 0; color: var(--muted); }
 .focus-bar { display: block; block-size: 8px; border-radius: 4px; background: var(--line); margin-block-start: 4px; overflow: hidden; }
-.focus-bar > span { display: block; block-size: 100%; background: #2F6B55; border-radius: 4px; }
+.focus-bar > span { display: block; block-size: 100%; background: #245d86; border-radius: 4px; }
 .focus-log .focus-history { max-block-size: none; }
 .focus-log-day h3 { display: flex; justify-content: space-between; font-size: .9rem; margin-block: 12px 2px; text-transform: capitalize; }
 .focus-log-day h3 small { color: var(--muted); text-transform: none; }
@@ -139,7 +139,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .video-dot { inline-size: 12px; block-size: 12px; border-radius: 50%; background: #fff; display: inline-block; }
 
 /* Jornada Plena brand: Verde Floresta, Verde Sálvia, Ouro Suave e Marfim. */
-:root { --brand-forest: #0F3D2E; --brand-sage: #8CA88A; --brand-gold: #D4AF6B; --brand-ivory: #FAF7ED; }
+:root { --brand-forest: #123f61; --brand-sage: #6FA3CF; --brand-gold: #D4AF6B; --brand-ivory: #FAF7ED; }
 .brand-icon:has(> img) { background: none; inline-size: 34px; block-size: 34px; border-radius: 50%; }
 .brand-icon > img { display: block; inline-size: 100%; block-size: 100%; }
 .topbar-capture { display: inline-flex; align-items: center; gap: 8px; background: var(--brand-forest); border-color: var(--brand-forest); }
@@ -169,8 +169,8 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .assistant-hide:hover, .assistant-hide:focus-visible { opacity: 1; }
 .side-right .assistant-hide { inset-inline-start: -8px; }
 .side-left .assistant-hide { inset-inline-end: -8px; }
-.assistant-intro { position: absolute; inset-block-end: 70px; inline-size: 300px; padding: 14px 16px; border-radius: 14px; background: var(--brand-ivory); color: #1d2b25; border: 1px solid var(--brand-gold); box-shadow: 0 12px 32px #0f3d2e33; display: flex; flex-direction: column; gap: 10px; font-size: .9rem; line-height: 1.45; }
-.assistant-intro p { color: #1d2b25; }
+.assistant-intro { position: absolute; inset-block-end: 70px; inline-size: 300px; padding: 14px 16px; border-radius: 14px; background: var(--brand-ivory); color: #1b2a3a; border: 1px solid var(--brand-gold); box-shadow: 0 12px 32px #0f3d2e33; display: flex; flex-direction: column; gap: 10px; font-size: .9rem; line-height: 1.45; }
+.assistant-intro p { color: #1b2a3a; }
 .assistant-intro .button { align-self: flex-end; background: var(--brand-forest); border-color: var(--brand-forest); }
 .side-right .assistant-intro { inset-inline-end: 0; }
 .side-left .assistant-intro { inset-inline-start: 0; }
@@ -189,13 +189,13 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .assistant-messages { display: flex; flex-direction: column; gap: 8px; max-block-size: 40vh; overflow-y: auto; padding: 4px; }
 .assistant-message { max-inline-size: 88%; padding: 10px 12px; border-radius: 12px; font-size: .92rem; }
 .assistant-message p + p { margin-block-start: 6px; }
-.assistant-message.assistant { align-self: flex-start; background: var(--brand-ivory); border: 1px solid #e9e1c8; color: #1d2b25; }
+.assistant-message.assistant { align-self: flex-start; background: var(--brand-ivory); border: 1px solid #e9e1c8; color: #1b2a3a; }
 .assistant-message.me { align-self: flex-end; background: var(--brand-forest); color: #fff; }
 .assistant-message.me p { color: #fff; }
-.assistant-message.assistant p { color: #1d2b25; }
-[data-theme='dark'] .assistant-message.assistant p { color: #F3F0E6; }
-[data-theme='dark'] .assistant-intro { background: #16271F; border-color: var(--brand-gold); }
-[data-theme='dark'] .assistant-intro p { color: #F3F0E6; }
+.assistant-message.assistant p { color: #1b2a3a; }
+[data-theme='dark'] .assistant-message.assistant p { color: #e4edf6; }
+[data-theme='dark'] .assistant-intro { background: #1c3045; border-color: var(--brand-gold); }
+[data-theme='dark'] .assistant-intro p { color: #e4edf6; }
 .assistant-message.listening { opacity: .75; font-style: italic; }
 .assistant-problem { color: #b91c1c; font-size: .85rem; }
 .assistant-mic { display: flex; align-items: center; justify-content: center; gap: 10px; min-block-size: 64px; border-radius: 999px; background: var(--brand-forest); color: #fff; font-weight: 700; font-size: 1rem; border: 0; }
@@ -207,8 +207,8 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .assistant-form input { flex: 1; min-inline-size: 0; }
 .assistant-form .button { min-inline-size: 48px; justify-content: center; }
 .assistant-privacy { font-size: .76rem; color: var(--muted); }
-[data-theme='dark'] .assistant-message.assistant { background: #16271F; border-color: #2C4238; color: #F3F0E6; }
-[data-theme='dark'] .capture-sheet-actions button { background: #0F1D18; color: #F3F0E6; }
+[data-theme='dark'] .assistant-message.assistant { background: #1c3045; border-color: #2c4054; color: #e4edf6; }
+[data-theme='dark'] .capture-sheet-actions button { background: #142334; color: #e4edf6; }
 
 @media (max-width: 760px) {
   .topbar-capture, .assistant-dock, .desktop-only { display: none; }
@@ -216,7 +216,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 }
 
 /* Modo escuro com a paleta da marca */
-[data-theme='dark'] .button.outline, [data-theme='dark'] .heading-actions-row .button.outline { background: var(--surface); color: var(--ink); border-color: #4A6357; }
+[data-theme='dark'] .button.outline, [data-theme='dark'] .heading-actions-row .button.outline { background: var(--surface); color: var(--ink); border-color: #3a5269; }
 [data-theme='dark'] .search-trigger { background: var(--surface); color: var(--muted); }
 [data-theme='dark'] .tabbar-center > span:last-child { color: var(--brand-gold); }
 
@@ -266,7 +266,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .today-alert-dot { inline-size: 10px; block-size: 10px; border-radius: 50%; background: var(--brand-sage); flex-shrink: 0; }
 .today-alerts .urgent button { background: #fdf0ef; color: #8f1d1d; }
 .today-alerts .urgent .today-alert-dot { background: #c2410c; }
-.today-alerts .attention button { background: #fbf4e4; color: #6b4a0c; }
+.today-alerts .attention button { background: #f3f7fb; color: #6b4a0c; }
 .today-alerts .attention .today-alert-dot { background: var(--brand-gold); }
 .today-loose { margin-block-end: 16px; }
 [data-theme='dark'] .today-alerts .urgent button { background: #3a1d1d; color: #fecaca; }
@@ -303,7 +303,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .cycle-bars i.past { background: var(--brand-sage); }
 .cycle-bars i.on { background: var(--brand-gold); box-shadow: 0 0 0 1px #b88f3e; }
 [data-theme='dark'] .topbar-cycle { color: var(--brand-gold); }
-.today-hero { position: relative; overflow: hidden; background: linear-gradient(180deg, #fffefb 0%, #f8f5ec 100%); }
+.today-hero { position: relative; overflow: hidden; background: linear-gradient(180deg, #ffffff 0%, #f3f7fb 100%); }
 .today-hero::before { content: ''; position: absolute; inset: 0 0 auto 0; block-size: 4px; background: linear-gradient(90deg, var(--brand-forest), var(--brand-sage) 60%, var(--brand-gold)); }
 [data-theme='dark'] .today-hero { background: var(--surface); }
 .today-head { align-items: center; }
@@ -347,7 +347,7 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 [data-theme='dark'] .assistant-once { border-color: var(--brand-gold); color: var(--brand-gold); }
 .assistant-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .assistant-top .text-button { display: inline-flex; align-items: center; gap: 4px; }
-.assistant-setup { margin: 0; padding: 10px 12px; border-radius: 10px; background: #fbf4e4; color: #5c4108; font-size: .88rem; }
+.assistant-setup { margin: 0; padding: 10px 12px; border-radius: 10px; background: #f3f7fb; color: #5c4108; font-size: .88rem; }
 [data-theme='dark'] .assistant-setup { background: #3a2f17; color: #fde7b0; }
 .assistant-top-actions { display: inline-flex; gap: 12px; flex-wrap: wrap; }
 .assistant-history { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--soft-bg); }

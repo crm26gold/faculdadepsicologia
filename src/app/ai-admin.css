@@ -127,3 +127,42 @@
   .ai-source-states li { grid-template-columns: minmax(0, 1fr); }
   .ai-state { justify-self: start; }
 }
+
+/* Guided fix: each problem with Resolver, a three-step guide, and a Conferir bar while the person acts. */
+.ai-issues { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 10px; }
+.ai-issues li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.ai-issues li[data-level='warning'] { border-inline-start: 3px solid #d98a2b; }
+.ai-issues li[data-level='info'] { border-inline-start: 3px solid var(--ui-focus); }
+.ai-issue-icon { display: grid; place-items: center; inline-size: 34px; block-size: 34px; border-radius: 10px; background: var(--ui-hover); color: var(--green); }
+.ai-issues li[data-level='warning'] .ai-issue-icon { color: #c2751c; }
+.ai-issue-text { display: grid; gap: 2px; min-width: 0; }
+.ai-issue-text strong { font-size: 14px; line-height: 1.35; color: var(--ink); overflow-wrap: anywhere; }
+.ai-issue-text small { color: var(--muted); font-size: 12px; }
+.ai-issue-go { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.ai-issues-clear { display: flex; align-items: center; gap: 8px; margin: 10px 0 0; color: var(--ok-text); font-weight: 600; }
+@media (max-width: 760px) {
+  .ai-issues li { grid-template-columns: auto minmax(0, 1fr); }
+  .ai-issue-go { grid-column: 1 / -1; justify-content: center; }
+}
+.ai-guide-steps { display: flex; gap: 6px; list-style: none; margin: 0 0 16px; padding: 0; }
+.ai-guide-steps li { flex: 1; display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--ui-hover); }
+.ai-guide-steps li span { display: grid; place-items: center; inline-size: 20px; block-size: 20px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); font-size: 11px; }
+.ai-guide-steps li[data-state='current'] { color: var(--ink); background: var(--ui-active); }
+.ai-guide-steps li[data-state='current'] span { background: var(--ui-focus); border-color: var(--ui-focus); color: #fff; }
+.ai-guide-steps li[data-state='done'] span { background: var(--ok-text); border-color: var(--ok-text); color: #fff; }
+.ai-guide-title { font-size: 17px; line-height: 1.35; margin: 0 0 10px; color: var(--ink); }
+.ai-guide-body { display: grid; gap: 10px; }
+.ai-guide-body p { margin: 0; line-height: 1.55; }
+.ai-guide-affects { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--muted); font-size: 13px; }
+.ai-guide-affects span { padding: 3px 10px; border-radius: 999px; background: var(--ui-hover); color: var(--ink); font-size: 12px; }
+.ai-guide-options { display: grid; gap: 8px; }
+.ai-guide-option { display: grid; gap: 4px; text-align: start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); color: var(--ink); cursor: pointer; }
+.ai-guide-option small { color: var(--muted); font-size: 13px; line-height: 1.45; }
+.ai-guide-option:hover { border-color: var(--ui-focus); }
+.ai-guide-option[data-chosen='true'] { border-color: var(--ui-focus); background: var(--ui-active); box-shadow: 0 0 0 2px #387aab33; }
+.ai-guide-actions { justify-content: space-between; margin-top: 6px; }
+.ai-resolving { position: sticky; top: calc(var(--workspace-header-height, 80px) + 8px); z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--ui-focus); border-radius: 14px; background: var(--ui-active); color: var(--ink); box-shadow: var(--ui-shadow); }
+.ai-resolving > span:first-of-type { flex: 1 1 220px; min-width: 0; font-size: 14px; line-height: 1.4; }
+.ai-resolving[data-status='resolved'] { border-color: var(--ok-text); }
+.ai-resolving[data-status='resolved'] svg { color: var(--ok-text); }
+.ai-resolving-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

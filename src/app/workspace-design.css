@@ -340,8 +340,11 @@ body { background: var(--canvas); color: var(--ink); }
   .workspace-shell .today-hero { padding: 20px; border-radius: 20px; margin-bottom: 17px; gap: 20px; }
   .workspace-shell .today-head { flex-wrap: wrap; gap: 17px; margin-bottom: 0; }
   .today-intro { gap: 20px; }
-  .today-action { flex-direction: column; justify-content: flex-start; text-align: center; gap: 8px; padding: 12px 5px; min-height: 80px; font-size: 12px; line-height: 1.35; }
+  .today-action { justify-content: center; gap: 7px; padding: 10px 6px; min-height: 46px; font-size: 13px; font-weight: 600; }
   .today-action > span { flex: 0; }
+  .today-action .long, .today-action > svg:last-child { display: none; }
+  .today-action .short { display: inline; }
+  .workspace-shell .today-hero::after { display: none; }
   .today-agenda-preview { padding-top: 18px; }
   .today-agenda-heading { gap: 8px; margin-bottom: 14px; }
   .workspace-shell .today-agenda-heading .today-new { min-height: 44px; }
@@ -414,3 +417,55 @@ body { background: var(--canvas); color: var(--ink); }
 .trash-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
 .trash-list li > div:first-child { display: grid; gap: 2px; min-width: 0; }
 .trash-list .button, .trash-list .text-button { min-height: 44px; }
+
+/* Meu dia: every agenda row is one card; a task's checkbox sits inside it, aligned with the classes. */
+@media (min-width: 761px) { .today-action .short { display: none; } }
+.workspace-shell .today-agenda li.with-check { position: relative; display: block; }
+.workspace-shell .today-agenda li.with-check > .task-checkbox { position: absolute; inset-inline-start: 14px; inset-block-start: 50%; transform: translateY(-50%); z-index: 1; margin: 0; }
+.workspace-shell .today-agenda li.with-check > button { padding-inline-start: 48px; }
+.workspace-shell .today-agenda li.with-check > button > svg:last-child { display: none; }
+.workspace-shell .today-agenda button { border-inline-start-width: 3px; border-radius: 12px; }
+.workspace-shell .today-time { flex: none; min-inline-size: 62px; padding: 4px 8px; text-align: center; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+
+/* Registro rápido: the sheet itself is the card (no box inside a box); the editor reads as one field. */
+.modal .panel.capture-sheet-body { padding: 0; margin: 0; border: 0; background: transparent; box-shadow: none; }
+.modal .capture-sheet-body .quick-capture-input-box { border-color: var(--line); border-radius: 14px; background: var(--ui-input); }
+.modal .capture-sheet-body .quick-capture-input-box:focus-within { border-color: var(--ui-focus); box-shadow: 0 0 0 3px #387aab33; background: var(--ui-input); }
+.modal .capture-sheet-body .capture-toolbar { background: var(--ui-hover); border-color: var(--line); }
+.modal .capture-sheet-body .media-pill-btn { background: var(--surface); border-color: var(--line); color: var(--green); }
+.modal .capture-sheet-body .media-pill-btn:hover { background: var(--ui-active); border-color: var(--ui-focus); color: var(--ink); }
+.capture-sheet-actions button { background: var(--surface); border-color: var(--line); color: var(--ink); border-radius: 14px; }
+.capture-sheet-actions button:hover { background: var(--ui-hover); border-color: var(--ui-focus); }
+.capture-sheet-actions svg { color: var(--green); }
+
+/* Assistente: notices match the app surface (no cream card in dark mode), keep their height in the column,
+   and messages read left-aligned like a conversation. */
+.assistant-panel > * { flex-shrink: 0; }
+.assistant-panel .assistant-messages { flex-shrink: 1; text-align: start; }
+.assistant-confirmation { background: var(--ui-hover); border: 1px solid var(--line); border-inline-start: 3px solid var(--brand-gold); color: var(--ink); }
+.assistant-confirmation p { color: var(--ink); font-size: .9rem; line-height: 1.5; overflow-wrap: anywhere; }
+.assistant-message p { text-align: start; }
+
+/* Forms in dialogs: the save/cancel row stays visible at the bottom while the form scrolls. */
+.modal .form-footer { position: sticky; bottom: -26px; z-index: 2; margin: 22px -26px -26px; padding: 14px 26px 18px; background: var(--surface); border-top: 1px solid var(--line); }
+/* An optional section with a checkbox title reads as one card, without the fieldset notch. */
+.metric-fieldset { border: 1px solid var(--line); border-radius: 14px; padding: 6px 16px 14px; margin-top: 16px; background: var(--ui-hover); }
+.metric-fieldset > legend { float: left; inline-size: 100%; padding: 0; margin: 0; }
+.metric-fieldset > legend + * { clear: both; }
+.metric-fieldset .checkbox-label { inline-size: 100%; font-weight: 600; color: var(--ink); }
+/* Color choices: one row of chips with a swatch, the chosen one highlighted. */
+.modal .color-options { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0 0; padding: 0; border: 0; }
+.modal .color-options legend { inline-size: 100%; margin-bottom: 8px; padding: 0; font-size: 14px; color: var(--ink); }
+.modal .color-options label { display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 7px 12px; min-block-size: 40px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 13px; cursor: pointer; }
+.modal .color-options label::before { content: ''; inline-size: 14px; block-size: 14px; border-radius: 50%; background: var(--swatch, #8aa0b4); order: 1; }
+.modal .color-options label input { order: 0; margin: 0; accent-color: var(--ui-focus); }
+.modal .color-options label:has(input:checked) { border-color: var(--ui-focus); background: var(--ui-active); font-weight: 600; }
+.color-options .sage { --swatch: #8ca88a; } .color-options .lavender { --swatch: #a99bd6; } .color-options .sand { --swatch: #d8b77a; }
+.color-options .blue { --swatch: #6fa3cf; } .color-options .rose { --swatch: #d99aa3; }
+.modal .metric-fieldset .checkbox-label { display: flex; align-items: center; gap: 12px; padding-block: 8px; margin: 0; line-height: 1.35; }
+.modal .metric-fieldset .checkbox-label input { flex: none; margin: 0; accent-color: var(--ui-focus); }
+.modal .color-options label { block-size: 42px; min-block-size: 0; padding-block: 0; line-height: 1.2; }
+@media (max-width: 760px) {
+  .modal .form-footer { flex-wrap: nowrap; gap: 8px; }
+  .modal .form-footer .button { flex: 1 1 0; min-width: 0; padding-inline: 10px; white-space: nowrap; justify-content: center; }
+}
