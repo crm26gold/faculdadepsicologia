@@ -47,3 +47,23 @@ test('busca geral procura em todas as seções, e o que não existe vem como "n�
   assert.match(noBills.message, /Procurei em: financeiro/);
   assert.throws(() => queryWorkspace(data(), { section: 'busca' }, today), /Diga o que procurar/);
 });
+
+test('pendentes junta o que espera organização, cada grupo com total', () => {
+  const start = { ...data(),
+    tasks: [{ id: 't-late', title: 'Ler capítulo 2', subjectId: 'tec', date: '2026-10-01', kind: 'Estudo', done: false, minutes: 25 },
+      { id: 't-ok', title: 'Hoje', subjectId: '', date: today, kind: 'Tarefa', done: false, minutes: 10 }],
+    transactions: [
+      { id: 'f1', description: 'Luz', amountCents: 12000, type: 'expense', category: 'Moradia', date: '2026-10-05', status: 'pending' },
+      { id: 'f2', description: 'Pix', amountCents: 5000, type: 'income', category: 'Outros', date: '2026-10-06', status: 'paid' },
+    ] } as Workspace;
+  const result = queryWorkspace(start, { section: 'pendentes' }, today) as Record<string, { total: number; items: Record<string, unknown>[] }> & { found: number };
+  assert.equal(result.anotacoesParaOrganizar.total, 1);
+  assert.equal(result.compromissosAtrasados.items[0].id, 't-late');
+  assert.equal(result.compromissosAtrasados.items[0].professor, 'Leonardo');
+  assert.equal(result.contasVencidas.items[0].amountInReais, 120);
+  assert.equal(result.lancamentosSemCategoria.items[0].id, 'f2');
+  assert.equal(result.found, 4);
+  const clean = queryWorkspace({ ...emptyWorkspace() }, { section: 'pendentes' }, today) as { found: number; message: string };
+  assert.equal(clean.found, 0);
+  assert.match(clean.message, /Nada pendente/);
+});

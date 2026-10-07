@@ -3,9 +3,10 @@ import { addDays, dateKey, daySchema, type Workspace } from './workspace';
 import { entities, normalized, records, recordTitle, type Entity } from './assistant-records';
 import { commandContext } from './commands';
 import { todayAgenda } from './today';
+import { isUnorganized } from './capture';
 
 export const assistantQuery = z.object({
-  section: z.enum(['resumo', 'agenda', 'busca', 'configuracoes', ...entities]).default('resumo'),
+  section: z.enum(['resumo', 'agenda', 'busca', 'pendentes', 'configuracoes', ...entities]).default('resumo'),
   search: z.string().max(160).default(''),
   from: daySchema.optional(), to: daySchema.optional(),
   includeContent: z.boolean().default(false),
@@ -49,6 +50,22 @@ export function queryWorkspace(data: Workspace, input: unknown, today: string) {
     }
     const items = entries.slice(0, 40);
     return { today, from: start, through: addDays(day, -1), truncated: day <= end || entries.length > 40, items, ...(items.length ? { found: items.length } : empty([`agenda de ${start} a ${addDays(day, -1)}`], query.search)) };
+  }
+  // What is waiting for a decision, for "vamos organizar os pendentes": the assistant walks it one item at a time.
+  if (query.section === 'pendentes') {
+    const limit = 15;
+    const notes = data.notes.filter(isUnorganized).toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const late = data.tasks.filter(task => !task.done && task.date < today).toSorted((a, b) => a.date.localeCompare(b.date));
+    const bills = (data.transactions ?? []).filter(row => row.status === 'pending' && row.date < today).toSorted((a, b) => a.date.localeCompare(b.date));
+    const loose = (data.transactions ?? []).filter(row => row.category === 'Outros').toSorted((a, b) => b.date.localeCompare(a.date));
+    const groups = {
+      anotacoesParaOrganizar: { total: notes.length, items: notes.slice(0, limit).map(note => ({ id: note.id, title: note.title, updatedAt: note.updatedAt })) },
+      compromissosAtrasados: { total: late.length, items: late.slice(0, limit).map(task => ({ id: task.id, title: task.title, date: task.date, ...related.subject(task.subjectId) })) },
+      contasVencidas: { total: bills.length, items: bills.slice(0, limit).map(row => ({ id: row.id, description: row.description, date: row.date, amountInReais: row.amountCents / 100, flow: row.type })) },
+      lancamentosSemCategoria: { total: loose.length, items: loose.slice(0, limit).map(row => ({ id: row.id, description: row.description, date: row.date, amountInReais: row.amountCents / 100, flow: row.type })) },
+    };
+    const found = Object.values(groups).reduce((sum, group) => sum + group.total, 0);
+    return { today, ...groups, ...(found ? { found } : { found: 0, message: 'Nada pendente: anotações organizadas, compromissos em dia, contas pagas e lançamentos com categoria.' }) };
   }
   // One search across every section: titles, names and descriptions, with the section of each hit.
   if (query.section === 'busca') {

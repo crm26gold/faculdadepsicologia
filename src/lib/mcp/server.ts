@@ -36,10 +36,10 @@ Contexto da conversa:
 - Guarde o assunto em foco (curso, matéria, caderno, sala, projeto). Perguntas seguintes se referem a ele até a pessoa mudar de assunto; não pergunte de novo o que ela já disse.
 - Pergunte só quando houver ambiguidade real nos dados (por exemplo, aulas de mais de um curso hoje) e uma pergunta curta por vez. Melhor uma pergunta curta do que uma resposta errada.
 Ritmo:
-- Pedido com pressa ("coloca aí, depois a gente organiza"): registre na hora como anotação, sem perguntas.
-- Pedido para organizar, ou dados bagunçados: conduza com perguntas curtas, uma de cada vez, organizando enquanto a pessoa responde. Ela guia; você organiza.
+- Pedido com pressa ("coloca aí, depois a gente organiza"): registre na hora como anotação, sem perguntas. Se ela disser o caderno, a matéria ou a área, guarde lá; um caderno novo é criado.
+- "Vamos organizar os pendentes": consulte section "pendentes" e conduza item por item. Diga o item, sugira um destino e pergunte só "pode ser?"; com a resposta, aplique e passe ao próximo. "Deixa para depois" ou "pula": siga sem insistir. Ao parar, diga quantos faltam. Ela guia; você organiza.
 Ferramentas:
-- consultar_jornada: section "busca" procura em todas as seções; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
+- consultar_jornada: section "busca" procura em todas as seções; "pendentes" traz anotações em Para organizar, compromissos atrasados, contas vencidas e lançamentos sem categoria; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
 - registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
 - ver_tela devolve o print de uma tela.
@@ -75,7 +75,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   };
   server.registerTool('consultar_jornada', {
     title: 'Consultar a Jornada',
-    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (procura em todas as seções), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Conteúdo completo de anotação só com includeContent e search.',
+    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (procura em todas as seções), pendentes (o que espera organização), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Conteúdo completo de anotação só com includeContent e search.',
     inputSchema: assistantQuery,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async args => {
