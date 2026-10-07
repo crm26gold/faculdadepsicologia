@@ -84,10 +84,21 @@ O executor de domínio é compartilhado com o chat:
 - Criar cursos, matérias, aulas, cadernos, flashcards e áreas.
 - Iniciar, pausar, retomar e encerrar foco.
 - Desfazer alterações desta conversa quando os mesmos itens não mudaram depois.
+- Ajustar o saldo inicial de Finanças, as datas do semestre e o perfil.
+- Na parte coletiva, com as permissões da própria pessoa em cada sala:
+  - consultar salas, grupos, mural, enquetes, trabalhos e contatos (ferramenta `consultar_coletivo`, pelas mesmas rotas das telas);
+  - publicar no mural, criar enquete e votar;
+  - criar, editar e arquivar salas e grupos;
+  - adicionar aluno ou líder e criar convite;
+  - trabalhos em grupo: partes, entrega e comentários;
+  - salvar contatos.
+- Para o administrador geral: consultar contas, uso e recursos de IA, e propor mudanças de plano, acesso livre e IA de cada tarefa.
+
+As ações coletivas rodam no servidor com o login da pessoa (`src/lib/shared-actions.ts`), o mesmo núcleo do MCP. Exclusões coletivas e mudanças de administração viram pedidos em **Meu dia**, com o texto lido no banco. Ao confirmar, a rota da própria tela executa. Tirar ou bloquear pessoas, mudar papéis, dar papel de professor ou administrador e chaves de API são só pela tela.
 
 Nomes ambíguos e vínculos inválidos são recusados. Excluir um registro ou substituir todo o conteúdo de uma nota exige confirmação nova e específica: **“confirmo a exclusão”**, **“confirmo a substituição”** ou o botão **Confirmar**. Um “sim” isolado não autoriza a exclusão. O executor verifica o registro e se ele mudou desde o pedido.
 
-Marcar uma conta paga é um registro; não transfere dinheiro. Mensagens externas, pagamentos bancários e gerenciamento de contas/permissões não são capacidades deste executor.
+Marcar uma conta paga é um registro; não transfere dinheiro. Mensagens externas e pagamentos bancários não são capacidades deste executor.
 
 ## Continuidade dos pedidos
 

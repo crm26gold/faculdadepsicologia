@@ -9,6 +9,7 @@ import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
 import { dateKey, type Workspace } from '@/lib/workspace';
 import { commandContext, type Applied, type CommandAction } from '@/lib/commands';
 import { confirmationIntent, queryWorkspace } from '@/lib/assistant-query';
+import { collectiveReadResult, collectiveReadUrl } from '@/lib/voice/collective-read';
 import type { LiveCredentials, VoiceTool, VoiceTranscript } from '@/lib/voice/protocol';
 import { voiceActionRequest } from '@/lib/voice/actions';
 import { Modal } from './modal';
@@ -291,7 +292,14 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
   }
   async function voiceTool(call: VoiceTool, signal: AbortSignal, transcript: VoiceTranscript) {
     signal.throwIfAborted();
-    if (photoRunning.current && call.name !== 'consultar_jornada') throw new Error('A foto ainda está sendo conferida. Aguarde o resultado antes de pedir uma alteração.');
+    if (photoRunning.current && call.name !== 'consultar_jornada' && call.name !== 'consultar_coletivo') throw new Error('A foto ainda está sendo conferida. Aguarde o resultado antes de pedir uma alteração.');
+    if (call.name === 'consultar_coletivo') {
+      const url = collectiveReadUrl(call.args);
+      const response = await fetch(url, { signal });
+      const answer = await response.json().catch(() => ({})) as { data?: unknown; error?: string };
+      if (!response.ok) throw new Error(answer.error ?? 'Não consegui consultar a parte coletiva agora.');
+      return collectiveReadResult(url, answer.data);
+    }
     if (call.name === 'consultar_jornada') {
       const current = cloud ? await refreshWorkspace() : executor.current();
       signal.throwIfAborted();
@@ -309,7 +317,7 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
       if (executor.pending.length && intent === 'confirm') { done = await executor.confirm(transcript, signal); if (done.saved) await jobs.settle(); recordExecution(`voice-action:${call.id}`, done); return { saved: done.saved, reply: done.reply }; }
       const { instruction, actions } = voiceActionRequest(call.args);
       const result = await jobs.run(call.id, instruction, signal, actions);
-      return { saved: result.saved, reply: result.reply, applied: result.applied.map(item => item.label), pending: result.pending.map(item => item.label), failed: result.failed };
+      return { saved: result.saved, reply: result.reply, applied: [...result.applied.map(item => item.label), ...(result.shared ?? [])], pending: result.pending.map(item => item.label), failed: result.failed };
     } else throw new Error('Este comando de voz não está disponível.');
     recordExecution(`voice-action:${call.id}`, done);
     return { saved: done.saved, reply: done.reply, applied: done.applied.map(item => item.label), pending: done.pending.map(item => item.label), failed: done.failed };

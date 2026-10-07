@@ -140,7 +140,7 @@ test('modelo Live é descoberto pela capacidade, sem misturar modelos de texto e
   assert.equal(chooseLiveModel([]), null);
   const setup = liveSetup('gemini-3.8-live', 'Hoje: 2026-10-03');
   assert.deepEqual(setup.generationConfig.responseModalities, ['AUDIO']);
-  assert.equal(setup.tools[0].functionDeclarations.length, 5);
+  assert.equal(setup.tools[0].functionDeclarations.length, 6);
 });
 
 test('PCM mantém amplitude, sinal e ordem little endian', () => {

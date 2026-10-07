@@ -19,7 +19,7 @@ test('token REST fixa os campos fornecidos inteiros e preserva retomada da sessÃ
   assert.ok(locked.includes('generationConfig'), 'client cannot override another generation option');
   assert.equal(setup.model, 'models/gemini-3.8-live');
   assert.deepEqual(setup.generationConfig.responseModalities, ['AUDIO']);
-  assert.equal(setup.tools[0].functionDeclarations.length, 5);
+  assert.equal(setup.tools[0].functionDeclarations.length, 6);
   assert.deepEqual(setup.sessionResumption, {});
   assert.equal(request.uses, 1);
   assert.equal(Date.parse(request.newSessionExpireTime) - now, 120_000);
@@ -27,7 +27,7 @@ test('token REST fixa os campos fornecidos inteiros e preserva retomada da sessÃ
 });
 test('ferramentas Gemini omitem schemas vazios e aguardam resultado antes de confirmar', () => {
   const tools = liveTokenRequest('gemini-3.8-live', '', [], 0).bidiGenerateContentSetup.tools[0].functionDeclarations;
-  assert.deepEqual(tools.map(tool => tool.name).toSorted(), ['cancelar_alteracao', 'confirmar_alteracao', 'consultar_jornada', 'desfazer_ultima_acao', 'organizar_jornada']);
+  assert.deepEqual(tools.map(tool => tool.name).toSorted(), ['cancelar_alteracao', 'confirmar_alteracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer_ultima_acao', 'organizar_jornada']);
   for (const tool of tools) {
     assert.equal(tool.behavior, 'BLOCKING');
     if (!('parameters' in tool) || !tool.parameters) continue;

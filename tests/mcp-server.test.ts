@@ -8,6 +8,7 @@ import { demoWorkspace, dateKey } from '../src/lib/workspace';
 const empty = pathToFileURL(`${process.cwd()}/node_modules/server-only/empty.js`).href;
 registerHooks({ resolve: (specifier, context, next) => specifier === 'server-only' ? { url: empty, shortCircuit: true } : next(specifier, context) });
 process.env.AI_KEYS_SECRET ??= randomBytes(32).toString('base64');
+process.env.APP_ORIGIN ??= 'https://jornada.example';
 
 function fakeDatabase(options: { canWrite: boolean }) {
   const state = { workspace: { data: demoWorkspace(dateKey()) as unknown, revision: 3 }, saves: 0, calls: [] as string[], pending: [] as unknown[], receipts: new Map<string, { digest: unknown; outcome: any }>(),
@@ -184,7 +185,8 @@ test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e 
   assert.deepEqual(state.acts.at(-1), { operation: 'create_post', args: { target: space, post_kind: 'announcement', post_title: 'Prova sexta', post_body: '', post_link: '', post_date: null, post_pinned: false } });
 
   const invite = await call(3, 'gerenciar_salas', { acao: { action: 'create_invitation', space, role: 'student', days: 7, uses: 30 } });
-  const link = JSON.parse(invite.result.content[0].text).link as string;
+  const link = JSON.parse(invite.result.content[0].text).resultado.link as string;
+  assert.match(link, /^https?:\/\/[^/]+\/convite\/[A-Za-z0-9_-]{32}$/, 'link do próprio site, com o segredo só no link');
   assert.equal(state.acts.at(-1)!.args.hashed_token, createHash('sha256').update(link.split('/convite/')[1]).digest('hex'), 'o banco recebe só o hash do link');
 
   const before = state.acts.length;

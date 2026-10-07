@@ -83,6 +83,18 @@ set local role anon;
 select expect(read_mcp(repeat('4', 64), 'describe', jsonb_build_object('kind', 'post', 'target', current_setting('test.mpost'))) = '{"title": "Slides", "where": "Grupo da IA"}'::jsonb, 'membro vê o que seria excluído');
 select expect(read_mcp(repeat('5', 64), 'describe', jsonb_build_object('kind', 'post', 'target', current_setting('test.mpost'))) is null, 'quem é de fora não descobre o item');
 select expect(read_mcp(repeat('2', 64), 'describe', jsonb_build_object('kind', 'post', 'target', current_setting('test.mpost'))) is not null, 'descrever é consulta: chave de leitura pode');
+do $$ begin perform public.assistant_describe('post', current_setting('test.mpost')::uuid); raise exception 'FALHA: anônimo descreveu item';
+exception when insufficient_privilege then null; end $$;
+reset role;
+-- O assistente do app (login da pessoa) e o MCP (ator da pessoa) veem as mesmas palavras.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000004', true);
+select set_config('test.screen_describe', assistant_describe('post', current_setting('test.mpost')::uuid)::text, true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000005', true);
+select expect(assistant_describe('post', current_setting('test.mpost')::uuid) is null, 'login de quem é de fora também não descobre o item');
+reset role;
+set local role anon;
+select expect(read_mcp(repeat('4', 64), 'describe', jsonb_build_object('kind', 'post', 'target', current_setting('test.mpost')))::text = current_setting('test.screen_describe'), 'mesma descrição pelo login e pelo ator');
 
 -- Chave só de leitura não grava; o que é só da tela é recusado, mesmo para quem pode na tela.
 select expect(try_mcp(repeat('2', 64), 'create_post', jsonb_build_object('target', current_setting('test.mg'), 'post_kind', 'announcement', 'post_title', 'x')) = '42501', 'chave de leitura não publica');

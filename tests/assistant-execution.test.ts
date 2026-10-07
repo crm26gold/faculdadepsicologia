@@ -117,3 +117,28 @@ test('mesmo contrato opcional é oferecido por Gemini, ElevenLabs e xAI', () => 
   const xai = xaiClientSetup('').session.tools.find(tool => tool.name === 'organizar_jornada')!;
   assert.equal(xai.parameters.properties!.actions_json.type, 'string');
 });
+
+test('parte coletiva roda uma vez mesmo com conflito, e exclusão vira pedido de confirmação', async () => {
+  const post: CommandAction = { type: 'coletivo', area: 'salas', acao: { action: 'create_post', space: '00000000-0000-4000-8000-0000000000b1', kind: 'announcement', title: 'Prova sexta' } };
+  const removal: CommandAction = { type: 'coletivo', area: 'salas', acao: { action: 'delete_post', post: '00000000-0000-4000-8000-0000000000c1' } };
+  const { state, store } = fixture(input([appointment, post, removal])); state.conflicts = 1;
+  const calls: unknown[][] = [];
+  store.shared = async actions => { calls.push(actions); return { done: ['Publicado no mural: Prova sexta'], failed: [],
+    pending: [{ action: { type: 'excluir_coletivo', fn: 'delete_post', target: '00000000-0000-4000-8000-0000000000c1' }, fingerprint: '{}', label: 'Excluir publicação: Aviso (Grupo 1)' }] }; };
+  await executeAssistantJob(store);
+  assert.equal(calls.length, 1, 'efeitos fora do espaço pessoal não se repetem no conflito');
+  assert.deepEqual(calls[0].map(item => (item as { acao: { action: string } }).acao.action), ['create_post', 'delete_post']);
+  assert.equal(state.data.tasks.length, 1, 'a parte pessoal segue pelo motor de sempre');
+  assert.deepEqual(state.receipt?.shared, ['Publicado no mural: Prova sexta']);
+  assert.deepEqual(state.receipt?.pending.map(item => item.label), ['Excluir publicação: Aviso (Grupo 1)']);
+  assert.match(state.receipt!.reply, /^Feito: Publicado no mural: Prova sexta\. Guardei para você confirmar no aplicativo: Excluir publicação: Aviso \(Grupo 1\)\. Feito\. /);
+});
+
+test('canal sem parte coletiva relata o limite e não inventa execução', async () => {
+  const post: CommandAction = { type: 'coletivo', area: 'contatos', acao: { action: 'save', contact: null, name: 'Bia' } };
+  const { state, store } = fixture(input([post]));
+  await executeAssistantJob(store);
+  assert.equal(state.receipt?.applied.length, 0);
+  assert.match(state.receipt!.failed[0], /não estão disponíveis neste canal/);
+  assert.equal(state.receipt?.shared, undefined);
+});
