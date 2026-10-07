@@ -287,6 +287,7 @@ test('servidor MCP: ver_tela devolve um print (PNG) com os dados atuais e o resu
   assert.equal(image.mimeType, 'image/png');
   assert.equal(Buffer.from(image.data, 'base64').subarray(1, 4).toString(), 'PNG');
   assert.match(summary.text, /^Finanças · /);
+  assert.match(summary.text, new RegExp(`Link do print para a pessoa abrir.*${new URL(process.env.APP_ORIGIN!).origin}/api/tela/financas.png`), 'a imagem chega só ao modelo: a pessoa recebe o link');
 });
 
 test('servidor MCP: com a lixeira, excluir é direto, "desfazer" traz de volta e a lixeira lista o que saiu', async () => {
