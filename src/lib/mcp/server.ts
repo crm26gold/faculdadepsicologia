@@ -46,7 +46,7 @@ Ferramentas:
 - consultar_jornada: section "busca" procura em todas as seções; "pendentes" traz anotações em Para organizar, compromissos atrasados, contas vencidas e lançamentos sem categoria; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
 - registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
-- ver_tela devolve o print de uma tela.
+- ver_tela devolve o print de uma tela. A imagem aparece só para você, não para a pessoa: sempre entregue o link que vem junto ("abra para ver o print"). Ele abre no aparelho em que ela está conectada à Jornada.
 - Arquivos: você não consegue repassar foto, áudio, vídeo ou arquivo que vê na conversa. Use enviar_arquivo (com o destino, se ela disser) e entregue o link; vale 10 minutos. Links de sites vão em registrar_na_jornada com anotacao e link.
 - Parte coletiva: consultar_coletivo para ler e obter IDs; gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e minha_conta para agir, com o papel da pessoa em cada sala. Exclusões coletivas ficam para confirmar no aplicativo.
 - Administração (só o administrador geral): consultar_administracao e administrar.
@@ -168,7 +168,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
 
   server.registerTool('ver_tela', {
     title: 'Ver uma tela da Jornada (print)',
-    description: 'Devolve uma imagem com as informações atuais de uma tela da vida pessoal: meu_dia, financas, agenda, habitos, metas ou anotacoes. Use quando a pessoa pedir um print ou para ver como ficou depois de registrar algo. A imagem é montada com os dados da conta, não é captura do monitor.',
+    description: 'Devolve uma imagem com as informações atuais de uma tela da vida pessoal (meu_dia, financas, agenda, habitos, metas ou anotacoes) e um link para a pessoa abrir o mesmo print. Use quando a pessoa pedir um print, uma foto da tela ou para ver como ficou depois de registrar algo. A imagem chega só para você: entregue o link à pessoa. A imagem é montada com os dados da conta, não é captura do monitor.',
     inputSchema: z.object({ tela: z.enum(screens) }),
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ tela }) => {
@@ -176,7 +176,13 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
     const model = screenModel(data, tela, today());
     const png = await renderScreen(model, generatedAt());
-    return { content: [{ type: 'image' as const, data: Buffer.from(png).toString('base64'), mimeType: 'image/png' }, { type: 'text' as const, text: screenText(model) }] };
+    // Chat apps show a tool's image to the model, not to the person: the link lets the person open the same print.
+    const origin = applicationOrigin(process.env);
+    const link = origin ? `${origin}/api/tela/${tela}.png` : null;
+    return { content: [{ type: 'image' as const, data: Buffer.from(png).toString('base64'), mimeType: 'image/png' },
+      { type: 'text' as const, text: `${screenText(model)}${link ? `
+
+Link do print para a pessoa abrir (vale com o login dela na Jornada): ${link}` : ''}` }] };
   });
   server.registerTool('enviar_arquivo', {
     title: 'Link para enviar foto, áudio, vídeo ou arquivo',
