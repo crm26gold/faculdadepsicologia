@@ -190,3 +190,26 @@ export async function runSharedCommands(transport: Transport, actions: { area: s
   }
   return result;
 }
+
+/** A linked Telegram or WhatsApp chat: the bot reaches the person's actor through public.bot_act. */
+export function botTransport(db: { rpc: (fn: string, args?: Record<string, unknown>) => PromiseLike<{ data: unknown; error: { code?: string } | null }> },
+  serverSecret: string, channel: 'telegram' | 'whatsapp', chat: string): Transport {
+  const call: Transport['call'] = async (fn, args) => {
+    const { data, error } = await db.rpc('bot_act', { server_secret: serverSecret, channel_id: channel, chat, operation: fn, args });
+    return { data, error };
+  };
+  return { call, describe: (kind, target) => call('describe', { kind, target }) };
+}
+
+type Home = { account?: { is_master?: boolean }; spaces?: { id: string; kind: string; name: string; my_role: string | null; archived_at: string | null }[];
+  my_parts?: { id: string; title: string; status: string; assignment_id: string; assignment_title: string }[] };
+/** The person's rooms and own group-work parts, as the start screen shows them, so a model can act by ID. */
+export function homeContext(data: unknown) {
+  if (!data || typeof data !== 'object') return '';
+  const home = data as Home;
+  const spaces = (home.spaces ?? []).filter(space => !space.archived_at).slice(0, 40)
+    .map(space => `${space.name} (${space.kind}, papel: ${space.my_role ?? 'sem papel direto'}, id ${space.id})`);
+  const parts = (home.my_parts ?? []).slice(0, 20).map(part => `${part.title} em ${part.assignment_title} (${part.status}, parte ${part.id}, trabalho ${part.assignment_id})`);
+  return [`\nSalas e grupos da pessoa: ${spaces.join('; ') || 'nenhum'}.`, parts.length ? `Partes de trabalho da pessoa: ${parts.join('; ')}.` : '',
+    home.account?.is_master ? 'A pessoa é o administrador geral: pode propor mudanças de administração.' : ''].filter(Boolean).join('\n');
+}

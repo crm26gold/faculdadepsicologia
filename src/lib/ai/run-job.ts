@@ -5,23 +5,15 @@ import { emptyWorkspace, parseWorkspace } from '../workspace';
 import { runtimeConfig, runtimeForSession } from './runtime';
 import { generateResilient } from './providers';
 import { beforeAttemptBudget } from './budget';
-import { runSharedCommands, sessionTransport } from '../shared-actions';
+import { homeContext, runSharedCommands, sessionTransport } from '../shared-actions';
 import { applicationOrigin } from '../auth-input';
 import type { userSession } from '../supabase/server';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
-type Home = { account?: { is_master?: boolean }; spaces?: { id: string; kind: string; name: string; parent_id: string | null; my_role: string | null; archived_at: string | null }[];
-  my_parts?: { id: string; title: string; status: string; assignment_id: string; assignment_title: string }[] };
 // The person's rooms and own group-work parts, as the start screen shows them; IDs let the model act.
 async function sharedContext(session: Session) {
   const { data, error } = await session.client.rpc('app_home');
-  if (error || !data) return '';
-  const home = data as Home;
-  const spaces = (home.spaces ?? []).filter(space => !space.archived_at).slice(0, 40)
-    .map(space => `${space.name} (${space.kind}, papel: ${space.my_role ?? 'sem papel direto'}, id ${space.id})`);
-  const parts = (home.my_parts ?? []).slice(0, 20).map(part => `${part.title} em ${part.assignment_title} (${part.status}, parte ${part.id}, trabalho ${part.assignment_id})`);
-  return [`\nSalas e grupos da pessoa: ${spaces.join('; ') || 'nenhum'}.`, parts.length ? `Partes de trabalho da pessoa: ${parts.join('; ')}.` : '',
-    home.account?.is_master ? 'A pessoa é o administrador geral: pode propor mudanças de administração.' : ''].filter(Boolean).join('\n');
+  return error ? '' : homeContext(data);
 }
 export async function runAssistantJob(session: Session, id: string) {
   const runId = crypto.randomUUID();

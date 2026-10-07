@@ -7,6 +7,7 @@ import { botIntent, botReply, helpText, notLinkedText, todayIn } from '@/lib/bot
 import { botServerSecret, telegramWebhookSecret } from '@/lib/bot/secrets';
 import { downloadFile, sendMessage, sendTyping, TelegramError, type TelegramUpdate } from '@/lib/bot/telegram';
 import { storeTelegramPhoto } from '@/lib/bot/photo';
+import { botHome, botShared, splitShared } from '@/lib/bot/shared';
 import type { AiImage } from '@/lib/ai/media';
 import { imageReview, imageReviewSystem } from '@/lib/ai/image-review';
 import { applyCommands, commandContext, commandSystem, executionSummary, parseCommand, undoApplied, type Applied } from '@/lib/commands';
@@ -143,23 +144,28 @@ export async function POST(request: Request) {
       said = [said, heard].filter(Boolean).join('\n');
       if (!said) { await say('Não consegui entender o áudio. Pode repetir ou escrever?'); return ok(); }
     }
-    const raw = (await generateResilient(config, { system: photo ? imageReviewSystem : `${commandSystem}\n\nA conversa acontece pelo Telegram.\n\nContexto da pessoa:\n${commandContext(workspace, today)}`,
+    const rooms = photo ? '' : await botHome(db, serverSecret, CHANNEL, chat);
+    const raw = (await generateResilient(config, { system: photo ? imageReviewSystem : `${commandSystem}\n\nA conversa acontece pelo Telegram.\n\nContexto da pessoa:\n${commandContext(workspace, today)}${rooms}`,
       prompt: said || 'Leia a foto, descreva os dados legíveis e pergunte o que quero organizar.', history: photo ? [] : context.history.slice(-12), image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(40_000), beforeAttempt: reserveCandidate })).text;
     const result = photo ? imageReview(raw) : parseCommand(raw);
-    let outcome = applyCommands(workspace, result.actions, { today, now });
+    // Rooms, group work and contacts act as the linked person, once; the personal part follows as before.
+    const { personal, shared: collective } = splitShared(result.actions);
+    const shared = collective.length ? await botShared(db, serverSecret, CHANNEL, chat, collective) : null;
+    let outcome = applyCommands(workspace, personal, { today, now });
     if (outcome.applied.length) {
       let saved = await save(outcome.data, revision);
       if (saved.error?.code === 'PT409' || saved.error?.code === '40001') {
         // The app saved something meanwhile: apply the same actions on the fresh copy.
         const fresh = await db.rpc('bot_context', { server_secret: serverSecret, channel_id: CHANNEL, chat });
         const again = parseWorkspace(JSON.stringify((fresh.data as Context).workspace?.data));
-        outcome = applyCommands(again, result.actions, { today, now });
+        outcome = applyCommands(again, personal, { today, now });
         saved = await save(outcome.data, (fresh.data as Context).workspace?.revision ?? 0);
       }
       if (saved.error) { await say('Entendi, mas não consegui salvar agora. Tente de novo em instantes.'); return ok(); }
     }
     const pending = outcome.pending.length ? `Não excluí nem substituí conteúdo. Abra o Assistente na Jornada Plena, repita este pedido e confirme lá: ${outcome.pending.map(item => item.label).join('; ')}.` : '';
-    const actualReply = result.actions.length ? executionSummary({ ...outcome, pending: [] }) : result.reply || 'Não entendi bem. Pode dizer de outro jeito?';
+    const actualReply = result.actions.length ? [shared?.text ?? '', personal.length ? executionSummary({ ...outcome, pending: [] }) : ''].filter(Boolean).join(' ')
+      : result.reply || 'Não entendi bem. Pode dizer de outro jeito?';
     const text = botReply(`${heard ? `🎙️ “${heard.slice(0, 300)}”\n\n` : ''}${actualReply}${pending ? ` ${pending}` : ''}`, outcome.applied, []);
     await log(text, outcome.applied.length ? outcome.applied : null);
     await say(text);

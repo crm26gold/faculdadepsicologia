@@ -327,6 +327,7 @@ reset role;
 \ir ../../tests/sql/mcp-confirmations.sql
 \ir ../../tests/sql/mcp-oauth.sql
 \ir ../../tests/sql/mcp-collective.sql
+\ir ../../tests/sql/bot-collective.sql
 \ir ../../tests/sql/workspace-conflicts.sql
 \ir ../../tests/sql/jornada-request-limits.sql
 \ir ../../tests/sql/jornada-global-budgets.sql
