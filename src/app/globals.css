@@ -776,16 +776,16 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 
 /* DARK MODE SUPPORT */
 [data-theme='dark'] {
-  --bg: #08130F;
-  --panel: #0F1D18;
-  --surface: #16283b;
-  --line: #3b4f63;
-  --ink: #F4F1E8;
-  --text: #D5DDD5;
-  --muted: #A6B5AB;
-  --canvas: #08130F;
-  --sage: #1D3229;
-  --accent-text: #9fd3b8; --ok-text: #7fd1a4; --ok-bg: #173528; --danger-text: #f2a59d; --danger-bg: #3a1d1d; --soft-bg: #0b2338;
+  --bg: #0c1725;
+  --panel: #142334;
+  --surface: #142334;
+  --line: #2c4054;
+  --ink: #e4edf6;
+  --text: #c9d6e3;
+  --muted: #a4b7c9;
+  --canvas: #0c1725;
+  --sage: #1c3045;
+  --accent-text: #a4d2f2; --ok-text: #7fd1a4; --ok-bg: #173528; --danger-text: #f2a59d; --danger-bg: #3a1d1d; --soft-bg: #0b2338;
   color-scheme: dark;
 }
 [data-theme='dark'] .cm-hero { background: linear-gradient(135deg, #142334, #1c2a3a); }
@@ -800,9 +800,9 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 [data-theme='dark'] .topbar { background: #142334ef; border-color: #2c4054; }
 [data-theme='dark'] .sidebar { background: #0b1120; border-color: #1c3045; }
 [data-theme='dark'] .panel, [data-theme='dark'] .subject-card, [data-theme='dark'] .bento-metric-card, [data-theme='dark'] .flashcard-item-card, [data-theme='dark'] .flashcard-big-card, [data-theme='dark'] .student-id-card, [data-theme='dark'] .routine-column {
-  background: #0F1D18;
-  border-color: #16283b;
-  color: #f7f9fc;
+  background: #142334;
+  border-color: #2c4054;
+  color: #e4edf6;
 }
 [data-theme='dark'] .flashcard-big-card.flipped { background: #1c3045; border-color: #4f7fa8; }
 [data-theme='dark'] .card-face-text { color: #e4edf6; }
