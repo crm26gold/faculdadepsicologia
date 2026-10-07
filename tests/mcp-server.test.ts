@@ -324,7 +324,7 @@ test('servidor MCP: enviar_arquivo gera link de 10 minutos para o Registro rápi
   assert.equal(reply.destino, 'Receitas');
   assert.equal(reply.validoPorMinutos, 10);
   const url = new URL(reply.link);
-  assert.equal(url.origin, 'https://jornada.example');
+  assert.equal(url.origin, new URL(process.env.APP_ORIGIN!).origin);
   assert.deepEqual(readCaptureLink(url.search, Date.now()), { place: { kind: 'notebook', id: 'nb-receitas' } });
   assert.equal(state.saves, 0, 'gerar o link não grava nada');
   assert.match(JSON.parse((await call({})).result.content[0].text).destino, /^Para organizar$/);
