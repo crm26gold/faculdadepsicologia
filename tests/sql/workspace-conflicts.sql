@@ -1,12 +1,13 @@
 -- Live-safe verification: only synthetic accounts/workspaces, all rolled back.
 -- Run as the database administrator after conflict_without_retry is applied.
+-- Since the per-module tables, the old-editor guard lives in private.workspace_store.
 begin;
 
 do $$
 begin
   if (select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace
       where n.nspname='private'
-        and p.proname in ('save_personal_workspace','bot_save','guard_workspace_editor_generation')
+        and p.proname in ('save_personal_workspace','bot_save','workspace_store')
         and p.prosrc like '%PT409%' and p.prosrc not like '%40001%') <> 3 then
     raise exception 'Conflict migration missing or regressed: business conflicts must use PT409';
   end if;
