@@ -62,7 +62,7 @@ export function resumeFocus(focus: ActiveFocus, now: number): ActiveFocus {
 export function finishFocus(data: Workspace, now: number): Workspace {
   const focus = data.activeFocus;
   if (!focus) return data;
-  const totals = new Map<string, number>();
+  const totals = new Map<string, number>(), spans = new Map<string, { start: number; end: number }>();
   for (const part of pauseFocus(focus, now).segments) {
     let cursor = part.start;
     const end = part.end ?? cursor;
@@ -72,11 +72,13 @@ export function finishFocus(data: Workspace, now: number): Workspace {
       const until = Math.min(end, midnight.getTime());
       const date = dateKey(new Date(cursor));
       totals.set(date, (totals.get(date) ?? 0) + (until - cursor) / 1000);
+      const span = spans.get(date); spans.set(date, { start: Math.min(span?.start ?? cursor, cursor), end: Math.max(span?.end ?? until, until) });
       cursor = until;
     }
   }
   const entries = [...totals].map(([date, seconds]) => ({
     id: `${focus.id}:${date}`, focusId: focus.id, date, seconds, minutes: seconds / 60,
+    startedAt: new Date(spans.get(date)!.start).toISOString(), endedAt: new Date(spans.get(date)!.end).toISOString(),
     activity: focus.activity, areaId: focus.areaId,
     ...(focus.context ? { context: focus.context } : {}),
     subjectId: data.subjects.some(s => s.id === focus.subjectId) ? focus.subjectId : '',
@@ -86,4 +88,25 @@ export function finishFocus(data: Workspace, now: number): Workspace {
 export function formatFocusTime(seconds: number) {
   const whole = Math.max(0, Math.floor(seconds));
   return [Math.floor(whole / 3600), Math.floor(whole % 3600 / 60), whole % 60].map(n => String(n).padStart(2, '0')).join(':');
+}
+
+/** A finished focus record with a corrected length. `end` (HH:MM, São Paulo) needs the record's own times. */
+export function adjustSession(data: Workspace, id: string, change: { minutes?: number; end?: string }): Workspace {
+  const session = data.sessions.find(item => item.id === id);
+  if (!session) throw new Error('Não encontrei esse registro de foco.');
+  let seconds: number;
+  if (change.end) {
+    if (!session.startedAt || !session.endedAt) throw new Error('Este registro é antigo e não guardou o horário. Diga a duração certa, por exemplo 2h34.');
+    const [hour, minute] = change.end.split(':').map(Number);
+    const ended = Date.parse(session.endedAt), started = Date.parse(session.startedAt);
+    // The new end on the record's own day, in São Paulo time (UTC−3, no daylight saving).
+    const target = Date.parse(`${session.date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00-03:00`);
+    if (!(target > started)) throw new Error('O fim precisa ser depois do início do foco.');
+    if (target >= ended) throw new Error('Esse horário é depois do fim registrado. Para aumentar, diga a duração certa.');
+    seconds = Math.max(60, (session.seconds ?? session.minutes * 60) - (ended - target) / 1000);
+    return { ...data, sessions: data.sessions.map(item => item.id === id ? { ...item, seconds, minutes: seconds / 60, endedAt: new Date(target).toISOString() } : item) };
+  }
+  if (!change.minutes || change.minutes < 1 || change.minutes > 1440) throw new Error('Diga uma duração entre 1 minuto e 24 horas.');
+  seconds = Math.round(change.minutes * 60);
+  return { ...data, sessions: data.sessions.map(item => item.id === id ? { ...item, seconds, minutes: seconds / 60 } : item) };
 }

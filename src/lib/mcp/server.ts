@@ -80,7 +80,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   };
   server.registerTool('consultar_jornada', {
     title: 'Consultar a Jornada',
-    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (procura em todas as seções), pendentes (o que espera organização), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Conteúdo completo de anotação só com includeContent e search.',
+    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (procura em todas as seções), pendentes (o que espera organização), focos (registros de foco encerrados, com início e fim), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Conteúdo completo de anotação só com includeContent e search.',
     inputSchema: assistantQuery,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async args => {
@@ -90,7 +90,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   });
   server.registerTool('registrar_na_jornada', {
     title: 'Registrar na Jornada',
-    description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, excluir, habito_feito, controlar_foco, saldo_inicial (quanto a pessoa tem para o saldo de Finanças), semestre, perfil e restaurar (da lixeira). Agrupe até oito ações do mesmo pedido. Não invente valores. Até 5 exclusões por pedido vão direto para a lixeira (30 dias; dá para restaurar ou usar desfazer); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente de confirmação.',
+    description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, excluir, habito_feito, controlar_foco, ajustar_foco (corrigir a duração ou o fim de um foco já encerrado, como "esqueci ligado, acabou às 22h"), saldo_inicial (quanto a pessoa tem para o saldo de Finanças), semestre, perfil e restaurar (da lixeira). Agrupe até oito ações do mesmo pedido. Não invente valores. Até 5 exclusões por pedido vão direto para a lixeira (30 dias; dá para restaurar ou usar desfazer); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente de confirmação.',
     inputSchema: z.object({ acoes: z.array(commandAction).min(1).max(8).describe('Ações validadas, na ordem em que devem ser aplicadas.'), request_id: z.uuid().optional().describe('UUID do pedido; reutilize ao repetir o mesmo pedido após uma falha de conexão, por até 90 dias.') }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, async ({ acoes, request_id }) => {

@@ -3,7 +3,7 @@ import { addDays, CURRENT_EDITOR_GENERATION, daySchema, formatDate, profileSchem
 import { captureNote, isUnorganized } from './capture';
 import { safeLink } from './note-media';
 import { buildSeries, currentBalance, expenseCategories, incomeCategories, money, monthOf, monthSummary, natures, projectTo } from './finance';
-import { finishFocus, pauseFocus, resumeFocus, startFocus } from './focus';
+import { adjustSession, finishFocus, pauseFocus, resumeFocus, startFocus } from './focus';
 import { changeRecord, collections, entities, entityCollection as entityCollectionOf, entityFields, entityView, findRecord, normalized, recordFields, records, recordTitle, removeRecord, validateChange, type Collection, type RecordItem } from './assistant-records';
 import { lifeAreas } from './life';
 import { placeFields, placeOf, placeTrail, type Place } from './notebooks';
@@ -32,6 +32,9 @@ export const commandAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('excluir'), entity: z.enum(entities), target: name }),
   z.object({ type: z.literal('habito_feito'), target: name, date: daySchema, done: z.boolean().default(true) }),
   z.object({ type: z.literal('controlar_foco'), operation: z.enum(['pausar', 'retomar', 'encerrar']) }),
+  // A finished focus with the wrong length ("esqueci ligado; a aula acabou às 22h"): new duration or new end time.
+  z.object({ type: z.literal('ajustar_foco'), target: z.string().trim().max(160).optional(), date: daySchema.optional(),
+    minutes: z.number().min(1).max(1440).optional(), end: timeSchema.optional() }),
   // Single settings, not lists: where the money starts, the semester dates and the profile (the photo stays on the screen).
   z.object({ type: z.literal('saldo_inicial'), amount: z.number().min(-1_000_000_000).max(1_000_000_000), date: daySchema.optional() }),
   z.object({ type: z.literal('semestre'), start: daySchema.optional(), end: daySchema.optional() }),
@@ -229,6 +232,23 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           applied.push({ label: `${action.done ? 'Feito' : 'Reaberto'}: ${recordTitle(item)} · ${formatDate(action.date)}`, view: 'routine', id: item.id, undo: { kind: 'changes', items: differences(before, next) } });
           break;
         }
+        case 'ajustar_foco': {
+          if (!action.minutes === !action.end) throw new Error('Diga a duração certa (por exemplo 2h34) ou o horário em que terminou (por exemplo 22:00).');
+          // Without a name or date, the latest finished record; a name must point to one record.
+          const pool = next.sessions.filter(item => (!action.date || item.date === action.date)
+            && (!action.target || item.id === action.target || plain(item.activity ?? '').includes(plain(action.target))));
+          const sorted = pool.toSorted((a, b) => (b.endedAt ?? b.date).localeCompare(a.endedAt ?? a.date));
+          if (!sorted.length) throw new Error('Não encontrei esse registro de foco.');
+          if (action.target && sorted.length > 1 && !action.date && sorted[0].date === sorted[1].date) throw new Error(`Há mais de um foco “${action.target}” no mesmo dia. Diga a data ou o ID.`);
+          const session = sorted[0];
+          next = adjustSession(next, session.id, { minutes: action.minutes, end: action.end });
+          const fixed = next.sessions.find(item => item.id === session.id)!;
+          const total = Math.round(fixed.minutes);
+          applied.push({ label: `Foco ajustado: ${session.activity || 'Foco'} · ${formatDate(session.date)} · ${Math.floor(total / 60)}h${String(total % 60).padStart(2, '0')}min`, view: 'focus', id: session.id,
+            // Filled after validation below, like the other focus actions, so undo matches the saved record.
+            undo: { kind: 'focus', id: session.id } });
+          break;
+        }
         case 'controlar_foco': {
           if (!next.activeFocus) throw new Error('Não há um foco em andamento.');
           next = action.operation === 'encerrar' ? finishFocus(next, options.now) : { ...next, activeFocus: action.operation === 'pausar' ? pauseFocus(next.activeFocus, options.now) : resumeFocus(next.activeFocus, options.now) };
@@ -393,6 +413,7 @@ Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa
 - {"type":"restaurar","target":"ID da lixeira ou nome do item"} — traz de volta um item da lixeira ("restaura aquilo"). Se houver mais de um com o mesmo nome, pergunte qual.
 - {"type":"habito_feito","target":"ID ou nome do hábito","date":"AAAA-MM-DD","done":true|false}
 - {"type":"controlar_foco","operation":"pausar"|"retomar"|"encerrar"}
+- {"type":"ajustar_foco","target":"atividade ou ID"(opcional, padrão o último foco encerrado),"date":"AAAA-MM-DD"(opcional),"minutes":duração certa em minutos OU "end":"HH:MM" em que terminou} — corrigir um foco já encerrado ("esqueci ligado, a aula acabou às 22h")
 - {"type":"saldo_inicial","amount":número em reais (negativo se a pessoa começa devendo),"date":"AAAA-MM-DD"(opcional, padrão hoje)} — quanto a pessoa tem para o saldo de Finanças partir dali; substitui o saldo inicial anterior
 - {"type":"semestre","start":"AAAA-MM-DD"(opcional),"end":"AAAA-MM-DD"(opcional)} — datas do semestre que limitam as aulas recorrentes
 - {"type":"perfil","fields":{name,course,semester,institution,campus,registration,email,phone}} — só os campos que a pessoa pediu para mudar
