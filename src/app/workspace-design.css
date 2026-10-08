@@ -488,3 +488,11 @@ body { background: var(--canvas); color: var(--ink); }
 /* A notice about a failure reads as one, in the warning tone. */
 .toast.problem { border-color: #d98a2b; }
 .toast.problem svg:first-child { color: #d98a2b; }
+
+/* Foco: adjust a finished record inline. */
+.focus-history li:has(.focus-adjust) { flex-wrap: wrap; }
+.focus-adjust { flex-basis: 100%; display: grid; gap: 10px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--ui-hover); }
+.focus-adjust-row { display: flex; flex-wrap: wrap; gap: 10px; }
+.focus-adjust-row label { display: grid; gap: 4px; font-size: 13px; color: var(--ink); flex: 1 1 90px; }
+.focus-adjust-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.focus-log-actions { display: inline-flex; align-items: center; gap: 2px; }

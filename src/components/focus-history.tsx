@@ -1,10 +1,10 @@
 'use client';
 import { useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Clock3, Trash2 } from 'lucide-react';
 import { addDays, dateKey, type Workspace } from '@/lib/workspace';
 import { lifeAreas } from '@/lib/life';
 import { courseOf } from '@/lib/courses';
-import { formatFocusTime } from '@/lib/focus';
+import { adjustSession, formatFocusTime } from '@/lib/focus';
 
 type Session = Workspace['sessions'][number];
 type Props = { data: Workspace; blocked: boolean; update: (change: (previous: Workspace) => Workspace) => boolean };
@@ -28,6 +28,22 @@ function Breakdown({ title, rows, total }: { title: string; rows: [string, numbe
 
 export function FocusHistory({ data, blocked, update }: Props) {
   const [period, setPeriod] = useState<(typeof periods)[number]['id']>('7');
+  // "Esqueci o foco ligado": fix a finished record by its real length or by when it really ended.
+  const [adjusting, setAdjusting] = useState('');
+  const [adjustError, setAdjustError] = useState('');
+  const clock = (iso?: string) => iso ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : '';
+  function adjust(event: React.FormEvent<HTMLFormElement>, session: Session) {
+    event.preventDefault();
+    const fields = new FormData(event.currentTarget);
+    const end = String(fields.get('end') ?? '');
+    const minutes = Number(fields.get('hours') || 0) * 60 + Number(fields.get('minutes') || 0);
+    const changedEnd = end && end !== clock(session.endedAt);
+    try {
+      let next: Workspace | null = null;
+      next = adjustSession(data, session.id, changedEnd ? { end } : { minutes });
+      if (update(() => next!)) { setAdjusting(''); setAdjustError(''); }
+    } catch (error) { setAdjustError(error instanceof Error ? error.message : 'Não consegui ajustar.'); }
+  }
   const today = dateKey();
   const days = periods.find((item) => item.id === period)!.days;
   const from = days ? addDays(today, 1 - days) : '';
@@ -99,7 +115,15 @@ export function FocusHistory({ data, blocked, update }: Props) {
             const where = [areas.find((area) => area.id === session.areaId)?.name, item?.name, session.context?.projectTitle].filter(Boolean).join(' · ') || 'Sem área';
             return <li key={session.id}>
               <span><strong>{session.activity ?? 'Foco de estudo'}</strong><small>{where}</small></span>
-              <span className="focus-log-actions">{formatFocusTime(seconds(session))}<button className="icon-button" aria-label={`Apagar registro ${session.activity ?? 'Foco'}`} disabled={blocked} onClick={() => remove(session)}><Trash2 size={15} aria-hidden="true" /></button></span>
+              <span className="focus-log-actions">{formatFocusTime(seconds(session))}<button className="icon-button" aria-label={`Ajustar tempo de ${session.activity ?? 'Foco'}`} title="Ajustar tempo" disabled={blocked} onClick={() => { setAdjusting(adjusting === session.id ? '' : session.id); setAdjustError(''); }}><Clock3 size={15} aria-hidden="true" /></button><button className="icon-button" aria-label={`Apagar registro ${session.activity ?? 'Foco'}`} disabled={blocked} onClick={() => remove(session)}><Trash2 size={15} aria-hidden="true" /></button></span>
+            {adjusting === session.id && <form className="focus-adjust" onSubmit={event => adjust(event, session)} aria-label={`Ajustar tempo de ${session.activity ?? 'Foco'}`}>
+                <span className="focus-adjust-row"><label>Horas<input name="hours" type="number" min={0} max={24} inputMode="numeric" defaultValue={Math.floor(seconds(session) / 3600)} /></label>
+                  <label>Minutos<input name="minutes" type="number" min={0} max={59} inputMode="numeric" defaultValue={Math.floor(seconds(session) % 3600 / 60)} /></label>
+                  {session.endedAt && <label>Terminou às<input name="end" type="time" defaultValue={clock(session.endedAt)} /></label>}</span>
+                {session.startedAt && <small className="muted">Começou às {clock(session.startedAt)}. Mude a duração ou o horário de término.</small>}
+                {adjustError && <span className="cm-message" role="alert">{adjustError}</span>}
+                <span className="focus-adjust-actions"><button type="button" className="text-button" onClick={() => setAdjusting('')}>Cancelar</button><button className="button primary">Salvar ajuste</button></span>
+              </form>}
             </li>;
           })}</ul>
         </div>;

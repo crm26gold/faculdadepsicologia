@@ -238,3 +238,22 @@ test('caderno dentro da matéria: anotar com os dois guarda no caderno da matér
   assert.match(unlinked.failed[0], /vincule o caderno à matéria/);
   assert.equal(workspaceSchema.safeParse(linked.data).success, true);
 });
+
+test('ajustar foco esquecido ligado: pelo horário de término ou pela duração, com desfazer', () => {
+  const session = { id: 'f1:2026-10-07', focusId: 'f1', date: '2026-10-07', activity: 'Aula de Psicologia Social – Sônia', seconds: 11916, minutes: 198.6,
+    startedAt: '2026-10-07T22:26:00.000Z', endedAt: '2026-10-08T01:44:36.000Z' };
+  const start = { ...base(), sessions: [{ id: 'old:2026-10-01', date: '2026-10-01', minutes: 30, seconds: 1800, activity: 'Leitura' }, session] };
+  const byEnd = applyCommands(start, [{ type: 'ajustar_foco', end: '22:00' }], { today: '2026-10-07', now, newId: ids() });
+  assert.deepEqual(byEnd.failed, []);
+  assert.equal(byEnd.applied[0].label, 'Foco ajustado: Aula de Psicologia Social – Sônia · 7 de out. · 2h34min');
+  assert.equal(Math.round(byEnd.data.sessions[1].seconds!), 9240);
+  assert.equal(byEnd.data.sessions[1].endedAt, '2026-10-08T01:00:00.000Z');
+  assert.equal(undoApplied(byEnd.data, byEnd.applied).sessions[1].seconds, 11916, 'desfazer volta o tempo original');
+  const byLength = applyCommands(start, [{ type: 'ajustar_foco', target: 'leitura', minutes: 45 }], { today: '2026-10-07', now, newId: ids() });
+  assert.equal(byLength.data.sessions[0].seconds, 2700);
+  const old = applyCommands(start, [{ type: 'ajustar_foco', target: 'leitura', end: '10:00' }], { today: '2026-10-07', now, newId: ids() });
+  assert.match(old.failed[0], /antigo e não guardou o horário/);
+  const later = applyCommands(start, [{ type: 'ajustar_foco', end: '23:30' }], { today: '2026-10-07', now, newId: ids() });
+  assert.match(later.failed[0], /depois do fim registrado/);
+  assert.equal(workspaceSchema.safeParse(byEnd.data).success, true);
+});

@@ -7,7 +7,7 @@ import { isUnorganized } from './capture';
 import { placeOf, placeTrail } from './notebooks';
 
 export const assistantQuery = z.object({
-  section: z.enum(['resumo', 'agenda', 'busca', 'pendentes', 'configuracoes', ...entities]).default('resumo'),
+  section: z.enum(['resumo', 'agenda', 'busca', 'pendentes', 'focos', 'configuracoes', ...entities]).default('resumo'),
   search: z.string().max(160).default(''),
   from: daySchema.optional(), to: daySchema.optional(),
   includeContent: z.boolean().default(false),
@@ -51,6 +51,15 @@ export function queryWorkspace(data: Workspace, input: unknown, today: string) {
     }
     const items = entries.slice(0, 40);
     return { today, from: start, through: addDays(day, -1), truncated: day <= end || entries.length > 40, items, ...(items.length ? { found: items.length } : empty([`agenda de ${start} a ${addDays(day, -1)}`], query.search)) };
+  }
+  // Finished focus records, newest first, with when they started and ended (null in records made before that).
+  if (query.section === 'focos') {
+    const time = (iso?: string) => iso ? new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date(iso)) : null;
+    const list = data.sessions.filter(item => (!query.from || item.date >= query.from) && (!query.to || item.date <= query.to)
+      && (!query.search || normalized(item.activity ?? '').includes(normalized(query.search))))
+      .toSorted((a, b) => (b.endedAt ?? b.date).localeCompare(a.endedAt ?? a.date)).slice(0, 20)
+      .map(item => ({ id: item.id, date: item.date, activity: item.activity || null, minutes: Math.round(item.minutes), startedAt: time(item.startedAt), endedAt: time(item.endedAt) }));
+    return { today, items: list, ...(list.length ? { found: list.length } : empty(['registros de foco'], query.search)) };
   }
   // What is waiting for a decision, for "vamos organizar os pendentes": the assistant walks it one item at a time.
   if (query.section === 'pendentes') {
