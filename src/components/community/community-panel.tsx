@@ -5,17 +5,19 @@ import { api, formatDay, PENDING_INVITE_KEY } from './client';
 import { SpaceView } from './space-view';
 import { AssignmentView } from './assignment-view';
 import { roleLabels, statusLabels, type Home, type SpaceSummary } from '@/lib/community';
+import type { AgendaAssignment, AgendaLink } from '@/lib/assignment-agenda';
 
 export type CommunityRoute = { kind: 'list' } | { kind: 'space'; id: string } | { kind: 'work'; id: string; from?: string };
 
-export function CommunityPanel({ home, route, onRoute, refreshHome, onAddToAgenda }: {
+export function CommunityPanel({ home, route, onRoute, refreshHome, onAddToAgenda, onMoveAgendaTask }: {
   home: Home; route: CommunityRoute; onRoute: (route: CommunityRoute) => void; refreshHome: () => void;
-  onAddToAgenda?: (title: string, date: string) => boolean;
+  onAddToAgenda?: (assignment: AgendaAssignment) => AgendaLink | null;
+  onMoveAgendaTask?: (taskId: string, due: string) => boolean;
 }) {
   const me = home.account.user_id;
   if (route.kind === 'space') return <SpaceView key={route.id} id={route.id} me={me} onBack={() => onRoute({ kind: 'list' })} onChanged={refreshHome}
     onOpenSpace={id => onRoute({ kind: 'space', id })} onOpenWork={id => onRoute({ kind: 'work', id, from: route.id })} />;
-  if (route.kind === 'work') return <AssignmentView key={route.id} id={route.id} me={me} onChanged={refreshHome} onAddToAgenda={onAddToAgenda}
+  if (route.kind === 'work') return <AssignmentView key={route.id} id={route.id} me={me} onChanged={refreshHome} onAddToAgenda={onAddToAgenda} onMoveAgendaTask={onMoveAgendaTask}
     onBack={() => onRoute(route.from ? { kind: 'space', id: route.from } : { kind: 'list' })} />;
   return <CommunityHome home={home} onRoute={onRoute} refreshHome={refreshHome} />;
 }

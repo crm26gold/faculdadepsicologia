@@ -28,6 +28,19 @@ export class McpAccessError extends Error { constructor(readonly status: 401 | 4
 
 const today = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] });
+// Read tools answer twice: the same JSON as text, for older clients, and as structured content checked against the declared schema.
+const structured = (value: Record<string, unknown>) => ({ ...text(value), structuredContent: value });
+const queryOutput = z.looseObject({
+  today: z.string().describe('Hoje, AAAA-MM-DD, no fuso America/Sao_Paulo.'),
+  found: z.number().int().optional().describe('Quantos itens existem; 0 = não existe.'),
+  message: z.string().optional().describe('Onde procurei, quando não encontrei.'),
+  items: z.array(z.looseObject({ id: z.string().optional(), versao: z.string().optional().describe('Muda quando o registro muda.') })).optional(),
+  cursor: z.string().optional().describe('Na busca: repita a mesma busca com este cursor para ver a próxima página.'),
+});
+const trashOutput = z.object({ encontrados: z.number().int(), mensagem: z.string().optional(),
+  itens: z.array(z.object({ id: z.string(), titulo: z.string(), secao: z.string(), excluido_em: z.string() })).optional() });
+const screenOutput = z.object({ tela: z.enum(screens), resumo: z.string(), link: z.string().nullable() });
+const uploadOutput = z.object({ link: z.string(), destino: z.string(), validoPorMinutos: z.number(), instrucao: z.string() });
 const generatedAt = () => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date());
 
 export const mcpInstructions = `Jornada Plena organiza a vida da pessoa dona desta conexão: agenda, aulas, cadernos e anotações, finanças, hábitos, metas, projetos, estudos, flashcards, áreas e a parte coletiva (salas, grupos, mural, enquetes e trabalhos). Você é o agente que consulta, registra, organiza e planeja a conta dela, sempre com as permissões que ela tem na tela.
@@ -43,7 +56,7 @@ Ritmo:
 - Lugar das anotações: cada anotação fica em UM lugar só (uma matéria, um caderno ou uma área). Um caderno pode ficar dentro de uma matéria (Psicologia Social › Caderno outubro): para vincular, editar caderno com subject; para guardar lá, anotacao com notebook e subject. Não prometa dois lugares separados. consultar_jornada com section "anotacao" traz o "lugar" de cada uma; confirme por ele, não pela memória.
 - "Vamos organizar os pendentes": consulte section "pendentes" e conduza item por item. Diga o item, sugira um destino e pergunte só "pode ser?"; com a resposta, aplique e passe ao próximo. "Deixa para depois" ou "pula": siga sem insistir. Ao parar, diga quantos faltam. Ela guia; você organiza.
 Ferramentas:
-- consultar_jornada: section "busca" procura em todas as seções; "pendentes" traz anotações em Para organizar, compromissos atrasados, contas vencidas e lançamentos sem categoria; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
+- consultar_jornada: section "busca" procura no título de todas as seções e no texto das anotações, com o trecho onde aparece; havendo mais resultados, repita a busca com o "cursor" devolvido; "pendentes" traz anotações em Para organizar, compromissos atrasados, contas vencidas e lançamentos sem categoria; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
 - registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
 - ver_tela devolve o print de uma tela. A imagem aparece só para você, não para a pessoa: sempre entregue o link que vem junto ("abra para ver o print"). Ele abre no aparelho em que ela está conectada à Jornada.
@@ -67,7 +80,7 @@ export async function mcpAuthenticate(db: Database, header: string | null) {
 }
 
 export function jornadaMcpServer(db: Database, access: { hash: string; canWrite: boolean }) {
-  const server = new McpServer({ name: 'jornada-plena', version: '1.0.0' }, { instructions: mcpInstructions });
+  const server = new McpServer({ name: 'jornada-plena', version: '1.1.0' }, { instructions: mcpInstructions });
   const context = async () => {
     const { data, error } = await db.rpc('mcp_context', { server_secret: botServerSecret(), token: access.hash });
     if (error || !data) throw new Error('Não consegui abrir a Jornada desta chave agora.');
@@ -80,13 +93,14 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   };
   server.registerTool('consultar_jornada', {
     title: 'Consultar a Jornada',
-    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (procura em todas as seções), pendentes (o que espera organização), focos (registros de foco encerrados, com início e fim), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Conteúdo completo de anotação só com includeContent e search.',
+    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (no título de todas as seções e no texto das anotações, com o trecho e o lugar; com mais resultados, devolve cursor para a próxima página), pendentes (o que espera organização), focos (registros de foco encerrados, com início e fim), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Cada item traz versao, que muda quando o registro muda. Conteúdo completo de anotação só com includeContent e search.',
     inputSchema: assistantQuery,
+    outputSchema: queryOutput,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async args => {
     const current = await context();
     const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
-    return text(queryWorkspace(data, args, today()));
+    return structured(queryWorkspace(data, args, today()) as Record<string, unknown>);
   });
   server.registerTool('registrar_na_jornada', {
     title: 'Registrar na Jornada',
@@ -129,12 +143,13 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     title: 'Ver a lixeira',
     description: 'Lista o que foi excluído nos últimos 30 dias (mais recentes primeiro), com o ID para restaurar. Para trazer de volta, use registrar_na_jornada com {"type":"restaurar","target":"ID"}.',
     inputSchema: z.object({}),
+    outputSchema: trashOutput,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async () => {
     const trash = await readTrash();
     if (trash === null) return { ...text('A lixeira ainda não está disponível nesta conta.'), isError: true };
     const items = trash.map(entry => ({ id: entry.id, titulo: recordTitle(entry.item), secao: entry.collection, excluido_em: entry.deleted_at }));
-    return text(items.length ? { encontrados: items.length, itens: items } : { encontrados: 0, mensagem: 'A lixeira está vazia.' });
+    return structured(items.length ? { encontrados: items.length, itens: items } : { encontrados: 0, mensagem: 'A lixeira está vazia.' });
   });
 
   server.registerTool('desfazer', {
@@ -170,6 +185,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     title: 'Ver uma tela da Jornada (print)',
     description: 'Devolve uma imagem com as informações atuais de uma tela da vida pessoal (meu_dia, financas, agenda, habitos, metas ou anotacoes) e um link para a pessoa abrir o mesmo print. Use quando a pessoa pedir um print, uma foto da tela ou para ver como ficou depois de registrar algo. A imagem chega só para você: entregue o link à pessoa. A imagem é montada com os dados da conta, não é captura do monitor.',
     inputSchema: z.object({ tela: z.enum(screens) }),
+    outputSchema: screenOutput,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ tela }) => {
     const current = await context();
@@ -182,12 +198,14 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     return { content: [{ type: 'image' as const, data: Buffer.from(png).toString('base64'), mimeType: 'image/png' },
       { type: 'text' as const, text: `${screenText(model)}${link ? `
 
-Link do print para a pessoa abrir (vale com o login dela na Jornada): ${link}` : ''}` }] };
+Link do print para a pessoa abrir (vale com o login dela na Jornada): ${link}` : ''}` }],
+      structuredContent: { tela, resumo: screenText(model), link } };
   });
   server.registerTool('enviar_arquivo', {
     title: 'Link para enviar foto, áudio, vídeo ou arquivo',
     description: `Gera um link de ${CAPTURE_LINK_MINUTES} minutos que abre o Registro rápido da Jornada já no destino (caderno, matéria ou área; sem destino, Para organizar). Use quando a pessoa quiser guardar uma foto, áudio, vídeo ou arquivo: você não consegue repassar o arquivo em si. Ela abre o link no aparelho em que já está conectada à Jornada e envia por lá, com o próprio login, para o armazenamento privado (até 25 MB). Nada é gravado até ela enviar. Para guardar só um link de site, use registrar_na_jornada com anotacao e link.`,
     inputSchema: z.object({ destino: z.string().trim().min(1).max(100).optional() }),
+    outputSchema: uploadOutput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ destino }) => {
     const origin = applicationOrigin(process.env);
@@ -200,8 +218,8 @@ Link do print para a pessoa abrir (vale com o login dela na Jornada): ${link}` :
       if (destino && place.kind === 'inbox') return { isError: true, content: [{ type: 'text' as const, text: `Não encontrei o caderno, a matéria ou a área "${destino}". Crie o caderno com registrar_na_jornada ({"type":"criar","entity":"caderno"}) ou gere o link sem destino.` }] };
     } catch (error) { return { isError: true, content: [{ type: 'text' as const, text: error instanceof Error ? error.message : 'Destino ambíguo.' }] }; }
     const url = captureLink(origin, place, Date.now());
-    return { content: [{ type: 'text' as const, text: JSON.stringify({ link: url, destino: placeName(data, place), validoPorMinutos: CAPTURE_LINK_MINUTES,
-      instrucao: 'Entregue o link à pessoa. Ela abre onde já está conectada à Jornada, escolhe o arquivo e envia. Depois, consulte anotacao para confirmar o que chegou.' }) }] };
+    return structured({ link: url, destino: placeName(data, place), validoPorMinutos: CAPTURE_LINK_MINUTES,
+      instrucao: 'Entregue o link à pessoa. Ela abre onde já está conectada à Jornada, escolhe o arquivo e envia. Depois, consulte anotacao para confirmar o que chegou.' });
   });
   registerCollectiveTools(server, db, access);
   registerAdminTools(server, db, access);

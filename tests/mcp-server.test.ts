@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { randomBytes } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { demoWorkspace, dateKey } from '../src/lib/workspace';
 
 const empty = pathToFileURL(`${process.cwd()}/node_modules/server-only/empty.js`).href;
@@ -335,4 +336,50 @@ test('servidor MCP: enviar_arquivo gera link de 10 minutos para o Registro rápi
   const missing = await call({ destino: 'Caderno que não existe' });
   assert.equal(missing.result.isError, true);
   assert.match(missing.result.content[0].text, /Não encontrei/);
+});
+
+test('servidor MCP 1.1.0: cada leitura traz o mesmo conteúdo em texto e estruturado, nas duas versões do protocolo', async () => {
+  const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
+  const { mcpRequest, mcpResult } = await import('../src/lib/integrations/mcp-wire');
+  const { db, state } = fakeDatabase({ canWrite: false });
+  state.trash = [{ id: 'lx-1', collection: 'tasks', item_id: 'x', item: { id: 'x', title: 'Academia' }, deleted_at: '2026-10-07T10:00:00Z' }];
+  state.actReply = { data: { spaces: [], my_parts: [] }, error: null };
+  const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const call = async (id: number, method: string, params: Record<string, unknown> = {}) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, method, params)));
+  const init = await call(1, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'teste', version: '1' } });
+  assert.equal(init.result.serverInfo.version, '1.1.0');
+  const tools = (await call(2, 'tools/list')).result.tools as { name: string; outputSchema?: { type: string } }[];
+  assert.deepEqual(tools.filter(tool => tool.outputSchema).map(tool => tool.name).sort(), ['consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'enviar_arquivo', 'lixeira', 'ver_tela']);
+  assert.ok(tools.every(tool => !tool.outputSchema || tool.outputSchema.type === 'object'), 'saída sempre em objeto, que os clientes de 2025 aceitam');
+  const reads: [string, Record<string, unknown>][] = [['consultar_jornada', { section: 'busca', search: 'a', limit: 2 }], ['consultar_jornada', { section: 'resumo' }],
+    ['consultar_jornada', { section: 'pendentes' }], ['lixeira', {}], ['enviar_arquivo', {}], ['consultar_coletivo', { o_que: 'inicio' }], ['consultar_administracao', { o_que: 'contas' }]];
+  for (const [index, [name, args]] of reads.entries()) {
+    const reply = await call(10 + index, 'tools/call', { name, arguments: args });
+    assert.notEqual(reply.result.isError, true, `${name}: ${JSON.stringify(reply.result)}`);
+    const shown = JSON.parse(reply.result.content.find((block: { type: string }) => block.type === 'text').text);
+    const wrapped = ['consultar_coletivo', 'consultar_administracao'].includes(name);
+    assert.deepEqual(wrapped ? reply.result.structuredContent.dados : reply.result.structuredContent, shown, `${name}: estruturado igual ao texto`);
+  }
+  const shot = await call(20, 'tools/call', { name: 'ver_tela', arguments: { tela: 'agenda' } });
+  assert.equal(shot.result.structuredContent.tela, 'agenda');
+  assert.ok(shot.result.content.find((block: { type: string }) => block.type === 'text').text.startsWith(shot.result.structuredContent.resumo));
+  const modern = new Request('https://jornada.example/api/mcp', { method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2026-07-28', 'Mcp-Method': 'tools/call', 'Mcp-Name': 'consultar_jornada' },
+    body: JSON.stringify(mcpRequest('2026-07-28', 21, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'busca', search: 'a' } })) });
+  const answered = mcpResult(await (await jornadaMcpHandler(db as never, access).fetch(modern)).text(), 21) as { structuredContent: { search: string; found: number } };
+  assert.equal(answered.structuredContent.search, 'a');
+  assert.ok(answered.structuredContent.found > 0);
+});
+
+// What a connected ChatGPT or Claude already relies on: names in order, titles, risk hints and both schemas. A change here
+// breaks connections people made, so it has to be on purpose: run with UPDATE_MCP_CONTRACT=1 and say why in the PR.
+test('contrato do MCP: nomes, ordem, anotações e esquemas iguais à cópia salva', async () => {
+  const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
+  const { db } = fakeDatabase({ canWrite: true });
+  const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const tools = (await body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/list')))).result.tools as Record<string, unknown>[];
+  const contract = tools.map(tool => ({ name: tool.name, title: tool.title, annotations: tool.annotations, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema ?? null }));
+  const file = `${process.cwd()}/tests/fixtures/mcp-contract.json`;
+  if (process.env.UPDATE_MCP_CONTRACT === '1') writeFileSync(file, `${JSON.stringify(contract, null, 1)}\n`);
+  assert.deepEqual(contract, JSON.parse(readFileSync(file, 'utf8')), 'O contrato do MCP mudou. Se foi de propósito, rode com UPDATE_MCP_CONTRACT=1 e explique no PR.');
 });

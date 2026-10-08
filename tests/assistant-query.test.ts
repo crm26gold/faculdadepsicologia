@@ -48,6 +48,46 @@ test('busca geral procura em todas as seções, e o que não existe vem como "n�
   assert.throws(() => queryWorkspace(data(), { section: 'busca' }, today), /Diga o que procurar/);
 });
 
+test('busca acha pelo texto da anotação, com o trecho e o lugar, sem ligar para acento ou maiúscula', () => {
+  const long = `<p>${'Introdução ao tema. '.repeat(30)}</p><p>A Declaração Universal dos <strong>Direitos Humanos</strong> foi adotada em 1948.</p><p>${'Fim do texto. '.repeat(30)}</p>`;
+  const start = { ...data(), notes: [{ id: 'n9', title: 'Aula 3', content: long, subjectId: 'tec', areaId: 'studies', notebookId: '', updatedAt: '2026-10-07T10:00:00Z' }] } as Workspace;
+  const found = queryWorkspace(start, { section: 'busca', search: 'direitos HUMANOS' }, today) as unknown as { found: number; items: { id: string; trecho: string; lugar: string; versao: string }[] };
+  assert.equal(found.found, 1);
+  const [hit] = found.items;
+  assert.equal(hit.id, 'n9');
+  assert.match(hit.trecho, /Declaração Universal dos Direitos Humanos foi adotada/);
+  assert.ok(hit.trecho.length <= 240, `trecho com ${hit.trecho.length} caracteres`);
+  assert.ok(hit.trecho.startsWith('…') && hit.trecho.endsWith('…'), 'o trecho mostra que há texto antes e depois');
+  assert.equal(hit.lugar, 'Estudos › Psicologia › Técnicas de Entrevista e Observação');
+  assert.match(hit.versao, /^[a-z0-9]+$/);
+  assert.equal((queryWorkspace(start, { section: 'busca', search: 'declaracao universal' }, today) as { found: number }).found, 1, 'sem acento também acha');
+});
+
+test('busca em páginas: o cursor continua a mesma busca sem repetir nem pular, e cursor de outra busca é recusado', () => {
+  const notes = Array.from({ length: 7 }, (_, index) => ({ id: `p${index}`, title: `Prova ${index}`, content: '', subjectId: '', areaId: '', notebookId: '', updatedAt: `2026-10-0${index + 1}T10:00:00Z` }));
+  const start = { ...data(), notes } as Workspace;
+  type Page = { found: number; items: { id: string }[]; cursor?: string };
+  const first = queryWorkspace(start, { section: 'busca', search: 'prova', limit: 3 }, today) as Page;
+  const second = queryWorkspace(start, { section: 'busca', search: 'prova', limit: 3, cursor: first.cursor }, today) as Page;
+  const third = queryWorkspace(start, { section: 'busca', search: 'prova', limit: 3, cursor: second.cursor }, today) as Page;
+  assert.equal(first.found, 7);
+  assert.deepEqual([...first.items, ...second.items, ...third.items].map(item => item.id), notes.map(note => note.id));
+  assert.equal(third.cursor, undefined, 'a última página não traz cursor');
+  assert.throws(() => queryWorkspace(start, { section: 'busca', search: 'outra coisa', cursor: first.cursor }, today), /não vale para esta busca/);
+  assert.throws(() => queryWorkspace(start, { section: 'busca', search: 'prova', cursor: '3.adulterado' }, today), /não vale para esta busca/);
+});
+
+test('cada item lido traz a versão do registro, que muda quando o registro muda', () => {
+  const read = (workspace: Workspace) => (queryWorkspace(workspace, { section: 'anotacao' }, today) as unknown as { items: { versao: string }[] }).items[0].versao;
+  const original = read(data());
+  assert.equal(read(data()), original, 'mesmo conteúdo, mesma versão');
+  const edited = { ...data(), notes: data().notes.map(note => ({ ...note, content: '<p>texto novo</p>' })) };
+  assert.notEqual(read(edited), original, 'o texto mudou, a versão mudou');
+  const classes = (workspace: Workspace) => (queryWorkspace(workspace, { section: 'aula' }, today) as unknown as { items: { versao: string }[] }).items.map(item => item.versao);
+  const renamed = { ...data(), subjects: data().subjects.map(subject => ({ ...subject, name: `${subject.name} II` })) };
+  assert.deepEqual(classes(renamed), classes(data()), 'a aula guarda a própria versão, sem o título calculado');
+});
+
 test('pendentes junta o que espera organização, cada grupo com total', () => {
   const start = { ...data(),
     tasks: [{ id: 't-late', title: 'Ler capítulo 2', subjectId: 'tec', date: '2026-10-01', kind: 'Estudo', done: false, minutes: 25 },

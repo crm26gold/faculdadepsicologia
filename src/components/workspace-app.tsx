@@ -10,6 +10,7 @@ import { calendarEntries, weekdays } from '@/lib/academic';
 import { greeting, monthCycles, todayAgenda, todayAlerts, waitingSince, type TodayAlert } from '@/lib/today';
 import type { WaitingRequest } from '@/lib/assistant-jobs';
 import { isUnorganized } from '@/lib/capture';
+import { linkAssignment, moveAgendaTask, type AgendaAssignment, type AgendaLink } from '@/lib/assignment-agenda';
 import { useWorkspace } from './use-workspace';
 import { Modal } from './modal';
 import { MobileDisclosure } from './mobile-disclosure';
@@ -428,9 +429,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     }
     closeForm(); setNotice('');
   }
-  function addToAgenda(title: string, date: string) {
-    return update((previous) => ({ ...previous, tasks: [...previous.tasks, { id: crypto.randomUUID(), title: title.slice(0, 160), subjectId: '', date, kind: 'Trabalho', done: false, minutes: 30 }] }));
+  function addToAgenda(assignment: AgendaAssignment): AgendaLink | null {
+    // Already in the agenda and linked: nothing to save, only say where it is.
+    const probe = linkAssignment(data, assignment, '');
+    if (probe.data === data) return probe.link;
+    const outcome: { link?: AgendaLink } = {};
+    const saved = update((previous) => { const result = linkAssignment(previous, assignment, crypto.randomUUID()); outcome.link = result.link; return result.data; });
+    return saved ? outcome.link ?? null : null;
   }
+  function moveToDeadline(taskId: string, due: string) { return update((previous) => moveAgendaTask(previous, taskId, due)); }
   function toggleTask(task: Task) { update((previous) => ({ ...previous, tasks: previous.tasks.map((item) => item.id === task.id ? { ...item, done: !item.done } : item) })); }
   function openSubject(item: Subject) { navigate('notes'); setNotesPlace({ kind: 'subject', id: item.id }); }
   function deleteCourse(course: Course) {
@@ -717,7 +724,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'notes' && <NotesLibrary data={data} blocked={blocked} demo={demo} cloud={mode === 'cloud'} status={status} update={update} place={notesPlace} noteId={selectedNote} onPlace={setNotesPlace} onNote={setSelectedNote} onManage={() => navigate('settings')} />}
 
-          {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
+          {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} onMoveAgendaTask={moveToDeadline} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
           {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><WhatsAppAdmin /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
 

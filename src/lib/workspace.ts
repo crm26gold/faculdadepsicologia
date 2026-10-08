@@ -74,6 +74,8 @@ export const taskSchema = z.object({
   done: z.boolean(), minutes: z.number().int().min(5).max(240),
   time: timeSchema.optional(),
   projectId: identifier.optional(),
+  // The group work this deadline came from, so "Na minha agenda" finds it instead of adding another.
+  assignmentId: identifier.optional(),
 });
 export const noteSchema = z.object({
   id: identifier, title: z.string().max(160), subjectId: z.string().max(100),

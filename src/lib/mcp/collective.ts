@@ -16,6 +16,10 @@ export type Database = NonNullable<ReturnType<typeof botDatabase>>;
 export type Access = { hash: string; canWrite: boolean };
 export const text = (value: unknown) => ({ content: [{ type: 'text' as const, text: typeof value === 'string' ? value : JSON.stringify(value) }] });
 export const failure = (message: string) => ({ ...text(message), isError: true });
+/** A read of a screen: the same JSON as text, and as structured content naming what was read. */
+export const screenRead = <T extends string>(what: T, data: unknown) => ({ ...text(data), structuredContent: { o_que: what, dados: data ?? null } });
+export const readOutput = <T extends readonly [string, ...string[]]>(whats: T) =>
+  z.object({ o_que: z.enum(whats), dados: z.unknown().describe('O que a tela mostra, como devolvido pelo banco.') });
 export const readOnlyConnection = 'Esta conexão só consulta. Conecte de novo marcando "Permitir registrar e editar".';
 
 /** The person's actor in the database, reached with this MCP key. */
@@ -53,10 +57,11 @@ export function registerCollectiveTools(server: McpServer, db: Database, access:
     title: 'Consultar salas, grupos e contatos',
     description: 'Mostra o que a pessoa vê na tela da parte coletiva: inicio (suas instituições, salas e grupos), sala (mural, enquetes, pessoas, grupos e trabalhos de uma sala pelo ID), trabalho (partes, comentários e entregas de um trabalho pelo ID) e contatos. Use para obter IDs antes de agir.',
     inputSchema: z.object({ o_que: z.enum(['inicio', 'sala', 'trabalho', 'contatos']), id: z.uuid().optional().describe('ID da sala ou do trabalho') }),
+    outputSchema: readOutput(['inicio', 'sala', 'trabalho', 'contatos']),
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ o_que, id }) => {
     const result = await readShared(mcpTransport(db, access), o_que, id);
-    return 'error' in result ? failure(result.error) : text(result.data);
+    return 'error' in result ? failure(result.error) : screenRead(o_que, result.data);
   });
 
   server.registerTool('gerenciar_salas', {

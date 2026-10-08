@@ -387,6 +387,23 @@ test('trabalho em grupo: parte, entrega em nome, revisão e documento final padr
   await page.screenshot({ path: `test-results/trabalho-final-${info.project.name}.png`, fullPage: true });
 });
 
+test('trabalho em grupo: "Na minha agenda" tocado duas vezes deixa uma entrega só, ligada ao trabalho', async ({ page }, info) => {
+  await mockApi(page);
+  const saved: { tasks?: { title: string; date: string; assignmentId?: string }[] }[] = [];
+  page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saved.push(request.postDataJSON().data); });
+  await page.goto('/#community');
+  await page.getByRole('button', { name: /Pendente|Em andamento/ }).first().click();
+  await expect(page.getByRole('heading', { name: 'Direitos Humanos', level: 2 })).toBeVisible();
+  const add = page.getByRole('button', { name: 'Na minha agenda' });
+  await add.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Entrega adicionada à sua agenda pessoal.' })).toBeVisible();
+  await add.click();
+  await expect(page.getByRole('status').filter({ hasText: 'Já está na sua agenda (20/10).' })).toBeVisible();
+  await expect.poll(() => saved.length).toBeGreaterThan(0);
+  expect(saved.at(-1)?.tasks?.filter(task => task.title === 'Entregar: Direitos Humanos').map(task => [task.date, task.assignmentId])).toEqual([['2026-10-20', WORK]]);
+  await page.screenshot({ path: `test-results/na-minha-agenda-${info.project.name}.png` });
+});
+
 test('painel master: abertura da plataforma, estrutura e gestão de contas com histórico', async ({ page }, info) => {
   const posted = await mockApi(page, { home: homeFixture({ master: true }) });
   await page.goto('/');
