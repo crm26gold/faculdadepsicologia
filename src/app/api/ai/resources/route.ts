@@ -11,7 +11,9 @@ export async function GET() {
   const { data, error } = await session.client.rpc('ai_resource_map');
   if (missingRpc(error)) return reply({ ok: true, data: { available: false } });
   if (error) return dbError(error);
-  return reply({ ok: true, data: { available: true, map: data } });
+  // Recent failures that another connection covered (or not); an older database simply has none.
+  const failures = await session.client.rpc('ai_recent_failures');
+  return reply({ ok: true, data: { available: true, map: { ...data, failures: failures.error ? [] : failures.data ?? [] } } });
 }
 
 export async function POST(request: Request) {

@@ -7,12 +7,15 @@ import { chatImageContent, claudeImageContent, responsesImageContent, type AiIma
 import { runAiAttempts } from './attempts';
 import { publicHttps } from './public-http';
 import { failureKind, failureMessage, providerSignals, type AiFailureKind } from './provider-failure';
+import { reportFallbacks, type RouteFailure, type RouteTask } from './route-health';
 
 export type AiCredentialSource = 'owner' | 'personal' | 'base';
 export type AiConfig = { provider: AiProviderId; model: string; base_url: string; gcp_project: string; gcp_location: string; key: string; alternatives?: AiConfig[]; routing?: string; source?: AiCredentialSource };
 /** audio: a voice note sent along with the last message (Gemini and Vertex Gemini read it with the prompt).
  * audioTask 'transcribe' also accepts Whisper-style transcription endpoints (Groq, OpenAI), which return only the words heard. */
-export type Prompt = { system: string; prompt: string; audioTask?: 'transcribe'; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void>; beforeAttempt?: (candidate: AiConfig, index: number) => Promise<void> };
+export type Prompt = { system: string; prompt: string; audioTask?: 'transcribe'; maxTokens?: number; json?: boolean; history?: Turn[]; audio?: { mimeType: string; base64: string }; image?: AiImage; signal?: AbortSignal; beforeRetry?: () => Promise<void>; beforeAttempt?: (candidate: AiConfig, index: number) => Promise<void>;
+  /** Names the task so a failed connection that another one covered shows up in the owner's resource map. */
+  task?: RouteTask };
 export class AiError extends Error {
   /** What runAiAttempts acts on. Local checks name it; provider answers derive it from status and codes. */
   readonly kind: AiFailureKind;
@@ -239,7 +242,11 @@ export async function generateResilient(config: AiConfig, input: Prompt): Promis
     seen.add(id); return true;
   });
   const attempts = new Map<AiConfig, number>();
-  return runAiAttempts(connections.length ? [...connections, connections[0]] : [], async candidate => {
+  const failures: RouteFailure[] = [];
+  const report = (served: AiProviderId | null) => { if (input.task) void reportFallbacks(input.task, failures, served); };
+  try {
+  const result = await runAiAttempts(connections.length ? [...connections, connections[0]] : [], async candidate => {
+    try {
     const attempt = attempts.get(candidate) ?? 0;
     attempts.set(candidate, attempt + 1);
     let model = candidate.model;
@@ -252,5 +259,13 @@ export async function generateResilient(config: AiConfig, input: Prompt): Promis
       if (!model) throw new AiError('Nenhum modelo compatível encontrado para esta conexão.', 404);
     }
     return { text: await generate({ ...candidate, model }, input), model, provider: candidate.provider };
+    } catch (cause) {
+      const kind = (cause as { kind?: AiFailureKind }).kind;
+      if (kind && !input.signal?.aborted) failures.push({ provider: candidate.provider, kind });
+      throw cause;
+    }
   }, { ...input, persistent: config.routing === 'auto' });
+  report(result.provider);
+  return result;
+  } catch (cause) { report(null); throw cause; }
 }

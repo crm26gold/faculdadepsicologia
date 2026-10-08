@@ -53,6 +53,8 @@ export type AiResourceMap = {
   mcp_inbound: { owner_tokens: number; owner_oauth: number; members_with_access: number };
   mcp_outbound: { id: string; label: string; host: string | null; enabled: boolean; has_key: boolean }[];
   members: { accounts: number; with_personal_keys: number };
+  /** Last 24 hours, per company and kind of failure: who answered instead (null = nobody). */
+  failures?: { provider: string; kind: string; count: number; last_at: string; served: string | null; tasks: string[] }[];
 };
 
 export const stateLabels: Record<SourceState, string> = {

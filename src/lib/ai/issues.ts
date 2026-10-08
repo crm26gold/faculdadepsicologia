@@ -96,6 +96,26 @@ export function resourceIssues(map: AiResourceMap): Issue[] {
     const affects = [...group.tasks.map(task => aiTaskLabels[task].name), ...(group.whatsapp ? [whatsappTask] : [])];
     issues.push({ id: key, level: group.level, ...texts(group.reason, resource, label), affects, options: optionsFor(group.reason, resource, group.tasks) });
   }
+  // "Caiu o Google, passou para a Groq": recent failures, with who covered them and how to fix the cause.
+  const why: Record<string, string> = {
+    billing: 'Os créditos ou o faturamento dessa conta acabaram.', auth: 'A chave foi recusada: pode ter sido revogada, trocada ou digitada errada.',
+    rate_limit: 'O limite de uso do plano foi atingido (comum no plano gratuito).', model: 'O modelo escolhido não está disponível para essa chave.',
+    network: 'Não houve conexão com a empresa.', server: 'A empresa estava fora do ar ou instável.', invalid: 'A empresa recusou o pedido.',
+  };
+  const taskNames: Record<string, string> = { assistente: 'Conversa do assistente', organizar: 'Organizar registros', voz: 'Chamada ao vivo', transcricao: 'Transcrição de áudio', teste: 'Teste' };
+  for (const failure of map.failures ?? []) {
+    const company = aiCatalog[failure.provider as keyof typeof aiCatalog]?.name ?? failure.provider;
+    const helper = failure.served ? aiCatalog[failure.served as keyof typeof aiCatalog]?.name ?? failure.served : null;
+    const times = failure.count === 1 ? '1 vez' : `${failure.count} vezes`;
+    issues.push({ id: `failure:${failure.provider}:${failure.kind}`, level: 'warning', title: `${company} falhou ${times} nas últimas 24 horas`,
+      what: helper ? `${helper} assumiu e a conversa seguiu.` : 'Nenhuma outra conexão assumiu: nessas vezes a tarefa ficou sem resposta.',
+      why: why[failure.kind] ?? 'A empresa não respondeu como esperado.', affects: failure.tasks.map(task => taskNames[task] ?? task),
+      options: [
+        { label: 'Trocar ou conferir a chave', detail: `Em Conexões e chaves, abra ${company}, cole uma chave nova se for o caso e toque em Ver modelos para conferir.`, go: { view: 'connections', target: target.provider(failure.provider) } },
+        { label: 'Pôr outra IA na sequência', detail: 'Cadastre outra empresa em Conexões e chaves e, em Tarefas e modelos, coloque-a como alternativa. Com três empresas diferentes, uma queda não para nada.', go: { view: 'tasks' } },
+        ...(failure.kind === 'rate_limit' || failure.kind === 'billing' ? [{ label: 'Ativar ou recarregar o plano pago', detail: `No site da ${company}, ative o faturamento ou recarregue os créditos. Depois volte aqui e toque em Conferir.`, go: { view: 'connections' as const, target: target.provider(failure.provider) } }] : []),
+      ] });
+  }
   // One connection answering a text task: if it fails, the task stops. Voice keeps a single live provider by design.
   for (const route of map.routes) if (route.enabled && route.chain.length === 1 && route.task !== 'voz' && !route.served_by) {
     const task = aiTaskLabels[route.task].name;
@@ -119,5 +139,13 @@ export function resourceIssues(map: AiResourceMap): Issue[] {
   return issues.toSorted((a, b) => (a.level === b.level ? 0 : a.level === 'warning' ? -1 : 1));
 }
 
-/** True when an issue the person was working on no longer appears in a fresh map. */
-export const issueResolved = (id: string, map: AiResourceMap) => !resourceIssues(map).some(issue => issue.id === id);
+/** True when an issue the person was working on no longer appears in a fresh map. A past failure stays listed
+ * for 24 hours, so it counts as solved when nothing failed again since the person started fixing it. */
+export function issueResolved(id: string, map: AiResourceMap, since?: string) {
+  if (id.startsWith('failure:') && since) {
+    const [, provider, kind] = id.split(':');
+    const failure = map.failures?.find(item => item.provider === provider && item.kind === kind);
+    return !failure || Date.parse(failure.last_at) <= Date.parse(since);
+  }
+  return !resourceIssues(map).some(issue => issue.id === id);
+}

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
       image = { mimeType, base64: Buffer.from(bytes).toString('base64') };
     }
     const config = runtimeConfig(data);
-    const { text: raw, model } = await generateResilient(config, { system: image ? imageReviewSystem : `${commandSystem}\n\nContexto da pessoa:\n${body.context}`,
+    const { text: raw, model } = await generateResilient(config, { task: 'assistente', system: image ? imageReviewSystem : `${commandSystem}\n\nContexto da pessoa:\n${body.context}`,
       prompt: body.message, history: image ? [] : body.history, image, maxTokens: 2400, json: true, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
     return reply({ ok: true, data: { configured: true, model, ...(image ? imageReview(raw) : parseCommand(raw)) } });
   } catch (cause) {

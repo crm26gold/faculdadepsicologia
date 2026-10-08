@@ -330,6 +330,7 @@ reset role;
 \ir ../../tests/sql/bot-collective.sql
 \ir ../../tests/sql/personal-trash.sql
 \ir ../../tests/sql/mcp-activity.sql
+\ir ../../tests/sql/ai-route-events.sql
 \ir ../../tests/sql/workspace-conflicts.sql
 \ir ../../tests/sql/jornada-request-limits.sql
 \ir ../../tests/sql/jornada-global-budgets.sql

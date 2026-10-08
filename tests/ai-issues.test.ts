@@ -50,3 +50,18 @@ test('duas chaves da mesma empresa viram uma dica; tarefa sem IA vira o primeiro
   assert.equal(issueResolved('declaration_missing:api:gemini', fixed), true);
   assert.equal(issueResolved('declaration_missing:c1', fixed), false);
 });
+
+test('queda de IA vira aviso com quem assumiu e como resolver; depois de corrigir, Conferir não espera 24 horas', () => {
+  const map = ownerMap();
+  map.failures = [{ provider: 'gemini', kind: 'rate_limit', count: 3, last_at: '2026-10-07T23:10:00.123456+00:00', served: 'groq', tasks: ['assistente', 'transcricao'] },
+    { provider: 'deepseek', kind: 'billing', count: 1, last_at: '2026-10-07T20:00:00+00:00', served: null, tasks: ['assistente'] }];
+  const issues = resourceIssues(map);
+  const google = issues.find(issue => issue.id === 'failure:gemini:rate_limit')!;
+  assert.equal(google.title, 'Google Gemini (AI Studio) falhou 3 vezes nas últimas 24 horas');
+  assert.equal(google.what, 'Groq · inferência rápida assumiu e a conversa seguiu.');
+  assert.deepEqual(google.affects, ['Conversa do assistente', 'Transcrição de áudio']);
+  assert.deepEqual(google.options.map(option => option.label), ['Trocar ou conferir a chave', 'Pôr outra IA na sequência', 'Ativar ou recarregar o plano pago']);
+  assert.match(issues.find(issue => issue.id === 'failure:deepseek:billing')!.what, /Nenhuma outra conexão assumiu/);
+  assert.equal(issueResolved('failure:gemini:rate_limit', map, '2026-10-07T23:30:00.000Z'), true, 'nada falhou depois que comecei a resolver');
+  assert.equal(issueResolved('failure:gemini:rate_limit', map, '2026-10-07T23:00:00.000Z'), false, 'falhou de novo depois');
+});
