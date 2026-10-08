@@ -22,6 +22,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const owner = useRef<string | undefined>(undefined);
   const saving = useRef(false);
   const stop = useRef(false);
+  const refreshing = useRef<{ account?: string; promise: Promise<Workspace> } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -143,7 +144,16 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
-  async function refresh(expectedAccount = owner.current) {
+  // The assistant's replies and the live follow may ask at the same moment: they share one request, since a second
+  // one would find the space already replaced and refuse.
+  function refresh(expectedAccount = owner.current) {
+    const running = refreshing.current;
+    if (running && running.account === expectedAccount) return running.promise;
+    const promise = reload(expectedAccount).finally(() => { if (refreshing.current?.promise === promise) refreshing.current = null; });
+    refreshing.current = { account: expectedAccount, promise };
+    return promise;
+  }
+  async function reload(expectedAccount: string | undefined) {
     await ensureSaved();
     if (mode !== 'cloud') return current.current;
     const snapshot = current.current;
