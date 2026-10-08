@@ -5,7 +5,7 @@ import { aiAdminAction, aiProviderIds } from '../src/lib/ai/catalog';
 import { pickModel } from '../src/lib/ai/models';
 import { publicAddress, publicHttps } from '../src/lib/ai/public-http';
 import { credentialIssue } from '../src/lib/ai/credentials';
-import { mcpRequest, mcpResult, toolInventory } from '../src/lib/integrations/mcp-wire';
+import { mcpRequest, mcpResult, toolCallResult, toolInventory } from '../src/lib/integrations/mcp-wire';
 
 test('empresas têm IDs próprios e credenciais com metadados independentes', () => {
   for (const provider of ['google_cloud','deepseek','xai','mistral','groq','openrouter']) assert(aiProviderIds.includes(provider as typeof aiProviderIds[number]));
@@ -32,10 +32,20 @@ test('MCP atual transmite contexto por requisição e legado mantém o contrato 
   assert.equal(current.params._meta?.['io.modelcontextprotocol/protocolVersion'],'2026-07-28');
   assert.equal(mcpRequest('2025-11-25',2,'tools/list').params._meta,undefined);
   const result=mcpResult('event: message\ndata: {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"agenda.list","description":"Listar"}]}}\n\n',2);
-  assert.deepEqual(toolInventory(result),{ tools:[{ name:'agenda.list',description:'Listar' }],hasMore:false });
+  assert.deepEqual(toolInventory(result),{ tools:[{ name:'agenda.list',description:'Listar',readOnly:false,inputSchema:'' }],hasMore:false });
+  const declared=toolInventory({ tools:[{ name:'agenda.list',annotations:{ readOnlyHint:true },inputSchema:{ type:'object',properties:{ day:{ type:'string' } } } },{ name:'agenda.add',annotations:{ readOnlyHint:'yes' },inputSchema:{ type:'object',description:'x'.repeat(5000) } }] }).tools;
+  assert.equal(declared[0].readOnly,true);assert.match(declared[0].inputSchema,/"day"/);
+  assert.equal(declared[1].readOnly,false,'só true literal conta como só consulta');assert(declared[1].inputSchema.length<4100);
   assert.throws(()=>mcpResult('{"jsonrpc":"2.0","id":2,"error":{"message":"untrusted secret"}}',2),/recusou/);
   assert.throws(()=>mcpResult('{"jsonrpc":"2.0","id":2,"result":{"resultType":"input_required"}}',2),/interação/);
   assert.throws(()=>mcpResult('{"jsonrpc":"2.0","id":3,"result":{}}',2),/válido/);
+  const failed=toolCallResult({ isError:true,content:[{ type:'text',text:'y'.repeat(9000) },{ type:'resource',resource:{} }] });
+  assert.equal(failed.isError,true);assert(failed.text.length<8100 && failed.text.endsWith('(cortado)'));assert.equal(failed.omitted,1);assert.equal(failed.structured,'');
+  assert.deepEqual(toolCallResult(null),{ isError:false,text:'',structured:'',omitted:0 });
+  assert(aiAdminAction.safeParse({ action:'call_connector_tool',id:'00000000-0000-4000-8000-000000000001',tool:'agenda.list',arguments:{ day:'2026-10-09' } }).success);
+  assert(!aiAdminAction.safeParse({ action:'call_connector_tool',id:'00000000-0000-4000-8000-000000000001',tool:'agenda list',arguments:{} }).success,'nome fora do padrão');
+  assert(!aiAdminAction.safeParse({ action:'call_connector_tool',id:'00000000-0000-4000-8000-000000000001',tool:'agenda.list',arguments:[] }).success,'argumentos precisam ser objeto');
+  assert(!aiAdminAction.safeParse({ action:'allow_connector_tools',id:'00000000-0000-4000-8000-000000000001',tools:['a','a'] }).success,'ferramenta repetida');
   const bounded=toolInventory({ tools:Array.from({length:60},(_,i)=>({name:`tool_${i}`,description:'x'.repeat(400)})),nextCursor:'next' });
   assert.equal(bounded.tools.length,50);assert.equal(bounded.tools[0].description.length,250);assert(bounded.hasMore);
 });

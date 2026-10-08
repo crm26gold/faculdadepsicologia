@@ -1,0 +1,33 @@
+-- MCP externo: só o dono libera ferramentas; só ferramenta liberada em conector ligado devolve o que a chamada
+-- precisa, e cada chamada fica no histórico sem os argumentos. Trocar o endereço desfaz a lista. Tudo é desfeito.
+begin;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000000a', true);
+set local role authenticated;
+select set_config('test.mcp', public.ai_save_connector(null, 'Agenda externa', 'https://tools.example.invalid/mcp', '2026-07-28', true, 'v1.cifra', 'abcd')::text, true);
+select expect(public.ai_connector_call(current_setting('test.mcp')::uuid, 'agenda.list') is null, 'ferramenta não liberada não roda');
+select public.ai_allow_connector_tools(current_setting('test.mcp')::uuid, array['agenda.list', 'agenda.add']);
+select expect((select c->'allowed_tools' from jsonb_array_elements(public.ai_admin_state()->'connectors') c) = '["agenda.list", "agenda.add"]'::jsonb, 'a tela vê as ferramentas liberadas');
+select expect(public.ai_connector_call(current_setting('test.mcp')::uuid, 'agenda.list')->>'key_ciphertext' = 'v1.cifra', 'liberada e ligada: devolve o necessário');
+select expect(public.ai_connector_call(current_setting('test.mcp')::uuid, 'agenda.remove') is null, 'outra ferramenta do mesmo servidor não roda');
+do $$ begin perform public.ai_allow_connector_tools(current_setting('test.mcp')::uuid, array['a', 'a']); raise exception 'FALHA: aceitou ferramenta repetida';
+exception when invalid_parameter_value then null; end $$;
+do $$ begin perform public.ai_allow_connector_tools(current_setting('test.mcp')::uuid, array['agenda list']); raise exception 'FALHA: aceitou nome fora do padrão';
+exception when check_violation then null; end $$;
+reset role;
+select expect((select count(*) from public.admin_audit_log where action = 'ai_connector_call') = 1, 'só a chamada autorizada deixa rastro');
+select expect((select details from public.admin_audit_log where action = 'ai_connector_call') = jsonb_build_object('connector', current_setting('test.mcp')::uuid, 'tool', 'agenda.list'), 'o rastro tem conector e ferramenta, sem argumentos');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-00000000000a', true);
+set local role authenticated;
+select public.ai_save_connector(current_setting('test.mcp')::uuid, 'Agenda externa', 'https://tools.example.invalid/mcp', '2026-07-28', false, null, null);
+select expect(public.ai_connector_call(current_setting('test.mcp')::uuid, 'agenda.list') is null, 'conector pausado não roda');
+select public.ai_save_connector(current_setting('test.mcp')::uuid, 'Agenda externa', 'https://tools.example.invalid/mcp', '2026-07-28', true, null, null);
+select expect(public.ai_connector_call(current_setting('test.mcp')::uuid, 'agenda.list') is not null, 'religado com o mesmo endereço, a lista continua');
+select public.ai_save_connector(current_setting('test.mcp')::uuid, 'Agenda externa', 'https://outro.example.invalid/mcp', '2026-07-28', true, null, null);
+select expect(public.ai_connector_call(current_setting('test.mcp')::uuid, 'agenda.list') is null, 'outro endereço é outro servidor: a lista zera');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000004', true);
+do $$ begin perform public.ai_allow_connector_tools(current_setting('test.mcp')::uuid, array['agenda.list']); raise exception 'FALHA: membro liberou ferramenta';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform public.ai_connector_call(current_setting('test.mcp')::uuid, 'agenda.list'); raise exception 'FALHA: membro executou ferramenta';
+exception when insufficient_privilege then null; end $$;
+reset role;
+rollback;

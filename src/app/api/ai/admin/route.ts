@@ -12,7 +12,8 @@ import { checkElevenLabsSession, ElevenLabsError } from '@/lib/voice/elevenlabs'
 import { prepareLiveSession } from '@/lib/voice/live-session';
 import { checkXaiSession, XaiSessionError } from '@/lib/voice/xai-session';
 import { credentialIssue } from '@/lib/ai/credentials';
-import { discoverMcp } from '@/lib/integrations/mcp';
+import { callMcpTool, discoverMcp } from '@/lib/integrations/mcp';
+import { googleAgendaReady } from '@/lib/google-agenda-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,7 +26,7 @@ export async function GET() {
   if (session instanceof Response) return session;
   const { data, error } = await session.client.rpc('ai_admin_state');
   if (error) return dbError(error);
-  return reply({ ok: true, data: { ...data, secretReady: aiSecretReady() } });
+  return reply({ ok: true, data: { ...data, secretReady: aiSecretReady(), googleAgenda: googleAgendaReady(process.env) } });
 }
 
 async function providerConfig(session: Session, provider: AiProviderId, model = '', connectionId?: string): Promise<AiConfig | Response> {
@@ -73,6 +74,23 @@ export async function POST(request: Request) {
         const inventory = await discoverMcp(result.data.url,token,result.data.protocol,AbortSignal.any([request.signal,AbortSignal.timeout(30_000)]));
         return reply({ ok:true,data:{ ...inventory,checkedAt:new Date().toISOString() } });
       } catch (cause) { return reply({ error:cause instanceof Error ? cause.message : 'Não consegui consultar o servidor MCP.' },502); }
+    }
+    case 'allow_connector_tools': {
+      const result = await session.client.rpc('ai_allow_connector_tools',{ connector_id:body.id,tools:body.tools });
+      return result.error ? dbError(result.error) : reply({ ok:true,data:null });
+    }
+    case 'call_connector_tool': {
+      // The database checks owner, enabled connector and allowlist, and leaves the audit trail before anything is sent.
+      const result = await session.client.rpc('ai_connector_call',{ connector_id:body.id,tool:body.tool });
+      if (result.error) return dbError(result.error);
+      if (!result.data) return reply({ error:'Ligue o conector e libere esta ferramenta antes de executar.' },409);
+      const limited = await requestBudget(session,'ai'); if (limited) return limited;
+      const started = Date.now();
+      try {
+        const token = result.data.key_ciphertext ? openKey(result.data.key_ciphertext) : '';
+        const output = await callMcpTool(result.data.url,token,result.data.protocol,body.tool,body.arguments,AbortSignal.any([request.signal,AbortSignal.timeout(30_000)]));
+        return reply({ ok:true,data:{ ...output,ms:Date.now()-started } });
+      } catch (cause) { return reply({ error:cause instanceof Error ? cause.message : 'Não consegui executar a ferramenta.' },502); }
     }
     case 'save_connection': {
       const key = body.key?.trim();

@@ -21,6 +21,8 @@ Use [.env.example](../.env.example) como modelo sem segredos. Mantenha fora do G
 | `GOOGLE_AUTH_ENABLED` | `false` | `false` até verificação externa; depois `true` |
 | `FACULDADE_CLOUD_WORKSPACE` | `false` | `false` até migração, RLS e API verificadas; depois `true` |
 | `FACULDADE_LOCAL_PREVIEW` | `false`; não deve ser necessário no contrato de demo | `false` em hospedagem; opção legada de prévia local |
+| `GOOGLE_CLIENT_ID` | Ausente/vazio | ID do cliente OAuth do Google para o [Google Agenda](#google-agenda); vazio desliga o recurso |
+| `GOOGLE_CLIENT_SECRET` | Ausente/vazio (a demo recusa subir com ele) | Segredo do mesmo cliente; só no servidor |
 
 `APP_MODE` é configuração da aplicação; não substitui `NODE_ENV`. `APP_ORIGIN` contém somente protocolo, host e porta, sem caminho, credenciais, query string ou fragmento. Use a mesma origem canônica nos fluxos que dependem dela.
 
@@ -71,6 +73,19 @@ O destino privado usa `APP_MODE=private` e deve recusar acesso sem configuraçã
 7. Valide a origem canônica no ambiente publicado, incluindo logout e recusa de acesso não autorizado.
 
 Uma instalação privada nova começa vazia. Dados na chave local existente devem ser preservados; nuvem não significa migração automática. Exportação e importação precisam ser decisões explícitas do proprietário.
+
+### Google Agenda
+
+Cada pessoa liga a própria conta Google à agenda "Jornada Plena" (Jornada → Google). O recurso fica desligado enquanto faltar qualquer um destes: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AI_KEYS_SECRET` (cifra a autorização guardada) e `FACULDADE_CLOUD_WORKSPACE=true`. A Administração › Inteligência artificial › Integrações mostra se está ativo.
+
+0. Aplique a migração `supabase/migrations/20261008230100_google_agenda.sql` (depois renomeie para a versão registrada e atualize o stub). Sem ela, não cadastre as variáveis abaixo: a Agenda chamaria funções que ainda não existem.
+1. No Google Cloud do projeto do login, ative a **Google Calendar API**.
+2. Na tela de consentimento OAuth, acrescente o escopo `https://www.googleapis.com/auth/calendar.app.created` (só agendas criadas pelo app). Confira no próprio console a classificação do escopo: se aparecer como sensível, o Google pede verificação do app antes de liberar para quem não está na lista de teste.
+3. No cliente OAuth (pode ser o mesmo do login), acrescente o URI de redirecionamento `https://<origem de produção>/api/google-agenda/callback`. Prévias da Vercel têm outra origem e não completam a conexão.
+4. Na Vercel (produção), cadastre `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` e publique de novo.
+5. Aceite real: em Agenda › Google Agenda e arquivo, conecte, confira a agenda "Jornada Plena" no Google, mude um compromisso na Jornada e veja a mudança chegar; depois desconecte e confira que a agenda saiu do Google.
+
+O que vai: compromissos, prazos e aulas de 7 dias atrás a 120 dias à frente (até 800), com título, data, horário, local e tipo; nunca anotações. A atualização corre depois da resposta, ao abrir o app e a cada gravação pelo app; mudanças feitas pelo assistente com o app fechado entram na próxima abertura. Uma atualização por vez por pessoa (reserva de 90 s no banco).
 
 ### Geração do editor e reversões
 

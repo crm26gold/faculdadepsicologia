@@ -21,7 +21,8 @@ O produto organiza a vida inteira da pessoa, não apenas os estudos. São três 
 | `src/lib/ai/` | Provedores, rotas por tarefa, tentativas alternativas, chaves cifradas e orçamento de consumo. |
 | `src/lib/voice/` e `src/app/api/ai/live/` | Adaptadores Gemini Live, GPT-Live, ElevenLabs e xAI/Grok com autorização temporária; troca de transporte somente antes de conectar. |
 | `src/lib/bot/`, `src/lib/whatsapp/` e `integrations/whatsapp-bridge/` | Telegram e a ponte privada do WhatsApp por QR, ambos vinculados à conta por código. |
-| `src/lib/integrations/` | Cadastro e descoberta de servidores MCP, sem execução de ferramentas. |
+| `src/lib/integrations/` | Servidores MCP externos: descoberta e execução das ferramentas liberadas, só pelo proprietário na Administração. `private.ai_connector_call` confere dono, conector ligado e lista liberada, e registra a chamada antes do envio. |
+| `src/lib/google-agenda.ts`, `src/lib/google-agenda-server.ts`, `src/app/api/google-agenda/` | Google Agenda (Jornada → Google): OAuth por pessoa com PKCE, autorização cifrada em `private.google_agenda_links` (uma linha por pessoa, só ela alcança), e a atualização que leva a agenda para a agenda "Jornada Plena". |
 | `src/lib/mcp/`, `src/app/api/mcp/` | Servidor MCP da Jornada para assistentes externos: chave pessoal (só o hash no banco), consulta e registro na vida pessoal de quem criou a chave; na parte coletiva, as ações da tela como a própria pessoa (`collective.ts`). |
 | `supabase/migrations/` | Migrações do workspace, Storage privado e proteção contra editores antigos, aplicadas no projeto privado. |
 | `tests/` | Testes de domínio, autenticação, restrições de produção e navegador. |
@@ -107,9 +108,9 @@ Desde a fundação multiusuário de 30/09, qualquer conta Google com e-mail veri
 
 ## Planejamento e integrações futuras
 
-O planejador calcula sugestões a partir de prazos e aulas e só adiciona um bloco quando a pessoa aceita; ele usa regras locais, não IA. A IA fica no assistente. O arquivo `.ics` é uma exportação manual; o aplicativo não recebe alterações feitas no calendário externo.
+O planejador calcula sugestões a partir de prazos e aulas e só adiciona um bloco quando a pessoa aceita; ele usa regras locais, não IA. A IA fica no assistente. O arquivo `.ics` é uma exportação manual. O Google Agenda é uma cópia que se atualiza sozinha num só sentido: a rota `/api/workspace` agenda a atualização com `after()` ao abrir o app e a cada gravação; `google_agenda_claim` deixa uma por vez por pessoa e pula a revisão já copiada. Cada item ganha um ID de evento fixo (hash do ID na Jornada) e uma marca do conteúdo, então só vai ao Google o que mudou, e eventos criados à mão naquela agenda não são tocados. O aplicativo não recebe alterações feitas no Google.
 
-Telegram e WhatsApp já resolvem a conta no servidor: o remetente só é aceito depois de vinculado por um código de uso único gerado na conta, e o texto de uma mensagem nunca escolhe a conta nem autoriza acesso. Exclusões e substituições exigem confirmação. O WhatsApp usa uma ponte por QR que roda no computador do proprietário, não a API oficial da Meta; detalhes em [WhatsApp da Jornada](WHATSAPP_JORNADA.md). Google Agenda e Drive ainda dependem de uma conexão OAuth própria. Consulte o [roadmap](ROADMAP.md).
+Telegram e WhatsApp já resolvem a conta no servidor: o remetente só é aceito depois de vinculado por um código de uso único gerado na conta, e o texto de uma mensagem nunca escolhe a conta nem autoriza acesso. Exclusões e substituições exigem confirmação. O WhatsApp usa uma ponte por QR que roda no computador do proprietário, não a API oficial da Meta; detalhes em [WhatsApp da Jornada](WHATSAPP_JORNADA.md). O Google Drive ainda depende de uma conexão OAuth própria. Consulte o [roadmap](ROADMAP.md).
 
 ## Evolução de 27/09
 

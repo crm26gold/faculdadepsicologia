@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { mcpToolName } from '@/lib/integrations/mcp-wire';
 
 // Everything the panel can switch without code: which provider, which model, for which task.
 export const aiProviderIds = ['gemini', 'vertex', 'google_cloud', 'openai', 'anthropic', 'deepseek', 'xai', 'mistral', 'groq', 'openrouter', 'compatible', 'elevenlabs'] as const;
@@ -50,11 +51,12 @@ export const aiTaskLabels: Record<AiTaskId, { name: string; help: string }> = {
 };
 
 export type AiAdminState = {
-  connectors?: { id: string; label: string; url: string; protocol: '2026-07-28' | '2025-11-25'; enabled: boolean; has_key: boolean; key_hint: string; updated_at: string }[];
+  connectors?: { id: string; label: string; url: string; protocol: '2026-07-28' | '2025-11-25'; enabled: boolean; has_key: boolean; key_hint: string; updated_at: string; allowed_tools?: string[] }[];
   connections?: { id: string; provider: AiProviderId; label: string; enabled: boolean; position: number; key_hint: string; updated_at: string; base_url?: string; gcp_project?: string; gcp_location?: string }[];
   providers: { id: AiProviderId; enabled: boolean; label: string; base_url: string; gcp_project: string; gcp_location: string; has_key: boolean; key_hint: string; updated_at: string }[];
   tasks: { id: AiTaskId; provider: AiProviderId | null; model: string; enabled: boolean; updated_at: string; connection_id?: string | null; routing_mode?: 'legacy' | 'fixed' | 'fallback' | 'auto'; fallbacks?: { connection_id: string; model: string }[] }[];
   secretReady: boolean;
+  googleAgenda?: boolean;
 };
 
 const text = (max: number) => z.string().trim().max(max);
@@ -64,6 +66,9 @@ export const aiAdminAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('save_connector'), id: z.uuid().nullable(), label: text(60).min(1), url: endpoint.refine(value => !!value), protocol: z.enum(['2026-07-28','2025-11-25']), enabled: z.boolean(), key: z.string().trim().max(12_000).nullable() }),
   z.object({ action: z.literal('remove_connector'), id: z.uuid() }),
   z.object({ action: z.literal('test_connector'), id: z.uuid() }),
+  z.object({ action: z.literal('allow_connector_tools'), id: z.uuid(), tools: z.array(z.string().regex(mcpToolName)).max(50).refine(tools => new Set(tools).size === tools.length, 'Ferramenta repetida.') }),
+  // Arguments are typed and confirmed by the owner; only an object goes, and it is bounded by the request limit.
+  z.object({ action: z.literal('call_connector_tool'), id: z.uuid(), tool: z.string().regex(mcpToolName), arguments: z.record(z.string(), z.unknown()) }),
   z.object({ action: z.literal('save_connection'), id: z.uuid().nullable(), provider: z.enum(aiProviderIds), label: text(60).min(1), enabled: z.boolean(), position: z.number().int().min(1).max(5), key: z.string().max(12_000).nullable(), base_url: endpoint.optional(), gcp_project: text(100).optional(), gcp_location: region.optional() }),
   z.object({ action: z.literal('save_route'), task: z.enum(aiTaskIds), provider: z.enum(aiProviderIds), connection_id: z.uuid().nullable(), model: text(120).min(1), enabled: z.boolean(), routing_mode: z.enum(['fixed', 'fallback', 'auto']), fallbacks: z.array(z.object({ connection_id: z.uuid(), model: text(120).min(1) })).max(2) }),
   z.object({ action: z.literal('remove_connection'), id: z.uuid() }),

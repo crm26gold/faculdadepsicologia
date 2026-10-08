@@ -1051,3 +1051,7 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 /* Campos no modo escuro: fundo escuro, texto claro e calendário/listas nativos no tema certo */
 [data-theme='dark'] input:not([type=radio], [type=checkbox], [type=file]), [data-theme='dark'] select, [data-theme='dark'] textarea { background: #102031; border-color: #3a5269; color: var(--ink); color-scheme: dark; }
 [data-theme='dark'] input::placeholder, [data-theme='dark'] textarea::placeholder { color: #8fa5ba; }
+/* Google Agenda na janela de exportação: separado do arquivo .ics que vem abaixo */
+.google-agenda-panel { display: grid; gap: 12px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
+.google-agenda-panel > * { margin: 0; }
+.google-agenda-panel h3 { display: flex; align-items: center; gap: 8px; }

@@ -724,6 +724,32 @@ test('MCP cadastra token transitório e consulta ferramentas sem executar comand
   await panel.screenshot({path:'test-results/admin-integrations-mobile-dark.png'});
 });
 
+test('MCP: libera ferramentas do catálogo e executa só a liberada, depois de confirmar os argumentos',async({page})=>{
+  const connector={id:'00000000-0000-4000-8000-000000000031',label:'Agenda MCP',url:'https://tools.example.invalid/mcp',protocol:'2026-07-28',enabled:true,has_key:false,key_hint:'',updated_at:'',allowed_tools:['agenda.list']};
+  const ai={secretReady:true,providers:[],connections:[],connectors:[connector],tasks:[]};
+  const posted=await mockApi(page,{home:homeFixture({master:true}),ai,onPost:post=>post.body.action==='test_connector' ? {tools:[{name:'agenda.list',description:'Consultar agenda',readOnly:true,inputSchema:'{"type":"object"}'},{name:'agenda.add',description:'Criar evento',readOnly:false,inputSchema:''}],hasMore:false,checkedAt:'2026-10-08T15:00:00Z'}
+    : post.body.action==='call_connector_tool' ? {isError:false,text:'3 eventos amanhã',structured:'',omitted:0,ms:420} : null});
+  await page.goto('/');await nav(page).getByRole('button',{name:'Administração',exact:true}).click();const panel=page.getByRole('region',{name:'Inteligência artificial'});
+  await panel.getByRole('button',{name:'Integrações',exact:true}).click();await panel.locator('.ai-mcp-settings details summary').first().click();
+  await expect(panel.getByText('1 ferramentas liberadas',{exact:false})).toBeVisible();
+  await panel.getByText('Executar',{exact:true}).click();
+  await panel.getByLabel('Argumentos (JSON)').fill('{"dia":"amanhã"}');
+  let confirmed='';page.once('dialog',dialog=>{confirmed=dialog.message();void dialog.accept();});
+  await panel.getByRole('button',{name:'Executar agenda.list'}).click();
+  await expect(panel.getByText('3 eventos amanhã')).toBeVisible();
+  expect(confirmed).toContain('"dia": "amanhã"');
+  expect(posted.find(row=>row.body.action==='call_connector_tool')?.body).toEqual({action:'call_connector_tool',id:connector.id,tool:'agenda.list',arguments:{dia:'amanhã'}});
+  page.once('dialog',dialog=>void dialog.dismiss());
+  await panel.getByRole('button',{name:'Executar agenda.list'}).click();
+  expect(posted.filter(row=>row.body.action==='call_connector_tool')).toHaveLength(1);
+  await panel.getByRole('button',{name:'Consultar ferramentas'}).click();
+  await expect(panel.getByText('só consulta (declarado)')).toBeVisible();
+  await expect(panel.getByRole('button',{name:'Executar agenda.add'})).toHaveCount(0);
+  await panel.getByRole('checkbox',{name:'agenda.add'}).check();
+  await panel.getByRole('button',{name:'Salvar ferramentas liberadas'}).click();
+  await expect.poll(()=>posted.find(row=>row.body.action==='allow_connector_tools')?.body).toEqual({action:'allow_connector_tools',id:connector.id,tools:['agenda.list','agenda.add']});
+});
+
 test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Para organizar', async ({ page }) => {
   const tomorrow = spDay(1);
   let configured = true;
@@ -932,7 +958,7 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   await expect(panel.locator('.ai-route-map').filter({ hasText: 'Chamada ao vivo' }).locator('li[data-state="incapable"]')).toHaveCount(0);
   await expect(panel.locator('.ai-issues')).toContainText('Conversa do assistente depende de uma só conexão');
   await expect(panel.locator('.ai-issues')).toContainText('Você tem 2 chaves de Google Gemini');
-  await expect(panel.getByText(/Hoje a Jornada só descobre as ferramentas/)).toBeVisible();
+  await expect(panel.getByText(/Só você executa ferramentas desses servidores/)).toBeVisible();
   await expect(panel.getByRole('button', { name: 'Ligar base para membros' })).toBeDisabled();
   await assistant.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/resource-map-desktop.png' });
   const card = panel.getByRole('form', { name: 'Reserva Gemini · Google Gemini (AI Studio)' });

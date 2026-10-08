@@ -1,13 +1,19 @@
-import { NextResponse } from 'next/server';
+import { after, NextResponse } from 'next/server';
 import { userSession } from '@/lib/supabase/server';
 import { emptyWorkspace, parseWorkspace, workspaceSchema, type Workspace } from '@/lib/workspace';
 import { applyChanges, workspaceChangesSchema } from '@/lib/workspace-sync';
 import { z } from 'zod';
 import { applicationOrigin } from '@/lib/auth-input';
 import { demoRequested } from '@/lib/config';
+import { googleAgendaReady, syncGoogleAgenda } from '@/lib/google-agenda-server';
 
 export const dynamic = 'force-dynamic';
 const response = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { 'Cache-Control': 'private, no-store' } });
+// Opening the app and each save bring the Google Agenda copy up to date, after the answer goes out. The database
+// claim makes a revision already copied cost one query, and skips people without a connection.
+const followGoogleAgenda = (session: NonNullable<Awaited<ReturnType<typeof userSession>>>, workspace: () => Workspace, revision: number) => {
+  if (googleAgendaReady(process.env)) after(() => syncGoogleAgenda(session, workspace, revision).catch(() => null));
+};
 export async function GET(request: Request) {
   if (demoRequested(process.env)) return response({ error: 'Indisponível na demonstração.' }, 404);
   const session = await userSession();
@@ -23,6 +29,7 @@ export async function GET(request: Request) {
   }
   const { data, error } = await session.client.from('personal_workspaces').select('data,revision').eq('owner_id', session.user.id).maybeSingle();
   if (error) return response({ error: 'Não foi possível carregar. Verifique a configuração do banco.' }, 503);
+  if (data) followGoogleAgenda(session, () => parseWorkspace(JSON.stringify(data.data)), data.revision);
   return response({ ...(data ?? { data: emptyWorkspace(), revision: 0 }), accountId: session.user.id });
 }
 export async function PUT(request: Request) {
@@ -61,6 +68,7 @@ export async function PUT(request: Request) {
     if (outdatedEditor(error?.message)) return response({ error: outdated }, 409);
     if (error?.code === 'PT409' || error?.code === '40001') return response({ error: 'Outra sessão alterou os dados. Exporte suas alterações e recarregue antes de continuar.' }, 409);
     if (error) return response({ error: 'Não foi possível salvar. Suas alterações continuam nesta tela; exporte uma cópia.' }, 503);
+    followGoogleAgenda(session, () => body.data, data);
     return response({ revision: data });
   }
   // Only what changed: merged onto the current version, validated whole and saved at that version. A write from
@@ -84,6 +92,7 @@ export async function PUT(request: Request) {
     if (outdatedEditor(error?.message)) return response({ error: outdated }, 409);
     if (error?.code === 'PT409' || error?.code === '40001') continue;
     if (error) return response({ error: 'Não foi possível salvar. Suas alterações continuam nesta tela; exporte uma cópia.' }, 503);
+    followGoogleAgenda(session, () => applied.workspace, data);
     // Someone else wrote since this screen loaded: it gets the merged version back to stay in step.
     const joined = currentRevision !== body.revision || applied.conflicts.length > 0;
     return response({ revision: data, ...(joined ? { data: applied.workspace } : {}), ...(applied.conflicts.length ? { conflicts: applied.conflicts } : {}) });
