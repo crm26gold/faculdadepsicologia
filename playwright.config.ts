@@ -11,6 +11,7 @@ export default defineConfig({
   projects: [
     { name: 'desktop', testMatch: /(?:workspace|agenda)\.spec\.ts/, use: { viewport: { width: 1440, height: 1080 } } },
     { name: 'mobile', testMatch: /(?:workspace|agenda)\.spec\.ts/, use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
+    { name: 'mcp-view', testMatch: /mcp-print-view\.spec\.ts/ },
     ...(!process.env.PLAYWRIGHT_BASE_URL ? [
       { name: 'private', testMatch: /login\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3005' } },
       { name: 'local-data', testMatch: /persistence\.spec\.ts/, use: { baseURL: 'http://127.0.0.1:3006' } },

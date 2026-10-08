@@ -11,7 +11,9 @@ import { botDatabase } from '../supabase/bot';
 import type { JobOutcome } from '../assistant-jobs';
 import { registerCollectiveTools } from './collective';
 import { registerAdminTools } from './admin';
-import { screenModel, screens, screenText } from '../screens/screen-model';
+import { screenModel, screens, screenText, type RecentChange } from '../screens/screen-model';
+import { screenOfView } from '../screens/names';
+import { PRINT_VIEW_MIME, PRINT_VIEW_URI, printView } from './print-view';
 import { renderScreen } from '../screens/render';
 import { captureLink, CAPTURE_LINK_MINUTES } from '../capture-link';
 import { applicationOrigin } from '../auth-input';
@@ -39,7 +41,15 @@ const queryOutput = z.looseObject({
 });
 const trashOutput = z.object({ encontrados: z.number().int(), mensagem: z.string().optional(),
   itens: z.array(z.object({ id: z.string(), titulo: z.string(), secao: z.string(), excluido_em: z.string() })).optional() });
-const screenOutput = z.object({ tela: z.enum(screens), resumo: z.string(), link: z.string().nullable() });
+const screenOutput = z.object({ tela: z.enum(screens), resumo: z.string(), link: z.string().nullable(),
+  mudancas: z.array(z.string()).optional().describe('Com ultima_acao: o que esta conexão acabou de fazer, nas palavras do recibo.'),
+  alterado_em: z.string().optional().describe('Com ultima_acao: quando foi a alteração.') });
+const clock = (iso: string) => {
+  const date = new Date(iso);
+  const day = (value: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(value);
+  const time = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(date);
+  return day(date) === day(new Date()) ? time : `${new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' }).format(date)} ${time}`;
+};
 const uploadOutput = z.object({ link: z.string(), destino: z.string(), validoPorMinutos: z.number(), instrucao: z.string() });
 const generatedAt = () => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date());
 
@@ -59,7 +69,8 @@ Ferramentas:
 - consultar_jornada: section "busca" procura no título de todas as seções e no texto das anotações, com o trecho onde aparece; havendo mais resultados, repita a busca com o "cursor" devolvido; "pendentes" traz anotações em Para organizar, compromissos atrasados, contas vencidas e lançamentos sem categoria; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
 - registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
-- ver_tela devolve o print de uma tela. A imagem aparece só para você, não para a pessoa: sempre entregue o link que vem junto ("abra para ver o print"). Ele abre no aparelho em que ela está conectada à Jornada.
+- ver_tela devolve o print de uma tela. No Claude e no ChatGPT ele aparece na própria conversa; em outros aplicativos a imagem chega só para você. Entregue também o link que vem junto ("abra para ver o print"), que abre no aparelho em que a pessoa está conectada à Jornada.
+- "Me mostra o que você fez" ou "como ficou?": depois de registrar, chame ver_tela com ultima_acao: true. A tela do que mudou vem com as alterações no topo e os itens destacados.
 - Arquivos: você não consegue repassar foto, áudio, vídeo ou arquivo que vê na conversa. Use enviar_arquivo (com o destino, se ela disser) e entregue o link; vale 10 minutos. Links de sites vão em registrar_na_jornada com anotacao e link.
 - Parte coletiva: consultar_coletivo para ler e obter IDs; gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e minha_conta para agir, com o papel da pessoa em cada sala. Exclusões coletivas ficam para confirmar no aplicativo.
 - Administração (só o administrador geral): consultar_administracao e administrar.
@@ -80,7 +91,7 @@ export async function mcpAuthenticate(db: Database, header: string | null) {
 }
 
 export function jornadaMcpServer(db: Database, access: { hash: string; canWrite: boolean }) {
-  const server = new McpServer({ name: 'jornada-plena', version: '1.1.0' }, { instructions: mcpInstructions });
+  const server = new McpServer({ name: 'jornada-plena', version: '1.2.0' }, { instructions: mcpInstructions });
   const context = async () => {
     const { data, error } = await db.rpc('mcp_context', { server_secret: botServerSecret(), token: access.hash });
     if (error || !data) throw new Error('Não consegui abrir a Jornada desta chave agora.');
@@ -183,24 +194,40 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
 
   server.registerTool('ver_tela', {
     title: 'Ver uma tela da Jornada (print)',
-    description: 'Devolve uma imagem com as informações atuais de uma tela da vida pessoal (meu_dia, financas, agenda, habitos, metas ou anotacoes) e um link para a pessoa abrir o mesmo print. Use quando a pessoa pedir um print, uma foto da tela ou para ver como ficou depois de registrar algo. A imagem chega só para você: entregue o link à pessoa. A imagem é montada com os dados da conta, não é captura do monitor.',
-    inputSchema: z.object({ tela: z.enum(screens) }),
+    description: 'Devolve o print com as informações atuais de uma tela da vida pessoal (meu_dia, financas, agenda, habitos, metas ou anotacoes) e um link para a pessoa abrir o mesmo print. No Claude e no ChatGPT, o print aparece na própria conversa. Com ultima_acao: true, mostra o que esta conexão acabou de fazer: sem tela, escolhe a tela do que mudou; lista as alterações no topo e destaca os itens. Use quando a pessoa pedir um print, "me mostra o que você fez" ou para ver como ficou. A imagem é montada com os dados da conta, não é captura do monitor.',
+    inputSchema: z.object({ tela: z.enum(screens).optional().describe('Sem tela, use ultima_acao para mostrar a tela do que mudou.'),
+      ultima_acao: z.boolean().default(false).describe('Mostra no print o que esta conexão acabou de fazer, nas últimas 24 horas.') }),
     outputSchema: screenOutput,
     annotations: { readOnlyHint: true, openWorldHint: false },
-  }, async ({ tela }) => {
+    // MCP Apps: hosts that render apps show the print inside the conversation; the legacy key keeps older hosts.
+    _meta: { ui: { resourceUri: PRINT_VIEW_URI }, 'ui/resourceUri': PRINT_VIEW_URI },
+  }, async ({ tela, ultima_acao }) => {
+    if (!tela && !ultima_acao) return { ...text('Diga qual tela mostrar (meu_dia, financas, agenda, habitos, metas ou anotacoes) ou use ultima_acao: true para a tela do que você acabou de fazer.'), isError: true };
     const current = await context();
     const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
-    const model = screenModel(data, tela, today());
+    // What this connection just did comes from the server's own receipt, never from the model's words.
+    let recent: RecentChange | undefined;
+    if (ultima_acao) {
+      const last = await db.rpc('mcp_last_outcome', { server_secret: botServerSecret(), token: access.hash });
+      const receipt = last.error ? null : last.data as { created_at?: string; outcome: JobOutcome } | null;
+      const applied = receipt?.outcome.applied ?? [];
+      recent = { at: receipt?.created_at ? clock(receipt.created_at) : '', labels: applied.map(item => item.label), ids: applied.flatMap(item => item.id ? [item.id] : []) };
+      tela ??= applied.length ? screenOfView(applied[0].view) : 'meu_dia';
+    }
+    const screen = tela ?? 'meu_dia';
+    const model = screenModel(data, screen, today(), recent);
     const png = await renderScreen(model, generatedAt());
-    // Chat apps show a tool's image to the model, not to the person: the link lets the person open the same print.
+    // The link lets the person open the same print where the conversation cannot show it.
     const origin = applicationOrigin(process.env);
-    const link = origin ? `${origin}/api/tela/${tela}.png` : null;
+    const link = origin ? `${origin}/api/tela/${screen}.png` : null;
     return { content: [{ type: 'image' as const, data: Buffer.from(png).toString('base64'), mimeType: 'image/png' },
       { type: 'text' as const, text: `${screenText(model)}${link ? `
 
 Link do print para a pessoa abrir (vale com o login dela na Jornada): ${link}` : ''}` }],
-      structuredContent: { tela, resumo: screenText(model), link } };
+      structuredContent: { tela: screen, resumo: screenText(model), link, ...(recent ? { mudancas: recent.labels, ...(recent.at ? { alterado_em: recent.at } : {}) } : {}) } };
   });
+  server.registerResource('print-da-tela', PRINT_VIEW_URI, { title: 'Print da Jornada', description: 'Mostra na conversa o print devolvido por ver_tela.', mimeType: PRINT_VIEW_MIME },
+    async uri => ({ contents: [{ uri: uri.href, mimeType: PRINT_VIEW_MIME, text: printView }] }));
   server.registerTool('enviar_arquivo', {
     title: 'Link para enviar foto, áudio, vídeo ou arquivo',
     description: `Gera um link de ${CAPTURE_LINK_MINUTES} minutos que abre o Registro rápido da Jornada já no destino (caderno, matéria ou área; sem destino, Para organizar). Use quando a pessoa quiser guardar uma foto, áudio, vídeo ou arquivo: você não consegue repassar o arquivo em si. Ela abre o link no aparelho em que já está conectada à Jornada e envia por lá, com o próprio login, para o armazenamento privado (até 25 MB). Nada é gravado até ela enviar. Para guardar só um link de site, use registrar_na_jornada com anotacao e link.`,

@@ -19,6 +19,17 @@ test('o print de Finanças usa o saldo e as contas que a tela mostra', () => {
   assert.match(screenText(model).replace(/\s/g, ' '), /Saldo agora .*: R\$ 50,00/);
 });
 
+test('"me mostra o que você fez": o print traz as alterações no topo e marca os itens alterados', () => {
+  const recent = { at: '14:32', labels: ['Conta a pagar: Aluguel · R$ 1.200,00 · 10/10'], ids: ['t2'] };
+  const model = screenModel(data(), 'financas', today, recent);
+  assert.deepEqual(model.changes, { at: '14:32', labels: recent.labels });
+  assert.deepEqual(model.sections[1].rows.map(row => [row.primary, row.recent ?? false]), [['Aluguel', true]]);
+  assert.match(screenText(model), /^Finanças · .*\nO que mudou agora \(14:32\): Conta a pagar: Aluguel/);
+  assert.match(screenText(model), /Aluguel · .* · agora/);
+  assert.match(screenText(screenModel(data(), 'meu_dia', today, { at: '', labels: [], ids: [] })), /Nenhuma alteração desta conexão nas últimas 24 horas/);
+  assert.equal(screenModel(data(), 'financas', today).changes, undefined, 'sem pedido, o print continua igual');
+});
+
 test('o print de Meu dia e da Agenda trazem o compromisso de hoje', () => {
   assert.equal(screenModel(data(), 'meu_dia', today).sections[0].rows[0].primary, 'Prova de Ética');
   const agenda = screenModel(data(), 'agenda', today);
