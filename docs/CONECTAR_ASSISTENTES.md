@@ -17,7 +17,8 @@ O assistente nunca faz mais do que a pessoa faria na tela. No banco, `public.mcp
 - **enviar_arquivo:** o Claude e o ChatGPT não conseguem repassar a uma ferramenta a foto, o áudio ou o vídeo que você mostra na conversa. Por isso, "guarda essa foto no caderno Receitas" devolve um link de 10 minutos que abre o **Registro rápido** da Jornada já com o destino escolhido. Abra no aparelho em que você já está conectado à Jornada e envie por lá: o arquivo vai para o seu armazenamento privado (até 25 MB), com o seu login. O link leva só o destino e a validade; gerar o link não grava nada. Links de sites entram direto: "salva esse link em Leituras" vira uma anotação com o link.
 - **desfazer** e **lixeira:** "desfaz isso" desfaz a última ação desta conexão (das últimas 24 horas), e só o que ninguém mudou depois. Tudo o que sai do espaço pessoal, pela tela ou por qualquer assistente, vai para a lixeira por 30 dias (até 2 MB por conta, os mais antigos saem primeiro). "Restaura aquilo" traz de volta. Até 5 exclusões por pedido são diretas; acima disso, e para substituir o texto inteiro de uma anotação, a IA pede confirmação.
 - **minha_conta:** muda o nome exibido da pessoa. Aceitar termos e excluir a conta são só pela tela.
-- **ver_tela:** o "print" de uma tela (meu_dia, financas, agenda, habitos, metas ou anotacoes). A imagem é montada no servidor com os dados atuais da conta (não é captura do monitor) e vem acompanhada do resumo em texto. O Claude e o ChatGPT mostram a imagem de uma ferramenta só para o modelo. Por isso vem junto um link do print (`/api/tela/<tela>.png`), que abre com o seu login da Jornada. Peça, por exemplo, "registre R$ 100 de saldo inicial e me mande um print".
+- **ver_tela:** o "print" de uma tela (meu_dia, financas, agenda, habitos, metas ou anotacoes). A imagem é montada no servidor com os dados atuais da conta (não é captura do monitor) e vem acompanhada do resumo em texto. No Claude e no ChatGPT, o print aparece **dentro da conversa** (MCP Apps: a ferramenta aponta para a tela `ui://jornada/print-v1.html`, que só mostra o resultado recebido e não acessa a rede). Em aplicativos sem essa tela, a imagem chega só ao modelo, e por isso vem junto um link do print (`/api/tela/<tela>.png`), que abre com o seu login da Jornada.
+- **"Me mostra o que você fez":** com `ultima_acao: true`, o `ver_tela` lê o recibo da última alteração desta conexão (das últimas 24 horas), escolhe a tela do que mudou, lista as alterações no topo e destaca os itens com o selo "agora". As palavras vêm do recibo do servidor, nunca do modelo. Peça, por exemplo, "registre a conta de luz de R$ 180 para hoje e me mostre como ficou".
 - **consultar_administracao** (só o administrador geral): contas, uso e limites, e o mapa de recursos de IA, sem chaves. Para qualquer outra pessoa, o banco recusa.
 - **administrar** (só o administrador geral): propõe abrir ou fechar o acesso livre e escolher qual empresa de IA atende cada tarefa. O pedido aparece em **Meu dia**, e a rota do painel aplica a mudança quando o administrador confirma. Ficam só na tela: plano, origem, validade do Pro, créditos e recursos de uma conta (Administração › Contas), dar ou tirar administrador, chaves de API, declarações de privacidade das fontes, o pareamento do WhatsApp e o token do Telegram.
 
@@ -59,6 +60,14 @@ Na tela de autorização você escolhe se o aplicativo pode **registrar e editar
 Confira também o endereço e a URL de retorno mostrados no consentimento: o nome é escolhido pelo próprio aplicativo e não comprova sua identidade. Reutilizar um token de renovação já gasto revoga a família inteira, inclusive a autorização sucessora. Nesse caso, conecte novamente. O registro de novos aplicativos tem limites por origem e globais; respostas OAuth usam dados mínimos e nunca exibem tokens.
 
 Os menus desses aplicativos mudam com frequência e podem exigir plano pago ou modo desenvolvedor. Se o caminho acima não existir, procure por "conector personalizado" ou "servidor MCP remoto" na ajuda do aplicativo.
+
+## Depois de uma atualização do MCP
+
+O servidor é um só para todos os aplicativos: uma atualização vale ao mesmo tempo para o Claude, o ChatGPT, o Codex e o Gemini CLI, sem reinstalar nada. O que cada um precisa é reler a lista de ferramentas:
+
+- **ChatGPT:** em [chatgpt.com/plugins](https://chatgpt.com/plugins), abra a Jornada; na página de detalhes do app, use **Atualizar** (Refresh) para puxar as ferramentas, as descrições e as instruções novas. Depois, comece uma conversa nova.
+- **Claude:** comece uma conversa nova. Se a novidade não aparecer, em Configurações › Conectores, desconecte e conecte de novo a Jornada.
+- **Claude Code, Codex e Gemini CLI:** feche e abra a sessão do terminal.
 
 ## Limites e segurança
 

@@ -338,7 +338,7 @@ test('servidor MCP: enviar_arquivo gera link de 10 minutos para o Registro rápi
   assert.match(missing.result.content[0].text, /Não encontrei/);
 });
 
-test('servidor MCP 1.1.0: cada leitura traz o mesmo conteúdo em texto e estruturado, nas duas versões do protocolo', async () => {
+test('servidor MCP 1.2.0: cada leitura traz o mesmo conteúdo em texto e estruturado, nas duas versões do protocolo', async () => {
   const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
   const { mcpRequest, mcpResult } = await import('../src/lib/integrations/mcp-wire');
   const { db, state } = fakeDatabase({ canWrite: false });
@@ -347,7 +347,7 @@ test('servidor MCP 1.1.0: cada leitura traz o mesmo conteúdo em texto e estrutu
   const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
   const call = async (id: number, method: string, params: Record<string, unknown> = {}) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, method, params)));
   const init = await call(1, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'teste', version: '1' } });
-  assert.equal(init.result.serverInfo.version, '1.1.0');
+  assert.equal(init.result.serverInfo.version, '1.2.0');
   const tools = (await call(2, 'tools/list')).result.tools as { name: string; outputSchema?: { type: string } }[];
   assert.deepEqual(tools.filter(tool => tool.outputSchema).map(tool => tool.name).sort(), ['consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'enviar_arquivo', 'lixeira', 'ver_tela']);
   assert.ok(tools.every(tool => !tool.outputSchema || tool.outputSchema.type === 'object'), 'saída sempre em objeto, que os clientes de 2025 aceitam');
@@ -371,6 +371,38 @@ test('servidor MCP 1.1.0: cada leitura traz o mesmo conteúdo em texto e estrutu
   assert.ok(answered.structuredContent.found > 0);
 });
 
+test('servidor MCP: "me mostra o que você fez" abre a tela do que mudou, com o recibo, e o print aparece na conversa', async () => {
+  const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
+  const { PRINT_VIEW_URI, PRINT_VIEW_MIME } = await import('../src/lib/mcp/print-view');
+  const { db } = fakeDatabase({ canWrite: true });
+  const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
+  const call = async (id: number, method: string, params: Record<string, unknown> = {}) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, method, params)));
+  const tool = ((await call(1, 'tools/list')).result.tools as { name: string; _meta?: unknown }[]).find(item => item.name === 'ver_tela')!;
+  assert.deepEqual(tool._meta, { ui: { resourceUri: PRINT_VIEW_URI }, 'ui/resourceUri': PRINT_VIEW_URI }, 'Claude e ChatGPT sabem qual tela abrir');
+  const listed = (await call(2, 'resources/list')).result.resources as { uri: string; mimeType: string }[];
+  assert.ok(listed.some(item => item.uri === PRINT_VIEW_URI && item.mimeType === PRINT_VIEW_MIME));
+  const [page] = (await call(3, 'resources/read', { uri: PRINT_VIEW_URI })).result.contents as { mimeType: string; text: string }[];
+  assert.equal(page.mimeType, 'text/html;profile=mcp-app');
+  assert.match(page.text, /ui\/initialize/);
+  assert.doesNotMatch(page.text, /fetch\(|XMLHttpRequest|<script src/, 'a página não acessa a rede: mostra só o resultado que recebe');
+
+  assert.equal((await call(4, 'tools/call', { name: 'ver_tela', arguments: {} })).result.isError, true, 'sem tela e sem ultima_acao, pede qual tela');
+  const before = (await call(5, 'tools/call', { name: 'ver_tela', arguments: { ultima_acao: true } })).result;
+  assert.equal(before.structuredContent.tela, 'meu_dia');
+  assert.deepEqual(before.structuredContent.mudancas, []);
+  assert.match(before.content[1].text, /Nenhuma alteração desta conexão/);
+
+  await call(6, 'tools/call', { name: 'registrar_na_jornada', arguments: { acoes: [{ type: 'financeiro', flow: 'expense', description: 'Conta de luz', amount: 180, date: dateKey(), pending: true }] } });
+  const shown = (await call(7, 'tools/call', { name: 'ver_tela', arguments: { ultima_acao: true } })).result;
+  assert.notEqual(shown.isError, true, JSON.stringify(shown));
+  assert.equal(shown.structuredContent.tela, 'financas', 'a tela é escolhida pelo que mudou');
+  assert.equal(shown.structuredContent.mudancas.length, 1);
+  assert.match(shown.structuredContent.mudancas[0], /Conta de luz/);
+  assert.match(shown.content[1].text, /O que mudou agora.*Conta de luz/);
+  assert.match(shown.content[1].text, /Conta de luz · .* · agora/, 'o item novo vem marcado na tela');
+  assert.equal(shown.content[0].type, 'image');
+});
+
 // What a connected ChatGPT or Claude already relies on: names in order, titles, risk hints and both schemas. A change here
 // breaks connections people made, so it has to be on purpose: run with UPDATE_MCP_CONTRACT=1 and say why in the PR.
 test('contrato do MCP: nomes, ordem, anotações e esquemas iguais à cópia salva', async () => {
@@ -378,7 +410,7 @@ test('contrato do MCP: nomes, ordem, anotações e esquemas iguais à cópia sal
   const { db } = fakeDatabase({ canWrite: true });
   const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
   const tools = (await body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/list')))).result.tools as Record<string, unknown>[];
-  const contract = tools.map(tool => ({ name: tool.name, title: tool.title, annotations: tool.annotations, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema ?? null }));
+  const contract = tools.map(tool => ({ name: tool.name, title: tool.title, annotations: tool.annotations, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema ?? null, _meta: tool._meta ?? null }));
   const file = `${process.cwd()}/tests/fixtures/mcp-contract.json`;
   if (process.env.UPDATE_MCP_CONTRACT === '1') writeFileSync(file, `${JSON.stringify(contract, null, 1)}\n`);
   assert.deepEqual(contract, JSON.parse(readFileSync(file, 'utf8')), 'O contrato do MCP mudou. Se foi de propósito, rode com UPDATE_MCP_CONTRACT=1 e explique no PR.');

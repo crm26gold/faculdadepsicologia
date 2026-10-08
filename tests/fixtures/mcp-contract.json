@@ -105,7 +105,8 @@
     "today"
    ],
    "additionalProperties": {}
-  }
+  },
+  "_meta": null
  },
  {
   "name": "registrar_na_jornada",
@@ -708,7 +709,8 @@
     "acoes"
    ]
   },
-  "outputSchema": null
+  "outputSchema": null,
+  "_meta": null
  },
  {
   "name": "lixeira",
@@ -766,7 +768,8 @@
     "encontrados"
    ],
    "additionalProperties": false
-  }
+  },
+  "_meta": null
  },
  {
   "name": "desfazer",
@@ -782,7 +785,8 @@
    "$schema": "https://json-schema.org/draft/2020-12/schema",
    "properties": {}
   },
-  "outputSchema": null
+  "outputSchema": null,
+  "_meta": null
  },
  {
   "name": "ver_tela",
@@ -796,6 +800,7 @@
    "$schema": "https://json-schema.org/draft/2020-12/schema",
    "properties": {
     "tela": {
+     "description": "Sem tela, use ultima_acao para mostrar a tela do que mudou.",
      "type": "string",
      "enum": [
       "meu_dia",
@@ -805,11 +810,13 @@
       "metas",
       "anotacoes"
      ]
+    },
+    "ultima_acao": {
+     "default": false,
+     "description": "Mostra no print o que esta conexão acabou de fazer, nas últimas 24 horas.",
+     "type": "boolean"
     }
-   },
-   "required": [
-    "tela"
-   ]
+   }
   },
   "outputSchema": {
    "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -834,6 +841,17 @@
       "string",
       "null"
      ]
+    },
+    "mudancas": {
+     "description": "Com ultima_acao: o que esta conexão acabou de fazer, nas palavras do recibo.",
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    },
+    "alterado_em": {
+     "description": "Com ultima_acao: quando foi a alteração.",
+     "type": "string"
     }
    },
    "required": [
@@ -842,6 +860,12 @@
     "link"
    ],
    "additionalProperties": false
+  },
+  "_meta": {
+   "ui": {
+    "resourceUri": "ui://jornada/print-v1.html"
+   },
+   "ui/resourceUri": "ui://jornada/print-v1.html"
   }
  },
  {
@@ -888,7 +912,8 @@
     "instrucao"
    ],
    "additionalProperties": false
-  }
+  },
+  "_meta": null
  },
  {
   "name": "consultar_coletivo",
@@ -943,7 +968,8 @@
     "dados"
    ],
    "additionalProperties": false
-  }
+  },
+  "_meta": null
  },
  {
   "name": "gerenciar_salas",
@@ -1345,7 +1371,8 @@
     "acao"
    ]
   },
-  "outputSchema": null
+  "outputSchema": null,
+  "_meta": null
  },
  {
   "name": "gerenciar_trabalhos",
@@ -1818,7 +1845,8 @@
     "acao"
    ]
   },
-  "outputSchema": null
+  "outputSchema": null,
+  "_meta": null
  },
  {
   "name": "gerenciar_contatos",
@@ -1926,7 +1954,8 @@
     "acao"
    ]
   },
-  "outputSchema": null
+  "outputSchema": null,
+  "_meta": null
  },
  {
   "name": "minha_conta",
@@ -1964,7 +1993,8 @@
     "acao"
    ]
   },
-  "outputSchema": null
+  "outputSchema": null,
+  "_meta": null
  },
  {
   "name": "consultar_administracao",
@@ -2011,7 +2041,8 @@
     "dados"
    ],
    "additionalProperties": false
-  }
+  },
+  "_meta": null
  },
  {
   "name": "administrar",
@@ -2121,6 +2152,7 @@
     "acao"
    ]
   },
-  "outputSchema": null
+  "outputSchema": null,
+  "_meta": null
  }
 ]
