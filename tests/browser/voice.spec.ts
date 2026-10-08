@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { demoWorkspace, dateKey, parseWorkspace, type Workspace } from '../../src/lib/workspace';
 import { applyCommands, executionSummary, type CommandAction } from '../../src/lib/commands';
 import { jobInputSchema, type AssistantJob } from '../../src/lib/assistant-jobs';
+import { answerSave, type SaveBody } from './workspace-saves';
 
 type Fixture = { workspace: Workspace; saves: Workspace[]; revision: number; jobs: Map<string, AssistantJob>; socket?: WebSocketRoute; sent: Record<string, unknown>[]; delaySave?: () => Promise<void> };
 async function fixture(page: Page) {
@@ -16,7 +17,14 @@ async function fixture(page: Page) {
       settings: { open_access: true }, spaces: [], my_parts: [], to_review: [], consents: [{ document: 'terms', version: '2026-09-30' }, { document: 'privacy', version: '2026-09-30' }],
     } };
     if (path === '/api/workspace') {
-      if (request.method() === 'PUT') { const value = request.postDataJSON(); state.saves.push(value.data); await state.delaySave?.(); state.workspace = value.data; state.revision = value.revision + 1; body = { revision: state.revision }; }
+      if (request.method() === 'PUT') {
+        const value = request.postDataJSON() as SaveBody;
+        state.saves.push(answerSave({ data: state.workspace, revision: state.revision }, value).data);
+        await state.delaySave?.();
+        // Merged when it lands, onto whatever an assistant saved meanwhile, as the server does.
+        const saved = answerSave({ data: state.workspace, revision: state.revision }, value);
+        state.workspace = saved.data; state.revision = saved.revision; body = saved.answer;
+      }
       else body = { data: state.workspace, revision: state.revision, accountId: '11111111-1111-4111-8111-111111111111' };
     }
     if (path === '/api/conversations') {
