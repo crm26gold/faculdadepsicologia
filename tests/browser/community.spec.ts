@@ -2,6 +2,7 @@ import { test, expect, type Page, type Route } from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 import { settleAnimations } from './axe-ready';
 import { waitingRequests, type AssistantJob } from '../../src/lib/assistant-jobs';
+import { savedVersions } from './workspace-saves';
 // Calendar day in Brazil (the browser runs in America/Sao_Paulo; CI runs in UTC, which is already tomorrow after 21h).
 const spDay = (offset = 0) => { const base = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()); const date = new Date(`${base}T12:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 
@@ -19,6 +20,8 @@ const P2 = 'cccccccc-0000-4000-8000-000000000002';
 const P3 = 'cccccccc-0000-4000-8000-000000000003';
 const POLL = 'dddddddd-0000-4000-8000-000000000001';
 const TERMS = '2026-09-30';
+// The space the mocked server starts with: empty, as for someone who just signed up.
+const EMPTY_SPACE ={ version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} };
 const text = (value: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: value }] }] });
 
 function homeFixture(options: { master?: boolean; consents?: boolean; openAccess?: boolean } = {}) {
@@ -117,7 +120,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
     }
     if (url.pathname === '/api/workspace') {
       if (request.method() === 'PUT') return json(route, { revision: 2 });
-      return json(route, { data: { version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} }, revision: 1, accountId: ME });
+      return json(route, { data: EMPTY_SPACE, revision: 1, accountId: ME });
     }
     if (url.pathname === '/api/me') return json(route, { ok: true, data: home });
     if (url.pathname === '/api/contacts') return json(route, { ok: true, data: [{ id: 'c1', name: 'Amiga da turma', email: '', phone: '', birthdate: `2000-${spDay().slice(5, 10)}`, notes: '', created_at: '' }] });
@@ -323,7 +326,7 @@ test('com o app aberto, uma mudança feita pela IA em outro lugar abre a tela e 
 
 test('lixeira: o que foi excluído aparece em Minha conta, Restaurar traz de volta e Excluir de vez pede confirmação', async ({ page }) => {
   await mockApi(page);
-  const saved: Record<string, unknown>[] = [];
+  const saved = savedVersions(EMPTY_SPACE);
   const purged: string[] = [];
   const rows = [
     { id: 'abababab-0000-4000-8000-0000000000d1', collection: 'tasks', item_id: 'lx-task', item: { id: 'lx-task', title: 'Dentista excluído', subjectId: '', date: spDay(), kind: 'Compromisso', done: false, minutes: 30 }, deleted_at: new Date().toISOString() },
@@ -334,7 +337,7 @@ test('lixeira: o que foi excluído aparece em Minha conta, Restaurar traz de vol
     return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: rows }) });
   });
   await page.route('**/api/workspace**', async route => {
-    if (route.request().method() === 'PUT') { saved.push(route.request().postDataJSON().data); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1 + saved.length }) }); }
+    if (route.request().method() === 'PUT') { saved.take(route.request().postDataJSON()); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1 + saved.versions.length }) }); }
     return route.fallback();
   });
   await page.goto('/#settings');
@@ -343,7 +346,7 @@ test('lixeira: o que foi excluído aparece em Minha conta, Restaurar traz de vol
   await trash.getByRole('listitem').filter({ hasText: 'Dentista excluído' }).getByRole('button', { name: 'Restaurar' }).click();
   await expect(trash.getByRole('status')).toHaveText('Restaurado: Dentista excluído (Agenda).');
   await expect(trash.getByRole('listitem').filter({ hasText: 'Dentista excluído' })).toHaveCount(0);
-  await expect.poll(() => saved.some(data => JSON.stringify(data).includes('lx-task'))).toBe(true);
+  await expect.poll(() => saved.versions.some(data => data.tasks.some(task => task.id === 'lx-task'))).toBe(true);
   const note = trash.getByRole('listitem').filter({ hasText: 'Ideia antiga' });
   await note.getByRole('button', { name: 'Excluir de vez' }).click();
   expect(purged).toEqual([]);
@@ -389,8 +392,8 @@ test('trabalho em grupo: parte, entrega em nome, revisão e documento final padr
 
 test('trabalho em grupo: "Na minha agenda" tocado duas vezes deixa uma entrega só, ligada ao trabalho', async ({ page }, info) => {
   await mockApi(page);
-  const saved: { tasks?: { title: string; date: string; assignmentId?: string }[] }[] = [];
-  page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saved.push(request.postDataJSON().data); });
+  const saved = savedVersions(EMPTY_SPACE);
+  page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saved.take(request.postDataJSON()); });
   await page.goto('/#community');
   await page.getByRole('button', { name: /Pendente|Em andamento/ }).first().click();
   await expect(page.getByRole('heading', { name: 'Direitos Humanos', level: 2 })).toBeVisible();
@@ -399,8 +402,8 @@ test('trabalho em grupo: "Na minha agenda" tocado duas vezes deixa uma entrega s
   await expect(page.getByRole('status').filter({ hasText: 'Entrega adicionada à sua agenda pessoal.' })).toBeVisible();
   await add.click();
   await expect(page.getByRole('status').filter({ hasText: 'Já está na sua agenda (20/10).' })).toBeVisible();
-  await expect.poll(() => saved.length).toBeGreaterThan(0);
-  expect(saved.at(-1)?.tasks?.filter(task => task.title === 'Entregar: Direitos Humanos').map(task => [task.date, task.assignmentId])).toEqual([['2026-10-20', WORK]]);
+  await expect.poll(() => saved.versions.length).toBeGreaterThan(0);
+  expect(saved.versions.at(-1)?.tasks.filter(task => task.title === 'Entregar: Direitos Humanos').map(task => [task.date, task.assignmentId])).toEqual([['2026-10-20', WORK]]);
   await page.screenshot({ path: `test-results/na-minha-agenda-${info.project.name}.png` });
 });
 
@@ -479,8 +482,8 @@ test('no celular, salas, trabalho e administração cabem na tela sem rolagem la
 test('conectado no celular, a barra tem o Registrar no centro e o primeiro curso vai para a nuvem', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await mockApi(page);
-  const saves: { data: { courses?: unknown[]; editorGeneration?: number } }[] = [];
-  page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saves.push(request.postDataJSON()); });
+  const saves = savedVersions(EMPTY_SPACE);
+  page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saves.take(request.postDataJSON()); });
   await page.goto('/');
   const bar = page.getByRole('navigation', { name: 'Atalhos mobile' });
   await expect(bar.getByRole('button')).toHaveText(['Hoje', 'Agenda', 'Registrar', 'Estudos', 'Mais']);
@@ -496,8 +499,10 @@ test('conectado no celular, a barra tem o Registrar no centro e o primeiro curso
   await page.getByLabel('Tipo', { exact: true }).selectOption('pos');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Adicionar matéria', exact: true })).toBeVisible();
-  await expect.poll(() => saves.at(-1)?.data.courses).toEqual([expect.objectContaining({ name: 'Pós em Pedagogia', kind: 'pos', status: 'active' })]);
-  expect(saves.at(-1)?.data.editorGeneration).toBe(9);
+  await expect.poll(() => saves.versions.at(-1)?.courses).toEqual([expect.objectContaining({ name: 'Pós em Pedagogia', kind: 'pos', status: 'active' })]);
+  expect(saves.versions.at(-1)?.editorGeneration).toBe(9);
+  expect(saves.bodies.at(-1)?.editorGeneration).toBe(9);
+  expect(saves.bodies.every(body => body.changes && !body.data), 'cada gravação leva só o que mudou').toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
@@ -727,8 +732,8 @@ test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Pa
       { type: 'compromisso', title: 'Dentista', date: tomorrow, time: '15:00', kind: 'Consulta', area: 'Saúde física' },
       { type: 'financeiro', flow: 'expense', description: 'Mercado', amount: 32, category: 'Alimentação', date: spDay() }] }
     : { configured: false }) : null });
-  const saves: { data: { tasks: { title: string }[]; transactions?: { description: string }[] } }[] = [];
-  page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith('/api/workspace')) saves.push(request.postDataJSON()); });
+  const saves = savedVersions(EMPTY_SPACE);
+  page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith('/api/workspace')) saves.take(request.postDataJSON()); });
   await page.goto('/');
   await nav(page).getByRole('button', { name: 'Assistente', exact: true }).click();
   const input = page.getByLabel('Mensagem para o assistente');
@@ -745,12 +750,12 @@ test('assistente com IA entende o pedido, executa e desfaz; sem IA, guarda em Pa
   const command = posted.find(item => item.url === '/api/ai/command')!.body;
   expect(command.message).toBe('amanhã às 15h dentista e gastei 32 no mercado');
   expect(String(command.context)).toMatch(/^Hoje: /);
-  await expect.poll(() => saves.at(-1)?.data.tasks.map(task => task.title)).toEqual(['Dentista']);
+  await expect.poll(() => saves.versions.at(-1)?.tasks.map(task => task.title)).toEqual(['Dentista']);
   expect((await new AxeBuilder({ page }).include('.assistant-panel').analyze()).violations).toEqual([]);
   await page.getByRole('button', { name: 'Desfazer' }).click();
   await expect(page.getByText(/\(desfeito e salvo\)/)).toBeVisible();
-  await expect.poll(() => saves.at(-1)?.data.tasks.length).toBe(0);
-  expect(saves.at(-1)?.data.transactions ?? []).toEqual([]);
+  await expect.poll(() => saves.versions.at(-1)?.tasks.length).toBe(0);
+  expect(saves.versions.at(-1)?.transactions ?? []).toEqual([]);
   await input.fill('e quanto gastei hoje?');
   await page.getByRole('button', { name: 'Enviar mensagem' }).click();
   await expect.poll(() => posted.filter(item => item.url === '/api/ai/command').length).toBe(2);
@@ -775,14 +780,14 @@ test('assistente: falha da IA oferece tentar de novo (pergunta não vira anotaç
       ? route.fulfill({ status: 502, contentType: 'application/json', body: JSON.stringify({ error: 'Google Gemini (AI Studio) recusou (503): alta demanda.' }) })
       : route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { configured: true, model: 'gemini-3.5-flash', reply: 'Seu saldo agora é R$ 1.200,00.', actions: [] } }) });
   });
-  const saves: { data: { notes: unknown[] } }[] = [];
-  page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith('/api/workspace')) saves.push(request.postDataJSON()); });
+  const saves = savedVersions(EMPTY_SPACE);
+  page.on('request', request => { if (request.method() === 'PUT' && request.url().endsWith('/api/workspace')) saves.take(request.postDataJSON()); });
   await page.goto('/');
   await nav(page).getByRole('button', { name: 'Assistente', exact: true }).click();
   await page.getByLabel('Mensagem para o assistente').fill('qual o meu saldo hoje');
   await page.getByRole('button', { name: 'Enviar mensagem' }).click();
   await expect(page.getByText(/Não consegui responder agora\. .*alta demanda/)).toBeVisible();
-  expect(saves.some(save => save.data.notes.length > 0)).toBe(false);
+  expect(saves.versions.some(doc => doc.notes.length > 0)).toBe(false);
   await page.getByRole('button', { name: 'Tentar de novo' }).click();
   await expect(page.getByText('Seu saldo agora é R$ 1.200,00.')).toBeVisible();
   await expect(page.getByText(/Não consegui responder agora/)).toHaveCount(0);
@@ -967,10 +972,10 @@ test('o que os assistentes fizeram: lista as alterações das conexões e Desfaz
   await mockApi(page, { home: homeFixture({ master: false }) });
   const REQ = 'cdcdcdcd-0000-4000-8000-000000000001', DONE = 'cdcdcdcd-0000-4000-8000-000000000002';
   const task = { id: 't-ia', title: 'Comprar pão', subjectId: '', date: spDay(), kind: 'Tarefa', done: false, minutes: 10 };
-  const saved: { tasks: { id: string }[] }[] = [];
+  const start = { ...EMPTY_SPACE, tasks: [task] }, saved = savedVersions(start);
   await page.route('**/api/workspace**', async route => {
-    if (route.request().method() === 'PUT') { saved.push(route.request().postDataJSON().data); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1 + saved.length }) }); }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { version: 1, subjects: [], tasks: [task], notes: [], sessions: [], classes: [], term: {} }, revision: 1, accountId: 'x' }) });
+    if (route.request().method() === 'PUT') { saved.take(route.request().postDataJSON()); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1 + saved.versions.length }) }); }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: start, revision: 1, accountId: 'x' }) });
   });
   await page.route(/\/api\/mcp-tokens(\?.*)?$/, route => {
     const target = new URL(route.request().url()).searchParams.get('atividade');
@@ -988,6 +993,6 @@ test('o que os assistentes fizeram: lista as alterações das conexões e Desfaz
   await expect(history.getByRole('listitem').filter({ hasText: 'ideia' }).getByRole('button', { name: 'Desfazer' })).toHaveCount(0);
   await history.getByRole('listitem').filter({ hasText: 'Comprar pão' }).getByRole('button', { name: 'Desfazer' }).click();
   await expect(history.getByRole('status')).toHaveText('Desfeito: Tarefa: Comprar pão · hoje.');
-  await expect.poll(() => saved.at(-1)?.tasks.some(item => item.id === 't-ia')).toBe(false);
+  await expect.poll(() => saved.versions.at(-1)?.tasks.some(item => item.id === 't-ia')).toBe(false);
   expect((await new AxeBuilder({ page }).include('.assistant-activity').analyze()).violations).toEqual([]);
 });

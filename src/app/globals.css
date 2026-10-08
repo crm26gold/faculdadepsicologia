@@ -725,7 +725,8 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 
 /* PROFILE SETTINGS (BROKER REFERENCE STYLE) */
 .profile-settings-layout { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 24px; }
-@media (max-width: 1000px) { .profile-settings-layout { grid-template-columns: 1fr; } }
+/* minmax(0, …): a single column narrows with the phone instead of growing to its widest content. */
+@media (max-width: 1000px) { .profile-settings-layout { grid-template-columns: minmax(0, 1fr); } }
 .profile-form-column, .profile-preview-column { display: flex; flex-direction: column; gap: 20px; }
 .profile-editor-panel { background: #fff; border-radius: 12px; border: 1px solid var(--line); padding: 20px; }
 .photo-upload-row { display: flex; align-items: center; gap: 16px; padding: 12px; background: #f7f9fc; border-radius: 10px; border: 1px solid var(--line); }

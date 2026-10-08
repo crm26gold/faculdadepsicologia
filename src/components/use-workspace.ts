@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CURRENT_EDITOR_GENERATION, dateKey, demoWorkspace, emptyWorkspace, LOCAL_KEY, parseWorkspace, type Workspace } from '@/lib/workspace';
 import { ensureCourses } from '@/lib/courses';
+import { mergeChanges, workspaceChanges } from '@/lib/workspace-sync';
 
 export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const [data, setData] = useState<Workspace>(emptyWorkspace);
@@ -13,12 +14,15 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const [blocked, setBlocked] = useState(false);
   const current = useRef(data);
   const saved = useRef(data);
+  // The version the server has, as this screen last knew it: each save sends only what differs from it.
+  const remote = useRef(data);
   const baseline = useRef<string | null>(null);
   const key = useRef(LOCAL_KEY);
   const revision = useRef(0);
   const owner = useRef<string | undefined>(undefined);
   const saving = useRef(false);
   const stop = useRef(false);
+  const refreshing = useRef<{ account?: string; promise: Promise<Workspace> } | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -38,6 +42,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
           const result = await response.json();
           if (!response.ok) throw new Error(result.error);
           initial = parseWorkspace(JSON.stringify(result.data));
+          remote.current = initial;
           revision.current = result.revision;
           owner.current = result.accountId;
         }
@@ -70,6 +75,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
   const flush = useCallback(async () => {
     if (saving.current || stop.current) return;
     saving.current = true;
+    let joined: 'joined' | 'conflict' | undefined;
     try {
       while (saved.current !== current.current) {
         const snapshot = current.current;
@@ -81,14 +87,29 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
           localStorage.setItem(key.current, raw);
           baseline.current = raw;
         } else {
-          const response = await fetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: snapshot, revision: revision.current, accountId: owner.current }) });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error);
-          revision.current = result.revision;
+          const changes = workspaceChanges(remote.current, snapshot);
+          if (changes) {
+            const response = await fetch('/api/workspace', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ changes, revision: revision.current, editorGeneration: CURRENT_EDITOR_GENERATION, accountId: owner.current }) });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error);
+            revision.current = result.revision;
+            if (result.data) {
+              // Another device or assistant saved in between: the server merged both. Edits made on this screen
+              // while the request was out go on top of the merged version and are saved next.
+              const merged = parseWorkspace(JSON.stringify(result.data));
+              const pending = workspaceChanges(snapshot, current.current);
+              const next = pending ? parseWorkspace(JSON.stringify(mergeChanges(merged, pending).merged)) : merged;
+              remote.current = merged; saved.current = merged; current.current = next; setData(next);
+              joined = result.conflicts?.length ? 'conflict' : joined ?? 'joined';
+              continue;
+            }
+          }
+          remote.current = snapshot;
         }
         saved.current = snapshot;
       }
-      setStatus(mode === 'local' ? 'Salvo neste navegador' : 'Sincronizado');
+      setStatus(mode === 'local' ? 'Salvo neste navegador' : joined === 'conflict' ? 'Sincronizado · um item também mudou em outro lugar; ficou a versão mais recente'
+        : joined ? 'Sincronizado · juntei com o que mudou em outro lugar' : 'Sincronizado');
     } catch (reason) {
       stop.current = true; setBlocked(true); setStatus('Não salvo');
       setError(reason instanceof Error ? reason.message : 'Falha ao salvar. Exporte uma cópia antes de sair.');
@@ -123,7 +144,16 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
       await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
-  async function refresh(expectedAccount = owner.current) {
+  // The assistant's replies and the live follow may ask at the same moment: they share one request, since a second
+  // one would find the space already replaced and refuse.
+  function refresh(expectedAccount = owner.current) {
+    const running = refreshing.current;
+    if (running && running.account === expectedAccount) return running.promise;
+    const promise = reload(expectedAccount).finally(() => { if (refreshing.current?.promise === promise) refreshing.current = null; });
+    refreshing.current = { account: expectedAccount, promise };
+    return promise;
+  }
+  async function reload(expectedAccount: string | undefined) {
     await ensureSaved();
     if (mode !== 'cloud') return current.current;
     const snapshot = current.current;
@@ -136,7 +166,7 @@ export function useWorkspace(mode: 'local' | 'cloud' | 'demo') {
     if (stop.current || saving.current || current.current !== snapshot || saved.current !== snapshot) throw new Error('Seu espaço mudou neste aparelho. Aguarde a sincronização antes de recuperar o pedido.');
     if (result.revision < revision.current) throw new Error('Recebi uma versão anterior do espaço. Tente atualizar novamente.');
     revision.current = result.revision;
-    current.current = next; saved.current = next; setData(next); setStatus('Sincronizado');
+    current.current = next; saved.current = next; remote.current = next; setData(next); setStatus('Sincronizado');
     return next;
   }
   return { data, ready, demo, status, error, blocked, update, resetDemo, ensureSaved, refresh, revisionNow: () => revision.current, snapshotNow: () => current.current };

@@ -303,7 +303,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [aiTouch, setAiTouch] = useState<Touched | null>(null);
   function pauseFollow() { setFollowPaused(true); setAiTouch(null); try { localStorage.setItem(FOLLOW_KEY, 'off'); } catch {} }
   useLiveFollow({ enabled: cloud && ready && !demo && !followPaused && !!home, accountId: home?.account.user_id, revision: revisionNow, snapshot: snapshotNow, refresh,
-    onTouched: items => { navigate(items[0].view); setAiTouch({ ...items[0] }); } });
+    // Mid-conversation the assistant's own answer tells what changed: the screen stays and only the notice shows.
+    onTouched: items => { if (view !== 'assistant' && !assistantOpen) navigate(items[0].view); setAiTouch({ ...items[0] }); } });
   function navigate(next: View) {
     const modal = !!window.history.state?.modal;
     if (modal || next !== view || (next === 'studies' && studiesRoute.kind === 'course')) {
