@@ -20,6 +20,21 @@ export const entityView = {
 
 export const normalized = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR').trim();
 export const recordTitle = (item: RecordItem) => String(item.title ?? item.name ?? item.description ?? item.front ?? item.id);
+const stable = (value: unknown): string => Array.isArray(value) ? `[${value.map(stable).join(',')}]`
+  : value && typeof value === 'object' ? `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stable((value as Record<string, unknown>)[key])}`).join(',')}}`
+  : JSON.stringify(value) ?? 'null';
+/** A short fingerprint of a whole record (cyrb53): any change to any field gives another one. */
+export function recordVersion(item: unknown) {
+  const text = stable(item);
+  let h1 = 0xdeadbeef, h2 = 0x41c6ce57;
+  for (let index = 0; index < text.length; index++) {
+    const code = text.charCodeAt(index);
+    h1 = Math.imul(h1 ^ code, 2654435761); h2 = Math.imul(h2 ^ code, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
 export function records(data: Workspace, entity: Entity): RecordItem[] {
   if (entity === 'aula') return data.classes.map(item => ({ ...item, title: `${data.subjects.find(subject => subject.id === item.subjectId)?.name ?? 'Aula'} · dia ${item.weekday} às ${item.startTime}` }));
   return (entity === 'area' ? lifeAreas(data) : data[entityCollection[entity]] ?? []) as RecordItem[];

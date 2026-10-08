@@ -7,6 +7,7 @@ import { api, formatDay } from './client';
 import { DocView } from './doc-view';
 import { docFonts, statusLabels, type AssignmentDetail, type DocStyle, type Part } from '@/lib/community';
 import { docIsEmpty, docToHtml, escapeHtml, sanitizeDoc, wordCount, type PartDoc } from '@/lib/doc';
+import type { AgendaAssignment, AgendaLink } from '@/lib/assignment-agenda';
 
 const PartEditor = dynamic(() => import('./part-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 
@@ -14,13 +15,15 @@ export function styleOf(style: DocStyle) {
   return { font: style.font ?? 'Arial', size: style.size ?? 12, spacing: style.spacing ?? 1.5, align: style.align ?? 'justify' };
 }
 
-export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda }: {
+export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda, onMoveAgendaTask }: {
   id: string; me: string; onBack: () => void; onChanged: () => void;
-  onAddToAgenda?: (title: string, date: string) => boolean;
+  onAddToAgenda?: (assignment: AgendaAssignment) => AgendaLink | null;
+  onMoveAgendaTask?: (taskId: string, due: string) => boolean;
 }) {
   const [detail, setDetail] = useState<AssignmentDetail | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [agendaMove, setAgendaMove] = useState<{ taskId: string; due: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<'parts' | 'final' | 'about'>('parts');
   const [selected, setSelected] = useState('');
@@ -103,11 +106,23 @@ export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda }: {
         <small>{done} de {detail.parts.length} partes entregues</small>
       </div>
       <div className="button-row">
-        {assignment.due_date && onAddToAgenda && <button className="button outline" onClick={() => setMessage(onAddToAgenda(`Entregar: ${assignment.title}`, assignment.due_date!) ? 'Entrega adicionada à sua agenda pessoal.' : 'Não foi possível adicionar à agenda agora.')}><CalendarPlus size={16} aria-hidden="true" />Na minha agenda</button>}
+        {assignment.due_date && onAddToAgenda && <button className="button outline" onClick={() => {
+          const link = onAddToAgenda({ id: assignment.id, title: assignment.title, due: assignment.due_date! });
+          setAgendaMove(link?.status === 'moved' ? { taskId: link.task.id, due: link.due } : null);
+          setMessage(!link ? 'Não foi possível adicionar à agenda agora.'
+            : link.status === 'added' ? 'Entrega adicionada à sua agenda pessoal.'
+            : link.status === 'exists' ? `Já está na sua agenda (${formatDay(link.task.date, { day: '2-digit', month: '2-digit' })}${link.task.done ? ', concluída' : ''}).`
+            : `Já está na sua agenda para ${formatDay(link.task.date, { day: '2-digit', month: '2-digit' })}, mas a entrega agora é ${formatDay(link.due, { day: '2-digit', month: '2-digit' })}.`);
+        }}><CalendarPlus size={16} aria-hidden="true" />Na minha agenda</button>}
         {canLead && <button className="button outline" onClick={() => setEditing('assignment')}><Pencil size={16} aria-hidden="true" />Editar trabalho</button>}
       </div>
     </header>
-    {message && <p className="cm-message" role="status">{message}</p>}
+    {message && <p className="cm-message" role="status">{message}
+      {agendaMove && onMoveAgendaTask && <> <button type="button" className="text-button" onClick={() => {
+        const moved = onMoveAgendaTask(agendaMove.taskId, agendaMove.due);
+        setAgendaMove(null);
+        setMessage(moved ? `Data da entrega atualizada na sua agenda: ${formatDay(agendaMove.due, { day: '2-digit', month: '2-digit' })}.` : 'Não foi possível atualizar a data agora.');
+      }}>Mudar para {formatDay(agendaMove.due, { day: '2-digit', month: '2-digit' })}</button></>}</p>}
 
     <div className="planning-nav-bar" role="tablist" aria-label="Seções do trabalho">
       <button type="button" role="tab" aria-selected={tab === 'parts'} className={`planning-tab ${tab === 'parts' ? 'active' : ''}`} onClick={() => setTab('parts')}>Partes <span className="count-pill">{detail.parts.length}</span></button>

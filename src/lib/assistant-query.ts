@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { addDays, dateKey, daySchema, type Workspace } from './workspace';
-import { entities, normalized, records, recordTitle, type Entity } from './assistant-records';
+import { entities, normalized, records, recordTitle, recordVersion, type Entity, type RecordItem } from './assistant-records';
 import { commandContext } from './commands';
 import { todayAgenda } from './today';
 import { isUnorganized } from './capture';
@@ -11,8 +11,39 @@ export const assistantQuery = z.object({
   search: z.string().max(160).default(''),
   from: daySchema.optional(), to: daySchema.optional(),
   includeContent: z.boolean().default(false),
+  cursor: z.string().max(40).optional().describe('Só na busca: o "cursor" da página anterior, para continuar a mesma busca.'),
+  limit: z.number().int().min(1).max(40).optional().describe('Só na busca: itens por página, de 1 a 40 (padrão 40).'),
 });
 const weekdays = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+const named: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+/** A note's HTML as plain words, for searching and excerpts. */
+export const plainText = (html: string) => html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]*>/g, ' ')
+  .replace(/&(#x[\da-f]+|#\d+|[a-z]+);/gi, (whole, code: string) => {
+    if (code[0] !== '#') return named[code.toLowerCase()] ?? whole;
+    const point = Number(code[1] === 'x' || code[1] === 'X' ? `0${code.slice(1)}` : code.slice(1));
+    return Number.isInteger(point) && point > 0 && point <= 0x10ffff ? String.fromCodePoint(point) : whole;
+  }).replace(/\s+/g, ' ').trim();
+const fold = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+/** Up to 236 characters around where `wanted` (already normalized) appears in `text`, or null when it does not. */
+export function excerpt(text: string, wanted: string, size = 236) {
+  // Folded one character at a time, so a position in the folded text maps back to the original.
+  let folded = '';
+  const origin: number[] = [];
+  for (let index = 0; index < text.length; index++) for (const char of fold(text[index])) { folded += char; origin.push(index); }
+  const hit = wanted ? folded.indexOf(wanted) : -1;
+  if (hit < 0) return null;
+  const start = origin[hit], end = origin[hit + wanted.length - 1] + 1;
+  const from = Math.max(0, Math.min(start - Math.floor((size - (end - start)) / 2), text.length - size));
+  const to = Math.min(text.length, from + size);
+  return `${from > 0 ? '…' : ''}${text.slice(from, to).trim()}${to < text.length ? '…' : ''}`;
+}
+// The cursor carries where the next page starts and which search it belongs to.
+const searchKey = (search: string) => recordVersion(['busca', normalized(search)]).slice(0, 8);
+function readCursor(cursor: string, key: string) {
+  const match = /^(\d{1,5})\.([a-z0-9]{1,16})$/.exec(cursor);
+  if (!match || match[2] !== key) throw new Error('Esse cursor não vale para esta busca. Repita a busca sem cursor.');
+  return Number(match[1]);
+}
 // Related facts the screens show together, so one query answers "who teaches the 18:10 class".
 // A missing value is null: the assistant says it is not registered instead of filling it in.
 function relations(data: Workspace) {
@@ -25,6 +56,8 @@ const empty = (where: string[], search: string) => ({ found: 0, message: `Não e
 export function queryWorkspace(data: Workspace, input: unknown, today: string) {
   const query = assistantQuery.parse(input);
   const related = relations(data);
+  // Each item read carries its record's version; a class is versioned as stored, without the computed title.
+  const version = (entity: Entity, item: RecordItem) => recordVersion(entity === 'aula' ? data.classes.find(entry => entry.id === item.id) ?? item : item);
   if (query.section === 'resumo') return { today, summary: commandContext(data, today) };
   // The single settings, read only when asked: opening balance, semester and profile without the photo.
   if (query.section === 'configuracoes') {
@@ -46,7 +79,8 @@ export function queryWorkspace(data: Workspace, input: unknown, today: string) {
       entries.push(...todayAgenda(data, day).map(entry => {
         const facts = related.subject(entry.subjectId);
         return { id: entry.task?.id ?? entry.id, title: entry.title, date: day, weekday: weekdays[new Date(`${day}T12:00:00`).getDay()], time: entry.time ?? null, endTime: entry.endTime ?? null,
-          done: entry.done, kind: entry.kind, location: entry.location || null, ...facts, subjectId: entry.subjectId || null, recurring: !!entry.session };
+          done: entry.done, kind: entry.kind, location: entry.location || null, ...facts, subjectId: entry.subjectId || null, recurring: !!entry.session,
+          ...(entry.task ? { versao: recordVersion(entry.task) } : {}) };
       }).filter(entry => !query.search || [entry.title, entry.course, entry.professor, entry.subject].some(value => value && normalized(value).includes(normalized(query.search)))));
     }
     const items = entries.slice(0, 40);
@@ -58,7 +92,7 @@ export function queryWorkspace(data: Workspace, input: unknown, today: string) {
     const list = data.sessions.filter(item => (!query.from || item.date >= query.from) && (!query.to || item.date <= query.to)
       && (!query.search || normalized(item.activity ?? '').includes(normalized(query.search))))
       .toSorted((a, b) => (b.endedAt ?? b.date).localeCompare(a.endedAt ?? a.date)).slice(0, 20)
-      .map(item => ({ id: item.id, date: item.date, activity: item.activity || null, minutes: Math.round(item.minutes), startedAt: time(item.startedAt), endedAt: time(item.endedAt) }));
+      .map(item => ({ id: item.id, date: item.date, activity: item.activity || null, minutes: Math.round(item.minutes), startedAt: time(item.startedAt), endedAt: time(item.endedAt), versao: recordVersion(item) }));
     return { today, items: list, ...(list.length ? { found: list.length } : empty(['registros de foco'], query.search)) };
   }
   // What is waiting for a decision, for "vamos organizar os pendentes": the assistant walks it one item at a time.
@@ -69,30 +103,42 @@ export function queryWorkspace(data: Workspace, input: unknown, today: string) {
     const bills = (data.transactions ?? []).filter(row => row.status === 'pending' && row.date < today).toSorted((a, b) => a.date.localeCompare(b.date));
     const loose = (data.transactions ?? []).filter(row => row.category === 'Outros').toSorted((a, b) => b.date.localeCompare(a.date));
     const groups = {
-      anotacoesParaOrganizar: { total: notes.length, items: notes.slice(0, limit).map(note => ({ id: note.id, title: note.title, updatedAt: note.updatedAt })) },
-      compromissosAtrasados: { total: late.length, items: late.slice(0, limit).map(task => ({ id: task.id, title: task.title, date: task.date, ...related.subject(task.subjectId) })) },
-      contasVencidas: { total: bills.length, items: bills.slice(0, limit).map(row => ({ id: row.id, description: row.description, date: row.date, amountInReais: row.amountCents / 100, flow: row.type })) },
-      lancamentosSemCategoria: { total: loose.length, items: loose.slice(0, limit).map(row => ({ id: row.id, description: row.description, date: row.date, amountInReais: row.amountCents / 100, flow: row.type })) },
+      anotacoesParaOrganizar: { total: notes.length, items: notes.slice(0, limit).map(note => ({ id: note.id, title: note.title, updatedAt: note.updatedAt, versao: recordVersion(note) })) },
+      compromissosAtrasados: { total: late.length, items: late.slice(0, limit).map(task => ({ id: task.id, title: task.title, date: task.date, ...related.subject(task.subjectId), versao: recordVersion(task) })) },
+      contasVencidas: { total: bills.length, items: bills.slice(0, limit).map(row => ({ id: row.id, description: row.description, date: row.date, amountInReais: row.amountCents / 100, flow: row.type, versao: recordVersion(row) })) },
+      lancamentosSemCategoria: { total: loose.length, items: loose.slice(0, limit).map(row => ({ id: row.id, description: row.description, date: row.date, amountInReais: row.amountCents / 100, flow: row.type, versao: recordVersion(row) })) },
     };
     const found = Object.values(groups).reduce((sum, group) => sum + group.total, 0);
     return { today, ...groups, ...(found ? { found } : { found: 0, message: 'Nada pendente: anotações organizadas, compromissos em dia, contas pagas e lançamentos com categoria.' }) };
   }
-  // One search across every section: titles, names and descriptions, with the section of each hit.
+  // One search across every section: titles and names everywhere, plus the text of notes and the back of flashcards
+  // with the excerpt where it appears. Title hits come first; "cursor" continues the same search on the next page.
   if (query.section === 'busca') {
     if (!query.search.trim()) throw new Error('Diga o que procurar.');
     const wanted = normalized(query.search);
-    const hits = entities.flatMap(entity => records(data, entity)
-      .filter(item => normalized(recordTitle(item)).includes(wanted) || (entity === 'materia' && normalized(String(item.professor ?? '')).includes(wanted)))
-      .slice(0, 10).map(item => ({ section: entity, id: item.id, title: recordTitle(item), ...(item.date ? { date: item.date } : {}) })));
-    const where = [...entities];
-    return { today, search: query.search, items: hits.slice(0, 40), ...(hits.length ? { found: hits.length } : empty(where, query.search)) };
+    const key = searchKey(query.search);
+    const offset = query.cursor === undefined ? 0 : readCursor(query.cursor, key);
+    const hits = entities.flatMap(entity => records(data, entity).flatMap(item => {
+      const title = recordTitle(item);
+      const inTitle = normalized(title).includes(wanted) || (entity === 'materia' && normalized(String(item.professor ?? '')).includes(wanted));
+      const body = entity === 'anotacao' ? plainText(String(item.content ?? '')) : entity === 'flashcard' ? String(item.back ?? '') : '';
+      const trecho = inTitle || !body ? null : excerpt(body, wanted);
+      if (!inTitle && !trecho) return [];
+      return [{ rank: inTitle ? 0 : 1, hit: { section: entity, id: item.id, title, ...(item.date ? { date: item.date } : {}), ...(trecho ? { trecho } : {}),
+        ...(entity === 'anotacao' ? { lugar: placeTrail(data, placeOf(item as never)).join(' › ') } : {}), versao: version(entity, item) } }];
+    })).toSorted((a, b) => a.rank - b.rank).map(entry => entry.hit);
+    const pageSize = query.limit ?? 40;
+    const next = offset + pageSize < hits.length ? `${offset + pageSize}.${key}` : null;
+    return { today, search: query.search, items: hits.slice(offset, offset + pageSize), ...(next ? { cursor: next } : {}),
+      ...(hits.length ? { found: hits.length } : empty([...entities], query.search)) };
   }
   const items = records(data, query.section as Entity).filter(item => matches(query.section === 'anotacao' ? { ...item, date: dateKey(new Date(String(item.updatedAt))) } : item));
   const content = query.section === 'anotacao' && query.includeContent;
   // Full notes are sent only for an explicit, targeted request, never as ambient voice context.
   if (content && !query.search) throw new Error('Escolha uma anotação pelo título ou ID para ler o conteúdo.');
   const pageSize = content ? 5 : 30;
-  const selected = items.slice(0, pageSize).map(item => Object.fromEntries(Object.entries(item).filter(([key]) => !['content', 'completedDates'].includes(key))));
+  const selected = items.slice(0, pageSize).map(item => ({ ...Object.fromEntries(Object.entries(item).filter(([key]) => !['content', 'completedDates'].includes(key))),
+    versao: version(query.section as Entity, item) }) as Record<string, unknown>);
   // Classes and subjects carry their course, subject and professor, with null for what is not registered.
   if (query.section === 'aula') selected.forEach((item, index) => { const source = items[index];
     Object.assign(item, related.subject(String(source.subjectId)), { weekdayName: weekdays[Number(source.weekday)], endTime: source.endTime ?? null, location: source.location || null }); });
