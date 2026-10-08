@@ -9,7 +9,7 @@ Vocabulário fixo; mantenha cada sentido separado:
 
 - **Entrada:** a pessoa conversa no ChatGPT ou no Claude, e o assistente chama as ferramentas da Jornada (`/api/mcp`). O modelo é pago pelo plano da pessoa.
 - **Plano como motor:** o assistente da própria Jornada usa o plano da pessoa. Só existe por programa oficial do fornecedor.
-- **Saída:** a Jornada chama ferramentas de servidores externos (`src/lib/integrations/mcp.ts`), hoje só para descobri-las.
+- **Saída:** a Jornada chama ferramentas de servidores externos (`src/lib/integrations/mcp.ts`): descobre o catálogo, e o proprietário executa na Administração as ferramentas que liberou, com confirmação. O assistente da Jornada ainda não as chama.
 
 ## Lista de conferência da entrada
 

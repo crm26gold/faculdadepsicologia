@@ -335,4 +335,6 @@ reset role;
 \ir ../../tests/sql/workspace-conflicts.sql
 \ir ../../tests/sql/jornada-request-limits.sql
 \ir ../../tests/sql/jornada-global-budgets.sql
+\ir ../../tests/sql/mcp-external-tools.sql
+\ir ../../tests/sql/google-agenda.sql
 \echo 'OK: funções da aplicação passaram.'

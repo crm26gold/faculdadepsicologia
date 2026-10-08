@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { generate,generateResilient,listModelInventory,refreshModels } from '../../src/lib/ai/providers.ts';
-import { discoverMcp } from '../../src/lib/integrations/mcp.ts';
+import { callMcpTool, discoverMcp } from '../../src/lib/integrations/mcp.ts';
 const config=(provider,model='model-test',key='synthetic-key')=>({ provider,model,key,base_url:'https://ignored.example',gcp_project:'',gcp_location:'' });
 const calls=[];
 globalThis.fetch=async(url,init={})=>{
@@ -47,6 +47,7 @@ const mcpTransport=async(url,init)=>{
   const body=JSON.parse(init.body);mcpCalls.push({url,headers:init.headers,body});
   if(body.method==='initialize') return Response.json({jsonrpc:'2.0',id:body.id,result:{protocolVersion:'2025-11-25',capabilities:{tools:{}}}},{headers:{'Mcp-Session-Id':'synthetic-session'}});
   if(body.method==='notifications/initialized') return new Response(null,{status:202});
+  if(body.method==='tools/call') return Response.json({jsonrpc:'2.0',id:body.id,result:{content:[{type:'text',text:`ok ${body.params.arguments.day}`},{type:'image',data:'AA==',mimeType:'image/png'}],structuredContent:{day:body.params.arguments.day}}});
   return Response.json({jsonrpc:'2.0',id:body.id,result:{tools:[{name:'list',description:'Read-only'}]}});
 };
 await discoverMcp('https://tools.example.invalid/mcp','synthetic-token','2026-07-28',AbortSignal.timeout(5000),mcpTransport);
@@ -55,4 +56,13 @@ assert.equal(mcpCalls[0].body.params._meta['io.modelcontextprotocol/protocolVers
 mcpCalls.length=0;
 await discoverMcp('https://tools.example.invalid/mcp','','2025-11-25',AbortSignal.timeout(5000),mcpTransport);
 assert.deepEqual(mcpCalls.map(item=>item.body.method),['initialize','notifications/initialized','tools/list']);assert.equal(mcpCalls[2].headers['Mcp-Session-Id'],'synthetic-session');assert.equal(mcpCalls[2].headers.Authorization,undefined);
+mcpCalls.length=0;
+const called=await callMcpTool('https://tools.example.invalid/mcp','synthetic-token','2026-07-28','agenda.list',{day:'2026-10-09'},AbortSignal.timeout(5000),mcpTransport);
+assert.deepEqual(mcpCalls.map(item=>item.body.method),['tools/call']);
+assert.equal(mcpCalls[0].headers['Mcp-Method'],'tools/call');assert.equal(mcpCalls[0].headers['Mcp-Name'],'agenda.list');
+assert.deepEqual(mcpCalls[0].body.params.arguments,{day:'2026-10-09'});assert.equal(mcpCalls[0].body.params.name,'agenda.list');
+assert.deepEqual(called,{isError:false,text:'ok 2026-10-09',structured:'{\n  "day": "2026-10-09"\n}',omitted:1});
+mcpCalls.length=0;
+await callMcpTool('https://tools.example.invalid/mcp','','2025-11-25','agenda.list',{day:'x'},AbortSignal.timeout(5000),mcpTransport);
+assert.deepEqual(mcpCalls.map(item=>item.body.method),['initialize','notifications/initialized','tools/call']);assert.equal(mcpCalls[2].headers['Mcp-Session-Id'],'synthetic-session');
 console.log('Provider contracts verified without real credentials or network.');

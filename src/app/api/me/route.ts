@@ -1,6 +1,8 @@
 import { dbError, readSession, reply, rpc, writeRequest } from '@/lib/api-route';
 import { meAction, TERMS_VERSION } from '@/lib/community';
 import { NOTE_BUCKET } from '@/lib/note-media';
+import { openKey } from '@/lib/ai/crypto';
+import { googleAgendaReady, removeCalendar } from '@/lib/google-agenda-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +35,9 @@ export async function POST(request: Request) {
         const { error } = await storage.remove(files.map(file => `${session.user.id}/${file.name}`));
         if (error) return reply({ error: 'Não foi possível apagar seus anexos. Nada foi excluído; tente novamente.' }, 503);
       }
+      // A cópia no Google Agenda sai junto, quando o Google responde; a exclusão não espera por ele.
+      const agenda = googleAgendaReady(process.env) ? await session.client.rpc('google_agenda_link') : null;
+      if (agenda?.data) await removeCalendar(openKey(agenda.data.refresh_ciphertext), agenda.data.calendar_id, AbortSignal.timeout(10_000)).catch(() => false);
       const { error } = await session.client.rpc('delete_my_account');
       if (error) return dbError(error);
       await session.client.auth.signOut({ scope: 'local' });

@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Download, SlidersHorizontal, Plus, Clock3, BookOpen, ArrowUpRight, AlertTriangle, Check, PenLine } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChevronLeft, ChevronRight, Download, SlidersHorizontal, Plus, Clock3, BookOpen, ArrowUpRight, AlertTriangle, Check, PenLine } from 'lucide-react';
 import { addDays, dateKey, formatDate, type Task, type Workspace } from '@/lib/workspace';
 import { calendarEntries, monthDays, shiftMonth, weekdays, weekDays, type CalendarEntry } from '@/lib/academic';
 import { downloadCalendar } from '@/lib/calendar-export';
 import { Modal } from './modal';
+import { GoogleAgendaPanel } from './google-agenda-panel';
 import { ScheduleSettings } from './schedule-settings';
 import { SubjectOptions } from './subject-options';
 import styles from './academic.module.css';
@@ -23,6 +24,14 @@ export default function AcademicCalendar({ data, date, onDateChange, update, blo
   const [details, setDetails] = useState<CalendarEntry | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [googleReturn, setGoogleReturn] = useState('');
+  // Back from the Google consent screen: show the outcome where the connection lives, once.
+  useEffect(() => {
+    const outcome = new URLSearchParams(window.location.search).get('google_agenda');
+    if (!outcome) return;
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+    setGoogleReturn(outcome); setExportOpen(true);
+  }, []);
   const [notice, setNotice] = useState('');
   const today = dateKey();
   const days = view === 'month' ? monthDays(cursor) : weekDays(cursor);
@@ -56,7 +65,7 @@ export default function AcademicCalendar({ data, date, onDateChange, update, blo
 
   return <div className={styles.agenda}>
     {(focus === 'late' || late.length > 0) && <section ref={lateList} tabIndex={-1} id="agenda-atrasados" className={styles.lateCard} aria-labelledby="late-title"><h2 id="late-title"><AlertTriangle size={18} aria-hidden="true" /> Atrasados ({late.length})</h2>{late.length ? <ul>{late.map((task) => <li key={task.id}><span className={styles.lateDate}>{formatDate(task.date, { day: 'numeric', month: 'short' })}</span><span className={styles.lateWhat}><strong>{task.title}</strong><small>{[task.time, task.kind, areaName(data, task)].filter(Boolean).join(' · ')}</small></span><span className={styles.lateActions}><button className="button outline" disabled={blocked} onClick={() => update((previous) => ({ ...previous, tasks: previous.tasks.map((item) => item.id === task.id ? { ...item, done: true } : item) }))}><Check size={15} aria-hidden="true" />Concluir</button><button className="button outline" disabled={blocked} onClick={() => onEdit(task)}><PenLine size={15} aria-hidden="true" />Remarcar</button></span></li>)}</ul> : <p>Nada atrasado. Tudo em dia.</p>}</section>}
-    <div className={styles.actionbar}><div className="button-row"><button className="button outline" onClick={() => setScheduleOpen(true)}><SlidersHorizontal size={16} aria-hidden="true" />Minha grade</button><button className="button outline" onClick={() => setExportOpen(true)}><Download size={16} aria-hidden="true" />Exportar agenda</button><button className="button primary" disabled={blocked} onClick={() => onNew(date)}><Plus size={17} aria-hidden="true" />Novo compromisso</button></div></div>
+    <div className={styles.actionbar}><div className="button-row"><button className="button outline" onClick={() => setScheduleOpen(true)}><SlidersHorizontal size={16} aria-hidden="true" />Minha grade</button><button className="button outline" onClick={() => setExportOpen(true)}><CalendarCheck size={16} aria-hidden="true" />Google Agenda e arquivo</button><button className="button primary" disabled={blocked} onClick={() => onNew(date)}><Plus size={17} aria-hidden="true" />Novo compromisso</button></div></div>
     <div className={`${styles.calendarLayout} ${view === 'week' ? styles.wideCalendar : ''}`}>
       <section className={styles.calendarPanel}>
         <div className={styles.calendarToolbar}><div className={styles.monthNavigation}><button className="icon-button" aria-label={view === 'month' ? 'Mês anterior' : 'Semana anterior'} onClick={() => move(-1)}><ChevronLeft size={20} aria-hidden="true" /></button><h3 aria-live="polite">{view === 'month' ? upper(formatDate(cursor, { month: 'long', year: 'numeric' })) : `${formatDate(days[0])} — ${formatDate(days[6])}`}</h3><button className="icon-button" aria-label={view === 'month' ? 'Próximo mês' : 'Próxima semana'} onClick={() => move(1)}><ChevronRight size={20} aria-hidden="true" /></button></div><div className={styles.viewControls}><button className="button outline" onClick={() => { setCursor(today); onDateChange(today); }}>Hoje</button><div className={styles.segmented} role="group" aria-label="Visualização da agenda"><button aria-pressed={view === 'month'} onClick={() => { setCursor(date); setView('month'); }}>Mês</button><button aria-pressed={view === 'week'} onClick={() => { setCursor(date); setView('week'); }}>Semana</button></div></div></div>
@@ -72,7 +81,7 @@ export default function AcademicCalendar({ data, date, onDateChange, update, blo
     </div>
     {scheduleOpen && <ScheduleSettings data={data} update={update} blocked={blocked} onClose={() => setScheduleOpen(false)} />}
     {details && <Modal title={details.title} onClose={() => setDetails(null)}><div className={styles.detailFacts}><p>{areaName(data, details)}</p><p><CalendarDays size={17} aria-hidden="true" />{formatDate(details.date, { weekday: 'long', day: 'numeric', month: 'long' })}</p><p><Clock3 size={17} aria-hidden="true" />{details.time ?? 'Sem horário definido'}{details.time && ` — ${details.endTime ?? 'término a confirmar'}`}</p>{details.professor && <p>Professor(a): {details.professor}</p>}{details.location && <p>Local: {details.location}</p>}</div>{details.session && <p>Aula prevista pela sua grade. Feriados e mudanças da instituição não entram automaticamente.</p>}<div className="button-row"><button className="button primary" disabled={blocked} onClick={() => { if (details.task) onEdit(details.task); else setScheduleOpen(true); setDetails(null); }}>{details.task ? 'Editar compromisso' : 'Editar horário na grade'}</button>{details.task && <button className="button outline" disabled={blocked} onClick={() => { update((previous) => ({ ...previous, tasks: previous.tasks.map((task) => task.id === details.task!.id ? { ...task, done: !task.done } : task) })); setDetails(null); }}>{details.done ? 'Reabrir compromisso' : 'Concluir compromisso'}</button>}</div></Modal>}
-    {exportOpen && <Modal title="Levar sua agenda para outro calendário" onClose={() => setExportOpen(false)}><p>O arquivo .ics contém os {entries.length} eventos do período e filtro exibidos. Pode ser importado no Google Agenda, Outlook ou Apple Calendário.</p><p>É uma cópia manual, não uma sincronização. Não inclui notas. Aulas sem primeira data ficam de fora; horários de término ausentes não são inventados.</p><p>Confira as projeções antes de importar. Importar o mesmo arquivo várias vezes pode duplicar eventos no serviço escolhido.</p><button className="button primary" onClick={() => { downloadCalendar(entries); setExportOpen(false); setNotice('Arquivo da agenda gerado. Importe no calendário de sua escolha.'); }}><Download size={17} aria-hidden="true" />Baixar arquivo .ics</button></Modal>}
+    {exportOpen && <Modal title="Levar sua agenda para outro calendário" onClose={() => { setExportOpen(false); setGoogleReturn(''); }}><GoogleAgendaPanel returned={googleReturn} /><h3>Arquivo .ics</h3><p>O arquivo .ics contém os {entries.length} eventos do período e filtro exibidos. Pode ser importado no Google Agenda, Outlook ou Apple Calendário.</p><p>É uma cópia manual, não uma sincronização. Não inclui notas. Aulas sem primeira data ficam de fora; horários de término ausentes não são inventados.</p><p>Confira as projeções antes de importar. Importar o mesmo arquivo várias vezes pode duplicar eventos no serviço escolhido.</p><button className="button primary" onClick={() => { downloadCalendar(entries); setExportOpen(false); setNotice('Arquivo da agenda gerado. Importe no calendário de sua escolha.'); }}><Download size={17} aria-hidden="true" />Baixar arquivo .ics</button></Modal>}
     {notice && <p role="status" className={styles.inlineNotice}>{notice}<button className="text-button" onClick={() => setNotice('')}>Dispensar</button></p>}
   </div>;
 }

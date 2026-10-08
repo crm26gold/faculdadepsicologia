@@ -13,7 +13,7 @@ Em aberto, sem ordem definida (a prioridade é decisão do proprietário):
 - Módulos próprios para saúde, emocional, espiritualidade, família, casa, lazer e documentos, que hoje são apenas áreas; inventário.
 - Prazos dos trabalhos em grupo na agenda e nos alertas pessoais (hoje aparecem só no Meu dia).
 - Networking: perfil, conexões e mensagens, com privacidade em camadas.
-- Google Agenda e Drive por OAuth; pagamento (Asaas) e Vercel Pro na abertura das vendas.
+- Google Drive por OAuth (o Google Agenda, no sentido Jornada → Google, entrou em 08/10/2026); pagamento (Asaas) e Vercel Pro na abertura das vendas.
 - Tirar a vida pessoal do documento JSON único, migrando módulos para tabelas próprias ([arquitetura](ARCHITECTURE.md#modelo-e-persistência)).
 
 As seções abaixo são registros históricos com critérios de entrega; não as use como inventário atual.
@@ -74,7 +74,7 @@ Critério comum: modelo, interface e testes de persistência próprios, estados 
 
 ## 4. Integrar serviços com autorização
 
-Calendários externos, biblioteca de materiais, serviços institucionais e assistentes por matéria dependem de APIs disponíveis e permissões específicas. A exportação `.ics` atual não equivale a sincronização, e login Google não concede acesso ao Drive ou à Agenda.
+Calendários externos, biblioteca de materiais, serviços institucionais e assistentes por matéria dependem de APIs disponíveis e permissões específicas. A exportação `.ics` não equivale a sincronização. O Google Agenda tem conexão própria (Jornada → Google); login Google não concede acesso ao Drive nem à Agenda por consequência.
 
 Antes de enviar conteúdo a uma IA, definir provedor, orçamento, limites, conteúdo autorizado, retenção e forma de revogar a permissão. As chaves permanecem no servidor. Nenhum módulo privado alimenta IA por padrão.
 
