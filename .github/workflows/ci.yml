@@ -1,7 +1,9 @@
 name: Verificações
 
+# Uma vez por PR (o pull_request) e de novo na main depois do merge; um push num branch com PR não roda em dobro.
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
