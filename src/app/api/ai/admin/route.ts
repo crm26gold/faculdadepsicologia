@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       if(!selected.data) return reply({ error:'Salve uma tarefa ligada com pelo menos uma conexão disponível.' },409);
       const started=Date.now();
       try {
-        const result=await generateResilient(runtimeConfig(selected.data),{ system:'Teste da rota da Jornada Plena. Responda em português, em no máximo oito palavras.',prompt:'Confirme que a conexão funcionou.',maxTokens:60,signal:AbortSignal.any([request.signal,AbortSignal.timeout(35_000)]),beforeAttempt:beforeAttemptBudget(session,'ai') });
+        const result=await generateResilient(runtimeConfig(selected.data),{ task: 'teste', system:'Teste da rota da Jornada Plena. Responda em português, em no máximo oito palavras.',prompt:'Confirme que a conexão funcionou.',maxTokens:60,signal:AbortSignal.any([request.signal,AbortSignal.timeout(35_000)]),beforeAttempt:beforeAttemptBudget(session,'ai') });
         return reply({ok:true,data:{...result,text:result.text.slice(0,300),ms:Date.now()-started}});
       } catch(cause) {if(cause instanceof BudgetLimitError) return cause.response; return reply({error:cause instanceof AiError ? cause.message : 'Não consegui concluir o teste da rota. Confira as conexões e os limites.'},502);}
     }

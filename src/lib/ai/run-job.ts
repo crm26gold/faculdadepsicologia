@@ -32,7 +32,7 @@ export async function runAssistantJob(session: Session, id: string) {
       const runtime = await runtimeForSession(session, 'assistente');
       if (runtime.error || !runtime.data) throw new Error('A Conversa do assistente está desativada. O pedido continua guardado.');
       const shared = await sharedContext(session);
-      const result = await generateResilient(runtimeConfig(runtime.data), {
+      const result = await generateResilient(runtimeConfig(runtime.data), { task: 'assistente',
         system: `${commandSystem}\nContexto atual da pessoa:\n${commandContext(workspace, input.today, 20_000, input.message)}${shared}`,
         prompt: input.message, history: input.history, maxTokens: 2400, json: true,
         signal: AbortSignal.timeout(45_000), beforeAttempt: beforeAttemptBudget(session, 'ai'),

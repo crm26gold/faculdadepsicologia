@@ -22,7 +22,7 @@ export async function POST(request: Request) {
   try {
     const config = runtimeConfig(data);
     const { text } = await generateResilient(config,
-      { system, prompt: body.message, maxTokens: 400, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
+      { task: 'assistente', system, prompt: body.message, maxTokens: 400, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
     return reply({ ok: true, data: { configured: true, reply: text.slice(0, 1200) } });
   } catch (cause) {
     if (cause instanceof BudgetLimitError) return cause.response;

@@ -27,7 +27,7 @@ export async function POST(request: Request) {
   try {
     const config = runtimeConfig(data);
     const prompt = `Anotação:\nTítulo: ${body.title || '(sem título)'}\nTexto: ${body.text || '(vazio)'}\n\nLugares possíveis:\n${body.options.map(option => `- ${option.key}: ${option.label}`).join('\n')}`;
-    const { text: raw } = await generateResilient(config, { system, prompt, maxTokens: 200, json: true, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
+    const { text: raw } = await generateResilient(config, { task: 'organizar', system, prompt, maxTokens: 200, json: true, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
     const match = raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1);
     let parsed: { key?: unknown; reason?: unknown } = {};
     try { parsed = JSON.parse(match); } catch {}

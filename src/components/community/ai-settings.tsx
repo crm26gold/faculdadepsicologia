@@ -43,9 +43,9 @@ export function AiSettings() {
   const resources = useResourceMap(!!state);
   // "Apitou, eu clico e o sistema me guia": the open guide, and the problem being fixed while the person acts.
   const [guide, setGuide] = useState<Issue | null>(null);
-  const [resolving, setResolving] = useState<{ issue: Issue; status: 'working' | 'checking' | 'resolved' | 'still' } | null>(null);
+  const [resolving, setResolving] = useState<{ issue: Issue; status: 'working' | 'checking' | 'resolved' | 'still'; since: string } | null>(null);
   function goTo(option: IssueOption) {
-    if (guide) setResolving({ issue: guide, status: 'working' });
+    if (guide) setResolving({ issue: guide, status: 'working', since: new Date().toISOString() });
     setGuide(null); setView(option.go.view);
     // After the section renders: open the collapsed card, bring it into view, highlight it and focus its first field.
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -64,7 +64,7 @@ export function AiSettings() {
     if (!await resources.reload()) setResolving({ ...resolving, status: 'still' });
   }
   useEffect(() => {
-    if (resolving?.status === 'checking' && resources.map) setResolving({ ...resolving, status: issueResolved(resolving.issue.id, resources.map) ? 'resolved' : 'still' });
+    if (resolving?.status === 'checking' && resources.map) setResolving({ ...resolving, status: issueResolved(resolving.issue.id, resources.map, resolving.since) ? 'resolved' : 'still' });
   }, [resources.map, resolving]);
   const load = useCallback(async () => {
     try { setState(await api<AiAdminState>('/api/ai/admin')); setLoadError(''); }
