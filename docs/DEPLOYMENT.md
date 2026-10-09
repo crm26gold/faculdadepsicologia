@@ -84,7 +84,7 @@ O banco já está pronto: a migração `20261008230100_google_agenda` foi aplica
 2. Na tela de consentimento OAuth, acrescente o escopo `https://www.googleapis.com/auth/calendar.app.created` (só agendas criadas pelo app). Confira no próprio console a classificação do escopo: se aparecer como sensível, o Google pede verificação do app antes de liberar para quem não está na lista de teste.
 3. No cliente OAuth (pode ser o mesmo do login), acrescente o URI de redirecionamento `https://<origem de produção>/api/google-agenda/callback`. Prévias da Vercel têm outra origem e não completam a conexão.
 4. Na Vercel (produção), cadastre `GOOGLE_CLIENT_ID` e `GOOGLE_CLIENT_SECRET` e publique de novo.
-5. Aceite real: em Agenda › Google Agenda e arquivo, conecte, confira a agenda "Jornada Plena" no Google, mude um compromisso na Jornada e veja a mudança chegar; depois desconecte e confira que a agenda saiu do Google.
+5. Aceite real: em Agenda › Google Agenda, conecte, confira a agenda "Jornada Plena" no Google, mude um compromisso na Jornada e veja a mudança chegar; depois desconecte e confira que a agenda saiu do Google.
 
 O que vai: compromissos, prazos e aulas de 7 dias atrás a 120 dias à frente (até 800), com título, data, horário, local e tipo; nunca anotações. A atualização corre depois da resposta, ao abrir o app e a cada gravação pelo app; mudanças feitas pelo assistente com o app fechado entram na próxima abertura. Uma atualização por vez por pessoa (reserva de 90 s no banco).
 

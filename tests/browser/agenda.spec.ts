@@ -32,10 +32,13 @@ test('compromisso com horário e arquivo ICS', async ({ page }) => {
   await page.getByRole('button', { name: '15:30 · Compromisso Revisão de exemplo Sem área', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('15:30');
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Google Agenda e arquivo', exact: true }).click();
+  await page.getByRole('button', { name: 'Google Agenda', exact: true }).click();
   // A demonstração não tem contas: o painel diz que a conexão não está ativa e não oferece o botão.
   await expect(page.getByRole('dialog').getByRole('region', { name: 'Google Agenda' })).toContainText('ainda não foi ativado');
   await expect(page.getByRole('button', { name: 'Conectar Google Agenda' })).toHaveCount(0);
+  // O arquivo .ics fica recolhido, para quem usa Outlook ou Apple.
+  await expect(page.getByRole('button', { name: 'Baixar arquivo .ics', exact: true })).toBeHidden();
+  await page.getByText('Usa Outlook ou Apple? Baixe um arquivo .ics').click();
   await page.getByRole('dialog').screenshot({ path: `test-results/google-agenda-${test.info().project.name}.png` });
   const pending = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Baixar arquivo .ics', exact: true }).click();

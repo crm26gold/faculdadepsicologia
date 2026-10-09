@@ -1054,4 +1054,6 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 /* Google Agenda na janela de exportação: separado do arquivo .ics que vem abaixo */
 .google-agenda-panel { display: grid; gap: 12px; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--line); }
 .google-agenda-panel > * { margin: 0; }
-.google-agenda-panel h3 { display: flex; align-items: center; gap: 8px; }
+.calendar-file summary { cursor: pointer; color: var(--accent-text); font-weight: 600; }
+.calendar-file[open] { display: grid; gap: 10px; }
+.calendar-file[open] summary { margin-bottom: 2px; }
