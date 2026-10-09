@@ -24,7 +24,7 @@ export const deleteWebhook = (token: string) => call<boolean>(token, 'deleteWebh
 export const sendMessage = (token: string, chatId: string, text: string, link?: { text: string; url: string }) =>
   call<unknown>(token, 'sendMessage', { chat_id: chatId, text: text.slice(0, 4000), link_preview_options: { is_disabled: true },
     ...(link ? { reply_markup: { inline_keyboard: [[{ text: link.text, url: link.url }]] } } : {}) });
-/** Sends a PNG (the "print" of a screen) with a short caption. */
+/** Sends a PNG (a screen's visual summary) with a short caption. */
 export async function sendPhoto(token: string, chatId: string, png: Uint8Array, caption: string) {
   const form = new FormData();
   form.set('chat_id', chatId); form.set('caption', caption.slice(0, 1000));

@@ -4,12 +4,12 @@ import { emptyWorkspace, parseWorkspace } from '@/lib/workspace';
 import { screenModel, screens, type Screen } from '@/lib/screens/screen-model';
 import { renderScreen } from '@/lib/screens/render';
 
-// The print an assistant asked for, opened by the person: chat apps show a tool's image to the model only, so
-// ver_tela also hands over this link. It renders the signed-in person's own screen now; nobody else's data.
+// A screen's visual summary (not a capture), opened by the signed-in person. Assistants now hand over the
+// short-lived link of /api/tela/ver instead; this one stays for links already sent. It renders the signed-in person's own screen now; nobody else's data.
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store', 'Referrer-Policy': 'no-referrer' };
 // Opened inside a chat app's own browser, the Jornada login may be missing: say so and offer it.
-const signIn = '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Print da Jornada</title><body style="font-family:system-ui,sans-serif;background:#0c1725;color:#e4edf6;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center"><main style="max-width:360px"><h1 style="font-size:20px">Entre para ver o print</h1><p style="color:#a4b7c9;line-height:1.5">O print tem seus dados pessoais, então só abre com o seu login. Se o link abriu dentro do app de IA, abra-o no navegador em que você usa a Jornada.</p><a href="/login" style="display:inline-block;margin-top:12px;padding:12px 18px;border-radius:12px;background:#123f61;color:#fff;text-decoration:none;font-weight:600">Entrar na Jornada</a></main></body></html>';
+const signIn = '<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Resumo visual da Jornada</title><body style="font-family:system-ui,sans-serif;background:#0c1725;color:#e4edf6;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center"><main style="max-width:360px"><h1 style="font-size:20px">Entre para ver a imagem</h1><p style="color:#a4b7c9;line-height:1.5">A imagem tem seus dados pessoais, então só abre com o seu login. Se o link abriu dentro do app de IA, abra-o no navegador em que você usa a Jornada.</p><a href="/login" style="display:inline-block;margin-top:12px;padding:12px 18px;border-radius:12px;background:#123f61;color:#fff;text-decoration:none;font-weight:600">Entrar na Jornada</a></main></body></html>';
 const day = (format: Intl.DateTimeFormatOptions, locale: string) => new Intl.DateTimeFormat(locale, { timeZone: 'America/Sao_Paulo', ...format }).format(new Date());
 
 export async function GET(_request: Request, { params }: { params: Promise<{ screen: string }> }) {

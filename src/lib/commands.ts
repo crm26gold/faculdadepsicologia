@@ -491,7 +491,7 @@ Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa
   conta: {"action":"rename","name":"…"} — muda só o nome exibido da pessoa; aceitar termos e excluir a conta são só pela tela
   administracao (só para o administrador geral): {"action":"acesso_livre","value":true|false}; {"action":"usar_ia","task":"assistente"|"organizar"|"voz","provider":"groq"|"gemini"|"xai"|"openai"|"anthropic"|"deepseek"|"mistral"|"openrouter","model":"auto:rapido"}
   Exclusões e administração ficam guardadas para a pessoa confirmar no aplicativo; diga isso. Tirar ou bloquear pessoas, mudar papéis, dar papel de professor ou administrador, plano e créditos de contas e chaves de API são só pela tela: explique onde fazer, sem criar ação.
-- {"type":"mostrar_tela","tela":"meu_dia"|"financas"|"agenda"|"habitos"|"metas"|"anotacoes"} — quando a pessoa pedir um print, para ver ou mostrar uma tela; coloque depois das outras ações do mesmo pedido, para mostrar como ficou
+- {"type":"mostrar_tela","tela":"meu_dia"|"financas"|"agenda"|"habitos"|"metas"|"anotacoes"} — quando a pessoa pedir para ver ou mostrar uma tela (ou um print); no app, a tela real abre; fora dele (Telegram, WhatsApp) vai um resumo visual com os dados, que não é captura da tela: se a pessoa pediu print, diga isso; coloque depois das outras ações do mesmo pedido, para mostrar como ficou
 ${assistantRules.join('\n')}
 Tipos de registro e únicos campos aceitos em fields:
 ${entities.map(entity => `${entity}: ${entityFields[entity]}`).join('\n')}

@@ -277,7 +277,7 @@ test('servidor MCP: administração só por proposta, com os dados reais da cont
   assert.match(student.result.content[0].text, /Só o administrador geral/);
 });
 
-test('servidor MCP: ver_tela devolve um print (PNG) com os dados atuais e o resumo em texto', async () => {
+test('servidor MCP: ver_tela devolve um resumo visual (PNG, não captura), o texto e um link curto que só a mini-app recebe em _meta', async () => {
   const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
   const { db } = fakeDatabase({ canWrite: false });
   const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
@@ -288,7 +288,24 @@ test('servidor MCP: ver_tela devolve um print (PNG) com os dados atuais e o resu
   assert.equal(image.mimeType, 'image/png');
   assert.equal(Buffer.from(image.data, 'base64').subarray(1, 4).toString(), 'PNG');
   assert.match(summary.text, /^Finanças · /);
-  assert.match(summary.text, new RegExp(`Link do print para a pessoa abrir.*${new URL(process.env.APP_ORIGIN!).origin}/api/tela/financas.png`), 'a imagem chega só ao modelo: a pessoa recebe o link');
+  assert.match(summary.text, /Resumo visual gerado com os dados da conta; não é captura da tela\./, 'nunca chama o desenho de print');
+  const link = shot.result.structuredContent.link as string;
+  assert.match(link, new RegExp(`^${new URL(process.env.APP_ORIGIN!).origin}/api/tela/ver/[A-Za-z0-9_-]+\\.png$`));
+  assert.ok(summary.text.includes(`Se a imagem não aparecer, abra o link (sem login, vale 10 minutos): ${link}`));
+  assert.equal(shot.result._meta['jornada/imagem'], link, 'a mini-app carrega a imagem pelo link, sem depender do tamanho do resultado');
+  assert.doesNotMatch(link, /[a-f0-9]{64}/, 'o link não mostra o hash da chave');
+});
+
+test('link da imagem: abre só a tela e a conta seladas, expira em 10 minutos e não aceita alteração', async () => {
+  const { screenLink, readScreenLink } = await import('../src/lib/screens/screen-link');
+  const hash = 'a'.repeat(64), now = Date.parse('2026-10-09T12:00:00Z');
+  const link = screenLink('https://jornada.example', hash, 'agenda', now, { at: '09:00', labels: ['Dentista'], ids: ['t1'] });
+  const token = link.split('/').at(-1)!;
+  assert.deepEqual(readScreenLink(token, now + 60_000), { tokenHash: hash, screen: 'agenda', recent: { at: '09:00', labels: ['Dentista'], ids: ['t1'] } });
+  assert.equal(readScreenLink(token, now + 10 * 60_000 + 1), null, 'vencido');
+  const bytes = Buffer.from(token.replace(/\.png$/, ''), 'base64url'); bytes[bytes.length - 3] ^= 1;
+  assert.equal(readScreenLink(bytes.toString('base64url'), now), null, 'alterado');
+  assert.equal(readScreenLink('qualquer-coisa', now), null);
 });
 
 test('servidor MCP: com a lixeira, excluir é direto, "desfazer" traz de volta e a lixeira lista o que saiu', async () => {
@@ -371,7 +388,7 @@ test('servidor MCP 1.2.0: cada leitura traz o mesmo conteúdo em texto e estrutu
   assert.ok(answered.structuredContent.found > 0);
 });
 
-test('servidor MCP: "me mostra o que você fez" abre a tela do que mudou, com o recibo, e o print aparece na conversa', async () => {
+test('servidor MCP: "me mostra o que você fez" abre a tela do que mudou, com o recibo, e a imagem aparece na conversa', async () => {
   const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
   const { PRINT_VIEW_URI, PRINT_VIEW_MIME } = await import('../src/lib/mcp/print-view');
   const { db } = fakeDatabase({ canWrite: true });
@@ -383,6 +400,8 @@ test('servidor MCP: "me mostra o que você fez" abre a tela do que mudou, com o 
   assert.ok(listed.some(item => item.uri === PRINT_VIEW_URI && item.mimeType === PRINT_VIEW_MIME));
   const [page] = (await call(3, 'resources/read', { uri: PRINT_VIEW_URI })).result.contents as { mimeType: string; text: string }[];
   assert.equal(page.mimeType, 'text/html;profile=mcp-app');
+  assert.deepEqual((page as unknown as { _meta: { ui: { csp: { resourceDomains: string[] } } } })._meta.ui.csp.resourceDomains, [new URL(process.env.APP_ORIGIN!).origin], 'a mini-app só carrega imagens da Jornada');
+  assert.match(page.text, /não é uma captura da tela/);
   assert.match(page.text, /ui\/initialize/);
   assert.doesNotMatch(page.text, /fetch\(|XMLHttpRequest|<script src/, 'a página não acessa a rede: mostra só o resultado que recebe');
 
@@ -390,7 +409,7 @@ test('servidor MCP: "me mostra o que você fez" abre a tela do que mudou, com o 
   const before = (await call(5, 'tools/call', { name: 'ver_tela', arguments: { ultima_acao: true } })).result;
   assert.equal(before.structuredContent.tela, 'meu_dia');
   assert.deepEqual(before.structuredContent.mudancas, []);
-  assert.match(before.content[1].text, /Nenhuma alteração desta conexão/);
+  assert.match(before.content.find((block: { type: string }) => block.type === 'text').text, /Nenhuma alteração desta conexão/);
 
   await call(6, 'tools/call', { name: 'registrar_na_jornada', arguments: { acoes: [{ type: 'financeiro', flow: 'expense', description: 'Conta de luz', amount: 180, date: dateKey(), pending: true }] } });
   const shown = (await call(7, 'tools/call', { name: 'ver_tela', arguments: { ultima_acao: true } })).result;
@@ -398,9 +417,12 @@ test('servidor MCP: "me mostra o que você fez" abre a tela do que mudou, com o 
   assert.equal(shown.structuredContent.tela, 'financas', 'a tela é escolhida pelo que mudou');
   assert.equal(shown.structuredContent.mudancas.length, 1);
   assert.match(shown.structuredContent.mudancas[0], /Conta de luz/);
-  assert.match(shown.content[1].text, /O que mudou agora.*Conta de luz/);
-  assert.match(shown.content[1].text, /Conta de luz · .* · agora/, 'o item novo vem marcado na tela');
-  assert.equal(shown.content[0].type, 'image');
+  assert.match(shown.content.find((block: { type: string }) => block.type === 'text').text, /O que mudou agora.*Conta de luz/);
+  assert.match(shown.content.find((block: { type: string }) => block.type === 'text').text, /Conta de luz · .* · agora/, 'o item novo vem marcado na tela');
+  assert.equal(typeof shown._meta['jornada/imagem'], 'string', 'a imagem sempre vai por link para a mini-app');
+  // Embutida só enquanto cabe (Claude guarda num arquivo um resultado acima de ~150 000 caracteres e a mini-app não o recebe).
+  const inline = shown.content.find((block: { type: string }) => block.type === 'image');
+  if (inline) assert.ok(inline.data.length <= 120_000);
 });
 
 // What a connected ChatGPT or Claude already relies on: names in order, titles, risk hints and both schemas. A change here
