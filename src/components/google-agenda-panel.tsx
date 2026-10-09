@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { CalendarCheck, RefreshCw } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 import { api } from './community/client';
 
 type Link = { connected_at: string; synced_at: string | null; events: number; problem: '' | 'revoked' | 'partial' | 'failed'; syncing: boolean };
@@ -37,18 +37,17 @@ export function GoogleAgendaPanel({ returned }: { returned?: string }) {
     } catch (error) { setMessage(error instanceof Error ? error.message : 'Não consegui concluir.'); }
     finally { setBusy(false); await load(); }
   }
-  return <section className="google-agenda-panel" aria-labelledby="google-agenda-title">
-    <h3 id="google-agenda-title"><CalendarCheck size={18} aria-hidden="true" /> Google Agenda</h3>
+  return <section className="google-agenda-panel" aria-label="Google Agenda">
     {message && <p className="cm-message" role="status">{message}</p>}
     {!state ? <p className="muted">Consultando a conexão…</p>
-      : !state.ready ? <p className="muted">O Google Agenda ainda não foi ativado nesta Jornada. Enquanto isso, o arquivo abaixo leva uma cópia manual.</p>
+      : !state.ready ? <p className="muted">O Google Agenda ainda não foi ativado nesta Jornada.</p>
       : !state.link ? <>
-        <p>Seus compromissos, prazos e aulas aparecem numa agenda própria, “Jornada Plena”, no seu Google, e ela se atualiza sozinha quando algo muda aqui, inclusive pelo assistente. Vai de uma semana atrás a quatro meses à frente.</p>
-        <p className="muted small">A Jornada só alcança essa agenda: suas outras agendas do Google ficam fora de alcance. O que você mudar por lá é substituído pela versão da Jornada.</p>
+        <p>Seus compromissos e aulas aparecem numa agenda “Jornada Plena” no seu Google e se atualizam sozinhos.</p>
+        <p className="muted small">A Jornada só mexe nessa agenda. Mudanças feitas lá são substituídas pelas daqui.</p>
         <form method="post" action="/api/google-agenda/connect"><button className="button primary">Conectar Google Agenda</button></form>
       </>
       : <>
-        <p>Conectado desde {when(state.link.connected_at)}. {state.link.syncing ? 'Atualizando agora…' : state.link.synced_at ? `Última atualização: ${when(state.link.synced_at)}, ${state.link.events} eventos.` : 'Primeira atualização a caminho.'}</p>
+        <p>{state.link.syncing ? 'Conectado · atualizando agora…' : state.link.synced_at ? `Conectado · ${state.link.events} eventos · atualizado ${when(state.link.synced_at)}` : 'Conectado · primeira atualização a caminho.'}</p>
         {problems[state.link.problem] && <p className="cm-message">{problems[state.link.problem]}</p>}
         <div className="button-row">
           {state.link.problem === 'revoked' ? <form method="post" action="/api/google-agenda/connect"><button className="button primary">Conectar de novo</button></form>

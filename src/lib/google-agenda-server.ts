@@ -70,6 +70,24 @@ async function listEvents(token: string, calendar: string, signal: AbortSignal) 
   return events;
 }
 
+const transient = (status: number) => status === 403 || status === 429 || status >= 500;
+const pause = (ms: number, signal: AbortSignal) => new Promise<void>(resolve => { const timer = setTimeout(resolve, ms); signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true }); });
+/** One write, tried up to four times when Google answers with a rate limit or a server error. */
+async function withRetry(task: () => Promise<Response>, signal: AbortSignal): Promise<string> {
+  let last = 'sem resposta';
+  for (let attempt = 0; attempt < 4 && !signal.aborted; attempt++) {
+    if (attempt) await pause(1000 * 2 ** (attempt - 1) + Math.random() * 300, signal);
+    try {
+      const response = await task();
+      if (response.ok) return 'ok';
+      const reason = await response.json().then((body: { error?: { errors?: { reason?: string }[] } }) => body.error?.errors?.[0]?.reason ?? '', () => '');
+      last = `${response.status}${reason ? ` ${reason.slice(0, 40)}` : ''}`;
+      if (!transient(response.status) || (response.status === 403 && !/rateLimit|quota|usageLimits/i.test(reason))) return last;
+    } catch { last = signal.aborted ? 'tempo esgotado' : 'rede'; }
+  }
+  return last;
+}
+
 /** Brings the Google calendar in line with the agenda at this revision. Claimed in the database, so only one runs
  * at a time per person and a revision already copied costs one query. Never throws: the outcome is recorded. */
 export async function syncGoogleAgenda(session: Session, workspace: () => Workspace, revision: number, force = false) {
@@ -97,12 +115,15 @@ export async function syncGoogleAgenda(session: Session, workspace: () => Worksp
       ...plan.update.map(event => () => google(token, `${base}/${event.id}`, { method: 'PUT', signal, body: JSON.stringify(event.body) })),
       ...plan.remove.map(id => async () => { const removed = await google(token, `${base}/${id}`, { method: 'DELETE', signal }); return removed.status === 410 || removed.status === 404 ? new Response(null, { status: 204 }) : removed; }),
     ];
-    // Four at a time keeps within Google's per-user write rate.
-    for (let index = 0; index < tasks.length; index += 4) {
-      const done = await Promise.allSettled(tasks.slice(index, index + 4).map(task => task()));
-      for (const result of done) result.status === 'fulfilled' && result.value.ok ? outcome.applied++ : outcome.failed++;
-      if (signal.aborted) { outcome.failed += Math.max(0, tasks.length - index - 4); break; }
+    // Two at a time, and a pause before trying again when Google slows down a new calendar filling up.
+    const failures: Record<string, number> = {};
+    for (let index = 0; index < tasks.length && !signal.aborted; index += 2) {
+      const done = await Promise.all(tasks.slice(index, index + 2).map(task => withRetry(task, signal)));
+      for (const result of done) { if (result === 'ok') outcome.applied++; else { outcome.failed++; failures[result] = (failures[result] ?? 0) + 1; } }
     }
+    outcome.failed = tasks.length - outcome.applied;
+    // Status and Google's reason only: never titles, dates or IDs.
+    if (outcome.failed) console.warn('[google-agenda]', { stage: 'sync', applied: outcome.applied, failed: outcome.failed, failures, timedOut: signal.aborted });
     const complete = outcome.failed <= 0;
     await session.client.rpc('google_agenda_finish', { next_revision: complete ? revision : null, next_events: desired.length, next_problem: complete ? '' : 'partial', next_calendar: recreated });
     return { ...outcome, events: desired.length, complete };
