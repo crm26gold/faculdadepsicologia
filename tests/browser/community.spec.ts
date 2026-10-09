@@ -927,6 +927,26 @@ test('assistentes externos: a pessoa cria uma chave MCP, vê a configuração de
   await expect(card).not.toContainText('consulta e registra');
 });
 
+test('conector desatualizado: a conexão aparece como "precisa atualizar", com o passo a passo de cada aplicativo', async ({ page }) => {
+  await mockApi(page, { home: homeFixture({ master: false }) });
+  const tokens = [{ id: '11111111-2222-4333-8444-555555555556', label: 'ChatGPT', hint: 'oauth', oauth: true, can_write: true, created_at: new Date().toISOString(), expires_at: null, last_used_at: new Date().toISOString(), outdated: true },
+    { id: '11111111-2222-4333-8444-555555555557', label: 'Claude Code', hint: 'abcd', can_write: false, created_at: new Date().toISOString(), expires_at: null, last_used_at: new Date().toISOString(), outdated: false }];
+  await page.route('**/api/mcp-tokens', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { tokens, endpoint: 'https://jornada.example/api/mcp', version: '2026.10.09' } }) }));
+  await page.goto('/#settings');
+  const card = page.getByRole('region', { name: 'Conectar assistentes (MCP)' });
+  await expect(card).toContainText('versão 2026.10.09');
+  const notice = card.locator('.mcp-outdated');
+  await expect(notice).toContainText('Atualize o conector');
+  await expect(notice).toContainText('ChatGPT ainda usa a lista de ferramentas antiga');
+  await expect(notice).not.toContainText('Claude Code ainda');
+  await notice.getByText('ChatGPT', { exact: true }).click();
+  await expect(notice.locator('ol').first()).toContainText('Toque em Atualizar');
+  await expect(card.locator('.mcp-outdated-tag')).toHaveCount(1);
+  expect((await new AxeBuilder({ page }).include('.assistant-connections').analyze()).violations).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
+
 test('mapa de recursos mostra o que realmente atua e separa a declaração do compartilhamento', async ({ page }) => {
   const extra = '00000000-0000-4000-8000-000000000061';
   const reserveId = `connection:${extra}`;

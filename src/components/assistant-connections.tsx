@@ -5,8 +5,15 @@ import { api } from './community/client';
 import { undoApplied, type Applied } from '@/lib/commands';
 import type { Workspace } from '@/lib/workspace';
 
-type Token = { id: string; label: string; hint: string; can_write: boolean; created_at: string; expires_at: string | null; last_used_at: string | null; oauth?: boolean };
-type State = { tokens: Token[]; endpoint: string | null };
+type Token = { id: string; label: string; hint: string; can_write: boolean; created_at: string; expires_at: string | null; last_used_at: string | null; oauth?: boolean; outdated?: boolean };
+type State = { tokens: Token[]; endpoint: string | null; version?: string };
+
+/** How to make each app fetch the current tool list again. */
+const refreshSteps = [
+  { app: 'ChatGPT', steps: ['Abra chatgpt.com/plugins (no computador ou no navegador do celular), ou Configurações › Aplicativos e conectores.', 'Abra a Jornada Plena.', 'Toque em Atualizar. Se não aparecer, desconecte e conecte de novo.', 'Abra um chat novo.'] },
+  { app: 'Claude', steps: ['Configurações › Conectores › Jornada Plena.', 'Desconecte e conecte de novo, autorizando no login da Jornada.', 'Abra uma conversa nova.'] },
+  { app: 'Claude Code, Codex, Gemini e Antigravity', steps: ['Comece uma sessão nova: eles buscam a versão atual sozinhos.'] },
+];
 const when = (value: string | null) => value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca';
 
 /** Ready-to-paste settings for each app; the key appears here only right after it is created. */
@@ -84,7 +91,12 @@ export function AssistantConnections({ update }: { update?: Change }) {
   return <section className="panel assistant-connections" aria-labelledby="assistant-connections-title">
     <h2 id="assistant-connections-title"><Plug size={17} aria-hidden="true" /> Conectar assistentes (MCP)</h2>
     <p className="muted">Use o Claude Code, o Codex, o Gemini ou o Antigravity com a sua própria assinatura para consultar e organizar a sua Jornada. Cada chave acessa só a sua vida pessoal, nunca grupos ou outras pessoas. Exclusões continuam sendo confirmadas aqui no aplicativo.</p>
-    {state.endpoint && <p className="small">Endereço do servidor: <code>{state.endpoint}</code></p>}
+    {state.endpoint && <p className="small">Endereço do servidor: <code>{state.endpoint}</code>{state.version ? <> · versão {state.version}</> : null}</p>}
+    {state.tokens.some(token => token.outdated) && <div className="ai-card mcp-outdated" role="status">
+      <strong>Atualize o conector</strong>
+      <p className="muted small">A Jornada ganhou novidades e {state.tokens.filter(token => token.outdated).map(token => token.label).join(', ')} ainda usa a lista de ferramentas antiga. Até atualizar, alguns pedidos podem não funcionar.</p>
+      {refreshSteps.map(guide => <details key={guide.app}><summary>{guide.app}</summary><ol className="small">{guide.steps.map(step => <li key={step}>{step}</li>)}</ol></details>)}
+    </div>}
     <p className="muted small"><strong>ChatGPT e Claude (app e site):</strong> adicione um conector personalizado com este endereço. Eles abrem o login da Jornada e você autoriza, sem colar chave. <strong>Claude Code, Codex, Gemini CLI e Antigravity:</strong> crie uma chave abaixo.</p>
     {created && <div className="ai-card" role="status">
       <strong><KeyRound size={16} aria-hidden="true" /> Sua chave nova (aparece só agora)</strong>
@@ -103,7 +115,7 @@ export function AssistantConnections({ update }: { update?: Change }) {
       <button className="button primary" disabled={busy}>Criar chave</button>
     </form>
     {state.tokens.length > 0 && <ul className="mcp-token-list">{state.tokens.map(token => <li key={token.id}>
-      <span><strong>{token.label}</strong> · {token.oauth ? 'conectado por login' : `…${token.hint}`} · {token.can_write ? 'consulta e registra' : 'só consulta'}<br /><span className="muted small">Último uso: {when(token.last_used_at)}{token.expires_at ? ` · vale até ${when(token.expires_at)}` : ''}</span></span>
+      <span><strong>{token.label}</strong> · {token.oauth ? 'conectado por login' : `…${token.hint}`} · {token.can_write ? 'consulta e registra' : 'só consulta'}{token.outdated ? <> · <strong className="mcp-outdated-tag">precisa atualizar</strong></> : null}<br /><span className="muted small">Último uso: {when(token.last_used_at)}{token.expires_at ? ` · vale até ${when(token.expires_at)}` : ''}</span></span>
       <button type="button" className="text-button cm-danger" disabled={busy} onClick={() => void revoke(token)}><Trash2 size={15} aria-hidden="true" />Revogar</button>
     </li>)}</ul>}
     {message && <p className="cm-message" role="status">{message}</p>}

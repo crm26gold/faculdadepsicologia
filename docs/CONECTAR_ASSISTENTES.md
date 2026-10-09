@@ -65,9 +65,20 @@ Os menus desses aplicativos mudam com frequência e podem exigir plano pago ou m
 
 O servidor é um só para todos os aplicativos: uma atualização vale ao mesmo tempo para o Claude, o ChatGPT, o Codex e o Gemini CLI, sem reinstalar nada. O que cada um precisa é reler a lista de ferramentas:
 
-- **ChatGPT:** em [chatgpt.com/plugins](https://chatgpt.com/plugins), abra a Jornada; na página de detalhes do app, use **Atualizar** (Refresh) para puxar as ferramentas, as descrições e as instruções novas. Depois, comece uma conversa nova.
+- **ChatGPT:** em [chatgpt.com/plugins](https://chatgpt.com/plugins) (ou Configurações › Aplicativos e conectores), abra a Jornada; na página de detalhes do app, use **Atualizar** (Refresh) para puxar as ferramentas, as descrições e as instruções novas. Depois, comece uma conversa nova.
 - **Claude:** comece uma conversa nova. Se a novidade não aparecer, em Configurações › Conectores, desconecte e conecte de novo a Jornada.
 - **Claude Code, Codex e Gemini CLI:** feche e abra a sessão do terminal.
+
+A Jornada percebe sozinha quem ficou para trás. Cada conexão guarda a versão da lista que recebeu por último (gravada quando o aplicativo lista as ferramentas). Enquanto ela for anterior à atual:
+
+- toda resposta das ferramentas termina com um aviso para o assistente repassar uma vez: "este conector está com uma versão antiga; atualize assim";
+- em Meu espaço › Conectar assistentes, a conexão aparece com **precisa atualizar** e um passo a passo para cada aplicativo.
+
+Ao atualizar, o aplicativo lista as ferramentas de novo, a versão é gravada e o aviso some. Conexões feitas antes de 09/10/2026 aparecem como desatualizadas até a primeira atualização.
+
+### Versão, nome e ícone
+
+O servidor se apresenta como **Jornada Plena**, com site, descrição e ícone da marca (PNG 512 e 192, SVG e `favicon.ico`). A versão é a data da última mudança no que os aplicativos guardam (ferramentas, descrições e instruções), como `2026.10.09`, com `.2`, `.3` para outras mudanças no mesmo dia. Ela anda sozinha: o teste de contrato (`tests/mcp-server.test.ts`) compara a impressão da lista atual com `src/lib/mcp/contract.json` e falha se mudou; rodar com `UPDATE_MCP_CONTRACT=1` grava a impressão e a versão nova. Cada aplicativo decide o que mostrar: alguns exibem o ícone e a versão, outros usam o próprio ícone genérico ou o `favicon.ico` do site.
 
 ## Limites e segurança
 
