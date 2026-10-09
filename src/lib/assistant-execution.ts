@@ -51,7 +51,7 @@ export async function executeAssistantJob(store: ExecutionStore) {
     const trash = store.trash && needsTrash ? await store.trash() : undefined;
     // A conflict retries the same validated proposal against fresh records, never the planner.
     for (let attempt = 0; attempt < 2; attempt++) {
-      const executed = applyCommands(workspace.data, personal, { today: input.today, now: Date.now(), deleteDirectly: !!store.trash, trash });
+      const executed = applyCommands(workspace.data, personal, { today: input.today, now: Date.now(), deleteDirectly: !!store.trash, trash, said: input.said ?? input.message });
       const next = executed.applied.length ? parseWorkspace(JSON.stringify({ ...executed.data, editorGeneration: CURRENT_EDITOR_GENERATION })) : null;
       const reply = !plan.actions.length ? plan.reply || 'Pode dar mais um detalhe do que deseja?'
         : [shared ? sharedSummary(shared) : '', personal.length ? executionSummary(executed) : '', showText].filter(Boolean).join(' ');

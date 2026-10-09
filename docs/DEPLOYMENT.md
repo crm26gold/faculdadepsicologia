@@ -102,6 +102,7 @@ Avisos saem sozinhos na hora marcada, só para a própria pessoa e só quando el
     - O foco em andamento pergunta "ainda em foco?" 5 minutos antes do fim do tempo, ou depois de 1 hora sem duração. O gatilho fica em `personal_state` e o lembrete tem `task_id` `foco:<id>`.
     - "Pausar" abre `/?foco=pausar`, que pausa o foco no app.
     - O relógio também copia para o Google Agenda as mudanças feitas pelo assistente, Telegram ou WhatsApp (`google_agenda_due` / `google_agenda_done`, até 3 contas por minuto).
+  - `20261009164423_focus_forgotten`: cada foco em andamento ganha também "o foco ficou ligado?" (`task_id` `foco-fim:<id>`), 30 minutos depois do fim do tempo ou 3 horas depois do início num foco sem duração. É um aviso só, que abre `/?foco=encerrar&id=…&fim=…` para encerrar aquele foco no fim do tempo.
   - **Ao trocar de domínio**, atualize a URL do job: `select cron.alter_job((select jobid from cron.job where jobname = 'jornada-lembretes'), command := …)`.
 - **Nenhuma variável nova.**
   - Notificação do app: as chaves VAPID derivam de `AI_KEYS_SECRET`; trocar esse segredo pede para religar as notificações em cada aparelho.

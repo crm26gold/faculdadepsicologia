@@ -25,6 +25,26 @@ flowchart TD
 - `result.execution` diferencia `structured` de `planned`. É evidência do caminho usado, não medição financeira. A resposta é produzida a partir das ações aplicadas, pendentes e recusadas, e não da promessa do modelo.
 - Nada nesta etapa muda a configuração ativa de provedores, o compartilhamento de chaves, o logo, as telas, os termos ou os limites existentes. Não há migração nova.
 
+## Regras únicas para todas as portas (09/10/2026)
+
+Pedido do proprietário: qualquer porta de entrada (texto e voz no app, Telegram, WhatsApp, ChatGPT, Claude, Codex ou outro assistente pelo MCP) obedece às mesmas regras.
+
+- **Uma fonte:** `src/lib/assistant-rules.ts` guarda as regras de pedido (lembrete, intensidade, `daqui`, tipo e área, foco pela aula, "esqueci o foco ligado") e o formato das ações. `commandSystem`, a voz ao vivo (`voiceSystem` e o catálogo de `actions_json`) e `mcpInstructions` são montados a partir dele. `tests/assistant-unified.test.ts` falha se uma regra não chegar a todas as portas.
+  - Origem: em 09/10/2026, a voz ao vivo criou "Tomar água" sem aviso. O catálogo dela era escrito à mão e não tinha `remind` nem `daqui`.
+- **Um motor:** todas as portas executam por `applyCommands`, que já calcula `daqui` na hora de Brasília e liga o foco à aula da grade.
+- **Rede de segurança no motor:** quando a porta tem as palavras da pessoa (texto, voz ao vivo com a transcrição, Telegram, WhatsApp, MCP com `pedido` opcional), `completeFromRequest` completa o único compromisso do pedido:
+  - "me lembra" sem aviso ganha aviso normal ("não me deixa esquecer": insistente; "só um aviso": suave);
+  - "daqui N minutos" passa a ser contado pelo servidor.
+  - Ela nunca cria nada sozinha e não mexe em pedidos com dois compromissos.
+- **Versão:** o texto do app executa no navegador. `/api/ai/command` devolve `commandVersion`, e uma página mais antiga não executa: oferece "Atualizar e repetir". Ao mudar só o motor, suba `ENGINE_REVISION` em `src/lib/commands.ts`.
+- **Critérios de segurança:**
+  - Automático: inferência de baixo risco (pôr aviso, escolher tipo, área e matéria, calcular a hora, ligar o foco à aula, cancelar uma automação quando o estado muda).
+  - Pede confirmação: exclusões acima do limite, substituição de anotação, ações coletivas destrutivas.
+  - Dinheiro: só com valor dito pela pessoa.
+  - Ambiguidade: uma pergunta.
+  - Avisos gerados pelo sistema ("ainda em foco?", "o foco ficou ligado?") só perguntam e nunca alteram dados sem um toque da pessoa.
+  - Cada automação tem um registro por item, escada finita, reserva antes de enviar e cancelamento quando o estado muda.
+
 ## Recursos e direção de acesso
 
 | Recurso | Capacidade atual | Pode ser reserva automática de interpretação? |

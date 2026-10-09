@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import { createMcpHandler, McpServer } from '@modelcontextprotocol/server';
 import { assistantQuery, queryWorkspace } from '../assistant-query';
+import { assistantRules } from '../assistant-rules';
 import { applyCommands, commandAction, executionSummary, findPlace, undoApplied, type TrashEntry } from '../commands';
 import { recordTitle } from '../assistant-records';
 import { CURRENT_EDITOR_GENERATION, emptyWorkspace, parseWorkspace } from '../workspace';
@@ -67,13 +68,12 @@ Ritmo:
 - "Vamos organizar os pendentes": consulte section "pendentes" e conduza item por item. Diga o item, sugira um destino e pergunte só "pode ser?"; com a resposta, aplique e passe ao próximo. "Deixa para depois" ou "pula": siga sem insistir. Ao parar, diga quantos faltam. Ela guia; você organiza.
 Ferramentas:
 - consultar_jornada: section "busca" procura no título de todas as seções e no texto das anotações, com o trecho onde aparece; havendo mais resultados, repita a busca com o "cursor" devolvido; "pendentes" traz anotações em Para organizar, compromissos atrasados, contas vencidas e lançamentos sem categoria; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
-- registrar_na_jornada aplica até oito ações validadas. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
+- registrar_na_jornada aplica até oito ações validadas. Envie em pedido as palavras da pessoa, como ela disse. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
 - ver_tela devolve o print de uma tela. No Claude e no ChatGPT ele aparece na própria conversa; em outros aplicativos a imagem chega só para você. Entregue também o link que vem junto ("abra para ver o print"), que abre no aparelho em que a pessoa está conectada à Jornada.
 - "Me mostra o que você fez" ou "como ficou?": depois de registrar, chame ver_tela com ultima_acao: true. A tela do que mudou vem com as alterações no topo e os itens destacados.
 - Arquivos: você não consegue repassar foto, áudio, vídeo ou arquivo que vê na conversa. Use enviar_arquivo (com o destino, se ela disser) e entregue o link; vale 10 minutos. Links de sites vão em registrar_na_jornada com anotacao e link.
-- Lembretes: "me lembra", "me avisa" ou "não me deixa esquecer" é compromisso com remind (level normal por padrão; insistente para não esquecer de jeito nenhum); "daqui N minutos" vai em daqui, sem date e time, e o servidor calcula a hora de Brasília. Escolha kind e area pelo sentido (beber água: Tarefa, Saúde física). O aviso sai sozinho no app, Telegram, WhatsApp e Google Agenda com e-mail: não peça para cadastrar em cada lugar.
-- Foco: "entrei na aula de X, liga o foco" é foco com activity e sem minutes; o sistema acha a aula de hoje, liga à matéria e, 5 minutos antes do fim, pergunta em todos os canais se a pessoa continua ou pausa. "Pausa o foco" é controlar_foco.
+${assistantRules.map(rule => `- ${rule}`).join('\n')}
 - Parte coletiva: consultar_coletivo para ler e obter IDs; gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e minha_conta para agir, com o papel da pessoa em cada sala. Exclusões coletivas ficam para confirmar no aplicativo.
 - Administração (só o administrador geral): consultar_administracao e administrar.
 - Só pela tela: tirar ou bloquear pessoas, mudar papéis, plano e créditos de contas, chaves de API e privacidade. Explique onde fazer.
@@ -118,9 +118,10 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   server.registerTool('registrar_na_jornada', {
     title: 'Registrar na Jornada',
     description: 'Cria, edita, conclui, reagenda e registra itens na Jornada, com as mesmas validações do aplicativo: compromisso, anotacao, financeiro, foco, concluir, criar, editar, excluir, habito_feito, controlar_foco, ajustar_foco (corrigir a duração ou o fim de um foco já encerrado, como "esqueci ligado, acabou às 22h"), saldo_inicial (quanto a pessoa tem para o saldo de Finanças), semestre, perfil e restaurar (da lixeira). Agrupe até oito ações do mesmo pedido. Não invente valores. Até 5 exclusões por pedido vão direto para a lixeira (30 dias; dá para restaurar ou usar desfazer); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente de confirmação.',
-    inputSchema: z.object({ acoes: z.array(commandAction).min(1).max(8).describe('Ações validadas, na ordem em que devem ser aplicadas.'), request_id: z.uuid().optional().describe('UUID do pedido; reutilize ao repetir o mesmo pedido após uma falha de conexão, por até 90 dias.') }),
+    inputSchema: z.object({ acoes: z.array(commandAction).min(1).max(8).describe('Ações validadas, na ordem em que devem ser aplicadas.'), request_id: z.uuid().optional().describe('UUID do pedido; reutilize ao repetir o mesmo pedido após uma falha de conexão, por até 90 dias.'),
+      pedido: z.string().trim().max(2000).optional().describe('As palavras da pessoa, como ela disse (por exemplo "me lembra daqui 3 minutos de beber água"). A Jornada usa para garantir o aviso e a hora certa.') }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
-  }, async ({ acoes, request_id }) => {
+  }, async ({ acoes, request_id, pedido }) => {
     if (!access.canWrite) return { ...text('Esta chave só consulta. Crie uma chave com permissão de registrar em Meu espaço › Conectar assistentes.'), isError: true };
     const requestId = request_id ?? crypto.randomUUID();
     const digest = createHash('sha256').update(JSON.stringify(acoes)).digest('hex');
@@ -138,7 +139,7 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
       const current = await context();
       const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
       // With the database trash, small deletions run at once; without it they wait for confirmation as before.
-      const executed = applyCommands(data, acoes, { today: today(), now: Date.now(), deleteDirectly: trash !== null, trash: trash ?? undefined });
+      const executed = applyCommands(data, acoes, { today: today(), now: Date.now(), deleteDirectly: trash !== null, trash: trash ?? undefined, said: pedido });
       const result = { resumo: executionSummary(executed), aplicado: executed.applied.map(item => item.label),
         pendente_no_aplicativo: executed.pending.map(item => item.label), falhou: executed.failed };
       if (!executed.applied.length && !executed.pending.length) return { ...text(result), isError: true };

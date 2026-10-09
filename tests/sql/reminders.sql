@@ -108,9 +108,12 @@ update public.personal_state set settings = pg_temp.focus(jsonb_build_array(json
   where owner_id = '00000000-0000-4000-8000-000000000004';
 select expect((select status = 'agendado' and title = 'Foco: Bases Biológicas' and abs(extract(epoch from due_at - (now() + interval '45 minutes'))) < 2
   and abs(extract(epoch from event_at - (now() + interval '50 minutes'))) < 2 from private.reminders where task_id = 'foco:f1'), 'foco com duração pergunta 5 minutos antes do fim');
+select expect((select status = 'agendado' and level = 'suave' and abs(extract(epoch from due_at - (now() + interval '80 minutes'))) < 2
+  from private.reminders where task_id = 'foco-fim:f1'), 'foco esquecido: um aviso só, 30 minutos depois do fim');
 update public.personal_state set settings = pg_temp.focus(jsonb_build_array(jsonb_build_object('start', pg_temp.ms(now() - interval '10 minutes'), 'end', pg_temp.ms(now()))), 3600)
   where owner_id = '00000000-0000-4000-8000-000000000004';
 select expect((select status = 'cancelado' and next_at is null from private.reminders where task_id = 'foco:f1'), 'pausado não pergunta');
+select expect((select status = 'cancelado' from private.reminders where task_id = 'foco-fim:f1'), 'pausado também não pergunta se esqueceu');
 update public.personal_state set settings = pg_temp.focus(jsonb_build_array(jsonb_build_object('start', pg_temp.ms(now() - interval '30 minutes'), 'end', pg_temp.ms(now() - interval '20 minutes')),
   jsonb_build_object('start', pg_temp.ms(now()), 'end', null)), 3600) where owner_id = '00000000-0000-4000-8000-000000000004';
 select expect((select status = 'agendado' and abs(extract(epoch from due_at - (now() + interval '45 minutes'))) < 2 from private.reminders where task_id = 'foco:f1'),
@@ -119,6 +122,8 @@ update public.personal_state set settings = pg_temp.focus(jsonb_build_array(json
   where owner_id = '00000000-0000-4000-8000-000000000004';
 select expect((select status = 'agendado' and event_at is null and abs(extract(epoch from due_at - (now() + interval '1 hour'))) < 2 from private.reminders where task_id = 'foco:f1'),
   'sem duração: pergunta depois de 1 hora');
+select expect((select status = 'agendado' and abs(extract(epoch from due_at - (now() + interval '3 hours'))) < 2 from private.reminders where task_id = 'foco-fim:f1'),
+  'sem duração: pergunta se esqueceu depois de 3 horas');
 set local role anon;
 insert into server_calls select 'foco', true, public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10);
 reset role;
@@ -128,8 +133,16 @@ set local role anon;
 insert into server_calls select 'foco na hora', true, public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10);
 reset role;
 select expect((select (value->0->>'focus')::boolean and value->0->>'title' = 'Foco: Bases Biológicas' from server_calls where name = 'foco na hora'), 'o servidor sabe que é a pergunta do foco');
+select expect((select not (value->0->>'forgotten')::boolean and value->0->>'focus_id' = 'f1' from server_calls where name = 'foco na hora'), 'e de qual foco');
+update private.reminders set next_at = now() - interval '1 minute' where task_id = 'foco-fim:f1';
+set local role anon;
+insert into server_calls select 'foco esquecido', true, public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10);
+reset role;
+select expect((select (value->0->>'forgotten')::boolean and not (value->0->>'focus')::boolean and value->0->>'focus_id' = 'f1' from server_calls where name = 'foco esquecido'),
+  'o servidor sabe que é o foco esquecido');
 update public.personal_state set settings = '{"activeFocus": null}' where owner_id = '00000000-0000-4000-8000-000000000004';
 select expect((select status = 'cancelado' from private.reminders where task_id = 'foco:f1'), 'foco encerrado não pergunta mais');
+select expect((select status = 'cancelado' and next_at is null from private.reminders where task_id = 'foco-fim:f1'), 'foco encerrado não pergunta se esqueceu');
 
 -- 7. Google Agenda pelo relógio: a agenda mudou e ninguém abriu o app; o servidor reserva, copia e registra.
 insert into private.google_agenda_links(user_id, refresh_ciphertext, calendar_id) values ('00000000-0000-4000-8000-000000000004', 'cifrado', 'agenda@group.calendar.google.com')

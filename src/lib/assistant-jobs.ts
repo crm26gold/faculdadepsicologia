@@ -7,7 +7,9 @@ export const proposedActions = z.array(commandAction).min(1).max(8);
 
 export const jobInputSchema = z.object({ message: z.string().trim().min(1).max(2000), today: daySchema,
   history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().max(3000) })).max(12).default([]),
-  actions: proposedActions.optional() });
+  actions: proposedActions.optional(),
+  // The person's own words when a model already wrote the actions (live voice): the engine completes what they make certain.
+  said: z.string().trim().max(2000).optional() });
 // A confirmation can hold personal changes and collective deletions proposed by an assistant.
 export type PendingItem = PendingCommand | ConfirmablePending;
 export type JobOutcome = { saved: boolean; reply: string; applied: Applied[]; pending: PendingItem[]; shared?: string[]; show?: 'today' | 'finances' | 'agenda' | 'routine' | 'planning' | 'notes'; failed: string[]; model?: string; execution?: 'structured' | 'planned'; undid?: string };

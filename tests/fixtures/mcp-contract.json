@@ -522,6 +522,10 @@
            "retomar",
            "encerrar"
           ]
+         },
+         "end": {
+          "type": "string",
+          "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
          }
         },
         "required": [
@@ -738,6 +742,11 @@
      "type": "string",
      "format": "uuid",
      "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+    },
+    "pedido": {
+     "description": "As palavras da pessoa, como ela disse (por exemplo \"me lembra daqui 3 minutos de beber água\"). A Jornada usa para garantir o aviso e a hora certa.",
+     "type": "string",
+     "maxLength": 2000
     }
    },
    "required": [

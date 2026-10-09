@@ -75,7 +75,7 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
     let current = context;
     for (let attempt = 0; attempt < 2; attempt++) {
       const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
-      const executed = applyCommands(data, personal, { today, now: Date.now(), ...(confirmed ? { confirmed: pending!.actions } : {}), deleteDirectly: trash !== null, trash: trash ?? undefined });
+      const executed = applyCommands(data, personal, { today, now: Date.now(), ...(confirmed ? { confirmed: pending!.actions } : { said: transcript }), deleteDirectly: trash !== null, trash: trash ?? undefined });
       const confirmation = String(randomInt(100000, 1000000));
       let reply = plan.actions.length ? [sharedText, personal.length ? executionSummary(executed) : ''].filter(Boolean).join(' ') : plan.reply;
       if (executed.pending.length) reply = [sharedText, executed.applied.length ? `Feito: ${executed.applied.map(item => item.label).join('; ')}.` : '',

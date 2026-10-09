@@ -85,6 +85,15 @@ export function finishFocus(data: Workspace, now: number): Workspace {
   }));
   return { ...data, activeFocus: null, sessions: [...data.sessions, ...entries.filter(entry => !data.sessions.some(existing => existing.id === entry.id))] };
 }
+/** Ends the focus at a past moment ("esqueci o foco ligado, saí às 19:10"): time after it is not counted. */
+export function finishFocusAt(data: Workspace, endAt: number, now: number): Workspace {
+  const focus = data.activeFocus;
+  if (!focus) return data;
+  if (endAt > now) throw new Error('Esse horário ainda não chegou. Diga até que horas você ficou em foco.');
+  if (endAt <= focus.segments[0].start) throw new Error('Esse horário é antes de o foco começar. Diga até que horas você ficou em foco.');
+  const segments = focus.segments.filter(part => part.start < endAt).map(part => ({ start: part.start, end: Math.min(part.end ?? endAt, endAt) }));
+  return finishFocus({ ...data, activeFocus: { ...focus, segments } }, endAt);
+}
 export function formatFocusTime(seconds: number) {
   const whole = Math.max(0, Math.floor(seconds));
   return [Math.floor(whole / 3600), Math.floor(whole % 3600 / 60), whole % 60].map(n => String(n).padStart(2, '0')).join(':');

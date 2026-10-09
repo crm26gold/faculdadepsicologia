@@ -19,7 +19,7 @@ import { FocusTimer } from './focus-timer';
 import { FocusHistory } from './focus-history';
 import { CaptureSheet } from './capture-sheet';
 import { readCaptureLink } from '@/lib/capture-link';
-import { pauseFocus } from '@/lib/focus';
+import { finishFocusAt, pauseFocus } from '@/lib/focus';
 import { AssistantBubble, AssistantChat, AssistantPanel } from './assistant';
 import { useConversations } from './use-conversations';
 import { CaptureInbox } from './capture-inbox';
@@ -291,15 +291,25 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     setCapturePlace(link.place); pushModal('capture'); setCaptureOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSearch]);
-  // "Pausar" on a focus reminder (notification, Telegram or WhatsApp): once the account is loaded, the focus pauses.
-  const pauseLink = useRef(new URLSearchParams(initialSearch).get('foco') === 'pausar');
+  // "Pausar" or "Encerrar" on a focus reminder (notification, Telegram or WhatsApp): once the account is loaded, the
+  // focus pauses, or ends at the end of its time. "Encerrar" names the focus, so a newer one is never touched.
+  const focusLink = useRef(new URLSearchParams(initialSearch));
   useEffect(() => {
-    if (!ready || !pauseLink.current) return;
-    pauseLink.current = false;
+    const link = focusLink.current, choice = link.get('foco');
+    if (!ready || (choice !== 'pausar' && choice !== 'encerrar')) return;
+    focusLink.current = new URLSearchParams();
     if (window.location.search) window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+    navigate('focus');
+    if (choice === 'encerrar') {
+      const now = Date.now(), asked = Number(link.get('fim')), endAt = Number.isFinite(asked) && asked > 0 ? Math.min(asked, now) : now;
+      if (!data.activeFocus || data.activeFocus.id !== link.get('id')) { setNotice('Esse foco já tinha sido encerrado.'); return; }
+      let ended = false;
+      update(previous => { if (previous.activeFocus?.id !== link.get('id')) return previous; try { const next = finishFocusAt(previous, endAt, now); ended = true; return next; } catch { return previous; } });
+      setNotice(ended ? `Foco encerrado às ${new Date(endAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} e tempo registrado.` : 'Esse foco já tinha sido encerrado.');
+      return;
+    }
     const running = data.activeFocus?.segments.at(-1)?.end === null;
     if (running) update(previous => previous.activeFocus ? { ...previous, activeFocus: pauseFocus(previous.activeFocus, Date.now()) } : previous);
-    navigate('focus');
     setNotice(running ? 'Foco pausado. Quando voltar, toque em Continuar.' : 'O foco já estava pausado ou encerrado.');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready]);

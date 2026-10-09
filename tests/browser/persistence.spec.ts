@@ -76,6 +76,28 @@ test('"Pausar" no aviso de foco abre o app e pausa o foco da conta', async ({ pa
   expect(new URL(fromReminder.url()).search).toBe('');
 });
 
+test('"Encerrar" no aviso de foco esquecido encerra aquele foco no fim do tempo, e nunca outro', async ({ page, context }) => {
+  await page.goto('/#focus');
+  await page.getByRole('button', { name: 'Tempo e foco' }).click();
+  await page.getByLabel('O que você vai fazer?').fill('Aula esquecida');
+  await page.getByRole('button', { name: 'Começar foco', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  const focusId = await page.evaluate(() => {
+    for (const key of Object.keys(localStorage)) { try { const id = JSON.parse(localStorage.getItem(key) ?? '')?.activeFocus?.id; if (id) return id as string; } catch { /* outro dado */ } }
+    return '';
+  });
+  expect(focusId).not.toBe('');
+  const fromReminder = await context.newPage();
+  await page.close();
+  // Um link de outro foco não mexe neste.
+  await fromReminder.goto('/?foco=encerrar&id=outro-foco');
+  await expect(fromReminder.getByText('Esse foco já tinha sido encerrado.')).toBeVisible();
+  await expect(fromReminder.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  await fromReminder.goto(`/?foco=encerrar&id=${focusId}&fim=${Date.now()}`);
+  await expect(fromReminder.getByText(/Foco encerrado às \d{2}:\d{2} e tempo registrado\./)).toBeVisible();
+  await expect(fromReminder.getByRole('button', { name: 'Pausar', exact: true })).toHaveCount(0);
+});
+
 test('cronômetro global preserva sessão ao reabrir página, pausa e registra tempo parcial', async ({ page, context }) => {
   await page.goto('/#focus');
   await page.getByRole('button', { name: 'Tempo e foco' }).click();

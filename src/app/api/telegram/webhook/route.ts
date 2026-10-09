@@ -165,7 +165,7 @@ export async function POST(request: Request) {
     const personal = own.filter(action => action.type !== 'mostrar_tela');
     const shared = collective.length ? await botShared(db, serverSecret, CHANNEL, chat, collective) : null;
     const trash = await botTrash(db, serverSecret, CHANNEL, chat, personal);
-    const options = { today, now, deleteDirectly: trash !== null, trash: trash ?? undefined };
+    const options = { today, now, deleteDirectly: trash !== null, trash: trash ?? undefined, said };
     let outcome = applyCommands(workspace, personal, options);
     if (outcome.applied.length) {
       let saved = await save(outcome.data, revision);

@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { dbError, reply, writeRequest } from '@/lib/api-route';
 import { runtimeConfig, runtimeForSession } from '@/lib/ai/runtime';
 import { AiError, generateResilient } from '@/lib/ai/providers';
-import { commandSystem, parseCommand } from '@/lib/commands';
+import { commandSystem, commandVersion, parseCommand } from '@/lib/commands';
 import { AI_IMAGE_LIMIT, imageMime, type AiImage } from '@/lib/ai/media';
 import { NOTE_BUCKET, safeMediaSource } from '@/lib/note-media';
 import { beforeAttemptBudget, BudgetLimitError } from '@/lib/ai/budget';
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
     const config = runtimeConfig(data);
     const { text: raw, model } = await generateResilient(config, { task: 'assistente', system: image ? imageReviewSystem : `${commandSystem}\n\nContexto da pessoa:\n${body.context}`,
       prompt: body.message, history: image ? [] : body.history, image, maxTokens: 2400, json: true, signal: AbortSignal.any([request.signal, AbortSignal.timeout(45_000)]), beforeAttempt: beforeAttemptBudget(session, 'ai') });
-    return reply({ ok: true, data: { configured: true, model, ...(image ? imageReview(raw) : parseCommand(raw)) } });
+    return reply({ ok: true, data: { configured: true, model, version: commandVersion, ...(image ? imageReview(raw) : parseCommand(raw)) } });
   } catch (cause) {
     if (cause instanceof BudgetLimitError) return cause.response;
     return reply({ error: cause instanceof AiError ? cause.message : 'A inteligência artificial não respondeu agora.' }, 502);
