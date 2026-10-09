@@ -10,9 +10,13 @@ test.beforeEach(async ({ page }) => { await page.clock.setFixedTime(new Date('20
 
 test('agenda mensal, semanal e acessibilidade com exemplos', async ({ page }, info) => {
   await page.goto('/'); await navigate(page, 'Agenda');
-  await expect(page.getByRole('heading', { name: /^setembro de 2026$/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /^setembro 2026$/i })).toBeVisible();
   await expect(page.getByRole('table')).toBeVisible();
+  // Filters stay folded until asked for; an active filter keeps them open and shows how many.
+  await expect(page.getByLabel('Filtrar matéria', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Filtros' }).click();
   await page.getByLabel('Filtrar matéria', { exact: true }).selectOption('neuro');
+  await expect(page.getByRole('button', { name: 'Filtros 1' })).toHaveAttribute('aria-expanded', 'true');
   await page.getByLabel('Filtrar matéria', { exact: true }).selectOption('');
   const audit = await new AxeBuilder({ page }).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze();
   expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
@@ -20,7 +24,7 @@ test('agenda mensal, semanal e acessibilidade com exemplos', async ({ page }, in
   await page.screenshot({ path: `test-results/agenda-${info.project.name}.png`, fullPage: true });
   await page.getByRole('button', { name: 'Semana', exact: true }).click();
   await expect(page.getByRole('table')).toHaveCount(0);
-  await expect(page.getByRole('button', { name: /18:00 · Aula Bases Biológicas/ }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^18:00 · Aula: Bases Biológicas/ }).first()).toBeVisible();
 });
 
 test('compromisso com horário e arquivo ICS', async ({ page }) => {
@@ -32,7 +36,9 @@ test('compromisso com horário e arquivo ICS', async ({ page }) => {
   await page.getByLabel('Intensidade', { exact: true }).selectOption({ label: 'Não me deixa esquecer' });
   await expect(page.getByText(/Sai sozinho no app, Telegram, WhatsApp e Google/)).toBeVisible();
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
-  await page.getByRole('button', { name: '15:30 · Compromisso Revisão de exemplo Sem área', exact: true }).click();
+  const saved = page.getByRole('button', { name: '15:30 · Compromisso: Revisão de exemplo, com aviso', exact: true });
+  await expect(saved).toContainText('Compromisso · Sem área');
+  await saved.click();
   await expect(page.getByRole('dialog')).toContainText('15:30');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Google Agenda', exact: true }).click();
