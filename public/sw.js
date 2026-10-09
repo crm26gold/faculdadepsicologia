@@ -11,14 +11,22 @@ self.addEventListener('push', event => {
     body: typeof data.body === 'string' ? data.body.slice(0, 300) : 'Você tem um lembrete.',
     icon: '/brand/icone-192.png', badge: '/brand/icone-192.png', tag: id || undefined, renotify: true,
     requireInteraction: data.insist === true, vibrate: [300, 120, 300, 120, 600],
-    data: { id, url },
-    actions: id ? [{ action: 'feito', title: 'Feito' }, { action: 'adiar', title: 'Adiar 10 min' }] : [],
+    data: { id, url, focus: data.focus === true },
+    // A focus near its end asks whether to keep going; "Pausar" opens the app, which pauses it on this account.
+    actions: !id ? [] : data.focus === true ? [{ action: 'feito', title: 'Continuar' }, { action: 'pausar', title: 'Pausar' }]
+      : [{ action: 'feito', title: 'Feito' }, { action: 'adiar', title: 'Adiar 10 min' }],
   }));
 });
 
 self.addEventListener('notificationclick', event => {
   const { id, url } = event.notification.data || {};
   event.notification.close();
+  if (id && event.action === 'pausar') {
+    event.waitUntil(fetch('/api/reminders', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ack', id, choice: 'feito' }) }).catch(() => null)
+      .then(() => self.clients.openWindow('/?foco=pausar')));
+    return;
+  }
   if (id && (event.action === 'feito' || event.action === 'adiar')) {
     // Same route as the app, with the session cookie of this device. If it fails, the reminder page opens.
     event.waitUntil(fetch('/api/reminders', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' },

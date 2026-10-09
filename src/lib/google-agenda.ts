@@ -33,11 +33,11 @@ function eventBody(entry: CalendarEntry) {
       : { start: { date: entry.date }, end: { date: addDays(entry.date, 1) } }),
     transparency: entry.time ? 'opaque' : 'transparent',
     status: 'confirmed',
-    // With "Avisar", Google warns too (phone and, when insistent, e-mail). All-day entries keep Google's default:
+    // With "Avisar", Google warns too, on the phone and by e-mail. All-day entries keep Google's default:
     // Google counts their reminders from midnight, the Jornada warns at 8:00.
     ...(remind && start && !entry.done ? { reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: remind.minutes },
       ...(remind.level !== 'suave' && remind.minutes > 0 ? [{ method: 'popup', minutes: 0 }] : []),
-      ...(remind.level === 'insistente' ? [{ method: 'email', minutes: remind.minutes }] : [])] } } : {}),
+      { method: 'email', minutes: remind.minutes }] } } : {}),
   };
 }
 

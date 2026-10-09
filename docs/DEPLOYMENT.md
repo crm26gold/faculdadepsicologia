@@ -90,20 +90,29 @@ O que vai: compromissos, prazos e aulas de 7 dias atrás a 120 dias à frente (a
 
 ### Avisos (lembretes)
 
-Avisos saem sozinhos na hora marcada, só para a própria pessoa e só quando ela pede (Avisar no compromisso, assistente ou o teste em Meu espaço › Avisos).
+Avisos saem sozinhos na hora marcada, só para a própria pessoa e só quando ela pede (Avisar no compromisso, assistente ou o teste em Meu espaço › Avisos), ou quando um foco chega perto do fim. Todo aviso sai em todos os canais ligados ao mesmo tempo (decisão do proprietário em 09/10/2026); a intensidade decide só quantas vezes volta.
 
 - **Banco:** a migração `20261009050031_reminders` (aplicada em 09/10/2026 em partes pelo MCP e pelo SQL Editor e registrada com essa versão) cria os lembretes, as inscrições de notificação, a fila do WhatsApp e o relógio.
   - Um gatilho em `personal_tasks` acompanha cada compromisso com `remind`, venha de onde vier a gravação.
   - No Supabase, a migração liga `pg_cron` e `pg_net`, guarda o código do relógio no Vault (`jornada_reminders_clock`) e agenda `jornada-lembretes` a cada minuto.
-  - O job só chama `POST /api/reminders/dispatch` quando há lembrete vencido.
+  - O job só chama `POST /api/reminders/dispatch` quando há lembrete vencido ou uma cópia do Google Agenda atrasada.
+- **Correções do mesmo dia:**
+  - `20261009141646_reminders_server_calls`: as funções chamadas pelo servidor rodam como dono (o servidor usa a chave pública, papel `anon`). Sem isso, o relógio recebia 401 e nada saía.
+  - `20261009145644_reminders_everywhere`:
+    - O foco em andamento pergunta "ainda em foco?" 5 minutos antes do fim do tempo, ou depois de 1 hora sem duração. O gatilho fica em `personal_state` e o lembrete tem `task_id` `foco:<id>`.
+    - "Pausar" abre `/?foco=pausar`, que pausa o foco no app.
+    - O relógio também copia para o Google Agenda as mudanças feitas pelo assistente, Telegram ou WhatsApp (`google_agenda_due` / `google_agenda_done`, até 3 contas por minuto).
   - **Ao trocar de domínio**, atualize a URL do job: `select cron.alter_job((select jobid from cron.job where jobname = 'jornada-lembretes'), command := …)`.
 - **Nenhuma variável nova.**
   - Notificação do app: as chaves VAPID derivam de `AI_KEYS_SECRET`; trocar esse segredo pede para religar as notificações em cada aparelho.
   - Telegram: usa o robô já configurado.
   - WhatsApp: usa a ponte do proprietário, que busca a fila no batimento (atualize a pasta `integrations/whatsapp-bridge` no computador e reinicie a ponte).
-  - Google Agenda: os eventos com Avisar levam lembretes do Google.
-- **Só canais grátis (decisão do proprietário em 09/10/2026).** E-mail vem dos lembretes do próprio Google Agenda (intensidade "Não me deixa esquecer"); serviços pagos (e-mail transacional, ligação, SMS) ficam fora.
-- **Aceite:** em Meu espaço › Avisos, ligue as notificações, toque em Testar avisos agora com "Não me deixa esquecer" e confira o resultado de cada canal. Depois crie um compromisso daqui a 20 minutos com Avisar 15 min antes.
+  - Google Agenda: os eventos com Avisar levam lembretes do Google, no celular e por e-mail.
+- **Só canais grátis (decisão do proprietário em 09/10/2026).** E-mail vem dos lembretes do próprio Google Agenda; serviços pagos (e-mail transacional, ligação, SMS) ficam fora.
+- **Aceite:**
+  1. Em Meu espaço › Avisos, ligue as notificações, toque em Testar avisos agora e confira o resultado de cada canal.
+  2. Peça ao assistente (app, Telegram ou um chat conectado pelo MCP): "me lembra daqui 3 minutos de beber água". O compromisso deve nascer em Saúde física e o aviso chegar em todos os canais.
+  3. Peça "entrei na aula de X, liga o foco". O foco deve contar até o fim da aula e, 5 minutos antes, perguntar se continua ou pausa.
 
 ### Geração do editor e reversões
 

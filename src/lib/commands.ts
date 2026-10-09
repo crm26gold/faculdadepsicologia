@@ -10,16 +10,18 @@ import { placeFields, placeOf, placeTrail, type Place } from './notebooks';
 import { emptyProfile } from './life-data';
 import { todayAgenda } from './today';
 import { screens } from './screens/names';
-import { minutesLabel, remindMinutes, remindSchema } from './reminders';
+import { minutesLabel, remindMinutes, remindSchema, saoPauloMoment } from './reminders';
+import { classOccurs } from './academic';
 
 // What the assistant may do on its own. The model only proposes these shapes; every action is validated
 // here and applied with the same rules as the screens. Shared by the chat, the voice mode and, later,
 // Telegram, WhatsApp and MCP.
 const name = z.string().trim().min(1).max(160);
 export const commandAction = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('compromisso'), title: name, date: daySchema, time: timeSchema.optional(), kind: z.enum(taskKinds).optional(),
-    minutes: z.number().int().min(5).max(240).optional(), area: z.string().max(100).optional(), subject: z.string().max(100).optional(),
-    remind: remindSchema.optional() }),
+  // "daqui 3 minutos": the server turns it into date and time in São Paulo, so the model never guesses the clock.
+  z.object({ type: z.literal('compromisso'), title: name, date: daySchema.optional(), time: timeSchema.optional(), daqui: z.number().int().min(1).max(1440).optional(),
+    kind: z.enum(taskKinds).optional(), minutes: z.number().int().min(5).max(240).optional(), area: z.string().max(100).optional(), subject: z.string().max(100).optional(),
+    remind: remindSchema.optional() }).refine(item => !!item.date || !!item.daqui, { message: 'Informe o dia (date) ou daqui quantos minutos (daqui).', path: ['date'] }),
   // Without a destination it lands in "Para organizar"; a notebook that does not exist yet is created.
   z.object({ type: z.literal('anotacao'), text: z.string().trim().min(1).max(10_000), title: z.string().trim().min(1).max(160).optional(),
     notebook: z.string().trim().min(1).max(100).optional(), subject: name.optional(), area: name.optional(),
@@ -86,6 +88,22 @@ function restoreChanges(data: Workspace, items: Delta[]) {
 }
 
 const plain = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR').trim();
+/** The class on today's schedule this focus is about: by subject name, or the one happening now when the person
+ * just says "aula". Only classes with an end time give a duration. */
+function classNow(data: Workspace, activity: string, now: number) {
+  const { date, time } = saoPauloMoment(now);
+  const wanted = plain(activity);
+  const minutes = (value: string) => Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5));
+  const today = data.classes.filter(item => item.endTime && classOccurs(item, date, data.term) && minutes(item.endTime) > minutes(time))
+    .map(item => ({ item, subject: data.subjects.find(subject => subject.id === item.subjectId) }));
+  const named = today.find(entry => entry.subject && wanted.includes(plain(entry.subject.name)));
+  // Between two classes, the one starting closest to now (arriving early for the next one counts).
+  const current = /\baula\b/.test(wanted) ? today.filter(entry => minutes(entry.item.startTime) - 15 <= minutes(time))
+    .toSorted((a, b) => Math.abs(minutes(a.item.startTime) - minutes(time)) - Math.abs(minutes(b.item.startTime) - minutes(time)))[0] : undefined;
+  const lesson = named ?? current;
+  if (!lesson) return null;
+  return { subjectId: lesson.item.subjectId, end: lesson.item.endTime!, seconds: (minutes(lesson.item.endTime!) - minutes(time)) * 60 };
+}
 function matchByName<T extends { id: string; name: string }>(items: readonly T[], wanted?: string) {
   if (!wanted) return undefined;
   const target = plain(wanted);
@@ -142,11 +160,14 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
         case 'compromisso': {
           const subject = matchByName(next.subjects, action.subject);
           const area = matchByName(lifeAreas(next), action.area);
-          const task: Task = { id: newId(), title: action.title, subjectId: subject?.id ?? '', date: action.date, kind: action.kind ?? 'Compromisso',
-            done: false, minutes: action.minutes ?? 30, ...(action.time ? { time: action.time } : {}), ...(area ? { areaId: area.id } : subject ? { areaId: 'studies' } : {}),
+          // Rounded up to the next minute: the clock checks on the minute, so the reminder never comes early.
+          const soon = action.daqui ? saoPauloMoment(Math.ceil((options.now + action.daqui * 60_000) / 60_000) * 60_000) : null;
+          const date = soon?.date ?? action.date!;
+          const task: Task = { id: newId(), title: action.title, subjectId: subject?.id ?? '', date, kind: action.kind ?? 'Compromisso',
+            done: false, minutes: action.minutes ?? 30, ...(soon ? { time: soon.time } : action.time ? { time: action.time } : {}), ...(area ? { areaId: area.id } : subject ? { areaId: 'studies' } : {}),
             ...(action.remind ? { remind: action.remind } : {}) };
           next = { ...next, tasks: [...next.tasks, task] };
-          applied.push({ label: `${task.kind}: ${task.title} · ${action.date === options.today ? 'hoje' : action.date === addDays(options.today, 1) ? 'amanhã' : `${weekday(action.date)}, ${formatDate(action.date)}`}${task.time ? ` às ${task.time}` : ''}${task.remind ? ` · aviso ${minutesLabel(task.remind.minutes).toLowerCase()}` : ''}`, view: 'agenda', id: task.id, undo: { kind: 'task', id: task.id } });
+          applied.push({ label: `${task.kind}: ${task.title} · ${date === options.today ? 'hoje' : date === addDays(options.today, 1) ? 'amanhã' : `${weekday(date)}, ${formatDate(date)}`}${task.time ? ` às ${task.time}` : ''}${task.remind ? ` · aviso ${minutesLabel(task.remind.minutes).toLowerCase()}` : ''}`, view: 'agenda', id: task.id, undo: { kind: 'task', id: task.id } });
           break;
         }
         case 'anotacao': {
@@ -194,8 +215,11 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
         }
         case 'foco': {
           const focusId = newId();
-          next = startFocus(next, { id: focusId, now: options.now, activity: action.activity, targetSeconds: action.minutes ? action.minutes * 60 : 0 });
-          applied.push({ label: `Foco ligado: ${action.activity}${action.minutes ? ` · ${action.minutes} min` : ''}`, view: 'focus', undo: { kind: 'focus', id: focusId } });
+          // "Entrei na aula de X": the class on today's schedule gives the subject and how long is left until it ends.
+          const lesson = action.minutes ? null : classNow(next, action.activity, options.now);
+          next = startFocus(next, { id: focusId, now: options.now, activity: action.activity, targetSeconds: action.minutes ? action.minutes * 60 : lesson?.seconds ?? 0,
+            ...(lesson ? { subjectId: lesson.subjectId, areaId: 'studies' } : {}) });
+          applied.push({ label: `Foco ligado: ${action.activity}${action.minutes ? ` · ${action.minutes} min` : lesson ? ` · até ${lesson.end}, fim da aula` : ''}`, view: 'focus', undo: { kind: 'focus', id: focusId } });
           break;
         }
         case 'concluir': {
@@ -368,13 +392,13 @@ function pending(data: Workspace, today: string) {
   return parts.length ? `Pendentes: ${parts.join('; ')}.` : 'Pendentes: nada.';
 }
 
-export function commandContext(data: Workspace, today: string, limit = 6000, search = '') {
+export function commandContext(data: Workspace, today: string, limit = 6000, search = '', now = Date.now()) {
   const agenda = todayAgenda(data, today).map(entry => `${entry.time ?? 'sem horário'} ${entry.title} (${entry.kind})${entry.done ? ' [feito]' : ''}`);
   const late = data.tasks.filter(task => !task.done && task.date < today).slice(0, 8).map(task => `${task.title} (${formatDate(task.date)})`);
   const upcoming = data.tasks.filter(task => !task.done && task.date > today && task.date <= addDays(today, 7)).slice(0, 10).map(task => `${formatDate(task.date)}${task.time ? ` ${task.time}` : ''} ${task.title}`);
   const bills = (data.transactions ?? []).filter(item => item.status === 'pending' && item.date <= addDays(today, 15)).slice(0, 10).map(item => `${formatDate(item.date)} ${item.type === 'income' ? 'receber' : 'pagar'} ${item.description} ${money(item.amountCents)}`);
   return [
-    `Hoje: ${weekday(today)}, ${today}.`,
+    `Hoje: ${weekday(today)}, ${today}. Agora: ${saoPauloMoment(now).time} (horário de Brasília).`,
     `Áreas da vida: ${lifeAreas(data).filter(area => !area.hidden).map(area => area.name).join('; ')}.`,
     data.subjects.length ? `Matérias e módulos: ${data.subjects.map(subject => subject.name).join('; ')}.` : '',
     `Agenda de hoje: ${agenda.join('; ') || 'nada'}.`,
@@ -405,10 +429,10 @@ Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
 {"reply": "sua resposta para a pessoa", "actions": [ ... ]}
 A resposta deve soar falada: frases curtas e claras, sem listas longas nem markdown; pode ser mais longa só quando a pessoa pedir explicação.
 Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa comum, "actions" fica vazio):
-- {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional),"remind":{"minutes":${remindMinutes.join('|')},"level":"suave|normal|insistente"}(opcional)} — use remind só quando a pessoa pedir para lembrar, avisar, alarmar ou "não me deixa esquecer" (insistente); "me lembra às 9 de X" é compromisso às 09:00 com remind minutes 0. Os avisos saem sozinhos no app, Telegram e WhatsApp dela; para tirar o aviso: editar compromisso com fields {"remind":null}.
+- {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"daqui":minutos(opcional, no lugar de date e time),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional),"remind":{"minutes":${remindMinutes.join('|')},"level":"suave|normal|insistente"}(opcional)} — sempre que a pessoa pedir para lembrar, avisar, alarmar ou "não me deixa esquecer", crie compromisso com remind: level normal por padrão, insistente quando ela pedir para não esquecer de jeito nenhum, suave só se ela pedir um aviso só. "Me lembra daqui 3 minutos de beber água" é {"type":"compromisso","title":"Beber água","daqui":3,"kind":"Tarefa","area":"Saúde física","remind":{"minutes":0,"level":"normal"}}: use daqui para "daqui N minutos/horas" (o servidor calcula a hora), e "me lembra às 9 de X" é time 09:00 com remind minutes 0. Escolha sempre kind e area pelo sentido, entre as Áreas da vida do contexto (água, remédio, treino → saúde; contas → finanças; estudo, aula, prova → estudos com a matéria). O aviso sai sozinho em todos os canais ligados (notificação do app, Telegram, WhatsApp e Google Agenda, que também manda e-mail): nunca peça para cadastrar em cada lugar. Para tirar o aviso: editar compromisso com fields {"remind":null}.
 - {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional),"link":"https://..."(opcional, para guardar um link)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Cada anotação fica em UM lugar só (matéria, caderno ou área). Um caderno pode ficar dentro de uma matéria: com notebook e subject juntos, a anotação vai para o caderno dentro dessa matéria (o caderno é criado ou vinculado se preciso). Para vincular um caderno existente: editar caderno com subject.
 - {"type":"financeiro","flow":"expense"|"income","description":"...","amount":número em reais,"category":uma de [${expenseCategories.join(', ')}] para saídas ou [${incomeCategories.join(', ')}] para entradas,"date":"AAAA-MM-DD","pending":true se ainda vai pagar/receber,"nature":"fixed"|"variable"|"oneoff","installments":número de parcelas (opcional),"monthly":meses se repete todo mês (opcional)}
-- {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo
+- {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo. "Entrei na aula de X, liga o foco": activity com o nome da aula e sem minutes; o sistema acha a aula de hoje na grade, liga à matéria e conta até o fim dela. Perto do fim (5 minutos antes), ou depois de 1 hora num foco sem duração, a pessoa recebe em todos os canais a pergunta "ainda em foco? continuar ou pausar?"; "pausa o foco" é controlar_foco.
 - {"type":"concluir","title":"nome do compromisso"} — marcar como feito
 - {"type":"criar","entity":"tipo de registro","fields":{...}} — criar os outros tipos de registro
 - {"type":"editar","entity":"tipo de registro","target":"ID exato ou nome inequívoco","fields":{...}} — mudar apenas os campos solicitados; reagendar é editar compromisso

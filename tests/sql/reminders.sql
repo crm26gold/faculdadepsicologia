@@ -97,4 +97,55 @@ select expect((select jsonb_array_length(value) = 1 from server_calls where name
 select expect((select jsonb_array_length(value) = 0 from server_calls where name = 'retira de novo'), 'retirada não sai de novo antes de 2 minutos');
 select expect((select sent_at is not null from private.reminder_outbox limit 1), 'envio confirmado');
 select expect(not exists (select 1 from private.push_subscriptions where owner_id = '00000000-0000-4000-8000-000000000004'), 'aparelho recusado sai da lista');
+-- 6. Foco: 5 minutos antes do fim do tempo pergunta se continua; pausar cancela; retomar refaz a conta; sem duração,
+-- pergunta depois de 1 hora; encerrar cancela.
+create function pg_temp.focus(segments jsonb, target integer) returns jsonb language sql as $$
+  select jsonb_build_object('activeFocus', jsonb_build_object('id', 'f1', 'activity', 'Bases Biológicas', 'subjectId', '', 'areaId', 'studies', 'targetSeconds', target, 'segments', segments)) $$;
+create function pg_temp.ms(at timestamptz) returns bigint language sql as $$ select (extract(epoch from at) * 1000)::bigint $$;
+insert into public.personal_state(owner_id, settings) values ('00000000-0000-4000-8000-000000000004', '{}')
+  on conflict (owner_id) do update set settings = '{}';
+update public.personal_state set settings = pg_temp.focus(jsonb_build_array(jsonb_build_object('start', pg_temp.ms(now() - interval '10 minutes'), 'end', null)), 3600)
+  where owner_id = '00000000-0000-4000-8000-000000000004';
+select expect((select status = 'agendado' and title = 'Foco: Bases Biológicas' and abs(extract(epoch from due_at - (now() + interval '45 minutes'))) < 2
+  and abs(extract(epoch from event_at - (now() + interval '50 minutes'))) < 2 from private.reminders where task_id = 'foco:f1'), 'foco com duração pergunta 5 minutos antes do fim');
+update public.personal_state set settings = pg_temp.focus(jsonb_build_array(jsonb_build_object('start', pg_temp.ms(now() - interval '10 minutes'), 'end', pg_temp.ms(now()))), 3600)
+  where owner_id = '00000000-0000-4000-8000-000000000004';
+select expect((select status = 'cancelado' and next_at is null from private.reminders where task_id = 'foco:f1'), 'pausado não pergunta');
+update public.personal_state set settings = pg_temp.focus(jsonb_build_array(jsonb_build_object('start', pg_temp.ms(now() - interval '30 minutes'), 'end', pg_temp.ms(now() - interval '20 minutes')),
+  jsonb_build_object('start', pg_temp.ms(now()), 'end', null)), 3600) where owner_id = '00000000-0000-4000-8000-000000000004';
+select expect((select status = 'agendado' and abs(extract(epoch from due_at - (now() + interval '45 minutes'))) < 2 from private.reminders where task_id = 'foco:f1'),
+  'retomado: conta só o tempo que falta');
+update public.personal_state set settings = pg_temp.focus(jsonb_build_array(jsonb_build_object('start', pg_temp.ms(now()), 'end', null)), 0)
+  where owner_id = '00000000-0000-4000-8000-000000000004';
+select expect((select status = 'agendado' and event_at is null and abs(extract(epoch from due_at - (now() + interval '1 hour'))) < 2 from private.reminders where task_id = 'foco:f1'),
+  'sem duração: pergunta depois de 1 hora');
+set local role anon;
+insert into server_calls select 'foco', true, public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10);
+reset role;
+select expect((select jsonb_array_length(value) = 0 from server_calls where name = 'foco'), 'antes da hora, nada sai');
+update private.reminders set next_at = now() - interval '1 minute' where task_id = 'foco:f1';
+set local role anon;
+insert into server_calls select 'foco na hora', true, public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10);
+reset role;
+select expect((select (value->0->>'focus')::boolean and value->0->>'title' = 'Foco: Bases Biológicas' from server_calls where name = 'foco na hora'), 'o servidor sabe que é a pergunta do foco');
+update public.personal_state set settings = '{"activeFocus": null}' where owner_id = '00000000-0000-4000-8000-000000000004';
+select expect((select status = 'cancelado' from private.reminders where task_id = 'foco:f1'), 'foco encerrado não pergunta mais');
+
+-- 7. Google Agenda pelo relógio: a agenda mudou e ninguém abriu o app; o servidor reserva, copia e registra.
+insert into private.google_agenda_links(user_id, refresh_ciphertext, calendar_id) values ('00000000-0000-4000-8000-000000000004', 'cifrado', 'agenda@group.calendar.google.com')
+  on conflict (user_id) do update set synced_revision = null, sync_started_at = null, problem = '';
+set local role anon;
+insert into server_calls select 'google', true, public.google_agenda_due('segredo-do-servidor-com-mais-de-32-caracteres', 3);
+insert into server_calls select 'google de novo', true, public.google_agenda_due('segredo-do-servidor-com-mais-de-32-caracteres', 3);
+select public.google_agenda_done('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004',
+  (select (value->0->>'revision')::bigint from server_calls where name = 'google'), 3, '', '');
+insert into server_calls select 'google em dia', true, public.google_agenda_due('segredo-do-servidor-com-mais-de-32-caracteres', 3);
+reset role;
+select expect((select value->0->>'person' = '00000000-0000-4000-8000-000000000004' and value->0->>'refresh_ciphertext' = 'cifrado'
+  and jsonb_typeof(value->0->'workspace') = 'object' from server_calls where name = 'google'), 'agenda atrasada sai com o documento da conta');
+select expect((select jsonb_array_length(value) = 0 from server_calls where name = 'google de novo'), 'reservada não sai duas vezes');
+select expect((select jsonb_array_length(value) = 0 from server_calls where name = 'google em dia')
+  and (select synced_revision = (select revision from public.personal_state where owner_id = '00000000-0000-4000-8000-000000000004') and sync_started_at is null
+    from private.google_agenda_links where user_id = '00000000-0000-4000-8000-000000000004'), 'copiada: fica em dia até a próxima mudança');
+select expect(public.try_as('', 'public.google_agenda_due(''errado'', 3)') = '42501', 'sem o segredo do servidor, nada do Google');
 rollback;

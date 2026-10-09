@@ -46,7 +46,7 @@ test('com Avisar, o Google também avisa no celular (e por e-mail, se insistente
     { ...data.tasks[0], id: 'd', date: '2030-01-11', time: '09:00', done: false }];
   const [loud, quiet, allDay, none] = agendaEvents(data, today).toSorted((x, y) => x.date.localeCompare(y.date));
   assert.deepEqual(loud.body.reminders, { useDefault: false, overrides: [{ method: 'popup', minutes: 15 }, { method: 'popup', minutes: 0 }, { method: 'email', minutes: 15 }] });
-  assert.deepEqual(quiet.body.reminders, { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] });
+  assert.deepEqual(quiet.body.reminders, { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }, { method: 'email', minutes: 0 }] }, 'todo aviso chega também por e-mail');
   assert.equal(allDay.body.reminders, undefined, 'dia inteiro: o Google conta da meia-noite; a Jornada avisa às 8h');
   assert.equal(none.body.reminders, undefined);
   const silenced = workspace(); silenced.classes = []; silenced.tasks = [{ ...data.tasks[0], remind: undefined }];
