@@ -16,6 +16,8 @@ registerHooks({ resolve: (specifier, context, next) => specifier === 'server-onl
   : specifier === '@/lib/supabase/server' ? { url: fakeServer, shortCircuit: true }
   : specifier === '@/lib/ai/budget' ? { url: fakeBudget, shortCircuit: true } : next(specifier, context) });
 process.env.APP_ORIGIN = 'https://jornada.example';
+// The route answers only on the private app; the CI runs with APP_MODE=demo.
+process.env.APP_MODE = 'private';
 
 /** A PDF with one page per text, written by hand (enough for pdf.js). */
 function pdf(pages: string[]) {
