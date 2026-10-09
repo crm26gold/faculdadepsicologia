@@ -19,7 +19,9 @@ export type Remind = z.infer<typeof remindSchema>;
 export type ReminderChannel = 'push' | 'telegram' | 'whatsapp';
 export const channelLabels: Record<ReminderChannel, string> = { push: 'Notificação do app', telegram: 'Telegram', whatsapp: 'WhatsApp' };
 export type ClaimedReminder = {
-  id: string; title: string; event_at: string | null; due_at: string; level: ReminderLevel; step: number; focus?: boolean;
+  id: string; title: string; event_at: string | null; due_at: string; level: ReminderLevel; step: number;
+  /** "Ainda em foco?" near the end; forgotten: the focus kept running well after it. */
+  focus?: boolean; forgotten?: boolean; focus_id?: string | null;
   telegram: string | null; whatsapp: string | null; bridge_online: boolean; push: { endpoint: string; p256dh: string; auth: string }[];
 };
 export type Delivery = { at: string; step: number; channel: ReminderChannel; ok: boolean; detail: string };
@@ -38,7 +40,12 @@ export function saoPauloMoment(now: number) {
 const clock = (value: string) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
 const day = (value: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(value));
 /** "Dentista às 10:00 (em 15 minutos)". Repeats say so, to tell them apart from a new reminder. */
-export function reminderText(reminder: Pick<ClaimedReminder, 'title' | 'event_at' | 'step' | 'focus'>, now = new Date()) {
+export function reminderText(reminder: Pick<ClaimedReminder, 'title' | 'event_at' | 'step' | 'focus' | 'forgotten'>, now = new Date()) {
+  if (reminder.forgotten) {
+    // "Foco: Bases Biológicas continua ligado; o tempo dele acabou às 19:10. Esqueceu? Encerrar às 19:10 ou continuar?"
+    const end = reminder.event_at ? clock(reminder.event_at) : null;
+    return `${reminder.title} continua ligado${end ? `; o tempo dele acabou às ${end}` : ' há mais de 3 horas'}. Esqueceu? Encerrar${end ? ` às ${end}` : ' agora'} ou continuar?`;
+  }
   if (reminder.focus) {
     // "Foco: Bases Biológicas termina às 19:10 (em 5 minutos). Ainda em foco? Continuar ou pausar?"
     const left = reminder.event_at ? Math.round((Date.parse(reminder.event_at) - now.getTime()) / 60_000) : null;
@@ -54,4 +61,7 @@ export function reminderText(reminder: Pick<ClaimedReminder, 'title' | 'event_at
   }
   return `${reminder.step > 0 ? 'De novo: ' : ''}${reminder.title}${when}`;
 }
+/** Where "Encerrar" goes for a forgotten focus: the app ends that focus at the end of its time (or now). */
+export const focusStopLink = (origin: string, reminder: Pick<ClaimedReminder, 'focus_id' | 'event_at'>) =>
+  `${origin.replace(/\/$/, '')}/?foco=encerrar&id=${encodeURIComponent(reminder.focus_id ?? '')}${reminder.event_at ? `&fim=${Date.parse(reminder.event_at)}` : ''}`;
 export const reminderLink = (origin: string, id: string) => `${origin.replace(/\/$/, '')}/lembrete?id=${encodeURIComponent(id)}`;

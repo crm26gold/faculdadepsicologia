@@ -64,14 +64,14 @@ export function useAssistantJobs(options: Options) {
     return () => clearInterval(timer);
   }, [working, ready, load]);
 
-  async function run(key: string, message: string, signal: AbortSignal, actions?: CommandAction[]) {
+  async function run(key: string, message: string, signal: AbortSignal, actions?: CommandAction[], said?: string) {
     const target = currentScope, initial = latest.current;
     if (!initial.accountId || !initial.conversationId || !initial.ready) throw new Error('Abra a conversa na sua conta antes de executar.');
     signal.throwIfAborted(); await initial.ensureSaved(); signal.throwIfAborted();
     // Once accepted, ending a call must not cancel the server's transaction.
     const accepted = await api<{ id: string; status: AssistantJob['status'] }>('/api/assistant/jobs', { action: 'start', accountId: initial.accountId,
       conversationId: initial.conversationId, key: `${initial.conversationId}:${key}`.slice(0, 180), input: { message, today: dateKey(),
-        history: initial.messages.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' : 'assistant', text: item.text.slice(0, 3000) })), ...(actions ? { actions } : {}) } });
+        history: initial.messages.slice(-12).map(item => ({ role: item.from === 'me' ? 'user' : 'assistant', text: item.text.slice(0, 3000) })), ...(actions ? { actions } : {}), ...(said?.trim() ? { said: said.trim().slice(0, 2000) } : {}) } });
     if (scope.current === target) { setError(''); void load(); }
     const until = Date.now() + 65_000;
     while (!signal.aborted && Date.now() < until && scope.current === target) {

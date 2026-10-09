@@ -7,7 +7,7 @@ import { validMedia } from '@/lib/note-media';
 import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
 import { dateKey, type Workspace } from '@/lib/workspace';
-import { commandContext, type Applied, type CommandAction } from '@/lib/commands';
+import { commandContext, commandVersion, type Applied, type CommandAction } from '@/lib/commands';
 import { confirmationIntent, queryWorkspace } from '@/lib/assistant-query';
 import { collectiveReadResult, collectiveReadUrl } from '@/lib/voice/collective-read';
 import type { LiveCredentials, VoiceTool, VoiceTranscript } from '@/lib/voice/protocol';
@@ -121,7 +121,9 @@ type ChatProps = {
   onOpenNote: (id: string) => void; onNavigate: (view: Applied['view'] | 'today') => void;
   focusJob?: string;
 };
-type CommandReply = { configured: boolean; reply?: string; actions?: CommandAction[]; model?: string };
+type CommandReply = { configured: boolean; reply?: string; actions?: CommandAction[]; model?: string; version?: string };
+// A request kept across the reload that brings this page up to the server's rules.
+const repeatKey = 'jornada:repetir-pedido';
 // The same conversation lives in the computer's bubble and in the Assistente tab (the phone's way in).
 // With AI connected it understands and acts (and can undo); without it, nothing is lost: it goes to "Para organizar".
 export function AssistantChat({ conversations, cloud, blocked, demo, data, update, ensureSaved, refreshWorkspace, messages, setMessages, onOpenNote, onNavigate, focusJob }: ChatProps) {
@@ -133,6 +135,7 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
   const [callOpen, setCallOpen] = useState(false);
   const [heard, setHeard] = useState('');
   const [problem, setProblem] = useState('');
+  const [stale, setStale] = useState<string | null>(null);
   const [ai, setAi] = useState<{ ready: boolean; model?: string } | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   function stopVoice(closeCall = true) {
@@ -167,6 +170,16 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
   // Opened from Meu dia: the confirmation receives focus as soon as it is offered; confirming stays a separate tap.
   const confirmation = useRef<HTMLElement>(null);
   useEffect(() => { if (focusJob && jobs.pendingId === focusJob) confirmation.current?.focus(); }, [focusJob, jobs.pendingId]);
+  // After "Atualizar e repetir", the kept request runs once, now with the server's rules.
+  const repeated = useRef(false);
+  useEffect(() => {
+    if (repeated.current || !cloud || !conversations.ready || blocked) return;
+    repeated.current = true;
+    let kept: string | null = null;
+    try { kept = sessionStorage.getItem(repeatKey); sessionStorage.removeItem(repeatKey); } catch { return; }
+    if (kept) void send(kept);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloud, conversations.ready, blocked]);
   const [voice, setVoice] = useState(false);
   useEffect(() => { setVoice(!!recognition()); return () => { if (recognizer.current) try { recognizer.current.onend = null; recognizer.current.stop(); } catch {} cancelSpeech(); }; }, []);
   useEffect(() => { list.current?.scrollTo({ top: list.current.scrollHeight }); }, [messages, heard]);
@@ -254,13 +267,18 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
       }
       setAi(result.configured ? { ready: true, model: result.model } : cloud ? { ready: false } : null);
       if (!result.configured) { voiceAnswer = await capture(said, id, ''); return; }
+      // This page runs the rules in the browser: older than the server's, it would apply yesterday's rules. Nothing runs.
+      if (result.version && result.version !== commandVersion) {
+        setStale(said); voiceAnswer = 'A Jornada foi atualizada. Toque em Atualizar e repetir para eu fazer o pedido com as regras novas.';
+        return;
+      }
       const actions = result.actions ?? [];
       if (!actions.length && !result.reply) {
         setMessages(previous => [...previous, { id, from: 'assistant', text: 'Não entendi bem. Pode dizer de outro jeito?', retry: said }]);
         voiceAnswer = 'Não entendi bem. Pode dizer de outro jeito?';
         return;
       }
-      if (actions.length) { const done = await executor.run(actions); recordExecution(id, done); voiceAnswer = done.reply; }
+      if (actions.length) { const done = await executor.run(actions, undefined, undefined, said); recordExecution(id, done); voiceAnswer = done.reply; }
       else { voiceAnswer = result.reply || 'Pode dizer de outro jeito?'; setMessages(previous => [...previous, { id, from: 'assistant', text: voiceAnswer }]); }
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'Não consegui agora. Confira o aviso de salvamento e tente de novo.');
@@ -316,7 +334,7 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
       if (executor.pending.length && intent === 'cancel') { await cancelPending(); return { saved: true, reply: 'Alteração cancelada. Nenhum item pendente foi removido.' }; }
       if (executor.pending.length && intent === 'confirm') { done = await executor.confirm(transcript, signal); if (done.saved) await jobs.settle(); recordExecution(`voice-action:${call.id}`, done); return { saved: done.saved, reply: done.reply }; }
       const { instruction, actions } = voiceActionRequest(call.args);
-      const result = await jobs.run(call.id, instruction, signal, actions);
+      const result = await jobs.run(call.id, instruction, signal, actions, transcript.text);
       return { saved: result.saved, reply: result.reply, applied: [...result.applied.map(item => item.label), ...(result.shared ?? [])], pending: result.pending.map(item => item.label), failed: result.failed };
     } else throw new Error('Este comando de voz não está disponível.');
     recordExecution(`voice-action:${call.id}`, done);
@@ -399,6 +417,8 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
       {listening && <div className="assistant-message me listening"><p>{heard || 'Ouvindo…'}</p></div>}
     </div>
     {problem && <p className="assistant-problem" role="alert">{problem}</p>}
+    {stale && <div className="assistant-problem" role="status"><p>A Jornada foi atualizada enquanto esta página estava aberta. Nada foi feito ainda: atualize para eu fazer o pedido com as regras novas.</p>
+      <button type="button" className="button primary" onClick={() => { try { sessionStorage.setItem(repeatKey, stale); } catch { /* sem armazenamento: só recarrega */ } window.location.reload(); }}>Atualizar e repetir</button></div>}
     {executor.pending.length > 0 && !callOpen && <section ref={confirmation} tabIndex={-1} className="assistant-confirmation" aria-label="Confirmar alteração">
       <strong>Confirme a alteração</strong><ul>{executor.pending.map((item, index) => <li key={index}>{item.label}</li>)}</ul>
       <div><button type="button" className="button danger" disabled={locked} onClick={() => { void confirmPending().catch(error => setProblem(error instanceof Error ? error.message : 'Não consegui confirmar.')); }}>Confirmar</button><button type="button" className="button outline" disabled={locked} onClick={() => void cancelPending()}>Cancelar</button></div>

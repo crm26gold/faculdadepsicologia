@@ -25,7 +25,7 @@ export function useAssistantExecutor(options: Options) {
     pendingRef.current = { items: outcome.pending, createdAt: Date.now() };
     setPending(outcome.pending);
   }
-  async function run(actions: CommandAction[], signal?: AbortSignal, confirmed?: PendingCommand[]): Promise<Execution> {
+  async function run(actions: CommandAction[], signal?: AbortSignal, confirmed?: PendingCommand[], said?: string): Promise<Execution> {
     if (running.current) throw new Error('Estou salvando o pedido anterior. Aguarde um instante.');
     if (latest.current.blocked) throw new Error('O salvamento está bloqueado. Confira o aviso na página antes de continuar.');
     signal?.throwIfAborted();
@@ -34,7 +34,7 @@ export function useAssistantExecutor(options: Options) {
     try {
       const accepted = latest.current.update(previous => {
         signal?.throwIfAborted();
-        outcome = applyCommands(previous, actions, { today: dateKey(), now: Date.now(), confirmed });
+        outcome = applyCommands(previous, actions, { today: dateKey(), now: Date.now(), confirmed, said });
         return outcome.data;
       });
       if (!accepted || !outcome) throw new Error('A alteração não foi aceita. Confira os dados e o aviso de salvamento.');
