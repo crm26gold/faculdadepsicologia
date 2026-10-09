@@ -1142,3 +1142,50 @@ test('o que os assistentes fizeram: lista as alterações das conexões e Desfaz
   await expect.poll(() => saved.versions.at(-1)?.tasks.some(item => item.id === 't-ia')).toBe(false);
   expect((await new AxeBuilder({ page }).include('.assistant-activity').analyze()).violations).toEqual([]);
 });
+
+test('material do curso: contexto para a IA, enviar arquivo, mover para a matéria e lixeira', async ({ page }) => {
+  await mockApi(page);
+  const space = { ...EMPTY_SPACE, editorGeneration: 9, courses: [{ id: 'psicologia', name: 'Psicologia', kind: 'graduacao', institution: 'UNIP', color: 'rose', status: 'active' }],
+    subjects: [{ id: 'neuro', name: 'Bases Biológicas', semester: 1, color: 'lavender', courseId: 'psicologia' }] };
+  await page.route('**/api/workspace**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(route.request().method() === 'PUT' ? { revision: 2 } : { data: space, revision: 1, accountId: ME }) }));
+  const now = '2026-10-09T20:00:00.000Z';
+  let items: Record<string, unknown>[] = [{ id: 'm1', course_id: 'psicologia', subject_id: null, kind: 'texto', title: 'Regras de prova', preview: 'Prova dissertativa.', mime: null, size: 0, pages: null, status: 'pronto', problem: '', created_at: now, deleted_at: null }];
+  const posts: Record<string, unknown>[] = [];
+  let uploaded = '';
+  await page.route('https://storage.example/**', async route => { uploaded = route.request().headers()['content-type'] ?? ''; await route.fulfill({ status: 200, body: '{}' }); });
+  await page.route('**/api/materiais**', async route => {
+    const request = route.request();
+    const json = (data: unknown) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data }) });
+    if (request.method() === 'GET') return json({ items, used: 3 * 1024 * 1024, limit: 200 * 1024 * 1024 });
+    const body = request.postDataJSON(); posts.push(body);
+    if (body.action === 'context') { items = [...items.filter(item => item.kind !== 'contexto'), { id: 'ctx', course_id: 'psicologia', subject_id: body.subject_id, kind: 'contexto', title: 'O que a IA precisa saber', body: body.text, mime: null, size: 0, pages: null, status: 'pronto', problem: '', created_at: now, deleted_at: null }]; return json(null); }
+    if (body.action === 'prepare') return json({ id: 'm2', uploadUrl: 'https://storage.example/upload/m2', mime: body.type });
+    if (body.action === 'process') { items = [{ id: 'm2', course_id: 'psicologia', subject_id: null, kind: 'arquivo', title: 'Plano de ensino.pdf', mime: 'application/pdf', size: 2048, pages: 4, status: 'pronto', problem: '', created_at: now, deleted_at: null }, ...items]; return json(items[0]); }
+    if (body.action === 'edit') { items = items.map(item => item.id === body.id ? { ...item, subject_id: body.subject_id } : item); return json(null); }
+    if (body.action === 'delete') { items = items.map(item => item.id === body.id ? { ...item, deleted_at: now } : item); return json(null); }
+    return json(null);
+  });
+  await page.goto('/#studies');
+  await page.getByRole('button', { name: /^Psicologia/ }).first().click();
+  const panel = page.getByRole('region', { name: 'Material geral do curso' });
+  await expect(panel).toContainText('Regras de prova');
+  await expect(panel).toContainText('3 MB de 200 MB');
+  await panel.getByLabel('O que a IA precisa saber').fill('Graduação na UNIP, aulas à noite.');
+  await panel.getByRole('button', { name: 'Salvar' }).click();
+  await expect(panel).toContainText('A IA vai levar isso em conta');
+  expect(posts.at(-1)).toEqual({ action: 'context', course_id: 'psicologia', subject_id: null, text: 'Graduação na UNIP, aulas à noite.' });
+  await panel.locator('input[type=file]').setInputFiles({ name: 'Plano de ensino.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 sintetico') });
+  await expect(panel.locator('.course-material-list')).toContainText('Plano de ensino.pdf');
+  await expect(panel.locator('.course-material-list')).toContainText('PDF · 2 KB · 4 páginas · pronto para a IA');
+  expect(posts.find(item => item.action === 'prepare')).toEqual({ action: 'prepare', course_id: 'psicologia', subject_id: null, name: 'Plano de ensino.pdf', type: 'application/pdf', size: 18 });
+  expect(uploaded).toBe('application/pdf');
+  expect((await new AxeBuilder({ page }).include('.course-material').analyze()).violations).toEqual([]);
+  await panel.getByLabel('Mover Regras de prova para').selectOption('neuro');
+  await expect(panel).toContainText('Movido para Bases Biológicas.');
+  await expect(panel.locator('.course-material-list')).not.toContainText('Regras de prova');
+  await panel.getByRole('button', { name: 'Excluir' }).click();
+  await expect(panel.locator('.course-material-trash')).toContainText('Lixeira (1)');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await panel.screenshot({ path: 'test-results/course-material-mobile.png' });
+});

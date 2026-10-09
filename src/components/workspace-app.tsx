@@ -31,6 +31,7 @@ import { LegacyImport } from './legacy-import';
 import { ColorOptions, CourseFields } from './course-form';
 import { SubjectOptions } from './subject-options';
 import { NotesLibrary } from './notes-library';
+import { CourseMaterial } from './course-material';
 import { AssistantConnections } from './assistant-connections';
 import { MyAiKeys } from './my-ai-keys';
 import { WhatsAppMyLink } from './whatsapp-my-link';
@@ -726,6 +727,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                 </div>
                 <div className="button-row"><button className="button outline" disabled={blocked} onClick={() => openForm({ kind: 'course', course: studyCourse })}><Settings2 size={16} aria-hidden="true" />Editar curso</button></div>
               </div>
+              {cloud && <CourseMaterial courseId={studyCourse.id} subjectId={null} label="Material geral do curso"
+                places={[{ id: null, name: 'Material geral do curso' }, ...subjectsOfCourse(data, studyCourse.id).map(item => ({ id: item.id, name: item.name }))]} />}
               <div className="subject-grid expanded">
                 {subjectsOfCourse(data, studyCourse.id).map(subjectCard)}
                 <button className="add-subject-card" disabled={blocked || data.subjects.length >= 100} onClick={() => openForm({ kind: 'subject', courseId: studyCourse.id })}>

@@ -1,6 +1,6 @@
 # Material dos cursos: plano para aprovação
 
-Situação: **proposta**, nada construído. Pedido do proprietário em 09/10/2026: em vez de colar o contexto da aula em cada conversa com uma IA, cada curso guarda o próprio material na Jornada, e qualquer porta (app, voz, Telegram, WhatsApp, ChatGPT, Claude) estuda a partir dele.
+Situação: **etapa 1 implementada** em 09/10/2026, com os padrões do plano: três etapas nessa ordem, 200 MB por conta e leitura de PDF, Word, PowerPoint e texto. As etapas 2 e 3 continuam propostas. Pedido do proprietário em 09/10/2026: em vez de colar o contexto da aula em cada conversa com uma IA, cada curso guarda o próprio material na Jornada, e qualquer porta (app, voz, Telegram, WhatsApp, ChatGPT, Claude) estuda a partir dele.
 
 ## O que a pessoa vê
 
@@ -102,8 +102,18 @@ Dependências novas: `unpdf` e `fflate`, as duas pequenas e sem código nativo. 
 
 Cada etapa sai em um PR, com CI verde, migração aplicada e conferida, matriz do `README.md` atualizada e o proprietário testando antes da próxima.
 
-## Decisões pedidas ao proprietário
+## Decisões
 
-1. Aprovar as três etapas, nessa ordem.
-2. Limite inicial por conta: 200 MB, ajustável.
-3. Começar só com PDF, Word, PowerPoint e texto, deixando foto e escaneado para depois.
+Em 09/10/2026 o proprietário mandou começar a implementação. A etapa 1 seguiu os padrões propostos:
+
+1. As três etapas, nessa ordem.
+2. 200 MB por conta, ajustável.
+3. PDF, Word, PowerPoint e texto primeiro; foto e escaneado depois.
+
+### Como a etapa 1 ficou
+
+- Tabelas `course_materials` e `course_material_chunks`, bucket `course-materials` e configuração de busca `public.jornada_pt`: migração `supabase/migrations/20261009221820_course_materials.sql`.
+- O limite da conta é verificado no banco (gatilho com trava por conta), e o bucket só aceita o arquivo de um registro "enviando" da própria pessoa.
+- `GET/POST /api/materiais` prepara, lê, guarda texto e contexto, move, exclui, restaura, apaga de vez e abre o original por link de 1 minuto. A lixeira e os envios interrompidos são limpos ao listar.
+- Aba **Material geral do curso** na tela do curso, e **Material desta matéria** na matéria (Meu caderno › matéria).
+- Testes: `tests/course-materials.test.ts` (leitura dos formatos, trechos, rota inteira com banco simulado), `tests/sql/course-materials.sql` (isolamento entre contas, limites, bucket, busca sem acento) e navegador (acessibilidade e celular).
