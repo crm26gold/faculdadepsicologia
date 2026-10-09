@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { dbError, readSession, reply, writeRequest } from '@/lib/api-route';
 import { vapidKeys } from '@/lib/bot/secrets';
 import { reminderLevels } from '@/lib/reminders';
-import { dispatchReminders, extraChannels } from '@/lib/reminders-server';
+import { dispatchReminders } from '@/lib/reminders-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -11,7 +11,6 @@ const action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('subscribe'), endpoint: z.url().startsWith('https://').max(1000), p256dh: z.string().regex(/^[A-Za-z0-9_-]{40,200}$/),
     auth: z.string().regex(/^[A-Za-z0-9_-]{10,100}$/), label: z.string().trim().max(80) }).strict(),
   z.object({ action: z.literal('unsubscribe'), endpoint: z.string().max(1000) }).strict(),
-  z.object({ action: z.literal('prefs'), phone: z.string().trim().regex(/^(\+[1-9][0-9]{9,14})?$/, 'Use o formato +55 com DDD, só números.'), call: z.boolean(), email: z.boolean() }).strict(),
   z.object({ action: z.literal('test'), level: z.enum(reminderLevels) }).strict(),
   z.object({ action: z.literal('ack'), id: z.uuid(), choice: z.enum(['feito', 'adiar']) }).strict(),
   z.object({ action: z.literal('get'), id: z.uuid() }).strict(),
@@ -24,7 +23,7 @@ export async function GET() {
   if (error) return dbError(error);
   let vapid = '';
   try { vapid = vapidKeys().publicKey; } catch { /* server secret missing: notifications stay off */ }
-  return reply({ ok: true, data: { ...data, vapid, extra: extraChannels() } });
+  return reply({ ok: true, data: { ...data, vapid } });
 }
 
 export async function POST(request: Request) {
@@ -39,10 +38,6 @@ export async function POST(request: Request) {
     }
     case 'unsubscribe': {
       const { error } = await call('push_unsubscribe', { old_endpoint: body.endpoint });
-      return error ? dbError(error) : reply({ ok: true, data: null });
-    }
-    case 'prefs': {
-      const { error } = await call('reminder_prefs_save', { next_phone: body.phone, next_call: body.call, next_email: body.email });
       return error ? dbError(error) : reply({ ok: true, data: null });
     }
     case 'test': {

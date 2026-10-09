@@ -7,31 +7,26 @@ export type ReminderLevel = (typeof reminderLevels)[number];
 export const levelLabels: Record<ReminderLevel, { name: string; detail: string }> = {
   suave: { name: 'Suave', detail: 'Um aviso na hora.' },
   normal: { name: 'Normal', detail: 'Na hora e de novo 5 minutos depois, se você não tocar em Feito.' },
-  insistente: { name: 'Não me deixa esquecer', detail: 'Na hora, 5 e 15 minutos depois, em todos os canais, até você tocar em Feito.' },
+  insistente: { name: 'Não me deixa esquecer', detail: 'Na hora, 5 e 15 minutos depois, em todos os canais, até você tocar em Feito. No Google Agenda, também por e-mail.' },
 };
 export const remindMinutes = [0, 5, 10, 15, 30, 60, 120, 1440] as const;
 export const minutesLabel = (minutes: number) => minutes === 0 ? 'Na hora' : minutes < 60 ? `${minutes} min antes` : minutes === 1440 ? '1 dia antes' : `${minutes / 60} h antes`;
 export const remindSchema = z.object({ minutes: z.literal(remindMinutes), level: z.enum(reminderLevels) }).strict();
 export type Remind = z.infer<typeof remindSchema>;
 
-export type ReminderChannel = 'push' | 'telegram' | 'whatsapp' | 'email' | 'call';
-export const channelLabels: Record<ReminderChannel, string> = { push: 'Notificação do app', telegram: 'Telegram', whatsapp: 'WhatsApp', email: 'E-mail', call: 'Ligação' };
+// Only free channels. E-mail goes through Google Agenda's own reminders on insistent events.
+export type ReminderChannel = 'push' | 'telegram' | 'whatsapp';
+export const channelLabels: Record<ReminderChannel, string> = { push: 'Notificação do app', telegram: 'Telegram', whatsapp: 'WhatsApp' };
 export type ClaimedReminder = {
   id: string; title: string; event_at: string | null; due_at: string; level: ReminderLevel; step: number;
   telegram: string | null; whatsapp: string | null; bridge_online: boolean; push: { endpoint: string; p256dh: string; auth: string }[];
-  owner: boolean; email: string | null; phone: string | null;
 };
 export type Delivery = { at: string; step: number; channel: ReminderChannel; ok: boolean; detail: string };
 
-/** The ladder: first the quiet channels, then WhatsApp and e-mail, and the call only on the last step. */
-export function channelsFor(reminder: ClaimedReminder, configured: { email: boolean; call: boolean }): ReminderChannel[] {
-  const step = reminder.step;
-  const wanted: ReminderChannel[] = step === 0 ? ['push', 'telegram'] : step === 1 ? ['push', 'telegram', 'whatsapp', 'email'] : ['push', 'telegram', 'whatsapp', 'call'];
-  // Suave has a single step: it is the only chance, so WhatsApp joins it.
-  if (reminder.level === 'suave') wanted.push('whatsapp');
-  return wanted.filter(channel => channel === 'push' ? reminder.push.length > 0 : channel === 'telegram' ? !!reminder.telegram
-    : channel === 'whatsapp' ? !!reminder.whatsapp : channel === 'email' ? configured.email && reminder.owner && !!reminder.email
-      : configured.call && reminder.owner && !!reminder.phone);
+/** The ladder: the quiet channels first, WhatsApp from the second step on. Suave has a single step, so WhatsApp joins it. */
+export function channelsFor(reminder: ClaimedReminder): ReminderChannel[] {
+  const wanted: ReminderChannel[] = reminder.step === 0 && reminder.level !== 'suave' ? ['push', 'telegram'] : ['push', 'telegram', 'whatsapp'];
+  return wanted.filter(channel => channel === 'push' ? reminder.push.length > 0 : channel === 'telegram' ? !!reminder.telegram : !!reminder.whatsapp);
 }
 
 const clock = (value: string) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
@@ -47,6 +42,4 @@ export function reminderText(reminder: Pick<ClaimedReminder, 'title' | 'event_at
   }
   return `${reminder.step > 0 ? 'De novo: ' : ''}${reminder.title}${when}`;
 }
-/** Paid or third-party channels (e-mail, call) carry no title until their data policy is confirmed. */
-export const privateText = 'Você tem um lembrete na Jornada Plena. Abra o aplicativo para ver.';
 export const reminderLink = (origin: string, id: string) => `${origin.replace(/\/$/, '')}/lembrete?id=${encodeURIComponent(id)}`;

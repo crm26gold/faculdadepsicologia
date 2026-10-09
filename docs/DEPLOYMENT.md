@@ -21,8 +21,6 @@ Use [.env.example](../.env.example) como modelo sem segredos. Mantenha fora do G
 | `GOOGLE_AUTH_ENABLED` | `false` | `false` até verificação externa; depois `true` |
 | `FACULDADE_CLOUD_WORKSPACE` | `false` | `false` até migração, RLS e API verificadas; depois `true` |
 | `FACULDADE_LOCAL_PREVIEW` | `false`; não deve ser necessário no contrato de demo | `false` em hospedagem; opção legada de prévia local |
-| `RESEND_API_KEY`, `REMINDER_EMAIL_FROM` | Ausente/vazio | E-mail dos [avisos](#avisos-lembretes), só para o proprietário; vazio desliga o canal |
-| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `TWILIO_VOICE` | Ausente/vazio | Ligação dos [avisos](#avisos-lembretes), só para o proprietário; vazio desliga o canal |
 | `GOOGLE_CLIENT_ID` | Ausente/vazio | ID do cliente OAuth do Google para o [Google Agenda](#google-agenda); vazio desliga o recurso |
 | `GOOGLE_CLIENT_SECRET` | Ausente/vazio (a demo recusa subir com ele) | Segredo do mesmo cliente; só no servidor |
 
@@ -99,20 +97,12 @@ Avisos saem sozinhos na hora marcada, só para a própria pessoa e só quando el
   - No Supabase, a migração liga `pg_cron` e `pg_net`, guarda o código do relógio no Vault (`jornada_reminders_clock`) e agenda `jornada-lembretes` a cada minuto.
   - O job só chama `POST /api/reminders/dispatch` quando há lembrete vencido.
   - **Ao trocar de domínio**, atualize a URL do job: `select cron.alter_job((select jobid from cron.job where jobname = 'jornada-lembretes'), command := …)`.
-- **Sem variáveis novas para os canais grátis.**
+- **Nenhuma variável nova.**
   - Notificação do app: as chaves VAPID derivam de `AI_KEYS_SECRET`; trocar esse segredo pede para religar as notificações em cada aparelho.
   - Telegram: usa o robô já configurado.
   - WhatsApp: usa a ponte do proprietário, que busca a fila no batimento (atualize a pasta `integrations/whatsapp-bridge` no computador e reinicie a ponte).
   - Google Agenda: os eventos com Avisar levam lembretes do Google.
-- **E-mail (opcional, só para o proprietário):** `RESEND_API_KEY`.
-  - Sem domínio verificado, o remetente `onboarding@resend.dev` só entrega ao e-mail dono da conta Resend.
-  - Com domínio, defina `REMINDER_EMAIL_FROM` (ex.: `Jornada Plena <avisos@seudominio>`).
-  - O e-mail leva só "você tem um lembrete" e o link, sem o título.
-- **Ligação (opcional, só para o proprietário):** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` e `TWILIO_FROM` (número no formato +1… ou +55…).
-  - `TWILIO_VOICE` é opcional (padrão `Polly.Camila`).
-  - Na conta de teste, a Twilio só liga para números verificados e toca um aviso antes; libere o Brasil em Geo Permissions.
-  - A voz diz só que há um lembrete.
-  - Preço lido em 09/10/2026: cerca de US$ 0,07/min para celular no Brasil e US$ 1,15/mês por número americano. Confira na Twilio.
+- **Só canais grátis (decisão do proprietário em 09/10/2026).** E-mail vem dos lembretes do próprio Google Agenda (intensidade "Não me deixa esquecer"); serviços pagos (e-mail transacional, ligação, SMS) ficam fora.
 - **Aceite:** em Meu espaço › Avisos, ligue as notificações, toque em Testar avisos agora com "Não me deixa esquecer" e confira o resultado de cada canal. Depois crie um compromisso daqui a 20 minutos com Avisar 15 min antes.
 
 ### Geração do editor e reversões
