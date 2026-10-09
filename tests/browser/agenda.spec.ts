@@ -28,6 +28,9 @@ test('compromisso com horário e arquivo ICS', async ({ page }) => {
   await page.getByRole('button', { name: 'Novo compromisso', exact: true }).click();
   await page.getByLabel('O que você quer fazer?', { exact: true }).fill('Revisão de exemplo');
   await page.getByLabel('Horário · opcional', { exact: true }).fill('15:30');
+  await page.getByLabel('Avisar', { exact: true }).selectOption({ label: '15 min antes' });
+  await page.getByLabel('Intensidade', { exact: true }).selectOption({ label: 'Não me deixa esquecer' });
+  await expect(page.getByText(/Sai sozinho no app, Telegram, WhatsApp e Google/)).toBeVisible();
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
   await page.getByRole('button', { name: '15:30 · Compromisso Revisão de exemplo Sem área', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('15:30');

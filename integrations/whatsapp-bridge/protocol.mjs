@@ -36,3 +36,10 @@ export function reconnectPlan(reason, attempt) {
 }
 // The reply text reaches the online speech service only on an explicit request from the Jornada.
 export const spoken = result => result?.speak === true;
+
+/** A reminder from the Jornada outbox, or null when it does not have the expected shape. Sent only to a phone (c.us). */
+export function outboxItem(item) {
+  if (!item || typeof item.id !== 'string' || !/^[0-9a-f-]{36}$/.test(item.id) || typeof item.peer !== 'string' || !/^[0-9]{10,15}$/.test(item.peer)
+    || typeof item.text !== 'string' || !item.text.trim()) return null;
+  return { id: item.id, chat: `${item.peer}@c.us`, text: item.text.slice(0, 1000) };
+}

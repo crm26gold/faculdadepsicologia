@@ -337,4 +337,5 @@ reset role;
 \ir ../../tests/sql/jornada-global-budgets.sql
 \ir ../../tests/sql/mcp-external-tools.sql
 \ir ../../tests/sql/google-agenda.sql
+\ir ../../tests/sql/reminders.sql
 \echo 'OK: funções da aplicação passaram.'

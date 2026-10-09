@@ -10,6 +10,7 @@ import { placeFields, placeOf, placeTrail, type Place } from './notebooks';
 import { emptyProfile } from './life-data';
 import { todayAgenda } from './today';
 import { screens } from './screens/names';
+import { minutesLabel, remindMinutes, remindSchema } from './reminders';
 
 // What the assistant may do on its own. The model only proposes these shapes; every action is validated
 // here and applied with the same rules as the screens. Shared by the chat, the voice mode and, later,
@@ -17,7 +18,8 @@ import { screens } from './screens/names';
 const name = z.string().trim().min(1).max(160);
 export const commandAction = z.discriminatedUnion('type', [
   z.object({ type: z.literal('compromisso'), title: name, date: daySchema, time: timeSchema.optional(), kind: z.enum(taskKinds).optional(),
-    minutes: z.number().int().min(5).max(240).optional(), area: z.string().max(100).optional(), subject: z.string().max(100).optional() }),
+    minutes: z.number().int().min(5).max(240).optional(), area: z.string().max(100).optional(), subject: z.string().max(100).optional(),
+    remind: remindSchema.optional() }),
   // Without a destination it lands in "Para organizar"; a notebook that does not exist yet is created.
   z.object({ type: z.literal('anotacao'), text: z.string().trim().min(1).max(10_000), title: z.string().trim().min(1).max(160).optional(),
     notebook: z.string().trim().min(1).max(100).optional(), subject: name.optional(), area: name.optional(),
@@ -141,9 +143,10 @@ export function applyCommands(data: Workspace, actions: CommandAction[], options
           const subject = matchByName(next.subjects, action.subject);
           const area = matchByName(lifeAreas(next), action.area);
           const task: Task = { id: newId(), title: action.title, subjectId: subject?.id ?? '', date: action.date, kind: action.kind ?? 'Compromisso',
-            done: false, minutes: action.minutes ?? 30, ...(action.time ? { time: action.time } : {}), ...(area ? { areaId: area.id } : subject ? { areaId: 'studies' } : {}) };
+            done: false, minutes: action.minutes ?? 30, ...(action.time ? { time: action.time } : {}), ...(area ? { areaId: area.id } : subject ? { areaId: 'studies' } : {}),
+            ...(action.remind ? { remind: action.remind } : {}) };
           next = { ...next, tasks: [...next.tasks, task] };
-          applied.push({ label: `${task.kind}: ${task.title} · ${action.date === options.today ? 'hoje' : action.date === addDays(options.today, 1) ? 'amanhã' : `${weekday(action.date)}, ${formatDate(action.date)}`}${task.time ? ` às ${task.time}` : ''}`, view: 'agenda', id: task.id, undo: { kind: 'task', id: task.id } });
+          applied.push({ label: `${task.kind}: ${task.title} · ${action.date === options.today ? 'hoje' : action.date === addDays(options.today, 1) ? 'amanhã' : `${weekday(action.date)}, ${formatDate(action.date)}`}${task.time ? ` às ${task.time}` : ''}${task.remind ? ` · aviso ${minutesLabel(task.remind.minutes).toLowerCase()}` : ''}`, view: 'agenda', id: task.id, undo: { kind: 'task', id: task.id } });
           break;
         }
         case 'anotacao': {
@@ -402,7 +405,7 @@ Sempre devolva SOMENTE um JSON, sem texto fora dele, no formato:
 {"reply": "sua resposta para a pessoa", "actions": [ ... ]}
 A resposta deve soar falada: frases curtas e claras, sem listas longas nem markdown; pode ser mais longa só quando a pessoa pedir explicação.
 Ações possíveis (só quando a pessoa pedir algo para registrar; numa conversa comum, "actions" fica vazio):
-- {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional)}
+- {"type":"compromisso","title":"...","date":"AAAA-MM-DD","time":"HH:MM"(opcional),"kind":um de ${taskKinds.join('|')} (opcional),"minutes":5-240 (opcional),"area":"nome da área"(opcional),"subject":"nome da matéria"(opcional),"remind":{"minutes":${remindMinutes.join('|')},"level":"suave|normal|insistente"}(opcional)} — use remind só quando a pessoa pedir para lembrar, avisar, alarmar ou "não me deixa esquecer" (insistente); "me lembra às 9 de X" é compromisso às 09:00 com remind minutes 0. Os avisos saem sozinhos no app, Telegram e WhatsApp dela; para tirar o aviso: editar compromisso com fields {"remind":null}.
 - {"type":"anotacao","text":"o conteúdo a guardar","title":"..."(opcional),"notebook":"nome do caderno"(opcional),"subject":"nome da matéria"(opcional),"area":"nome da área"(opcional),"link":"https://..."(opcional, para guardar um link)} — para ideias, lembretes sem data e qualquer coisa que não seja compromisso nem dinheiro. Sem destino vai para Para organizar; um caderno que ainda não existe é criado. Cada anotação fica em UM lugar só (matéria, caderno ou área). Um caderno pode ficar dentro de uma matéria: com notebook e subject juntos, a anotação vai para o caderno dentro dessa matéria (o caderno é criado ou vinculado se preciso). Para vincular um caderno existente: editar caderno com subject.
 - {"type":"financeiro","flow":"expense"|"income","description":"...","amount":número em reais,"category":uma de [${expenseCategories.join(', ')}] para saídas ou [${incomeCategories.join(', ')}] para entradas,"date":"AAAA-MM-DD","pending":true se ainda vai pagar/receber,"nature":"fixed"|"variable"|"oneoff","installments":número de parcelas (opcional),"monthly":meses se repete todo mês (opcional)}
 - {"type":"foco","activity":"...","minutes":número (opcional)} — para começar a contar tempo

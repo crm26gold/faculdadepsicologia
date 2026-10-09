@@ -37,6 +37,21 @@ test('horários seguem São Paulo; sem término, o Google recebe 30 minutos e o 
   assert(lesson, 'aulas da grade vão com horário');
   assert(Date.parse((lesson.body.end as { dateTime: string }).dateTime) > Date.parse((lesson.body.start as { dateTime: string }).dateTime));
 });
+test('com Avisar, o Google também avisa no celular (e por e-mail, se insistente); sem aviso, vale o padrão do Google', () => {
+  const data = workspace();
+  data.classes = [];
+  data.tasks = [{ ...data.tasks[0], id: 'a', date: '2030-01-08', time: '15:00', done: false, remind: { minutes: 15, level: 'insistente' } },
+    { ...data.tasks[0], id: 'b', date: '2030-01-09', time: '09:00', done: false, remind: { minutes: 0, level: 'suave' } },
+    { ...data.tasks[0], id: 'c', date: '2030-01-10', time: undefined, done: false, remind: { minutes: 60, level: 'normal' } },
+    { ...data.tasks[0], id: 'd', date: '2030-01-11', time: '09:00', done: false }];
+  const [loud, quiet, allDay, none] = agendaEvents(data, today).toSorted((x, y) => x.date.localeCompare(y.date));
+  assert.deepEqual(loud.body.reminders, { useDefault: false, overrides: [{ method: 'popup', minutes: 15 }, { method: 'popup', minutes: 0 }, { method: 'email', minutes: 15 }] });
+  assert.deepEqual(quiet.body.reminders, { useDefault: false, overrides: [{ method: 'popup', minutes: 0 }] });
+  assert.equal(allDay.body.reminders, undefined, 'dia inteiro: o Google conta da meia-noite; a Jornada avisa às 8h');
+  assert.equal(none.body.reminders, undefined);
+  const silenced = workspace(); silenced.classes = []; silenced.tasks = [{ ...data.tasks[0], remind: undefined }];
+  assert.notEqual(agendaEvents(silenced, today)[0].hash, loud.hash, 'tirar o aviso atualiza o evento no Google');
+});
 test('janela de uma semana para trás a quatro meses à frente, e mudar o item muda só a marca', () => {
   const data = workspace();
   data.tasks = [{ ...data.tasks[0], id: 'velho', date: '2029-12-01' }, { ...data.tasks[0], id: 'perto', date: '2030-01-01' }, { ...data.tasks[0], id: 'longe', date: '2030-06-01' }];

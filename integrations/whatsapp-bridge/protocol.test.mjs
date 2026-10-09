@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validConfig, privatePeer, linkCode, speechText, canRetryDelivery, withRetry, reconnectPlan, spoken } from './protocol.mjs';
+import { validConfig, privatePeer, linkCode, speechText, canRetryDelivery, withRetry, reconnectPlan, spoken, outboxItem } from './protocol.mjs';
 test('The mail carrier has only its scoped token and an HTTPS server', () => {
   const token = `jpwa_${'x'.repeat(43)}`;
   assert.equal(validConfig({ origin: 'https://jornada.example', token }).origin, 'https://jornada.example');
@@ -53,4 +53,12 @@ test('A reply goes to the speech service only when the Jornada asks for voice', 
   assert.equal(spoken({ reply: 'Pronto.', speak: true }), true);
   // Receipts from an older server, failures and anything not strictly true stay in text.
   for (const result of [{ reply: 'Pronto.' }, { reply: 'Pronto.', speak: 'true' }, { reply: 'Pronto.', speak: 1 }, null, undefined]) assert.equal(spoken(result), false);
+});
+test('Reminders from the outbox go only to a phone and with a bounded text', () => {
+  const id = '6f1c2b0e-1d2a-4c3b-9e8f-0a1b2c3d4e5f';
+  assert.deepEqual(outboxItem({ id, peer: '5511999990000', text: '⏰ Dentista às 10:00' }), { id, chat: '5511999990000@c.us', text: '⏰ Dentista às 10:00' });
+  assert.equal(outboxItem({ id, peer: '120363@g.us', text: 'x' }), null, 'grupo não');
+  assert.equal(outboxItem({ id, peer: '5511999990000', text: '  ' }), null, 'texto vazio não');
+  assert.equal(outboxItem({ id: 'x', peer: '5511999990000', text: 'x' }), null);
+  assert.equal(outboxItem({ id, peer: '5511999990000', text: 'a'.repeat(5000) }).text.length, 1000);
 });

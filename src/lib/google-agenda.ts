@@ -20,6 +20,7 @@ export const googleEventId = (entryId: string) => `jp${createHash('sha256').upda
 
 function eventBody(entry: CalendarEntry) {
   const start = entry.time ? saoPauloInstant(entry.date, entry.time) : null;
+  const remind = entry.task?.remind;
   const end = entry.time && entry.endTime && entry.endTime > entry.time ? saoPauloInstant(entry.date, entry.endTime) : start && new Date(start.getTime() + 30 * 60_000);
   const notes = [entry.kind, entry.professor ? `Professor(a): ${entry.professor}` : '', entry.session ? 'Previsão da grade semanal. Confira feriados e calendário oficial.' : '',
     start && !(entry.endTime && entry.endTime > entry.time!) ? 'Horário de término não informado: o Google exige um fim, então aparecem 30 minutos.' : '',
@@ -32,6 +33,11 @@ function eventBody(entry: CalendarEntry) {
       : { start: { date: entry.date }, end: { date: addDays(entry.date, 1) } }),
     transparency: entry.time ? 'opaque' : 'transparent',
     status: 'confirmed',
+    // With "Avisar", Google warns too (phone and, when insistent, e-mail). All-day entries keep Google's default:
+    // Google counts their reminders from midnight, the Jornada warns at 8:00.
+    ...(remind && start && !entry.done ? { reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: remind.minutes },
+      ...(remind.level !== 'suave' && remind.minutes > 0 ? [{ method: 'popup', minutes: 0 }] : []),
+      ...(remind.level === 'insistente' ? [{ method: 'email', minutes: remind.minutes }] : [])] } } : {}),
   };
 }
 
