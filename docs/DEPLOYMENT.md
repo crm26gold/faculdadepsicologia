@@ -92,7 +92,7 @@ O que vai: compromissos, prazos e aulas de 7 dias atrás a 120 dias à frente (a
 
 Avisos saem sozinhos na hora marcada, só para a própria pessoa e só quando ela pede (Avisar no compromisso, assistente ou o teste em Meu espaço › Avisos).
 
-- **Banco:** a migração `reminders` cria os lembretes, as inscrições de notificação, a fila do WhatsApp e o relógio.
+- **Banco:** a migração `20261009050031_reminders` (aplicada em 09/10/2026 em partes pelo MCP e pelo SQL Editor e registrada com essa versão) cria os lembretes, as inscrições de notificação, a fila do WhatsApp e o relógio.
   - Um gatilho em `personal_tasks` acompanha cada compromisso com `remind`, venha de onde vier a gravação.
   - No Supabase, a migração liga `pg_cron` e `pg_net`, guarda o código do relógio no Vault (`jornada_reminders_clock`) e agenda `jornada-lembretes` a cada minuto.
   - O job só chama `POST /api/reminders/dispatch` quando há lembrete vencido.
