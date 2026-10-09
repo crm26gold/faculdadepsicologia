@@ -464,6 +464,10 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .mcp-snippet { margin: 0; overflow-x: auto; }
 .mcp-token-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .mcp-token-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+/* Conector com a lista de ferramentas antiga: o passo a passo de cada aplicativo. */
+.mcp-outdated { border-color: var(--accent-text); }
+.mcp-outdated ol { margin: 0; padding-inline-start: 20px; }
+.mcp-outdated-tag { color: var(--accent-text); }
 /* Meu espaço › Avisos: cada canal é um passo a marcar; o teste mostra o que cada um fez. */
 .reminders-panel h2 { display: flex; align-items: center; gap: 8px; }
 .reminder-steps { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 8px; }

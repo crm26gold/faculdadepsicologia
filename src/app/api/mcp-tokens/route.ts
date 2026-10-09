@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { dbError, readSession, reply, rpc, writeRequest } from '@/lib/api-route';
 import { applicationOrigin } from '@/lib/auth-input';
 import { MCP_TOKEN_PREFIX, tokenHash } from '@/lib/mcp/server';
+import { contractOutdated, MCP_CONTRACT } from '@/lib/mcp/contract';
 
 export const dynamic = 'force-dynamic';
 const action = z.discriminatedUnion('action', [
@@ -26,7 +27,10 @@ export async function GET(request: Request) {
   const { data, error } = await session.client.rpc('mcp_token_list');
   if (error) return dbError(error);
   const origin = applicationOrigin(process.env);
-  return reply({ ok: true, data: { tokens: data ?? [], endpoint: origin ? `${origin}/api/mcp` : null } });
+  // A connection already used whose app still holds an older tool list is shown as needing a refresh.
+  const tokens = ((data ?? []) as { contract?: string | null; last_used_at: string | null }[]).map(({ contract, ...token }) =>
+    ({ ...token, outdated: token.last_used_at !== null && contractOutdated(contract) }));
+  return reply({ ok: true, data: { tokens, endpoint: origin ? `${origin}/api/mcp` : null, version: MCP_CONTRACT.version } });
 }
 
 export async function POST(request: Request) {

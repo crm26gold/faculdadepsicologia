@@ -21,6 +21,7 @@ const INLINE_IMAGE_LIMIT = 120_000;
 import { renderScreen } from '../screens/render';
 import { captureLink, CAPTURE_LINK_MINUTES } from '../capture-link';
 import { applicationOrigin } from '../auth-input';
+import { contractOutdated, MCP_CONTRACT, mcpIdentity, outdatedNotice } from './contract';
 import { placeName, type Place } from '../notebooks';
 
 // The Jornada as an MCP server: external assistants (Claude Code, Codex, Gemini, Antigravity) reason
@@ -92,11 +93,23 @@ export async function mcpAuthenticate(db: Database, header: string | null) {
   if (error?.code === 'PT429') throw new McpAccessError(429, 'Muitas chamadas com esta chave. Aguarde alguns minutos.');
   if (error?.code === '42501') throw new McpAccessError(401, 'Chave da Jornada revogada, expirada ou desconhecida.');
   if (error || !data) throw new McpAccessError(503, 'Não consegui verificar a chave agora.');
-  return { hash, canWrite: data.can_write === true, tokenId: String(data.token_id) };
+  // contract: what this connection last listed (null = before versions were recorded; absent = older database).
+  return { hash, canWrite: data.can_write === true, tokenId: String(data.token_id), ...('contract' in data ? { contract: (data.contract as string | null) } : {}) };
 }
 
-export function jornadaMcpServer(db: Database, access: { hash: string; canWrite: boolean }) {
-  const server = new McpServer({ name: 'jornada-plena', version: '1.2.0' }, { instructions: mcpInstructions });
+type Access = { hash: string; canWrite: boolean; contract?: string | null };
+
+export function jornadaMcpServer(db: Database, access: Access) {
+  const server = new McpServer(mcpIdentity(applicationOrigin(process.env)), { instructions: mcpInstructions });
+  // While the app still holds an older tool list, every answer ends asking the person to refresh the connector.
+  if (contractOutdated(access.contract)) {
+    const register = server.registerTool.bind(server) as (...args: unknown[]) => unknown;
+    server.registerTool = ((name: string, config: unknown, callback: (...args: unknown[]) => Promise<{ content?: unknown[] }>) =>
+      register(name, config, async (...args: unknown[]) => {
+        const result = await callback(...args);
+        return { ...result, content: [...(result.content ?? []), { type: 'text', text: outdatedNotice }] };
+      })) as typeof server.registerTool;
+  }
   const context = async () => {
     const { data, error } = await db.rpc('mcp_context', { server_secret: botServerSecret(), token: access.hash });
     if (error || !data) throw new Error('Não consegui abrir a Jornada desta chave agora.');
@@ -264,7 +277,24 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   return server;
 }
 
+/** The JSON-RPC methods in a request body (one message or a batch); empty when it is not JSON. */
+async function methodsOf(request: Request) {
+  try {
+    const message: unknown = await request.clone().json();
+    return (Array.isArray(message) ? message : [message]).map(item => (item as { method?: unknown })?.method).filter((method): method is string => typeof method === 'string');
+  } catch { return []; }
+}
+
 /** One stateless handler per request: modern (2026-07-28) and 2025-era clients are both served as JSON. */
-export function jornadaMcpHandler(db: Database, access: { hash: string; canWrite: boolean }) {
-  return createMcpHandler(() => jornadaMcpServer(db, access), { legacy: 'stateless', responseMode: 'json', maxRequestBodySize: 512_000 });
+export function jornadaMcpHandler(db: Database, access: Access) {
+  const handler = createMcpHandler(() => jornadaMcpServer(db, access), { legacy: 'stateless', responseMode: 'json', maxRequestBodySize: 512_000 });
+  return { fetch: async (...args: Parameters<typeof handler.fetch>) => {
+    const listing = (await methodsOf(args[0])).includes('tools/list');
+    const response = await handler.fetch(...args);
+    // The app now holds the current contract: record it so the notice stops and the connection shows as up to date.
+    if (listing && response.ok && access.contract !== MCP_CONTRACT.hash) {
+      await Promise.resolve(db.rpc('mcp_contract_seen', { server_secret: botServerSecret(), token: access.hash, seen: MCP_CONTRACT.hash })).catch(() => undefined);
+    }
+    return response;
+  } };
 }

@@ -355,7 +355,7 @@ test('servidor MCP: enviar_arquivo gera link de 10 minutos para o Registro rápi
   assert.match(missing.result.content[0].text, /Não encontrei/);
 });
 
-test('servidor MCP 1.2.0: cada leitura traz o mesmo conteúdo em texto e estruturado, nas duas versões do protocolo', async () => {
+test('servidor MCP: cada leitura traz o mesmo conteúdo em texto e estruturado, nas duas versões do protocolo', async () => {
   const { jornadaMcpHandler, mcpAuthenticate } = await import('../src/lib/mcp/server');
   const { mcpRequest, mcpResult } = await import('../src/lib/integrations/mcp-wire');
   const { db, state } = fakeDatabase({ canWrite: false });
@@ -364,7 +364,11 @@ test('servidor MCP 1.2.0: cada leitura traz o mesmo conteúdo em texto e estrutu
   const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
   const call = async (id: number, method: string, params: Record<string, unknown> = {}) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, method, params)));
   const init = await call(1, 'initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'teste', version: '1' } });
-  assert.equal(init.result.serverInfo.version, '1.2.0');
+  const { MCP_CONTRACT } = await import('../src/lib/mcp/contract');
+  assert.equal(init.result.serverInfo.version, MCP_CONTRACT.version, 'a versão acompanha o contrato');
+  assert.equal(init.result.serverInfo.title, 'Jornada Plena');
+  assert.equal(init.result.serverInfo.websiteUrl, 'https://jornada.example');
+  assert.ok(init.result.serverInfo.icons.length > 0, 'ícone da Jornada para o aplicativo mostrar');
   const tools = (await call(2, 'tools/list')).result.tools as { name: string; outputSchema?: { type: string } }[];
   assert.deepEqual(tools.filter(tool => tool.outputSchema).map(tool => tool.name).sort(), ['consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'enviar_arquivo', 'lixeira', 'ver_tela']);
   assert.ok(tools.every(tool => !tool.outputSchema || tool.outputSchema.type === 'object'), 'saída sempre em objeto, que os clientes de 2025 aceitam');
@@ -434,6 +438,53 @@ test('contrato do MCP: nomes, ordem, anotações e esquemas iguais à cópia sal
   const tools = (await body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/list')))).result.tools as Record<string, unknown>[];
   const contract = tools.map(tool => ({ name: tool.name, title: tool.title, annotations: tool.annotations, inputSchema: tool.inputSchema, outputSchema: tool.outputSchema ?? null, _meta: tool._meta ?? null }));
   const file = `${process.cwd()}/tests/fixtures/mcp-contract.json`;
-  if (process.env.UPDATE_MCP_CONTRACT === '1') writeFileSync(file, `${JSON.stringify(contract, null, 1)}\n`);
+  // The fingerprint covers everything an app keeps (descriptions and instructions too); its version is the day it changed.
+  const { contractHash, nextVersion } = await import('../src/lib/mcp/contract');
+  const { mcpInstructions } = await import('../src/lib/mcp/server');
+  const versionFile = `${process.cwd()}/src/lib/mcp/contract.json`;
+  const saved = JSON.parse(readFileSync(versionFile, 'utf8')) as { version: string; hash: string };
+  const hash = contractHash(tools, mcpInstructions);
+  if (process.env.UPDATE_MCP_CONTRACT === '1') {
+    writeFileSync(file, `${JSON.stringify(contract, null, 1)}\n`);
+    if (hash !== saved.hash) writeFileSync(versionFile, `${JSON.stringify({ version: nextVersion(saved.version), hash }, null, 1)}\n`);
+  }
   assert.deepEqual(contract, JSON.parse(readFileSync(file, 'utf8')), 'O contrato do MCP mudou. Se foi de propósito, rode com UPDATE_MCP_CONTRACT=1 e explique no PR.');
+  assert.equal(hash, JSON.parse(readFileSync(versionFile, 'utf8')).hash, 'Ferramentas ou instruções do MCP mudaram: rode com UPDATE_MCP_CONTRACT=1 para gerar a versão nova (os conectores antigos passam a pedir atualização).');
+});
+
+test('versão do conector: data da mudança, .2 no mesmo dia, e aviso só para quem ficou com a lista antiga', async () => {
+  const { contractOutdated, MCP_CONTRACT, nextVersion, mcpIdentity } = await import('../src/lib/mcp/contract');
+  const day = new Date('2026-10-09T15:00:00Z');
+  assert.equal(nextVersion('2026.10.08', day), '2026.10.09');
+  assert.equal(nextVersion('2026.10.09', day), '2026.10.09.2');
+  assert.equal(nextVersion('2026.10.09.2', day), '2026.10.09.3');
+  assert.equal(contractOutdated(MCP_CONTRACT.hash), false);
+  assert.equal(contractOutdated(null), true, 'conectado antes de a Jornada registrar versões');
+  assert.equal(contractOutdated('abcdef012345'), true);
+  assert.equal(contractOutdated(undefined), false, 'banco antigo: sem informação, sem aviso');
+  const identity = mcpIdentity('https://jornada.example');
+  assert.equal(identity.title, 'Jornada Plena');
+  assert.equal(identity.version, MCP_CONTRACT.version);
+  assert.ok(identity.icons?.some(icon => icon.src === 'https://jornada.example/brand/icone-512.png'));
+});
+
+test('conector desatualizado: as respostas pedem para atualizar até ele listar as ferramentas de novo', async () => {
+  const { jornadaMcpHandler } = await import('../src/lib/mcp/server');
+  const { MCP_CONTRACT } = await import('../src/lib/mcp/contract');
+  const { db, state } = fakeDatabase({ canWrite: true });
+  const seen: string[] = [];
+  const rpc = db.rpc;
+  db.rpc = async (name: string, args: Record<string, unknown>) => name === 'mcp_contract_seen' ? (seen.push(String(args.seen)), { data: null, error: null }) : rpc(name, args);
+  const access = { hash: 'a'.repeat(64), canWrite: true, contract: 'abcdef012345' as string | null };
+  const ask = () => jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'resumo' } }));
+  const texts = async () => ((await body(await ask())).result.content as { type: string; text: string }[]).filter(block => block.type === 'text').map(block => block.text);
+  assert.match((await texts()).at(-1)!, /versão antiga.*Atualizar/);
+  assert.match((await texts())[0], /"today"/, 'a resposta de sempre continua em primeiro lugar');
+  await jornadaMcpHandler(db as never, access).fetch(legacy(2, 'tools/list'));
+  assert.deepEqual(seen, [MCP_CONTRACT.hash], 'ao listar, grava a versão recebida');
+  access.contract = MCP_CONTRACT.hash;
+  assert.ok((await texts()).every(text => !/versão antiga/.test(text)), 'atualizado: sem aviso');
+  await jornadaMcpHandler(db as never, access).fetch(legacy(3, 'tools/list'));
+  assert.equal(seen.length, 1, 'já atualizado: não grava de novo');
+  assert.ok(state.calls.includes('mcp_context'));
 });
