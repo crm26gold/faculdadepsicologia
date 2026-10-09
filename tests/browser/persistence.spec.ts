@@ -61,6 +61,21 @@ test('capturas longas não alargam a página nem cortam o menu Android', async (
   }
 });
 
+test('"Pausar" no aviso de foco abre o app e pausa o foco da conta', async ({ page, context }) => {
+  await page.goto('/#focus');
+  await page.getByRole('button', { name: 'Tempo e foco' }).click();
+  await page.getByLabel('O que você vai fazer?').fill('Aula de teste');
+  await page.getByRole('button', { name: 'Começar foco', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Pausar', exact: true })).toBeVisible();
+  // Como o botão Pausar da notificação, do Telegram ou do WhatsApp: outra aba abre o endereço do aviso.
+  const fromReminder = await context.newPage();
+  await page.close();
+  await fromReminder.goto('/?foco=pausar');
+  await expect(fromReminder.getByText('Foco pausado. Quando voltar, toque em Continuar.')).toBeVisible();
+  await expect(fromReminder.getByRole('button', { name: 'Continuar', exact: true })).toBeVisible();
+  expect(new URL(fromReminder.url()).search).toBe('');
+});
+
 test('cronômetro global preserva sessão ao reabrir página, pausa e registra tempo parcial', async ({ page, context }) => {
   await page.goto('/#focus');
   await page.getByRole('button', { name: 'Tempo e foco' }).click();

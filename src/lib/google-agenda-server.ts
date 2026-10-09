@@ -3,7 +3,9 @@ import { aiSecretReady, openKey } from '@/lib/ai/crypto';
 import { demoRequested } from '@/lib/config';
 import type { userSession } from '@/lib/supabase/server';
 import { agendaEvents, GOOGLE_AGENDA_SCOPE, GOOGLE_AGENDA_WINDOW, planSync, saoPauloToday, type ExistingEvent } from './google-agenda';
-import { addDays, type Workspace } from './workspace';
+import { addDays, parseWorkspace, type Workspace } from './workspace';
+import { botServerSecret } from '@/lib/bot/secrets';
+import { botDatabase } from '@/lib/supabase/bot';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
 type Env = Record<string, string | undefined>;
@@ -94,13 +96,32 @@ export async function syncGoogleAgenda(session: Session, workspace: () => Worksp
   if (!googleAgendaReady(process.env)) return null;
   const claimed = await session.client.rpc('google_agenda_claim', { next_revision: revision, force });
   if (claimed.error || !claimed.data) return null;
+  return copyToGoogle(claimed.data, workspace, revision, async result => { await session.client.rpc('google_agenda_finish', result); });
+}
+
+/** What the database clock found behind (an agenda changed by the assistant, Telegram or WhatsApp, which do not
+ * open the app): the same copy, claimed and recorded with the server secret. A few accounts per minute. */
+export async function syncDueGoogleAgendas() {
+  const db = botDatabase();
+  if (!googleAgendaReady(process.env) || !db) return 0;
+  const secret = botServerSecret();
+  const due = await db.rpc('google_agenda_due', { server_secret: secret, batch: 3 });
+  if (due.error || !Array.isArray(due.data)) return 0;
+  for (const item of due.data as { person: string; revision: number; refresh_ciphertext: string; calendar_id: string; workspace: unknown }[])
+    await copyToGoogle(item, () => parseWorkspace(JSON.stringify(item.workspace)), item.revision,
+      async result => { await db.rpc('google_agenda_done', { server_secret: secret, person: item.person, ...result }); });
+  return due.data.length;
+}
+
+type Finish = (result: { next_revision: number | null; next_events: number; next_problem: string; next_calendar: string }) => Promise<void>;
+async function copyToGoogle(claimed: { refresh_ciphertext: string; calendar_id: string }, workspace: () => Workspace, revision: number, finish: Finish) {
   const signal = AbortSignal.timeout(50_000);
-  let calendar: string = claimed.data.calendar_id, recreated = '';
+  let calendar: string = claimed.calendar_id, recreated = '';
   const outcome = { applied: 0, failed: 0 };
   let desired: ReturnType<typeof agendaEvents> = [];
   try {
     desired = agendaEvents(workspace(), saoPauloToday());
-    const token = await accessToken(openKey(claimed.data.refresh_ciphertext), signal);
+    const token = await accessToken(openKey(claimed.refresh_ciphertext), signal);
     let existing = await listEvents(token, calendar, signal);
     // The person deleted the calendar in Google: a new one takes its place.
     if (!existing) { calendar = recreated = await createCalendar(token, signal); existing = []; }
@@ -125,12 +146,12 @@ export async function syncGoogleAgenda(session: Session, workspace: () => Worksp
     // Status and Google's reason only: never titles, dates or IDs.
     if (outcome.failed) console.warn('[google-agenda]', { stage: 'sync', applied: outcome.applied, failed: outcome.failed, failures, timedOut: signal.aborted });
     const complete = outcome.failed <= 0;
-    await session.client.rpc('google_agenda_finish', { next_revision: complete ? revision : null, next_events: desired.length, next_problem: complete ? '' : 'partial', next_calendar: recreated });
+    await finish({ next_revision: complete ? revision : null, next_events: desired.length, next_problem: complete ? '' : 'partial', next_calendar: recreated });
     return { ...outcome, events: desired.length, complete };
   } catch (cause) {
     const problem = cause instanceof GoogleAgendaError ? cause.problem : 'failed';
     console.warn('[google-agenda]', { problem, stage: 'sync' });
-    await session.client.rpc('google_agenda_finish', { next_revision: null, next_events: desired.length, next_problem: problem, next_calendar: recreated });
+    await finish({ next_revision: null, next_events: desired.length, next_problem: problem, next_calendar: recreated }).catch(() => null);
     return { ...outcome, events: desired.length, complete: false, problem };
   }
 }

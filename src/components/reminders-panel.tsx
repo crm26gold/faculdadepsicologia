@@ -83,11 +83,11 @@ export function RemindersPanel() {
         : <button type="button" className="button primary" disabled={!!busy} onClick={() => void enable()}><Smartphone size={15} aria-hidden="true" />Ligar notificações</button>) },
     { done: state.telegram, title: 'Telegram', detail: state.telegram ? 'Ligado: o robô manda o aviso com o botão Feito ou adiar.' : 'Conecte seu Telegram logo abaixo, em Telegram.' },
     { done: state.whatsapp, title: 'WhatsApp', detail: state.whatsapp ? (state.bridge_online ? 'Ligado: a ponte está on-line e entrega os avisos.' : 'Vinculado, mas a ponte está desligada: os avisos esperam até 30 minutos por ela.') : 'Vincule seu telefone em WhatsApp, mais abaixo.' },
-    { done: true, title: 'Google Agenda', detail: 'Compromissos com Avisar também avisam pelo app do Google Agenda e, em “Não me deixa esquecer”, por e-mail do Google. Conecte em Minha agenda › Google Agenda.' },
+    { done: true, title: 'Google Agenda', detail: 'Compromissos com Avisar também avisam pelo app do Google Agenda e por e-mail do Google. Conecte em Minha agenda › Google Agenda.' },
   ];
   return <section className="panel reminders-panel" aria-labelledby="reminders-title">
     <h2 id="reminders-title"><BellRing size={17} aria-hidden="true" /> Avisos</h2>
-    <p className="muted">Escolha <strong>Avisar</strong> num compromisso, ou peça ao assistente (“me lembra às 9 de pagar o aluguel”). O aviso sai sozinho pelos canais ligados aqui, e só para você.</p>
+    <p className="muted">Escolha <strong>Avisar</strong> num compromisso, ou peça ao assistente (“me lembra às 9 de pagar o aluguel”). O aviso sai sozinho em todos os canais ligados aqui, ao mesmo tempo, e só para você. No foco, perto do fim da aula, chega a pergunta “ainda em foco?”.</p>
     <ol className="reminder-steps">{steps.map(step => <li key={step.title} data-done={step.done}>
       {step.done ? <CheckCircle2 size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
       <span><strong>{step.title}</strong><small>{step.detail}</small></span>{step.action}</li>)}

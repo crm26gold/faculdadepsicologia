@@ -878,7 +878,7 @@ test('avisos: cada canal é um passo; o teste mostra o que cada canal fez; só c
   await expect(card).not.toContainText(/Twilio|Resend|Ligação/);
   await expect(card.locator('.reminder-upcoming')).toContainText('Dentista');
   await card.getByRole('radio', { name: 'Não me deixa esquecer' }).check();
-  await expect(card).toContainText('Na hora, 5 e 15 minutos depois');
+  await expect(card).toContainText('Em todos os canais na hora, 5 e 15 minutos depois');
   await card.getByRole('button', { name: 'Testar avisos agora' }).click();
   const result = card.getByRole('list', { name: 'Resultado do teste' });
   await expect(result).toContainText('Telegram: enviado');

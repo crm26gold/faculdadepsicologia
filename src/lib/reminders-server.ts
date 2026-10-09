@@ -13,7 +13,7 @@ const reason = (error: unknown) => (error instanceof Error ? error.message : 'fa
 
 async function push(reminder: ClaimedReminder, body: string, link: string, db: NonNullable<ReturnType<typeof botDatabase>>, secret: string) {
   const { publicKey, privateKey } = vapidKeys();
-  const payload = JSON.stringify({ title: 'Jornada Plena', body, url: link, id: reminder.id, insist: reminder.level === 'insistente' });
+  const payload = JSON.stringify({ title: reminder.focus ? 'Ainda em foco?' : 'Jornada Plena', body, url: link, id: reminder.id, insist: reminder.level === 'insistente' || !!reminder.focus, focus: !!reminder.focus });
   let delivered = 0;
   await Promise.all(reminder.push.map(async device => {
     try {
@@ -54,11 +54,11 @@ export async function dispatchReminders(only?: string, env: Env = process.env) {
         telegram: async () => {
           const token = await telegramToken();
           if (!token) throw new Error('robô do Telegram desligado');
-          await sendMessage(token, reminder.telegram!, `⏰ ${text}`, { text: 'Feito ou adiar', url: link });
+          await sendMessage(token, reminder.telegram!, `⏰ ${text}`, { text: reminder.focus ? 'Continuar ou pausar' : 'Feito ou adiar', url: link });
           return 'enviado';
         },
         whatsapp: async () => {
-          const queued = await db.rpc('reminder_outbox_add', { server_secret: secret, reminder: reminder.id, next_peer: reminder.whatsapp, next_body: `⏰ ${text}\nFeito ou adiar: ${link}` });
+          const queued = await db.rpc('reminder_outbox_add', { server_secret: secret, reminder: reminder.id, next_peer: reminder.whatsapp, next_body: `⏰ ${text}\n${reminder.focus ? 'Continuar ou pausar' : 'Feito ou adiar'}: ${link}` });
           if (queued.error) throw new Error('fila indisponível');
           if (!reminder.bridge_online) throw new Error('ponte desligada; sai quando ela ligar (até 30 min)');
           return 'na fila da ponte';
