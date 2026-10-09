@@ -14,7 +14,10 @@ import { registerCollectiveTools } from './collective';
 import { registerAdminTools } from './admin';
 import { screenModel, screens, screenText, type RecentChange } from '../screens/screen-model';
 import { screenOfView } from '../screens/names';
-import { PRINT_VIEW_MIME, PRINT_VIEW_URI, printView } from './print-view';
+import { PRINT_VIEW_MIME, PRINT_VIEW_URI, printView, printViewMeta, SCREEN_IMAGE_META } from './print-view';
+import { screenLink, SCREEN_LINK_MINUTES } from '../screens/screen-link';
+// Above this (base64 characters), the image goes only by link; Claude keeps a whole result under ~150 000.
+const INLINE_IMAGE_LIMIT = 120_000;
 import { renderScreen } from '../screens/render';
 import { captureLink, CAPTURE_LINK_MINUTES } from '../capture-link';
 import { applicationOrigin } from '../auth-input';
@@ -70,7 +73,7 @@ Ferramentas:
 - consultar_jornada: section "busca" procura no título de todas as seções e no texto das anotações, com o trecho onde aparece; havendo mais resultados, repita a busca com o "cursor" devolvido; "pendentes" traz anotações em Para organizar, compromissos atrasados, contas vencidas e lançamentos sem categoria; a agenda já traz curso, matéria, professor, início, fim e local de cada aula; use os IDs que ela devolve para alterar.
 - registrar_na_jornada aplica até oito ações validadas. Envie em pedido as palavras da pessoa, como ela disse. Use um request_id UUID por pedido e repita-o só ao reenviar o mesmo pedido após falha de conexão. Confirme à pessoa só o que voltar em "aplicado". Até 5 exclusões por pedido vão direto para a lixeira (30 dias); acima disso, e para substituir o texto inteiro de uma anotação, fica pendente: diga o resumo e peça confirmação.
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
-- ver_tela devolve o print de uma tela. No Claude e no ChatGPT ele aparece na própria conversa; em outros aplicativos a imagem chega só para você. Entregue também o link que vem junto ("abra para ver o print"), que abre no aparelho em que a pessoa está conectada à Jornada.
+- ver_tela devolve um RESUMO VISUAL de uma tela: uma imagem desenhada com os dados atuais da conta, no visual da Jornada. Não é print nem captura da tela real; se a pessoa pedir um print, diga isso. Onde o aplicativo mostra apps (ChatGPT, Claude), a imagem aparece abaixo da resposta, mas você não consegue confirmar que a pessoa viu: nunca diga que mostrou ou enviou a imagem. Entregue sempre o link que vem junto ("se a imagem não aparecer, abra o link"): abre sem login e vale 10 minutos.
 - "Me mostra o que você fez" ou "como ficou?": depois de registrar, chame ver_tela com ultima_acao: true. A tela do que mudou vem com as alterações no topo e os itens destacados.
 - Arquivos: você não consegue repassar foto, áudio, vídeo ou arquivo que vê na conversa. Use enviar_arquivo (com o destino, se ela disser) e entregue o link; vale 10 minutos. Links de sites vão em registrar_na_jornada com anotacao e link.
 ${assistantRules.map(rule => `- ${rule}`).join('\n')}
@@ -196,13 +199,13 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
   });
 
   server.registerTool('ver_tela', {
-    title: 'Ver uma tela da Jornada (print)',
-    description: 'Devolve o print com as informações atuais de uma tela da vida pessoal (meu_dia, financas, agenda, habitos, metas ou anotacoes) e um link para a pessoa abrir o mesmo print. No Claude e no ChatGPT, o print aparece na própria conversa. Com ultima_acao: true, mostra o que esta conexão acabou de fazer: sem tela, escolhe a tela do que mudou; lista as alterações no topo e destaca os itens. Use quando a pessoa pedir um print, "me mostra o que você fez" ou para ver como ficou. A imagem é montada com os dados da conta, não é captura do monitor.',
+    title: 'Ver uma tela da Jornada (resumo visual)',
+    description: 'Devolve um resumo visual (imagem desenhada com os dados atuais, não é captura da tela) de uma tela da vida pessoal (meu_dia, financas, agenda, habitos, metas ou anotacoes), o resumo em texto e um link que abre a mesma imagem sem login por 10 minutos. Onde o aplicativo mostra apps, a imagem aparece na conversa; você não consegue confirmar que a pessoa viu.',
     inputSchema: z.object({ tela: z.enum(screens).optional().describe('Sem tela, use ultima_acao para mostrar a tela do que mudou.'),
-      ultima_acao: z.boolean().default(false).describe('Mostra no print o que esta conexão acabou de fazer, nas últimas 24 horas.') }),
+      ultima_acao: z.boolean().default(false).describe('Mostra no resumo visual o que esta conexão acabou de fazer, nas últimas 24 horas.') }),
     outputSchema: screenOutput,
     annotations: { readOnlyHint: true, openWorldHint: false },
-    // MCP Apps: hosts that render apps show the print inside the conversation; the legacy key keeps older hosts.
+    // MCP Apps: hosts that render apps show the image inside the conversation; the legacy key keeps older hosts.
     _meta: { ui: { resourceUri: PRINT_VIEW_URI }, 'ui/resourceUri': PRINT_VIEW_URI },
   }, async ({ tela, ultima_acao }) => {
     if (!tela && !ultima_acao) return { ...text('Diga qual tela mostrar (meu_dia, financas, agenda, habitos, metas ou anotacoes) ou use ultima_acao: true para a tela do que você acabou de fazer.'), isError: true };
@@ -220,17 +223,22 @@ export function jornadaMcpServer(db: Database, access: { hash: string; canWrite:
     const screen = tela ?? 'meu_dia';
     const model = screenModel(data, screen, today(), recent);
     const png = await renderScreen(model, generatedAt());
-    // The link lets the person open the same print where the conversation cannot show it.
+    // Delivery: the app frame (ChatGPT, Claude) loads the image from a short-lived link given only to it (_meta), so the
+    // size of the result never stops it; the same link goes in the text for the person. The image also travels inline
+    // for clients without apps (Claude Code) while it fits: a large inline image makes Claude park the whole result in a
+    // file and the app never receives it.
     const origin = applicationOrigin(process.env);
-    const link = origin ? `${origin}/api/tela/${screen}.png` : null;
-    return { content: [{ type: 'image' as const, data: Buffer.from(png).toString('base64'), mimeType: 'image/png' },
-      { type: 'text' as const, text: `${screenText(model)}${link ? `
-
-Link do print para a pessoa abrir (vale com o login dela na Jornada): ${link}` : ''}` }],
-      structuredContent: { tela: screen, resumo: screenText(model), link, ...(recent ? { mudancas: recent.labels, ...(recent.at ? { alterado_em: recent.at } : {}) } : {}) } };
+    const link = origin ? screenLink(origin, access.hash, screen, Date.now(), recent) : null;
+    const inline = Buffer.from(png).toString('base64');
+    const summary = `${screenText(model)}\n\nResumo visual gerado com os dados da conta; não é captura da tela.${link ? `\nSe a imagem não aparecer, abra o link (sem login, vale ${SCREEN_LINK_MINUTES} minutos): ${link}` : ''}`;
+    return { content: [...(inline.length <= INLINE_IMAGE_LIMIT ? [{ type: 'image' as const, data: inline, mimeType: 'image/png' }] : []), { type: 'text' as const, text: summary }],
+      structuredContent: { tela: screen, resumo: screenText(model), link, ...(recent ? { mudancas: recent.labels, ...(recent.at ? { alterado_em: recent.at } : {}) } : {}) },
+      ...(link ? { _meta: { [SCREEN_IMAGE_META]: link } } : {}) };
   });
-  server.registerResource('print-da-tela', PRINT_VIEW_URI, { title: 'Print da Jornada', description: 'Mostra na conversa o print devolvido por ver_tela.', mimeType: PRINT_VIEW_MIME },
-    async uri => ({ contents: [{ uri: uri.href, mimeType: PRINT_VIEW_MIME, text: printView }] }));
+  // The frame may load images only from the Jornada itself (the short-lived link above).
+  const viewMeta = printViewMeta(applicationOrigin(process.env));
+  server.registerResource('print-da-tela', PRINT_VIEW_URI, { title: 'Resumo visual da Jornada', description: 'Mostra na conversa a imagem devolvida por ver_tela.', mimeType: PRINT_VIEW_MIME, _meta: viewMeta },
+    async uri => ({ contents: [{ uri: uri.href, mimeType: PRINT_VIEW_MIME, text: printView, _meta: viewMeta }] }));
   server.registerTool('enviar_arquivo', {
     title: 'Link para enviar foto, áudio, vídeo ou arquivo',
     description: `Gera um link de ${CAPTURE_LINK_MINUTES} minutos que abre o Registro rápido da Jornada já no destino (caderno, matéria ou área; sem destino, Para organizar). Use quando a pessoa quiser guardar uma foto, áudio, vídeo ou arquivo: você não consegue repassar o arquivo em si. Ela abre o link no aparelho em que já está conectada à Jornada e envia por lá, com o próprio login, para o armazenamento privado (até 25 MB). Nada é gravado até ela enviar. Para guardar só um link de site, use registrar_na_jornada com anotacao e link.`,

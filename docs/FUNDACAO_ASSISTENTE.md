@@ -45,6 +45,23 @@ Pedido do proprietário: qualquer porta de entrada (texto e voz no app, Telegram
   - Avisos gerados pelo sistema ("ainda em foco?", "o foco ficou ligado?") só perguntam e nunca alteram dados sem um toque da pessoa.
   - Cada automação tem um registro por item, escada finita, reserva antes de enviar e cancelamento quando o estado muda.
 
+## Imagem das telas (09/10/2026)
+
+Auditoria pedida pelo proprietário, com a regra absoluta: nunca inventar imagem, nunca recriar uma tela parecida, nunca dizer que enviou o que o cliente não recebeu.
+
+- **Hoje (geração):** o `ver_tela` desenha com `next/og` um **resumo visual** com os dados da conta. Não é captura, e por isso foi renomeado (passo 0). O `next/og` não consegue desenhar as telas reais, porque aceita só flexbox e estilos em linha, sem as classes do app.
+- **Hoje (entrega), em teste:**
+  - a mini-app (MCP Apps) carrega a imagem por um link cifrado de 10 minutos, entregue só a ela em `_meta`;
+  - o texto traz o mesmo link;
+  - a cópia embutida só vai até 120 mil caracteres.
+  - Aceite: o proprietário ver a imagem no ChatGPT do Android.
+- **Diferenças por cliente (verificadas em 09/10/2026):**
+  - ChatGPT e Claude renderizam MCP Apps;
+  - o Claude não entrega à mini-app um resultado acima de cerca de 150 mil caracteres;
+  - Claude Code e Codex não renderizam apps;
+  - o Codex descarta as imagens quando há `structuredContent`. O formato do resultado não mudou por causa dele: o Codex fica com o link.
+- **Próximo passo, depois do aceite da entrega:** captura real com navegador headless (Chromium via `playwright-core`) num serviço de captura do backend, não do MCP. A captura abre uma página do app em modo foto, com ficha de uso único. Antes de produção, medir na Vercel do projeto o tempo de partida a frio, a memória, a duração e o tamanho do pacote.
+
 ## Recursos e direção de acesso
 
 | Recurso | Capacidade atual | Pode ser reserva automática de interpretação? |

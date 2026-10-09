@@ -160,7 +160,7 @@ export async function POST(request: Request) {
     const result = photo ? imageReview(raw) : parseCommand(raw);
     // Rooms, group work and contacts act as the linked person, once; the personal part follows as before.
     const { personal: own, shared: collective } = splitShared(result.actions);
-    // "Me mande um print" is answered with an image after everything else is saved.
+    // "Me mande um print" is answered with a visual summary (not a capture of the screen) after everything else is saved.
     const prints = own.flatMap(action => action.type === 'mostrar_tela' ? [action.tela] : []);
     const personal = own.filter(action => action.type !== 'mostrar_tela');
     const shared = collective.length ? await botShared(db, serverSecret, CHANNEL, chat, collective) : null;
@@ -188,11 +188,11 @@ export async function POST(request: Request) {
     if (!onlyPrint) { await log(text, outcome.applied.length ? outcome.applied : null); await say(text); }
     for (const tela of [...new Set(prints)].slice(0, 2)) {
       const model = screenModel(outcome.data, tela, today);
-      try { await sendPhoto(token, chat, await renderScreen(model, generatedAt()), `${model.title} · ${model.subtitle}`); }
+      try { await sendPhoto(token, chat, await renderScreen(model, generatedAt()), `${model.title} · ${model.subtitle}\nResumo visual com os dados da sua conta; não é uma captura da tela.`); }
       catch { await say(`Não consegui gerar a imagem agora. Resumo da tela:
 ${screenText(model)}`); }
     }
-    if (onlyPrint) await log(`Print enviado: ${prints.join(', ')}`, null);
+    if (onlyPrint) await log(`Resumo visual enviado: ${prints.join(', ')}`, null);
   } catch (error) {
     const reason = error instanceof AiError || error instanceof TelegramError ? error.message : 'erro inesperado';
     await say(`${photoNoteId ? `A foto original está guardada em ${photoPlace}. ` : ''}Não consegui responder agora (${reason}). Confira os registros antes de repetir qualquer ação.`);

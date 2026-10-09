@@ -2,8 +2,8 @@ import 'server-only';
 import { ImageResponse } from 'next/og';
 import type { ScreenModel } from './screen-model';
 
-// The "print" an assistant sends: the screen's own information, drawn on the server with the light theme.
-// It is not a capture of the person's monitor; it is built from the account's data at this moment.
+// The visual summary an assistant sends: the screen's own information, drawn on the server with the light theme.
+// It is not a capture of the screen, and the image says so; a real capture needs a browser (docs/FUNDACAO_ASSISTENTE.md).
 const color = { canvas: '#f5f8fc', surface: '#ffffff', ink: '#0b2338', muted: '#57697b', line: '#dce5ee', brand: '#123f61', focus: '#387aab', gold: '#c49a48', red: '#a33a3a', tint: '#eaf2fa' };
 const WIDTH = 1080;
 
@@ -18,6 +18,7 @@ export async function renderScreen(model: ScreenModel, generatedAt: string): Pro
     <div style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', background: color.canvas, padding: 48, color: color.ink, fontFamily: 'sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', fontSize: 28, fontWeight: 700, color: color.brand }}>
         Jornada Plena<span style={{ color: color.gold }}>.</span>
+        <span style={{ display: 'flex', marginLeft: 18, fontSize: 20, fontWeight: 600, color: color.muted }}>Resumo visual · não é captura da tela</span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18 }}>
         <div style={{ display: 'flex', fontSize: 56, fontWeight: 700 }}>{model.title}</div>
@@ -45,7 +46,7 @@ export async function renderScreen(model: ScreenModel, generatedAt: string): Pro
           </div>
         </div>) : <div style={{ display: 'flex', fontSize: 24, color: color.muted, minHeight: 64, alignItems: 'center' }}>{section.empty}</div>}
       </div>)}
-      <div style={{ display: 'flex', marginTop: 'auto', paddingTop: 24, fontSize: 20, color: color.muted }}>Imagem gerada com os dados da sua conta · {generatedAt}</div>
+      <div style={{ display: 'flex', marginTop: 'auto', paddingTop: 24, fontSize: 20, color: color.muted }}>Resumo visual gerado com os dados da sua conta, não é uma captura da tela · {generatedAt}</div>
     </div>,
     { width: WIDTH, height: screenHeight(model) },
   );

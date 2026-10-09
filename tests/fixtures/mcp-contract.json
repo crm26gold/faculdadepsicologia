@@ -834,7 +834,7 @@
  },
  {
   "name": "ver_tela",
-  "title": "Ver uma tela da Jornada (print)",
+  "title": "Ver uma tela da Jornada (resumo visual)",
   "annotations": {
    "readOnlyHint": true,
    "openWorldHint": false
@@ -857,7 +857,7 @@
     },
     "ultima_acao": {
      "default": false,
-     "description": "Mostra no print o que esta conexão acabou de fazer, nas últimas 24 horas.",
+     "description": "Mostra no resumo visual o que esta conexão acabou de fazer, nas últimas 24 horas.",
      "type": "boolean"
     }
    }
