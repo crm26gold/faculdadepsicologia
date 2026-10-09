@@ -367,7 +367,8 @@ test('servidor MCP: cada leitura traz o mesmo conteúdo em texto e estruturado, 
   const { MCP_CONTRACT } = await import('../src/lib/mcp/contract');
   assert.equal(init.result.serverInfo.version, MCP_CONTRACT.version, 'a versão acompanha o contrato');
   assert.equal(init.result.serverInfo.title, 'Jornada Plena');
-  assert.equal(init.result.serverInfo.websiteUrl, 'https://jornada.example');
+  const { applicationOrigin } = await import('../src/lib/auth-input');
+  assert.equal(init.result.serverInfo.websiteUrl, applicationOrigin(process.env), 'o site é o endereço do próprio aplicativo');
   assert.ok(init.result.serverInfo.icons.length > 0, 'ícone da Jornada para o aplicativo mostrar');
   const tools = (await call(2, 'tools/list')).result.tools as { name: string; outputSchema?: { type: string } }[];
   assert.deepEqual(tools.filter(tool => tool.outputSchema).map(tool => tool.name).sort(), ['consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'enviar_arquivo', 'lixeira', 'ver_tela']);
