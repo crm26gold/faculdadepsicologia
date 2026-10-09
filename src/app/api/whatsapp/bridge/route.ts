@@ -6,6 +6,8 @@ import { sealKey } from '@/lib/ai/crypto';
 import { bridgeInput, freshMessage, validatedMedia } from '@/lib/whatsapp/protocol';
 import { whatsappRpc } from '@/lib/whatsapp/server';
 import { runWhatsAppJob } from '@/lib/whatsapp/run-job';
+import { botServerSecret } from '@/lib/bot/secrets';
+import { botDatabase } from '@/lib/supabase/bot';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -30,6 +32,11 @@ export async function POST(request: Request) {
     const parsed = bridgeInput.safeParse(JSON.parse(Buffer.concat(chunks).toString('utf8')));
     if (!parsed.success) return reply({ error: 'Pedido inválido.' }, 400);
     const input = parsed.data;
+    // Reminders (outbox): delivered on the heartbeat and confirmed with "sent"; the bridge was verified above.
+    if (input.action === 'sent') {
+      const marked = await botDatabase()!.rpc('reminder_outbox_sent', { server_secret: botServerSecret(), item: input.id });
+      return marked.error ? reply({ error: 'Não foi possível concluir agora.' }, 503) : reply({ ok: true, data: null });
+    }
     let operation: string = input.action;
     let payload: Record<string, unknown> = { ...input };
     if (input.action === 'message') {
@@ -45,6 +52,10 @@ export async function POST(request: Request) {
     if (input.action === 'message') after(() => runWhatsAppJob(token, input.peer, result.data.id));
     if (input.action === 'result' && ['queued', 'working'].includes(result.data?.status)) after(() => runWhatsAppJob(token, input.peer, input.id));
     const data = input.action === 'result' ? { ...result.data, result: result.data?.result ? { reply: result.data.result.reply, speak: result.data.result.speak === true } : null } : result.data;
+    if (input.action === 'heartbeat' && input.state === 'ready') {
+      const outbox = await botDatabase()!.rpc('reminder_outbox_take', { server_secret: botServerSecret() });
+      return reply({ ok: true, data: { ...data, outbox: outbox.error ? [] : outbox.data ?? [] } });
+    }
     return reply({ ok: true, data });
   } catch {
     return reply({ error: 'Não foi possível validar este pedido. Nenhuma nova alteração foi confirmada.' }, 400);

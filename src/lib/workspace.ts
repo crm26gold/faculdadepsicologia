@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defaultAreas } from './life';
+import { remindSchema } from './reminders';
 
 export const colors = ['sage', 'lavender', 'sand', 'blue', 'rose'] as const;
 const identifier = z.string().min(1).max(100);
@@ -76,6 +77,8 @@ export const taskSchema = z.object({
   projectId: identifier.optional(),
   // The group work this deadline came from, so "Na minha agenda" finds it instead of adding another.
   assignmentId: identifier.optional(),
+  // "Avisar": the database turns it into a reminder that goes out on its own (app, Telegram, WhatsApp…).
+  remind: remindSchema.optional(),
 });
 export const noteSchema = z.object({
   id: identifier, title: z.string().max(160), subjectId: z.string().max(100),

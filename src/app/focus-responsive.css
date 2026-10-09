@@ -464,3 +464,31 @@ button.bento-metric-card:focus-visible { outline: 3px solid var(--ui-focus); out
 .mcp-snippet { margin: 0; overflow-x: auto; }
 .mcp-token-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .mcp-token-list li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+/* Meu espaço › Avisos: cada canal é um passo a marcar; o teste mostra o que cada um fez. */
+.reminders-panel h2 { display: flex; align-items: center; gap: 8px; }
+.reminder-steps { list-style: none; margin: 14px 0; padding: 0; display: grid; gap: 8px; }
+.reminder-steps li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+.reminder-steps li > svg { color: var(--muted); }
+.reminder-steps li[data-done='true'] > svg { color: var(--ok-text); }
+.reminder-steps li span { display: grid; gap: 2px; min-width: 0; }
+.reminder-steps li small { color: var(--muted); font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; }
+.reminder-switch { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; white-space: nowrap; }
+.reminder-phone { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.reminder-phone input { width: 170px; }
+.reminder-test { display: grid; gap: 10px; padding: 14px; border-radius: 14px; background: var(--soft-bg); }
+.reminder-test fieldset { border: 0; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.reminder-test legend { font-weight: 600; margin-bottom: 6px; }
+.reminder-test > button { justify-self: start; }
+.reminder-result { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.reminder-result li { display: flex; gap: 8px; align-items: center; overflow-wrap: anywhere; }
+.reminder-result li[data-ok='true'] svg { color: var(--ok-text); }
+.reminder-result li[data-ok='false'] svg { color: var(--danger-text); }
+.reminder-upcoming { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.reminder-upcoming li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; }
+.reminder-upcoming small { color: var(--muted); }
+.reminder-page { max-width: 520px; margin: 0 auto; padding: 48px 16px; display: grid; gap: 14px; }
+.reminder-page h1 { font-size: 24px; margin: 0; }
+@media (max-width: 760px) {
+  .reminder-steps li { grid-template-columns: auto minmax(0, 1fr); }
+  .reminder-steps li > :last-child:not(span) { grid-column: 1 / -1; justify-self: start; }
+}

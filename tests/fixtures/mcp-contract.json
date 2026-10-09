@@ -175,6 +175,37 @@
          "subject": {
           "type": "string",
           "maxLength": 100
+         },
+         "remind": {
+          "type": "object",
+          "properties": {
+           "minutes": {
+            "type": "number",
+            "enum": [
+             0,
+             5,
+             10,
+             15,
+             30,
+             60,
+             120,
+             1440
+            ]
+           },
+           "level": {
+            "type": "string",
+            "enum": [
+             "suave",
+             "normal",
+             "insistente"
+            ]
+           }
+          },
+          "required": [
+           "minutes",
+           "level"
+          ],
+          "additionalProperties": false
          }
         },
         "required": [

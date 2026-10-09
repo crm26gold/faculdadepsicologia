@@ -54,7 +54,7 @@ export function findRecord(data: Workspace, entity: Entity, target: string): Rec
 
 // These are the only fields a model can change. IDs, HTML, history and credentials are never writable.
 export const entityFields: Record<Entity, string> = {
-  compromisso: 'title,date,time,kind,minutes,done,area,subject,project',
+  compromisso: 'title,date,time,kind,minutes,done,area,subject,project,remind',
   anotacao: 'title,text,replace,area,subject,notebook',
   financeiro: 'description,amount,date,flow,category,pending,nature,area',
   habito: 'title,time,period,area',
@@ -121,6 +121,7 @@ export function changeRecord(data: Workspace, entity: Entity, fields: Record<str
       item.status = value ? 'pending' : 'paid';
       if (value) delete item.paidOn;
     } else if (['deadline', 'time', 'endTime', 'firstDate'].includes(key) && value === '') delete item[key];
+    else if (key === 'remind' && (value === null || value === '')) delete item.remind;
     else item[key] = value;
   }
   if (entity === 'anotacao') item.updatedAt = new Date(now).toISOString();

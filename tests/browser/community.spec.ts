@@ -856,6 +856,45 @@ test('telegram: a pessoa gera o código, abre o robô e a tela confirma quando o
   await expect(card.getByRole('button', { name: 'Conectar meu Telegram' })).toBeVisible();
 });
 
+test('avisos: cada canal é um passo; o teste mostra o que cada canal fez; ligação e e-mail só com as contas no servidor', async ({ page }) => {
+  await mockApi(page, { home: homeFixture({ master: true }) });
+  const tests: Record<string, unknown>[] = [];
+  const state = { devices: [], telegram: true, whatsapp: true, bridge_online: false, owner: true, prefs: { phone: null, call_enabled: false, email_enabled: false },
+    upcoming: [{ id: '6f1c2b0e-1d2a-4c3b-9e8f-0a1b2c3d4e5f', title: 'Dentista', event_at: '2030-01-08T13:00:00.000Z', next_at: '2030-01-08T12:45:00.000Z', level: 'insistente', status: 'agendado' }],
+    vapid: 'BAAA', extra: { email: false, call: false } };
+  await page.route('**/api/reminders', route => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON(); tests.push(body);
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: 'x', deliveries: [
+        { at: '', step: 0, channel: 'telegram', ok: true, detail: 'enviado' }, { at: '', step: 0, channel: 'whatsapp', ok: false, detail: 'ponte desligada; sai quando ela ligar (até 30 min)' }] } }) });
+    }
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: state }) });
+  });
+  await page.goto('/#settings');
+  const card = page.getByRole('region', { name: 'Avisos' });
+  await expect(card.locator('.reminder-steps li[data-done="true"]')).toHaveCount(3);
+  await expect(card).toContainText('a ponte está desligada');
+  await expect(card).toContainText('Falta conectar uma conta da Twilio no servidor.');
+  await expect(card.getByRole('checkbox', { name: /Ligado/ })).toHaveCount(0);
+  await expect(card.locator('.reminder-upcoming')).toContainText('Dentista');
+  await card.getByRole('radio', { name: 'Não me deixa esquecer' }).check();
+  await expect(card).toContainText('Na hora, 5 e 15 minutos depois');
+  await card.getByRole('button', { name: 'Testar avisos agora' }).click();
+  const result = card.getByRole('list', { name: 'Resultado do teste' });
+  await expect(result).toContainText('Telegram: enviado');
+  await expect(result).toContainText('WhatsApp: ponte desligada');
+  expect(tests).toEqual([{ action: 'test', level: 'insistente' }]);
+  expect((await new AxeBuilder({ page }).include('.reminders-panel').analyze()).violations).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 }); await settleAnimations(page);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/reminders-mobile.png', fullPage: false });
+  // With the owner's accounts on the server, e-mail and call become switches.
+  state.extra = { email: true, call: true };
+  await page.reload();
+  await expect(page.getByRole('region', { name: 'Avisos' }).getByRole('checkbox', { name: /Ligado/ })).toHaveCount(2);
+  await expect(page.getByLabel('Celular para a ligação')).toBeVisible();
+});
+
 test('assistentes externos: a pessoa cria uma chave MCP, vê a configuração de cada app uma vez e revoga', async ({ page }) => {
   await mockApi(page, { home: homeFixture({ master: false }) });
   let tokens: unknown[] = [];

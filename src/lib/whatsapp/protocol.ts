@@ -12,6 +12,8 @@ export const bridgeInput = z.discriminatedUnion('action', [
     media: z.object({ mimeType: z.string().max(64), base64: z.string().max(2_666_668), seconds: z.number().min(0).max(180).optional() }).strict().optional() }).strict(),
   job.extend({ action: z.literal('result') }).strict(),
   job.extend({ action: z.literal('ack') }).strict(),
+  // A reminder from the outbox reached WhatsApp.
+  z.object({ action: z.literal('sent'), id: z.uuid() }).strict(),
 ]);
 export type IncomingMessage = Extract<z.infer<typeof bridgeInput>, { action: 'message' }>;
 

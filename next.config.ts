@@ -9,6 +9,9 @@ const config: NextConfig = {
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
       { key: 'Permissions-Policy', value: 'camera=(self), microphone=(self), geolocation=()' },
       { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+    ] }, { source: '/sw.js', headers: [
+      { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+      { key: 'Content-Security-Policy', value: "default-src 'self'; script-src 'self'" },
     ] }];
   },
 };

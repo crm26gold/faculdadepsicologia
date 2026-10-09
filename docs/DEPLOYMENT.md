@@ -21,6 +21,8 @@ Use [.env.example](../.env.example) como modelo sem segredos. Mantenha fora do G
 | `GOOGLE_AUTH_ENABLED` | `false` | `false` até verificação externa; depois `true` |
 | `FACULDADE_CLOUD_WORKSPACE` | `false` | `false` até migração, RLS e API verificadas; depois `true` |
 | `FACULDADE_LOCAL_PREVIEW` | `false`; não deve ser necessário no contrato de demo | `false` em hospedagem; opção legada de prévia local |
+| `RESEND_API_KEY`, `REMINDER_EMAIL_FROM` | Ausente/vazio | E-mail dos [avisos](#avisos-lembretes), só para o proprietário; vazio desliga o canal |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `TWILIO_VOICE` | Ausente/vazio | Ligação dos [avisos](#avisos-lembretes), só para o proprietário; vazio desliga o canal |
 | `GOOGLE_CLIENT_ID` | Ausente/vazio | ID do cliente OAuth do Google para o [Google Agenda](#google-agenda); vazio desliga o recurso |
 | `GOOGLE_CLIENT_SECRET` | Ausente/vazio (a demo recusa subir com ele) | Segredo do mesmo cliente; só no servidor |
 
@@ -87,6 +89,31 @@ O banco já está pronto: a migração `20261008230100_google_agenda` foi aplica
 5. Aceite real: em Agenda › Google Agenda, conecte, confira a agenda "Jornada Plena" no Google, mude um compromisso na Jornada e veja a mudança chegar; depois desconecte e confira que a agenda saiu do Google.
 
 O que vai: compromissos, prazos e aulas de 7 dias atrás a 120 dias à frente (até 800), com título, data, horário, local e tipo; nunca anotações. A atualização corre depois da resposta, ao abrir o app e a cada gravação pelo app; mudanças feitas pelo assistente com o app fechado entram na próxima abertura. Uma atualização por vez por pessoa (reserva de 90 s no banco).
+
+### Avisos (lembretes)
+
+Avisos saem sozinhos na hora marcada, só para a própria pessoa e só quando ela pede (Avisar no compromisso, assistente ou o teste em Meu espaço › Avisos).
+
+- **Banco:** a migração `reminders` cria os lembretes, as inscrições de notificação, a fila do WhatsApp e o relógio.
+  - Um gatilho em `personal_tasks` acompanha cada compromisso com `remind`, venha de onde vier a gravação.
+  - No Supabase, a migração liga `pg_cron` e `pg_net`, guarda o código do relógio no Vault (`jornada_reminders_clock`) e agenda `jornada-lembretes` a cada minuto.
+  - O job só chama `POST /api/reminders/dispatch` quando há lembrete vencido.
+  - **Ao trocar de domínio**, atualize a URL do job: `select cron.alter_job((select jobid from cron.job where jobname = 'jornada-lembretes'), command := …)`.
+- **Sem variáveis novas para os canais grátis.**
+  - Notificação do app: as chaves VAPID derivam de `AI_KEYS_SECRET`; trocar esse segredo pede para religar as notificações em cada aparelho.
+  - Telegram: usa o robô já configurado.
+  - WhatsApp: usa a ponte do proprietário, que busca a fila no batimento (atualize a pasta `integrations/whatsapp-bridge` no computador e reinicie a ponte).
+  - Google Agenda: os eventos com Avisar levam lembretes do Google.
+- **E-mail (opcional, só para o proprietário):** `RESEND_API_KEY`.
+  - Sem domínio verificado, o remetente `onboarding@resend.dev` só entrega ao e-mail dono da conta Resend.
+  - Com domínio, defina `REMINDER_EMAIL_FROM` (ex.: `Jornada Plena <avisos@seudominio>`).
+  - O e-mail leva só "você tem um lembrete" e o link, sem o título.
+- **Ligação (opcional, só para o proprietário):** `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` e `TWILIO_FROM` (número no formato +1… ou +55…).
+  - `TWILIO_VOICE` é opcional (padrão `Polly.Camila`).
+  - Na conta de teste, a Twilio só liga para números verificados e toca um aviso antes; libere o Brasil em Geo Permissions.
+  - A voz diz só que há um lembrete.
+  - Preço lido em 09/10/2026: cerca de US$ 0,07/min para celular no Brasil e US$ 1,15/mês por número americano. Confira na Twilio.
+- **Aceite:** em Meu espaço › Avisos, ligue as notificações, toque em Testar avisos agora com "Não me deixa esquecer" e confira o resultado de cada canal. Depois crie um compromisso daqui a 20 minutos com Avisar 15 min antes.
 
 ### Geração do editor e reversões
 

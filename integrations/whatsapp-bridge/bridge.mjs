@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
 import wwebjs from 'whatsapp-web.js';
 import QRCode from 'qrcode';
-import { validConfig, privatePeer, linkCode, canRetryDelivery, withRetry, reconnectPlan, spoken } from './protocol.mjs';
+import { validConfig, privatePeer, linkCode, canRetryDelivery, withRetry, reconnectPlan, spoken, outboxItem } from './protocol.mjs';
 import { synthesize } from './speech.mjs';
 
 const root = dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,7 @@ async function call(body) {
 }
 async function heartbeat() {
   if (heartbeatBusy || stopping) return; heartbeatBusy = true;
-  try { const data = await call({ action: 'heartbeat', state: phase, relay, qr }); voice = data.voice; }
+  try { const data = await call({ action: 'heartbeat', state: phase, relay, qr }); voice = data.voice; if (data.outbox?.length) void sendOutbox(data.outbox); }
   catch (error) { if (error.status === 401) console.warn('Ponte pausada ou credencial revogada. Nenhum pedido será executado.'); else console.warn('Sem resposta da Jornada. Aguardando reconexão.'); }
   finally { heartbeatBusy = false; }
 }
@@ -104,6 +104,27 @@ async function receive(message) {
   const result = await send({ action: 'message', peer, message_id, timestamp: message.timestamp, text: (message.body || '').slice(0, 2400), ...(media ? { media } : {}) });
   ledger[message_id] = { peer, chat: message.from, id: result.id, phase: 'waiting', created: Date.now() }; persist();
   void deliver();
+}
+// Reminders the Jornada asked to send (the person asked for them). One attempt per heartbeat; a send that failed returns
+// to the queue, a confirmed one is never repeated.
+let sendingOutbox = false;
+async function sendOutbox(items) {
+  if (sendingOutbox || phase !== 'ready' || stopping) return; sendingOutbox = true;
+  try {
+    for (const raw of items) {
+      const item = outboxItem(raw); if (!item) continue;
+      const key = `out:${item.id}`;
+      if (ledger[key]?.phase === 'sent') { await call({ action: 'sent', id: item.id }).catch(() => {}); continue; }
+      if (ledger[key]?.phase === 'sending') continue;
+      ledger[key] = { phase: 'sending', created: Date.now() }; persist();
+      try {
+        const sent = await client.sendMessage(item.chat, item.text);
+        if (!sent?.id?._serialized) throw new Error('Entrega não confirmada.');
+        ledger[key].phase = 'sent'; persist();
+        await call({ action: 'sent', id: item.id }).catch(() => {});
+      } catch { delete ledger[key]; persist(); console.warn('Não consegui entregar um lembrete no WhatsApp. Nova tentativa no próximo batimento.'); }
+    }
+  } finally { sendingOutbox = false; }
 }
 async function voiceMedia(text, selectedVoice) {
   const bytes = await synthesize(text, selectedVoice, stateDir);
