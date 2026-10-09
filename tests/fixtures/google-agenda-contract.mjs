@@ -6,6 +6,7 @@ const { sealKey } = await import('../../src/lib/ai/vault.ts');
 const { syncGoogleAgenda } = await import('../../src/lib/google-agenda-server.ts');
 const { agendaEvents, saoPauloToday } = await import('../../src/lib/google-agenda.ts');
 const { demoWorkspace } = await import('../../src/lib/workspace.ts');
+const eventPosts = () => calls.filter(call => call.method === 'POST' && call.url.endsWith('/events')).map(call => JSON.parse(call.body).id);
 
 const data = demoWorkspace(saoPauloToday()); data.notes = [];
 const desired = agendaEvents(data, saoPauloToday());
@@ -13,7 +14,7 @@ assert(desired.length >= 3, 'a demonstração tem eventos suficientes');
 const rpcs = [];
 const session = (claim) => ({ user: { id: 'u1' }, client: { rpc: async (name, args) => { rpcs.push({ name, args }); return name === 'google_agenda_claim' ? { data: claim, error: null } : { data: null, error: null }; } } });
 const claim = { refresh_ciphertext: sealKey('refresh-1'), calendar_id: 'cal@group.calendar.google.com' };
-let calls = [], calendarGone = false, revoked = false;
+let calls = [], calendarGone = false, revoked = false, throttled = 1, broken = false;
 globalThis.fetch = async (url, init = {}) => {
   url = String(url); calls.push({ url, method: init.method, body: init.body });
   if (url.startsWith('https://oauth2.googleapis.com/token')) {
@@ -31,6 +32,8 @@ globalThis.fetch = async (url, init = {}) => {
     ] });
   }
   if (url.endsWith('/calendars') && init.method === 'POST') return Response.json({ id: 'nova@group.calendar.google.com' });
+  if (init.method === 'POST' && JSON.parse(init.body).id === desired[3].id && throttled-- > 0) return Response.json({ error: { errors: [{ reason: 'rateLimitExceeded' }] } }, { status: 403 });
+  if (init.method === 'POST' && broken) return Response.json({ error: { errors: [{ reason: 'invalid' }] } }, { status: 400 });
   if (init.method === 'POST') return JSON.parse(init.body).id === desired[2].id ? new Response('{}', { status: 409 }) : Response.json({});
   if (init.method === 'DELETE') return new Response(null, { status: 410 });
   return Response.json({});
@@ -45,6 +48,15 @@ assert(writes.some(call => call.method === 'PUT' && call.url.endsWith(`/events/$
 assert(writes.some(call => call.method === 'DELETE' && call.url.endsWith('/events/jpsaiu')), 'o que saiu é removido; 410 conta como feito');
 assert(!writes.some(call => call.url.includes('pessoal')), 'evento feito à mão no Google fica');
 assert.deepEqual(rpcs.at(-1), { name: 'google_agenda_finish', args: { next_revision: 42, next_events: desired.length, next_problem: '', next_calendar: '' } });
+assert.equal(eventPosts().filter(id => id === desired[3].id).length, 2, 'freio do Google: tenta de novo depois de uma pausa');
+
+calls = []; rpcs.length = 0; calendarGone = true; broken = true;
+const partial = await syncGoogleAgenda(session(claim), () => data, 46);
+assert.equal(partial.complete, false);
+assert.equal(new Set(eventPosts()).size, eventPosts().length, 'erro permanente não é repetido');
+assert(eventPosts().length >= 3);
+assert.deepEqual({ revision: rpcs.at(-1).args.next_revision, problem: rpcs.at(-1).args.next_problem }, { revision: null, problem: 'partial' }, 'incompleta tenta de novo na próxima');
+broken = false;
 
 calls = []; rpcs.length = 0; calendarGone = true;
 await syncGoogleAgenda(session(claim), () => data, 43);

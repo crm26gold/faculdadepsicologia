@@ -43,6 +43,8 @@ export async function GET(request: NextRequest) {
     return back('conectada');
   } catch (cause) {
     console.warn('[google-agenda]', { stage: 'connect', problem: cause instanceof GoogleAgendaError ? cause.problem : 'failed' });
+    // The browser can open the return address twice; the second code is refused, but the first already connected.
+    if (cause instanceof GoogleAgendaError && cause.problem === 'revoked' && (await session.client.rpc('google_agenda_state')).data) return back('conectada');
     return back(cause instanceof GoogleAgendaError && /permissão/.test(cause.message) ? 'sem-permissao' : 'falhou');
   }
 }
