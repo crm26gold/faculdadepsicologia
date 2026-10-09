@@ -110,6 +110,7 @@
 .ai-insights li svg, .ai-insights > strong svg { flex-shrink: 0; margin-top: 3px; color: var(--accent-text); }
 .ai-insights li[data-level='warning'] svg, .ai-insights > strong svg { color: var(--danger-text); }
 .ai-insights > strong { display: flex; align-items: center; gap: 8px; }
+.ai-insights[data-level='info'] > strong svg { color: var(--ok-text); }
 .ai-chain { margin: 0; padding-left: 22px; display: grid; gap: 6px; }
 .ai-chain li { line-height: 1.5; overflow-wrap: anywhere; }
 .ai-chain li small { display: block; font-size: 11px; }
@@ -164,8 +165,12 @@
 .ai-guide-option:hover { border-color: var(--ui-focus); }
 .ai-guide-option[data-chosen='true'] { border-color: var(--ui-focus); background: var(--ui-active); box-shadow: 0 0 0 2px #387aab33; }
 .ai-guide-actions { justify-content: space-between; margin-top: 6px; }
+.ai-guide-progress { margin: -4px 0 10px; font-weight: 600; }
+.ai-guide-oneclick { justify-self: start; margin-top: 2px; padding: 2px 9px; border-radius: 999px; background: var(--ok-bg); color: var(--ok-text); font-size: 12px; font-style: normal; font-weight: 600; }
+.ai-guide-confirm { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--soft-bg); line-height: 1.45; cursor: pointer; }
+.ai-guide-confirm input { flex-shrink: 0; inline-size: 18px; block-size: 18px; margin-top: 2px; accent-color: var(--ui-focus); }
 .ai-resolving { position: sticky; top: calc(var(--workspace-header-height, 80px) + 8px); z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 14px; padding: 12px 14px; border: 1px solid var(--ui-focus); border-radius: 14px; background: var(--ui-active); color: var(--ink); box-shadow: var(--ui-shadow); }
 .ai-resolving > span:first-of-type { flex: 1 1 220px; min-width: 0; font-size: 14px; line-height: 1.4; }
 .ai-resolving[data-status='resolved'] { border-color: var(--ok-text); }
-.ai-resolving[data-status='resolved'] svg { color: var(--ok-text); }
+.ai-resolving[data-status='resolved'] > svg { color: var(--ok-text); }
 .ai-resolving-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

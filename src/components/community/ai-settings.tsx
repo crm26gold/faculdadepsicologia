@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { AlertTriangle, ArrowRight, BrainCircuit, ChevronDown, Gauge, KeyRound, LayoutDashboard, ListChecks, Network, Plug, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
-import { issueResolved, resourceIssues, type Issue, type IssueOption } from '@/lib/ai/issues';
+import { AlertTriangle, ArrowRight, BrainCircuit, CheckCircle2, ChevronDown, Gauge, KeyRound, LayoutDashboard, ListChecks, Network, Plug, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { issueResolved, resourceIssues, type Issue, type IssueAction, type IssueOption } from '@/lib/ai/issues';
 import { ResourceMap, useResourceMap } from './resource-map';
 import { IssueGuide, ResolvingBar } from './issue-guide';
 import { aiCatalog, aiTaskLabels, liveProviders, voiceOnlyProviders, type AiAdminState, type AiProviderId } from '@/lib/ai/catalog';
@@ -58,14 +58,44 @@ export function AiSettings() {
       element.querySelector<HTMLElement>('select, input:not([type=hidden]), textarea, button')?.focus({ preventScroll: true });
     }));
   }
-  async function check() {
-    if (!resolving) return;
-    setResolving({ ...resolving, status: 'checking' });
-    if (!await resources.reload()) setResolving({ ...resolving, status: 'still' });
+  // The one-tap path: the same endpoints and validation as the forms, then the map is read again and the bar says
+  // whether the notice left. Settings not shown in the guide (name, address, project) are sent back unchanged.
+  async function apply(action: IssueAction) {
+    if (!state) throw new Error('Abra a Administração de novo e tente outra vez.');
+    if (action.kind === 'declare') for (const source of action.sources)
+      await api('/api/ai/resources', { action: 'set_source_policy', provider: source.provider, connection_id: source.connection_id, privacy_basis: 'paid', audience: 'owner' });
+    if (action.kind === 'pause') for (const source of action.sources) {
+      if (source.connection_id) {
+        const row = state.connections?.find(item => item.id === source.connection_id);
+        if (!row) throw new Error('Esta conexão não existe mais. Toque em Atualizar painel.');
+        await api('/api/ai/admin', { action: 'save_connection', id: row.id, provider: row.provider, label: row.label, enabled: false, position: row.position, key: null,
+          ...(row.base_url ? { base_url: row.base_url } : {}), ...(row.gcp_project ? { gcp_project: row.gcp_project } : {}), ...(row.gcp_location ? { gcp_location: row.gcp_location } : {}) });
+      } else {
+        const row = state.providers.find(item => item.id === source.provider);
+        if (!row) throw new Error('Esta conexão não existe mais. Toque em Atualizar painel.');
+        await api('/api/ai/admin', { action: 'save_provider', provider: row.id, enabled: false, label: row.label, base_url: row.base_url, gcp_project: row.gcp_project, gcp_location: row.gcp_location, key: null });
+      }
+    }
+    if (action.kind === 'route') for (const task of action.tasks)
+      await api('/api/ai/admin', { action: 'save_route', task, provider: action.provider, connection_id: action.connection_id, model: 'auto:rapido', enabled: true, routing_mode: 'auto', fallbacks: [] });
   }
-  useEffect(() => {
-    if (resolving?.status === 'checking' && resources.map) setResolving({ ...resolving, status: issueResolved(resolving.issue.id, resources.map, resolving.since) ? 'resolved' : 'still' });
-  }, [resources.map, resolving]);
+  async function act(option: IssueOption) {
+    if (!guide || !option.act || operation.current) return;
+    operation.current = true;
+    const issue = guide;
+    try { await apply(option.act); }
+    finally { operation.current = false; }
+    setGuide(null);
+    await load();
+    await verify({ issue, status: 'checking', since: new Date().toISOString() });
+  }
+  // Judged on the map this read returns, never on the one still on screen.
+  async function verify(target: NonNullable<typeof resolving>) {
+    setResolving({ ...target, status: 'checking' });
+    const fresh = await resources.reload();
+    setResolving({ ...target, status: fresh && issueResolved(target.issue.id, fresh, target.since) ? 'resolved' : 'still' });
+  }
+  async function check() { if (resolving) await verify(resolving); }
   const load = useCallback(async () => {
     try { setState(await api<AiAdminState>('/api/ai/admin')); setLoadError(''); }
     catch (error) { if (error instanceof ApiError && error.status === 403) setHidden(true); else setLoadError('Não consegui carregar a Administração. Tente atualizar o painel.'); }
@@ -108,6 +138,8 @@ export function AiSettings() {
   const availableCount = ready.length + reserves.filter(row => row.enabled).length;
   const issues = resources.map ? resourceIssues(resources.map) : [];
   const warnings = issues.filter(issue => issue.level === 'warning');
+  const nextIssue = resolving ? issues.find(issue => issue.id !== resolving.issue.id) : undefined;
+  const position = guide ? { index: issues.findIndex(issue => issue.id === guide.id) + 1 || 1, total: Math.max(issues.length, 1) } : undefined;
   const visibleProviders = state.providers.filter(provider => (showAll || !!search.trim() || provider.has_key || reserves.some(row => row.provider === provider.id)) && `${aiCatalog[provider.id].name} ${provider.label} ${reserves.filter(row => row.provider === provider.id).map(row => row.label).join(' ')}`.toLocaleLowerCase().includes(search.trim().toLocaleLowerCase()));
   function saveProvider(provider: Provider, event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); const form = event.currentTarget; const fields = new FormData(form);
@@ -147,14 +179,19 @@ export function AiSettings() {
     <div className="ai-control-heading"><div><span className="ai-eyebrow"><ShieldCheck size={14} aria-hidden="true" /> Administração privada</span><h2 id="ai-settings-title">Inteligência artificial</h2><p>O controle das suas conexões, em um só lugar.</p></div><button type="button" className="button outline" disabled={!!busy} onClick={() => void run('refresh', load)}><RefreshCw size={15} aria-hidden="true" /> Atualizar painel</button></div>
     <p className={state.secretReady ? 'ai-status ok' : 'ai-status'}>{state.secretReady ? <><ShieldCheck size={16} aria-hidden="true" /> Cofre de chaves pronto: as chaves ficam cifradas e nunca voltam para a tela.</> : <><KeyRound size={16} aria-hidden="true" /> Configure o segredo do cofre no servidor antes de cadastrar chaves.</>}</p>
     <nav className="ai-control-nav" aria-label="Seções da inteligência artificial">{views.map(item => <button key={item.id} type="button" aria-pressed={view === item.id} aria-controls={`ai-view-${item.id}`} onClick={() => setView(item.id)}><item.icon size={16} aria-hidden="true" />{item.label}</button>)}</nav>
-    {resolving && <ResolvingBar issue={resolving.issue} status={resolving.status} onCheck={() => void check()} onReopen={() => { setGuide(resolving.issue); setResolving(null); }} onDismiss={() => setResolving(null)} />}
-    {guide && <IssueGuide issue={guide} onClose={() => setGuide(null)} onGo={goTo} />}
+    {resolving && <ResolvingBar issue={resolving.issue} status={resolving.status} remaining={resolving.status === 'resolved' ? issues.length : 0} onCheck={() => void check()}
+      onReopen={() => { setGuide(resolving.issue); setResolving(null); }} onNext={() => { setResolving(null); if (nextIssue) setGuide(warnings[0] ?? nextIssue); }} onDismiss={() => setResolving(null)} />}
+    {guide && <IssueGuide key={guide.id} issue={guide} position={position} onClose={() => setGuide(null)} onGo={goTo} onAct={act} />}
     {loadError && <p className="cm-message" role="status">{loadError}</p>}{message && <p className="cm-message" role="status">{message}</p>}
     {liveResult && <div className="ai-card ai-diagnostic" role="status"><strong>{liveResult.connected ? 'Conexão de voz aceita' : 'Diagnóstico da chamada'}</strong><p>{liveResult.message}</p><span className="muted small">Código: {liveResult.reference} · etapa: {liveResult.stage}{liveResult.model ? ` · ${liveResult.model}` : ''} · {(liveResult.ms / 1000).toFixed(1)} s</span>{liveResult.diagnostic && <span className="muted small">{[liveResult.diagnostic.upstreamStatus, liveResult.diagnostic.upstreamCode, liveResult.diagnostic.reason, liveResult.diagnostic.configurationIssue, ...(liveResult.diagnostic.invalidFields ?? [])].filter(Boolean).join(' · ')}</span>}<span className="muted small">Este teste não usa seu microfone, não gera fala e não executa ações.</span></div>}
     <div id="ai-view-overview" className="ai-admin-content" hidden={view !== 'overview'}>
       <div className="ai-overview-grid"><div className="ai-metric"><Plug size={20} aria-hidden="true" /><strong>{ready.length}<small> / {state.providers.length}</small></strong><span>Provedores configurados e ligados</span></div><div className="ai-metric"><ListChecks size={20} aria-hidden="true" /><strong>{activeTasks.length}<small> / {state.tasks.length}</small></strong><span>Tarefas com configuração ativa</span></div><div className="ai-metric"><ShieldCheck size={20} aria-hidden="true" /><strong>{reserves.filter(connection => connection.enabled).length}</strong><span>Conexões extras ligadas</span></div></div>
       <p className="muted small">Os indicadores mostram a configuração salva. Uma chave cadastrada precisa ser testada; não é uma garantia de conexão ou de créditos.</p>
-      {issues.length > 0 && <div className="ai-card ai-insights" role="status"><strong><AlertTriangle size={16} aria-hidden="true" /> {issues.length === 1 ? 'Um ponto pede sua atenção' : `${issues.length} pontos pedem sua atenção`}</strong><span className="muted small">{(warnings[0] ?? issues[0]).title}</span><div className="button-row"><button type="button" className="button primary" onClick={() => setGuide(warnings[0] ?? issues[0])}>Resolver agora <ArrowRight size={14} aria-hidden="true" /></button><button type="button" className="text-button" onClick={() => setView('resources')}>Ver todos</button></div></div>}
+      {/* Something stopped: alarm. Everything answers: calm, with what would make it stronger. */}
+      {issues.length > 0 && <div className="ai-card ai-insights" role="status" data-level={warnings.length ? 'warning' : 'info'}>{warnings.length
+        ? <strong><AlertTriangle size={16} aria-hidden="true" /> {warnings.length === 1 ? 'Um ponto pede sua atenção' : `${warnings.length} pontos pedem sua atenção`}</strong>
+        : <strong><CheckCircle2 size={16} aria-hidden="true" /> Tudo respondendo · {issues.length === 1 ? '1 melhoria possível' : `${issues.length} melhorias possíveis`}</strong>}
+        <span className="muted small">{(warnings[0] ?? issues[0]).title}</span><div className="button-row"><button type="button" className="button primary" onClick={() => setGuide(warnings[0] ?? issues[0])}>{warnings.length ? 'Resolver agora' : 'Melhorar agora'} <ArrowRight size={14} aria-hidden="true" /></button><button type="button" className="text-button" onClick={() => setView('resources')}>Ver todos</button></div></div>}
       <div className="ai-card ai-next-step"><div><span className="ai-eyebrow">Seu próximo passo</span><h3>{!availableCount ? 'Conecte sua primeira API' : liveResult?.connected ? 'Experimente uma chamada' : 'Verifique a chamada ao vivo'}</h3><p>{!availableCount ? 'Escolha uma empresa, cadastre a chave e ligue a conexão.' : 'Confira a tarefa de voz e execute o diagnóstico. O resultado mostra a etapa exata da conexão.'}</p></div><button type="button" className="button primary" onClick={() => setView(availableCount ? 'tasks' : 'connections')}>{availableCount ? 'Configurar e testar' : 'Cadastrar conexão'}<ArrowRight size={16} aria-hidden="true" /></button></div>
       <h3>Sua Jornada usa IA para</h3><div className="ai-grid">{state.tasks.map(task => <div className="ai-card" key={task.id}><div className="section-heading"><strong>{aiTaskLabels[task.id].name}</strong><span className="ai-badge">{taskReady(task, state.providers, reserves) ? 'Configurada' : 'Pendente'}</span></div><span>{task.provider ? aiCatalog[task.provider].name : 'Escolha uma conexão'}</span><span className="muted small">{isAuto(task.model) ? autoModes[task.model].label : task.model || 'Modelo ainda não escolhido'}</span><button type="button" className="text-button" onClick={() => setView('tasks')}>Gerenciar tarefa <ArrowRight size={14} aria-hidden="true" /></button></div>)}</div>
       <div className="ai-explainer"><Sparkles size={22} aria-hidden="true" /><div><strong>Automático, com critérios claros</strong><p>A Jornada consulta os modelos disponíveis para sua chave e aplica sua preferência de qualidade, rapidez ou economia. A lista tem cache de até uma hora; você pode atualizar agora. A escolha segue regras de família e versão, sem gastar tokens com outra IA para escolher.</p></div></div>

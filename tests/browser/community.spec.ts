@@ -934,9 +934,11 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   await page.goto('/'); await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
   const panel = page.getByRole('region', { name: 'Inteligência artificial' });
   // "Apitou, eu clico e o sistema me guia": the overview opens the guide, which leads to the exact field.
-  await expect(panel.getByText(/pontos pedem sua atenção/)).toBeVisible();
-  await panel.getByRole('button', { name: 'Resolver agora' }).click();
+  // Every task answers: the overview stays calm and offers improvements instead of an alarm.
+  await expect(panel.getByText('Tudo respondendo · 3 melhorias possíveis')).toBeVisible();
+  await panel.getByRole('button', { name: 'Melhorar agora' }).click();
   const guide = page.getByRole('dialog', { name: 'Resolver' });
+  await expect(guide.getByText('Ponto 1 de 3')).toBeVisible();
   await expect(guide).toContainText('Reserva Gemini · Google Gemini (AI Studio): aguardando sua declaração de privacidade');
   await expect(guide).toContainText('faturamento ativo');
   await guide.getByRole('button', { name: 'Ver como resolver' }).click();
@@ -944,8 +946,11 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   await guide.getByRole('radio', { name: /Meu projeto Google tem faturamento ativo/ }).click();
   await guide.getByRole('button', { name: 'Continuar' }).click();
   await expect(guide.getByRole('link', { name: /Abrir as chaves no AI Studio/ })).toHaveAttribute('href', 'https://aistudio.google.com/apikey');
+  await expect(guide.getByRole('button', { name: 'Fazer agora' })).toBeDisabled();
+  await expect(guide.getByRole('checkbox', { name: /o projeto desta chave tem faturamento ativo/ })).not.toBeChecked();
   expect((await new AxeBuilder({ page }).include('dialog[open]').analyze()).violations).toEqual([]);
-  await guide.getByRole('button', { name: 'Ir para o lugar certo' }).click();
+  // The declaration can also be made on the key's own card: the guide takes the person there.
+  await guide.getByRole('button', { name: 'Prefiro fazer na tela' }).click();
   await expect(page.getByRole('dialog', { name: 'Resolver' })).toHaveCount(0);
   await expect(panel.getByRole('status').filter({ hasText: 'Resolvendo:' })).toBeVisible();
   await expect(panel.locator(`[data-source="${reserveId}"]`)).toHaveClass(/ai-touched/);
@@ -981,6 +986,67 @@ test('mapa de recursos mostra o que realmente atua e separa a declaração do co
   expect((await new AxeBuilder({ page }).include('.ai-settings').analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await assistant.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/resource-map-mobile-dark.png' });
+});
+
+test('troquei pela Groq: a Gemini parada sai em um toque e o guia leva ao próximo ponto', async ({ page }) => {
+  // The owner on 2026-10-09: every task in the automatic mode answered by Groq, two Gemini keys without a declaration.
+  const extra = '00000000-0000-4000-8000-000000000071';
+  const providers = ['gemini', 'groq', 'elevenlabs'].map(id => ({ id, enabled: true, label: id === 'gemini' ? 'Jornada Projeto Novo' : '', base_url: '', gcp_project: '', gcp_location: '', has_key: true, key_hint: id.slice(0, 4), updated_at: '' }));
+  const ai = { secretReady: true, providers, connections: [{ id: extra, provider: 'gemini', label: 'Gemini', enabled: true, position: 1, key_hint: 'ext1', updated_at: '' }],
+    tasks: ['assistente', 'organizar'].map(id => ({ id, provider: 'groq', model: 'auto:rapido', enabled: true, routing_mode: 'auto', fallbacks: [], updated_at: '' })) };
+  const resource = (source_id: string, provider: string, label = '') => ({ source_id, provider, kind: source_id.startsWith('connection:') ? 'connection' : 'api',
+    connection_id: source_id.startsWith('connection:') ? source_id.slice(11) : null, label, configured: true, enabled: true, key_hint: 'abcd', updated_at: '2026-10-09T01:00:00Z',
+    personal_data_ok: provider !== 'gemini', declaration: { privacy_basis: null, audience: null, current: false } });
+  const geminis = ['provider:gemini', `connection:${extra}`];
+  const route = (task: string) => ({ task, enabled: true, mode: 'auto', provider: 'groq', model: 'auto:rapido', routing_effective: 'auto',
+    chain: [{ source_id: 'provider:groq', provider: 'groq', model: 'auto:rapido', source: 'owner' }], configured_chain: [], members_chain: [], members_note: 'base_off',
+    sources: [{ source_id: 'provider:groq', state: 'active', position: 1, role: 'auto' }, ...geminis.map(source_id => ({ source_id, state: 'blocked', role: 'auto', reason: 'declaration_missing' }))] });
+  const map = { version: 1, generated_at: '2026-10-09T01:00:00Z', base_enabled: false,
+    resources: [resource('provider:gemini', 'gemini', 'Jornada Projeto Novo'), resource(`connection:${extra}`, 'gemini', 'Gemini'), resource('provider:groq', 'groq'), resource('provider:elevenlabs', 'elevenlabs')],
+    routes: [route('assistente'), route('organizar')], channels: [], whatsapp: null,
+    mcp_inbound: { owner_tokens: 0, owner_oauth: 0, members_with_access: 0 }, mcp_outbound: [], members: { accounts: 1, with_personal_keys: 0 } };
+  // The pause lands like the database answers it: the key is off and the automatic mode reports it as paused.
+  const posted = await mockApi(page, { home: homeFixture({ master: true }), ai, onPost: ({ url, body }) => {
+    if (url !== '/api/ai/admin' || body.enabled !== false) return null;
+    const id = body.action === 'save_connection' ? `connection:${body.id}` : `provider:${body.provider}`;
+    map.resources = map.resources.map(item => item.source_id === id ? { ...item, enabled: false } : item);
+    for (const item of map.routes) item.sources = item.sources.map(source => source.source_id === id ? { ...source, reason: 'disabled' } : source);
+    return null;
+  } });
+  await page.route('**/api/ai/resources', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { available: true, map } }) }));
+  await page.goto('/'); await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
+  const panel = page.getByRole('region', { name: 'Inteligência artificial' });
+  await expect(panel.getByText(/Tudo respondendo · 3 melhorias possíveis/)).toBeVisible();
+  await expect(panel.getByText(/pede sua atenção|pedem sua atenção/)).toHaveCount(0);
+  await panel.getByRole('button', { name: 'Melhorar agora' }).click();
+  const guide = page.getByRole('dialog', { name: 'Resolver' });
+  await expect(guide).toContainText('Google Gemini (AI Studio): 2 chaves paradas, esperando sua decisão');
+  await expect(guide).toContainText('Está tudo respondendo: Groq · inferência rápida responde por Conversa do assistente e Organizar registros.');
+  await guide.getByRole('button', { name: 'Ver como resolver' }).click();
+  await expect(guide.getByRole('radio')).toHaveCount(3);
+  await expect(guide.getByText('Resolvo daqui, com sua confirmação')).toHaveCount(2);
+  await guide.getByRole('radio', { name: /Ainda não tenho faturamento: deixar de lado/ }).click();
+  await guide.getByRole('button', { name: 'Continuar' }).click();
+  await expect(guide).toContainText('Pauso as 2 chaves de Google Gemini (AI Studio). Quem já responde continua respondendo.');
+  expect((await new AxeBuilder({ page }).include('dialog[open]').analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/issue-one-tap.png' });
+  await guide.getByRole('button', { name: 'Fazer agora' }).click();
+  await expect(page.getByRole('dialog', { name: 'Resolver' })).toHaveCount(0);
+  const bar = panel.getByRole('status').filter({ hasText: 'Resolvido.' });
+  await expect(bar).toContainText('não aparece mais nos avisos');
+  // Only the settings shown are changed: name, address and project go back as they were, the key stays.
+  const pauses = posted.filter(item => item.url === '/api/ai/admin').map(item => item.body);
+  expect(pauses).toEqual([
+    { action: 'save_provider', provider: 'gemini', enabled: false, label: 'Jornada Projeto Novo', base_url: '', gcp_project: '', gcp_location: '', key: null },
+    { action: 'save_connection', id: extra, provider: 'gemini', label: 'Gemini', enabled: false, position: 1, key: null },
+  ]);
+  // The next point: Groq alone answers, so a second company would keep the tasks up if it fails.
+  await expect(bar).toContainText('Faltam 2 pontos.');
+  await page.setViewportSize({ width: 390, height: 844 }); await settleAnimations(page);
+  await bar.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/issue-resolved-mobile.png' });
+  await bar.getByRole('button', { name: 'Próximo ponto' }).click();
+  await expect(page.getByRole('dialog', { name: 'Resolver' })).toContainText('Conversa do assistente depende de uma só conexão');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('link de envio do assistente abre o Registro rápido no destino, sai do endereço e vence', async ({ page }) => {

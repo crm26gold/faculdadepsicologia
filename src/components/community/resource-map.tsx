@@ -10,7 +10,8 @@ import { resourceIssues, type Issue } from '@/lib/ai/issues';
 import { IssueList } from './issue-guide';
 import { Modal } from '../modal';
 
-export type ResourceMapState = { map: AiResourceMap | null; unavailable: boolean; error: string; reload: () => Promise<boolean> };
+/** reload resolves to the fresh map (null when the database has none yet) or false when the read failed. */
+export type ResourceMapState = { map: AiResourceMap | null; unavailable: boolean; error: string; reload: () => Promise<AiResourceMap | null | false> };
 /** One owner-only read; the panel reuses it for the overview notice and the map view. */
 export function useResourceMap(enabled: boolean): ResourceMapState {
   const [map, setMap] = useState<AiResourceMap | null>(null);
@@ -20,7 +21,7 @@ export function useResourceMap(enabled: boolean): ResourceMapState {
     try {
       const data = await api<{ available: boolean; map?: AiResourceMap }>('/api/ai/resources');
       setUnavailable(!data.available); setMap(data.map ?? null); setError('');
-      return true;
+      return data.map ?? null;
     } catch { setError('Não consegui abrir o mapa de recursos agora. Tente atualizar.'); return false; }
   }, []);
   useEffect(() => { if (enabled) void reload(); }, [enabled, reload]);
@@ -42,7 +43,7 @@ export function ResourceMap({ state, onChanged, onResolve }: { state: ResourceMa
     setBusy(key); setMessage('');
     try {
       await action();
-      if (!await state.reload()) throw new Error('A alteração foi enviada, mas não consegui atualizar o mapa. Toque em Atualizar mapa.');
+      if (await state.reload() === false) throw new Error('A alteração foi enviada, mas não consegui atualizar o mapa. Toque em Atualizar mapa.');
       setMessage(success); onChanged?.();
     }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Não consegui concluir.'); }
