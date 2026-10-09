@@ -318,3 +318,87 @@
 :global([data-theme='dark']) .lateDate {
     color: hsl(0 66% 78%)
 }
+
+/* ── Agenda (10/2026): menos caixas, mais leitura. Cada item leva a cor da área da vida (data-tone); no celular,
+   o mês vira bolinhas e o dia escolhido vira uma linha do tempo. Usa as variáveis do tema, então vale no escuro. ── */
+.agenda [data-tone] { --tone: #7a9b80; }
+.agenda [data-tone='sage'] { --tone: #5f9a6e; }
+.agenda [data-tone='lavender'] { --tone: #8b78c9; }
+.agenda [data-tone='sand'] { --tone: #c9953f; }
+.agenda [data-tone='blue'] { --tone: #3f86c2; }
+.agenda [data-tone='rose'] { --tone: #cf6f82; }
+
+.actionbar { justify-content: flex-start; flex-wrap: nowrap; gap: 10px; }
+.toolButton { gap: 8px; }
+.calendarLayout { grid-template-columns: minmax(0, 1fr) 320px; }
+
+.calendarToolbar { display: grid; grid-template-columns: auto auto 1fr; grid-template-areas: "title nav views"; align-items: center; gap: 12px 14px; padding: 20px 20px 12px; }
+.monthTitle { grid-area: title; margin: 0; font-size: 1.5rem; font-weight: 600; letter-spacing: -.01em; line-height: 1.2; }
+.monthTitle span { color: var(--muted); font-weight: 400; }
+.monthNavigation { grid-area: nav; gap: 2px; }
+.todayChip { min-height: 34px; padding: 4px 14px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: .8rem; font-weight: 600; cursor: pointer; }
+.todayChip:hover { background: var(--ui-hover); }
+.viewControls { grid-area: views; justify-content: flex-end; }
+.filterToggle { display: inline-flex; gap: 6px; align-items: center; min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: .8rem; font-weight: 600; cursor: pointer; }
+.filterToggle[aria-expanded='true'] { background: var(--ui-active); border-color: var(--ui-focus); }
+.filterToggle b { display: grid; place-items: center; min-inline-size: 18px; block-size: 18px; padding-inline: 4px; border-radius: 999px; background: var(--accent-text); color: #fff; font-size: .68rem; }
+:global(html) :global(.workspace-shell) .filterRow { margin: 0 20px 14px; padding: 12px 14px; border-radius: 12px; background: var(--ui-hover); }
+
+.monthTable { border-spacing: 3px; padding: 0 12px 10px; }
+.monthTable th { padding: 4px 0 8px; }
+:global(html) :global(.workspace-shell) .day { height: 122px; padding: 8px 6px; gap: 6px; border: 1px solid transparent; border-radius: 12px; background: color-mix(in srgb, var(--ui-hover) 55%, transparent); transition: background .15s, box-shadow .15s; }
+:global(html) :global(.workspace-shell) .day:hover { background: var(--ui-hover); border-color: transparent; }
+:global(html) :global(.workspace-shell) .day.selected { background: var(--ui-active); border-color: transparent; box-shadow: inset 0 0 0 2px var(--ui-focus); }
+:global(html) :global(.workspace-shell) .outside { background: transparent; }
+:global(html) :global(.workspace-shell) .outside .dayNumber { color: var(--muted); font-weight: 500; }
+.dayNumber { width: 28px; height: 28px; border-radius: 999px; font-size: .82rem; font-weight: 600; }
+:global(html) :global(.workspace-shell) .day[aria-current=date] .dayNumber { background: var(--accent-text); color: #fff; }
+:global(html) :global(.workspace-shell) .dayPill { display: block; padding: 3px 6px; border-radius: 5px; border-inline-start: 3px solid var(--tone); background: color-mix(in srgb, var(--tone) 15%, transparent); color: var(--ink); font-size: .66rem; }
+.pillDone { text-decoration: line-through; }
+.more { font-size: .64rem; padding-inline-start: 4px; }
+.dots { display: none; }
+
+.dayCard { padding: 18px 16px; }
+.dayHeader { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; margin-bottom: 14px; }
+.dayHeader h3 { margin: 2px 0 1px; font-size: 1rem; line-height: 1.3; }
+.dayHeader small { color: var(--muted); font-size: .76rem; }
+.dayBadge { display: grid; place-items: center; align-content: center; inline-size: 52px; block-size: 56px; border-radius: 14px; background: var(--accent-text); color: #fff; line-height: 1.05; }
+.dayBadge small { color: inherit; font-size: .6rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; opacity: .85; }
+.dayBadge strong { font-size: 1.45rem; }
+.dayDetails { gap: 4px; margin-bottom: 4px; }
+
+:global(html) :global(.workspace-shell) .event { display: grid; grid-template-columns: 46px minmax(0, 1fr) auto; gap: 10px; align-items: start; padding: 10px 10px 10px 0; border: 0; border-radius: 12px; background: transparent; text-align: left; cursor: pointer; }
+:global(html) :global(.workspace-shell) .event:hover { background: var(--ui-hover); }
+.eventClock { display: grid; justify-items: end; gap: 2px; padding-top: 1px; }
+.eventClock strong { font-size: .86rem; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink); }
+.eventClock small { font-size: .68rem; color: var(--muted); white-space: nowrap; }
+.eventBody { display: grid; gap: 3px; min-width: 0; padding-inline-start: 11px; border-inline-start: 3px solid var(--tone, var(--line)); }
+.eventBody strong { display: flex; gap: 6px; align-items: center; font-size: .93rem; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; color: var(--ink); }
+.eventBody small { font-size: .75rem; line-height: 1.4; }
+.eventPlace { display: inline-flex; gap: 4px; align-items: center; }
+.eventBell { margin-top: 2px; color: var(--accent-text); }
+:global(html) :global(.workspace-shell) .event.done .eventBody strong { text-decoration: line-through; color: var(--muted); }
+:global(html) :global(.workspace-shell) .weekEvents .event { grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 8px; }
+.weekEvents .eventClock { display: flex; gap: 6px; justify-items: start; }
+.weekEvents .eventBell { display: none; }
+
+@media (max-width: 1250px) { .calendarLayout { grid-template-columns: minmax(0, 1fr); } :global(html) :global(.workspace-shell) .day { height: 100px; } }
+@media (max-width: 760px) {
+  .calendarToolbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "title nav" "views views"; padding: 16px 14px 10px; }
+  .monthTitle { font-size: 1.3rem; }
+  .viewControls { justify-content: space-between; }
+  :global(html) :global(.workspace-shell) .filterRow { margin: 0 12px 12px; }
+}
+@media (max-width: 600px) {
+  .newButton { flex: 1 1 auto; justify-content: center; }
+  .toolButton { flex: 0 0 auto; inline-size: 46px; padding-inline: 0; justify-content: center; }
+  .toolButton span { display: none; }
+  .monthTable { padding: 0 6px 8px; border-spacing: 2px; }
+  :global(html) :global(.workspace-shell) .day { height: 54px; padding: 6px 0 5px; gap: 5px; align-items: center; background: transparent; }
+  .dayItems { display: none; }
+  .dots { display: flex; gap: 3px; justify-content: center; min-block-size: 6px; }
+  .dots i { inline-size: 6px; block-size: 6px; border-radius: 50%; background: var(--tone); }
+  .dots em { font-size: .58rem; line-height: 6px; font-style: normal; color: var(--muted); }
+  .dayNumber { width: 30px; height: 30px; font-size: .85rem; }
+  .calendarFoot { justify-content: center; text-align: center; }
+}

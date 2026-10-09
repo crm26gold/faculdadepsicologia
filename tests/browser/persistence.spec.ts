@@ -179,10 +179,11 @@ test('áreas e cadernos pessoais organizam notas e agenda sem exigir matéria', 
   await page.getByLabel('Área da vida · opcional', { exact: true }).selectOption('health');
   await page.getByLabel('Tipo', { exact: true }).selectOption('Consulta');
   await page.getByRole('button', { name: 'Salvar', exact: true }).click();
+  await page.getByRole('button', { name: 'Filtros' }).click();
   await page.getByLabel('Filtrar área da vida', { exact: true }).selectOption('health');
-  await expect(page.getByRole('button').filter({ hasText: 'Sem horário · Consulta' })).toContainText('Consulta de rotina');
+  await expect(page.getByRole('button', { name: /^Sem horário · Consulta: Consulta de rotina/ })).toContainText('Consulta de rotina');
   await page.getByLabel('Filtrar área da vida', { exact: true }).selectOption('work');
-  await expect(page.getByRole('button').filter({ hasText: 'Sem horário · Consulta' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Sem horário · Consulta:/ })).toHaveCount(0);
   await page.reload();
   await nav.getByRole('button', { name: 'Caderno', exact: true }).click();
   await page.getByRole('button', { name: /^Reflexões diárias/ }).click();
