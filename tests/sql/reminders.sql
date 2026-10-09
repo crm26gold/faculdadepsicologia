@@ -44,21 +44,36 @@ select expect(jsonb_array_length(public.reminders_state()->'devices') = 1 and (p
   and (public.reminders_state()->>'whatsapp')::boolean, 'estado mostra aparelho e canais ligados');
 select expect(public.reminders_state()::text not like '%push.example%', 'o estado não devolve o endereço do aparelho');
 
--- 3. O servidor: sem o segredo, nada; com ele, reserva o teste com os destinos.
+-- 3. O servidor: as chamadas saem pela chave pública (papel anon), como na Vercel. Sem o segredo, nada; com ele,
+-- reserva o teste com os destinos.
 reset role;
-select expect(public.try_as('', 'public.reminders_claim(''errado'', null, 10)') = '42501', 'sem o segredo do servidor, nada');
-select expect(not public.reminders_clock_ok('segredo-do-servidor-com-mais-de-32-caracteres', 'qualquer'), 'relógio desconhecido recusado');
-create temporary table claimed as select value as item from jsonb_array_elements(public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10));
+create temporary table server_calls(name text, ok boolean, value jsonb);
+grant all on server_calls to anon;
+set local role anon;
+insert into server_calls select 'sem segredo', public.try_as('', 'public.reminders_claim(''errado'', null, 10)') = '42501', null;
+insert into server_calls select 'relógio', not public.reminders_clock_ok('segredo-do-servidor-com-mais-de-32-caracteres', 'qualquer'), null;
+insert into server_calls select 'reserva', true, public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10);
+insert into server_calls select 'de novo', true, public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10);
+reset role;
+select expect((select ok from server_calls where name = 'sem segredo'), 'sem o segredo do servidor, nada');
+select expect((select ok from server_calls where name = 'relógio'), 'relógio desconhecido recusado, pelo papel anon');
+create temporary table claimed as select value as item from jsonb_array_elements((select value from server_calls where name = 'reserva'));
+grant select on claimed to anon;
 select expect((select count(*) = 1 from claimed), 'só o teste venceu');
 select expect((select item->>'telegram' = 'rem-aluno' and item->>'whatsapp' = '5511999990000' and jsonb_array_length(item->'push') = 1
   and not item ? 'email' and not item ? 'phone' from claimed), 'destinos da própria pessoa, só canais grátis');
-select expect(jsonb_array_length(public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10)) = 0, 'reservado não sai duas vezes');
+select expect((select jsonb_array_length(value) = 0 from server_calls where name = 'de novo'), 'reservado não sai duas vezes');
+set local role anon;
 select public.reminders_finish('segredo-do-servidor-com-mais-de-32-caracteres', (select (item->>'id')::uuid from claimed), 0, '[{"channel": "telegram", "ok": true}]');
+reset role;
 select expect((select status = 'avisando' and step = 1 and next_at > now() and claimed_at is null and jsonb_array_length(log) = 1
   from private.reminders where id = (select (item->>'id')::uuid from claimed)), 'normal: segundo aviso agendado');
+set local role anon;
 select public.reminders_finish('segredo-do-servidor-com-mais-de-32-caracteres', (select (item->>'id')::uuid from claimed), 0, '[{"channel": "telegram", "ok": true}]');
+reset role;
 select expect((select step = 1 and jsonb_array_length(log) = 1 from private.reminders where id = (select (item->>'id')::uuid from claimed)), 'resultado repetido não avança de novo');
 
+reset role;
 -- 4. Feito para; Adiar recomeça em 10 minutos; outra pessoa não alcança.
 select expect(public.try_as('00000000-0000-4000-8000-000000000003', format('public.reminder_ack(%L, ''feito'')', (select item->>'id' from claimed))) = 'P0002', 'outra pessoa não marca');
 select expect(public.try_as('00000000-0000-4000-8000-000000000003', format('public.reminder_get(%L)', (select item->>'id' from claimed))) = 'ok'
@@ -69,12 +84,17 @@ select expect((select step = 0 and next_at between now() + interval '9 minutes' 
 select expect(public.reminder_ack((select (item->>'id')::uuid from claimed), 'feito')->>'status' = 'visto', 'feito encerra');
 select expect((select next_at is null from private.reminders where id = (select (item->>'id')::uuid from claimed)), 'feito: nada mais a enviar');
 
--- 5. Fila do WhatsApp: entra, a ponte retira, confirma; Feito antes do envio tira da fila.
+-- 5. Fila do WhatsApp, também pelo papel anon: entra, a ponte retira e confirma; aparelho recusado sai da lista.
+reset role;
+set local role anon;
 select public.reminder_outbox_add('segredo-do-servidor-com-mais-de-32-caracteres', (select (item->>'id')::uuid from claimed), '5511999990000', 'Lembrete: Teste');
-select expect(jsonb_array_length(public.reminder_outbox_take('segredo-do-servidor-com-mais-de-32-caracteres')) = 1, 'a ponte retira');
-select expect(jsonb_array_length(public.reminder_outbox_take('segredo-do-servidor-com-mais-de-32-caracteres')) = 0, 'retirada não sai de novo antes de 2 minutos');
-select public.reminder_outbox_sent('segredo-do-servidor-com-mais-de-32-caracteres', (select id from private.reminder_outbox limit 1));
-select expect((select sent_at is not null from private.reminder_outbox limit 1), 'envio confirmado');
+insert into server_calls select 'retira', true, public.reminder_outbox_take('segredo-do-servidor-com-mais-de-32-caracteres');
+insert into server_calls select 'retira de novo', true, public.reminder_outbox_take('segredo-do-servidor-com-mais-de-32-caracteres');
+select public.reminder_outbox_sent('segredo-do-servidor-com-mais-de-32-caracteres', ((select value from server_calls where name = 'retira')->0->>'id')::uuid);
 select public.push_drop('segredo-do-servidor-com-mais-de-32-caracteres', 'https://push.example.invalid/aluno-1');
+reset role;
+select expect((select jsonb_array_length(value) = 1 from server_calls where name = 'retira'), 'a ponte retira');
+select expect((select jsonb_array_length(value) = 0 from server_calls where name = 'retira de novo'), 'retirada não sai de novo antes de 2 minutos');
+select expect((select sent_at is not null from private.reminder_outbox limit 1), 'envio confirmado');
 select expect(not exists (select 1 from private.push_subscriptions where owner_id = '00000000-0000-4000-8000-000000000004'), 'aparelho recusado sai da lista');
 rollback;
