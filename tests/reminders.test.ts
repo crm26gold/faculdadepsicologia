@@ -6,20 +6,15 @@ import { demoWorkspace, parseWorkspace } from '../src/lib/workspace';
 
 const claimed = (over: Partial<ClaimedReminder> = {}): ClaimedReminder => ({ id: '6f1c2b0e-1d2a-4c3b-9e8f-0a1b2c3d4e5f', title: 'Dentista', event_at: '2030-01-08T13:00:00.000Z',
   due_at: '2030-01-08T12:45:00.000Z', level: 'insistente', step: 0, telegram: '123', whatsapp: '5511999990000', bridge_online: true,
-  push: [{ endpoint: 'https://push.example.invalid/x', p256dh: 'p', auth: 'a' }], owner: true, email: 'dono@example.invalid', phone: '+5511999990000', ...over });
-const all = { email: true, call: true };
+  push: [{ endpoint: 'https://push.example.invalid/x', p256dh: 'p', auth: 'a' }], ...over });
 
-test('a escada: primeiro os canais silenciosos, depois WhatsApp e e-mail, a ligação só no último degrau', () => {
-  assert.deepEqual(channelsFor(claimed(), all), ['push', 'telegram']);
-  assert.deepEqual(channelsFor(claimed({ step: 1 }), all), ['push', 'telegram', 'whatsapp', 'email']);
-  assert.deepEqual(channelsFor(claimed({ step: 2 }), all), ['push', 'telegram', 'whatsapp', 'call']);
-  assert.deepEqual(channelsFor(claimed({ level: 'suave' }), all), ['push', 'telegram', 'whatsapp'], 'suave é a única chance: o WhatsApp entra junto');
-});
-test('só os canais ligados; e-mail e ligação só para o proprietário e com as contas no servidor', () => {
-  assert.deepEqual(channelsFor(claimed({ step: 2, push: [], telegram: null }), all), ['whatsapp', 'call']);
-  assert.deepEqual(channelsFor(claimed({ step: 2 }), { email: false, call: false }), ['push', 'telegram', 'whatsapp']);
-  assert.deepEqual(channelsFor(claimed({ step: 1, owner: false }), all), ['push', 'telegram', 'whatsapp']);
-  assert.deepEqual(channelsFor(claimed({ step: 2, phone: null }), all), ['push', 'telegram', 'whatsapp']);
+test('a escada: na hora, os canais silenciosos; do segundo aviso em diante, também o WhatsApp; só canais grátis', () => {
+  assert.deepEqual(channelsFor(claimed()), ['push', 'telegram']);
+  assert.deepEqual(channelsFor(claimed({ step: 1 })), ['push', 'telegram', 'whatsapp']);
+  assert.deepEqual(channelsFor(claimed({ step: 2 })), ['push', 'telegram', 'whatsapp']);
+  assert.deepEqual(channelsFor(claimed({ level: 'suave' })), ['push', 'telegram', 'whatsapp'], 'suave é a única chance: o WhatsApp entra junto');
+  assert.deepEqual(channelsFor(claimed({ step: 2, push: [], telegram: null })), ['whatsapp'], 'só os canais ligados');
+  assert.deepEqual(channelsFor(claimed({ step: 1, whatsapp: null })), ['push', 'telegram']);
 });
 test('a mensagem diz o quê, a hora em São Paulo e quanto falta; repetição avisa que é de novo', () => {
   const now = new Date('2030-01-08T12:45:00.000Z');

@@ -37,15 +37,6 @@ create table private.push_subscriptions (
 );
 create index push_subscriptions_owner_idx on private.push_subscriptions(owner_id);
 
--- Ligação e e-mail (serviços pagos ou de terceiros): desligados até a pessoa ligar; o telefone fica só aqui.
-create table private.reminder_prefs (
-  owner_id uuid primary key references auth.users(id) on delete cascade,
-  phone text check (phone is null or phone ~ '^\+[1-9][0-9]{9,14}$'),
-  call_enabled boolean not null default false,
-  email_enabled boolean not null default false,
-  updated_at timestamptz not null default now()
-);
-
 -- Fila do WhatsApp: a ponte do proprietário busca no batimento e confirma o envio.
 create table private.reminder_outbox (
   id uuid primary key default gen_random_uuid(),
@@ -66,10 +57,9 @@ create table private.reminders_clock (
 
 alter table private.reminders enable row level security;
 alter table private.push_subscriptions enable row level security;
-alter table private.reminder_prefs enable row level security;
 alter table private.reminder_outbox enable row level security;
 alter table private.reminders_clock enable row level security;
-revoke all on private.reminders, private.push_subscriptions, private.reminder_prefs, private.reminder_outbox, private.reminders_clock from public, anon, authenticated;
+revoke all on private.reminders, private.push_subscriptions, private.reminder_outbox, private.reminders_clock from public, anon, authenticated;
 
 create function private.reminder_steps(level text) returns integer language sql immutable set search_path = '' as $$
   select case level when 'suave' then 1 when 'normal' then 2 else 3 end $$;
@@ -121,7 +111,7 @@ create trigger reminders_follow after insert or update of data or delete on publ
   for each row execute function private.reminders_follow_task();
 revoke all on function private.reminders_follow_task() from public, anon, authenticated;
 
--- 2. A própria pessoa: ver, testar, marcar como feito, adiar, registrar aparelhos e escolher os canais extras.
+-- 2. A própria pessoa: ver, testar, marcar como feito, adiar e registrar aparelhos.
 create function private.reminders_state() returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare me uuid := (select auth.uid());
@@ -133,9 +123,6 @@ begin
     'telegram', exists (select 1 from public.messenger_links l where l.channel = 'telegram' and l.user_id = me),
     'whatsapp', exists (select 1 from public.messenger_links l where l.channel = 'whatsapp' and l.user_id = me),
     'bridge_online', exists (select 1 from private.whatsapp_bridge b where b.enabled and b.state = 'ready' and b.heartbeat > now() - interval '90 seconds'),
-    'owner', private.is_owner(),
-    'prefs', coalesce((select jsonb_build_object('phone', p.phone, 'call_enabled', p.call_enabled, 'email_enabled', p.email_enabled)
-      from private.reminder_prefs p where p.owner_id = me), jsonb_build_object('phone', null, 'call_enabled', false, 'email_enabled', false)),
     'upcoming', coalesce((select jsonb_agg(x.item order by x.next_at) from (
       select r.next_at, jsonb_build_object('id', r.id, 'title', r.title, 'event_at', r.event_at, 'next_at', r.next_at, 'level', r.level, 'status', r.status) item
       from private.reminders r where r.owner_id = me and r.next_at is not null order by r.next_at limit 10) x), '[]'::jsonb),
@@ -200,16 +187,6 @@ create function private.push_unsubscribe(old_endpoint text) returns void
 language sql security definer set search_path = '' as $$
   delete from private.push_subscriptions where endpoint = old_endpoint and owner_id = (select auth.uid()) $$;
 
-create function private.reminder_prefs_save(next_phone text, next_call boolean, next_email boolean) returns void
-language plpgsql security definer set search_path = '' as $$
-declare me uuid := (select auth.uid());
-begin
-  if me is null then raise exception 'Not authorized' using errcode = '42501'; end if;
-  if next_call and nullif(next_phone, '') is null then raise exception 'Informe o celular para receber ligações.' using errcode = '22023'; end if;
-  insert into private.reminder_prefs(owner_id, phone, call_enabled, email_enabled) values (me, nullif(next_phone, ''), next_call, next_email)
-  on conflict (owner_id) do update set phone = excluded.phone, call_enabled = excluded.call_enabled, email_enabled = excluded.email_enabled, updated_at = now();
-end $$;
-
 -- 3. O servidor (mesmo segredo do robô): o relógio, a reserva do que venceu, o resultado e a fila do WhatsApp.
 create function private.reminders_clock_ok(server_secret text, token text) returns boolean
 language plpgsql stable security definer set search_path = '' as $$
@@ -241,11 +218,7 @@ begin
     'telegram', (select l.chat_id from public.messenger_links l where l.channel = 'telegram' and l.user_id = c.owner_id),
     'whatsapp', (select l.chat_id from public.messenger_links l where l.channel = 'whatsapp' and l.user_id = c.owner_id),
     'bridge_online', exists (select 1 from private.whatsapp_bridge b where b.enabled and b.state = 'ready' and b.heartbeat > now() - interval '90 seconds'),
-    'push', coalesce((select jsonb_agg(jsonb_build_object('endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth)) from private.push_subscriptions p where p.owner_id = c.owner_id), '[]'::jsonb),
-    -- Ligação e e-mail usam contas do proprietário: só para ele.
-    'owner', exists (select 1 from public.app_owner o where o.user_id = c.owner_id),
-    'email', (select u.email from auth.users u join private.reminder_prefs p on p.owner_id = u.id where u.id = c.owner_id and p.email_enabled),
-    'phone', (select p.phone from private.reminder_prefs p where p.owner_id = c.owner_id and p.call_enabled))), '[]'::jsonb)
+    'push', coalesce((select jsonb_agg(jsonb_build_object('endpoint', p.endpoint, 'p256dh', p.p256dh, 'auth', p.auth)) from private.push_subscriptions p where p.owner_id = c.owner_id), '[]'::jsonb))), '[]'::jsonb)
   into picked from claimed c;
   return picked;
 end $$;
@@ -310,7 +283,6 @@ create function public.reminder_test(next_level text) returns uuid language sql 
 create function public.reminder_ack(reminder uuid, choice text) returns jsonb language sql security invoker set search_path = '' as $$ select private.reminder_ack(reminder, choice) $$;
 create function public.push_subscribe(next_endpoint text, next_p256dh text, next_auth text, next_label text) returns void language sql security invoker set search_path = '' as $$ select private.push_subscribe(next_endpoint, next_p256dh, next_auth, next_label) $$;
 create function public.push_unsubscribe(old_endpoint text) returns void language sql security invoker set search_path = '' as $$ select private.push_unsubscribe(old_endpoint) $$;
-create function public.reminder_prefs_save(next_phone text, next_call boolean, next_email boolean) returns void language sql security invoker set search_path = '' as $$ select private.reminder_prefs_save(next_phone, next_call, next_email) $$;
 create function public.reminders_clock_ok(server_secret text, token text) returns boolean language sql stable security invoker set search_path = '' as $$ select private.reminders_clock_ok(server_secret, token) $$;
 create function public.reminders_claim(server_secret text, only_owner uuid, batch integer) returns jsonb language sql security invoker set search_path = '' as $$ select private.reminders_claim(server_secret, only_owner, batch) $$;
 create function public.reminders_finish(server_secret text, reminder uuid, sent_step integer, entries jsonb) returns void language sql security invoker set search_path = '' as $$ select private.reminders_finish(server_secret, reminder, sent_step, entries) $$;
@@ -323,7 +295,6 @@ revoke all on function private.reminder_steps(text), private.reminder_offset(int
   private.reminders_state(), public.reminders_state(), private.reminder_get(uuid), public.reminder_get(uuid),
   private.reminder_test(text), public.reminder_test(text), private.reminder_ack(uuid, text), public.reminder_ack(uuid, text),
   private.push_subscribe(text, text, text, text), public.push_subscribe(text, text, text, text), private.push_unsubscribe(text), public.push_unsubscribe(text),
-  private.reminder_prefs_save(text, boolean, boolean), public.reminder_prefs_save(text, boolean, boolean),
   private.reminders_clock_ok(text, text), public.reminders_clock_ok(text, text), private.reminders_claim(text, uuid, integer), public.reminders_claim(text, uuid, integer),
   private.reminders_finish(text, uuid, integer, jsonb), public.reminders_finish(text, uuid, integer, jsonb), private.push_drop(text, text), public.push_drop(text, text),
   private.reminder_outbox_add(text, uuid, text, text), public.reminder_outbox_add(text, uuid, text, text),
@@ -332,8 +303,7 @@ revoke all on function private.reminder_steps(text), private.reminder_offset(int
 grant execute on function private.reminder_steps(text), private.reminder_offset(integer) to anon, authenticated;
 grant execute on function private.reminders_state(), public.reminders_state(), private.reminder_get(uuid), public.reminder_get(uuid),
   private.reminder_test(text), public.reminder_test(text), private.reminder_ack(uuid, text), public.reminder_ack(uuid, text),
-  private.push_subscribe(text, text, text, text), public.push_subscribe(text, text, text, text), private.push_unsubscribe(text), public.push_unsubscribe(text),
-  private.reminder_prefs_save(text, boolean, boolean), public.reminder_prefs_save(text, boolean, boolean) to authenticated;
+  private.push_subscribe(text, text, text, text), public.push_subscribe(text, text, text, text), private.push_unsubscribe(text), public.push_unsubscribe(text) to authenticated;
 -- Chamadas do servidor sem sessão (cliente do robô): protegidas pelo segredo do servidor.
 grant execute on function private.reminders_clock_ok(text, text), public.reminders_clock_ok(text, text), private.reminders_claim(text, uuid, integer), public.reminders_claim(text, uuid, integer),
   private.reminders_finish(text, uuid, integer, jsonb), public.reminders_finish(text, uuid, integer, jsonb), private.push_drop(text, text), public.push_drop(text, text),

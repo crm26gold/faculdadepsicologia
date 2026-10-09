@@ -5,10 +5,9 @@ import { api } from './community/client';
 import { channelLabels, levelLabels, reminderLevels, type Delivery, type ReminderLevel } from '@/lib/reminders';
 
 type State = {
-  devices: { label: string; created_at: string }[]; telegram: boolean; whatsapp: boolean; bridge_online: boolean; owner: boolean;
-  prefs: { phone: string | null; call_enabled: boolean; email_enabled: boolean };
+  devices: { label: string; created_at: string }[]; telegram: boolean; whatsapp: boolean; bridge_online: boolean;
   upcoming: { id: string; title: string; event_at: string | null; next_at: string; level: ReminderLevel; status: string }[];
-  vapid: string; extra: { email: boolean; call: boolean };
+  vapid: string;
 };
 const when = (value: string) => new Date(value).toLocaleString('pt-BR', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 const deviceLabel = () => /iphone|ipad/i.test(navigator.userAgent) ? 'iPhone' : /android/i.test(navigator.userAgent) ? 'Android' : 'Computador';
@@ -31,9 +30,8 @@ export function RemindersPanel() {
   const [message, setMessage] = useState('');
   const [level, setLevel] = useState<ReminderLevel>('normal');
   const [result, setResult] = useState<Delivery[] | null>(null);
-  const [phone, setPhone] = useState('');
   const load = useCallback(async () => {
-    try { const next = await api<State>('/api/reminders'); setState(next); setPhone(next.prefs.phone ?? ''); } catch { setState(null); }
+    try { setState(await api<State>('/api/reminders')); } catch { setState(null); }
   }, []);
   useEffect(() => {
     void load();
@@ -78,10 +76,6 @@ export function RemindersPanel() {
     return sent.deliveries.some(item => item.ok) ? (level === 'suave' ? 'Teste enviado.' : 'Teste enviado. Sem tocar em Feito, ele volta em 5 minutos pelos outros canais.')
       : 'Nenhum canal entregou. Ligue pelo menos um dos passos acima.';
   });
-  const savePrefs = (next: { call?: boolean; email?: boolean }) => run('prefs', async () => {
-    await api('/api/reminders', { action: 'prefs', phone: phone.replace(/[^\d+]/g, ''), call: next.call ?? state.prefs.call_enabled, email: next.email ?? state.prefs.email_enabled });
-    return 'Preferência salva.';
-  });
   const steps: { done: boolean; title: string; detail: ReactNode; action?: ReactNode }[] = [
     { done: here, title: 'Notificação neste aparelho', detail: !pushSupported() ? (iosOutsideApp() ? 'No iPhone: toque em Compartilhar › Adicionar à Tela de Início e abra a Jornada pelo ícone. Depois volte aqui.' : 'Este navegador não recebe notificações. Use o Chrome no Android ou o app instalado.')
       : here ? `Ligado.${state.devices.length > 1 ? ` ${state.devices.length} aparelhos recebem.` : ''}` : 'Aviso nativo, com vibração e os botões Feito e Adiar, mesmo com o app fechado.',
@@ -89,7 +83,7 @@ export function RemindersPanel() {
         : <button type="button" className="button primary" disabled={!!busy} onClick={() => void enable()}><Smartphone size={15} aria-hidden="true" />Ligar notificações</button>) },
     { done: state.telegram, title: 'Telegram', detail: state.telegram ? 'Ligado: o robô manda o aviso com o botão Feito ou adiar.' : 'Conecte seu Telegram logo abaixo, em Telegram.' },
     { done: state.whatsapp, title: 'WhatsApp', detail: state.whatsapp ? (state.bridge_online ? 'Ligado: a ponte está on-line e entrega os avisos.' : 'Vinculado, mas a ponte está desligada: os avisos esperam até 30 minutos por ela.') : 'Vincule seu telefone em WhatsApp, mais abaixo.' },
-    { done: true, title: 'Google Agenda', detail: 'Compromissos com Avisar também avisam pelo Google, se você conectou a agenda (Minha agenda › Google Agenda).' },
+    { done: true, title: 'Google Agenda', detail: 'Compromissos com Avisar também avisam pelo app do Google Agenda e, em “Não me deixa esquecer”, por e-mail do Google. Conecte em Minha agenda › Google Agenda.' },
   ];
   return <section className="panel reminders-panel" aria-labelledby="reminders-title">
     <h2 id="reminders-title"><BellRing size={17} aria-hidden="true" /> Avisos</h2>
@@ -97,17 +91,6 @@ export function RemindersPanel() {
     <ol className="reminder-steps">{steps.map(step => <li key={step.title} data-done={step.done}>
       {step.done ? <CheckCircle2 size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
       <span><strong>{step.title}</strong><small>{step.detail}</small></span>{step.action}</li>)}
-      {state.owner && <li data-done={state.prefs.email_enabled && state.extra.email}>
-        {state.prefs.email_enabled && state.extra.email ? <CheckCircle2 size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
-        <span><strong>E-mail</strong><small>{state.extra.email ? 'No 2º aviso, um e-mail sem o título (o serviço é de terceiros), com o link para Feito ou adiar.' : 'Falta conectar uma conta da Resend no servidor.'}</small></span>
-        {state.extra.email && <label className="reminder-switch"><input type="checkbox" checked={state.prefs.email_enabled} disabled={!!busy} onChange={event => void savePrefs({ email: event.target.checked })} /> Ligado</label>}
-      </li>}
-      {state.owner && <li data-done={state.prefs.call_enabled && state.extra.call}>
-        {state.prefs.call_enabled && state.extra.call ? <CheckCircle2 size={18} aria-hidden="true" /> : <Circle size={18} aria-hidden="true" />}
-        <span><strong>Ligação</strong><small>{state.extra.call ? 'No último aviso da escada “Não me deixa esquecer”, o telefone toca e uma voz diz que há um lembrete.' : 'Falta conectar uma conta da Twilio no servidor.'}</small></span>
-        {state.extra.call && <span className="reminder-phone"><input aria-label="Celular para a ligação" inputMode="tel" placeholder="+5511999999999" value={phone} onChange={event => setPhone(event.target.value)} />
-          <label className="reminder-switch"><input type="checkbox" checked={state.prefs.call_enabled} disabled={!!busy} onChange={event => void savePrefs({ call: event.target.checked })} /> Ligado</label></span>}
-      </li>}
     </ol>
     <div className="reminder-test">
       <fieldset><legend>Testar com a intensidade</legend>{reminderLevels.map(item => <label key={item}><input type="radio" name="reminder-level" checked={level === item} onChange={() => setLevel(item)} /> {levelLabels[item].name}</label>)}</fieldset>

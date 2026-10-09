@@ -33,7 +33,7 @@ select expect((select status = 'encerrado' and next_at is null from private.remi
 delete from public.personal_tasks where id = 'rem-velho';
 select expect((select status = 'encerrado' from private.reminders where task_id = 'rem-velho'), 'apagar não ressuscita o que já acabou');
 
--- 2. A própria pessoa: teste, estado, aparelhos, canais extras.
+-- 2. A própria pessoa: teste, estado e aparelhos.
 select act_as('00000000-0000-4000-8000-000000000004');
 set local role authenticated;
 select expect(public.reminder_test('normal') is not null, 'teste cria um lembrete agora');
@@ -43,9 +43,6 @@ select public.push_subscribe('https://push.example.invalid/aluno-1', repeat('p',
 select expect(jsonb_array_length(public.reminders_state()->'devices') = 1 and (public.reminders_state()->>'telegram')::boolean
   and (public.reminders_state()->>'whatsapp')::boolean, 'estado mostra aparelho e canais ligados');
 select expect(public.reminders_state()::text not like '%push.example%', 'o estado não devolve o endereço do aparelho');
-select expect(public.try_as('00000000-0000-4000-8000-000000000004', 'public.reminder_prefs_save(null, true, false)') = '22023', 'ligação pede celular');
-select expect(public.try_as('00000000-0000-4000-8000-000000000004', 'public.reminder_prefs_save(''11999'', true, false)') = '23514', 'celular fora do formato');
-select public.reminder_prefs_save('+5511999990000', true, true);
 
 -- 3. O servidor: sem o segredo, nada; com ele, reserva o teste com os destinos.
 reset role;
@@ -54,7 +51,7 @@ select expect(not public.reminders_clock_ok('segredo-do-servidor-com-mais-de-32-
 create temporary table claimed as select value as item from jsonb_array_elements(public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10));
 select expect((select count(*) = 1 from claimed), 'só o teste venceu');
 select expect((select item->>'telegram' = 'rem-aluno' and item->>'whatsapp' = '5511999990000' and jsonb_array_length(item->'push') = 1
-  and not (item->>'owner')::boolean and item->>'email' = 'aluno@example.invalid' and item->>'phone' = '+5511999990000' from claimed), 'destinos da própria pessoa');
+  and not item ? 'email' and not item ? 'phone' from claimed), 'destinos da própria pessoa, só canais grátis');
 select expect(jsonb_array_length(public.reminders_claim('segredo-do-servidor-com-mais-de-32-caracteres', '00000000-0000-4000-8000-000000000004', 10)) = 0, 'reservado não sai duas vezes');
 select public.reminders_finish('segredo-do-servidor-com-mais-de-32-caracteres', (select (item->>'id')::uuid from claimed), 0, '[{"channel": "telegram", "ok": true}]');
 select expect((select status = 'avisando' and step = 1 and next_at > now() and claimed_at is null and jsonb_array_length(log) = 1

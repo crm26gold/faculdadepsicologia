@@ -4,18 +4,12 @@ import { openKey } from '@/lib/ai/crypto';
 import { botServerSecret, vapidKeys } from '@/lib/bot/secrets';
 import { sendMessage } from '@/lib/bot/telegram';
 import { botDatabase } from '@/lib/supabase/bot';
-import { channelsFor, privateText, reminderLink, reminderText, type ClaimedReminder, type Delivery, type ReminderChannel } from './reminders';
+import { channelsFor, reminderLink, reminderText, type ClaimedReminder, type Delivery, type ReminderChannel } from './reminders';
 
 type Env = Record<string, string | undefined>;
 export const appOrigin = (env: Env = process.env) => (env.APP_ORIGIN || 'https://faculdadepsicologia.vercel.app').replace(/\/$/, '');
-/** E-mail and call use the owner's own accounts (Resend, Twilio): on only when their keys exist on the server. */
-export const extraChannels = (env: Env = process.env) => ({
-  email: !!env.RESEND_API_KEY,
-  call: !!env.TWILIO_ACCOUNT_SID && !!env.TWILIO_AUTH_TOKEN && /^\+[1-9][0-9]{9,14}$/.test(env.TWILIO_FROM ?? ''),
-});
 const TIMEOUT = 12_000;
 const reason = (error: unknown) => (error instanceof Error ? error.message : 'falhou').slice(0, 120);
-const xml = (text: string) => text.replace(/[<>&'"]/g, char => `&#${char.charCodeAt(0)};`);
 
 async function push(reminder: ClaimedReminder, body: string, link: string, db: NonNullable<ReturnType<typeof botDatabase>>, secret: string) {
   const { publicKey, privateKey } = vapidKeys();
@@ -36,32 +30,12 @@ async function push(reminder: ClaimedReminder, body: string, link: string, db: N
   return delivered === 1 ? '1 aparelho' : `${delivered} aparelhos`;
 }
 
-async function email(to: string, link: string, idempotency: string, env: Env) {
-  const response = await fetch('https://api.resend.com/emails', { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(TIMEOUT),
-    headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json', 'Idempotency-Key': idempotency },
-    body: JSON.stringify({ from: env.REMINDER_EMAIL_FROM || 'Jornada Plena <onboarding@resend.dev>', to: [to], subject: 'Lembrete da Jornada Plena',
-      text: `${privateText}\n\nFeito ou adiar: ${link}` }) });
-  if (!response.ok) throw new Error(`e-mail recusado (${response.status})`);
-  return 'enviado';
-}
-
-async function call(to: string, env: Env) {
-  const said = `<Say language="pt-BR" voice="${xml(env.TWILIO_VOICE || 'Polly.Camila')}">${xml(privateText)}</Say>`;
-  const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(env.TWILIO_ACCOUNT_SID!)}/Calls.json`, {
-    method: 'POST', redirect: 'error', signal: AbortSignal.timeout(TIMEOUT),
-    headers: { Authorization: `Basic ${Buffer.from(`${env.TWILIO_ACCOUNT_SID}:${env.TWILIO_AUTH_TOKEN}`).toString('base64')}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ To: to, From: env.TWILIO_FROM!, Twiml: `<Response>${said}<Pause length="1"/>${said}</Response>`, Timeout: '30' }) });
-  if (!response.ok) throw new Error(`ligação recusada (${response.status})`);
-  return 'chamando';
-}
-
 /** Sends what is due (or only this person's, for the test) and records each channel's outcome. Message contents are
  * never logged: the record keeps channel, step, success and a short reason. */
 export async function dispatchReminders(only?: string, env: Env = process.env) {
   const db = botDatabase();
   if (!db) return [];
   const secret = botServerSecret();
-  const configured = extraChannels(env);
   const origin = appOrigin(env);
   let telegram: Promise<string | null> | null = null;
   const telegramToken = () => telegram ??= Promise.resolve(db.rpc('bot_settings', { server_secret: secret, channel_id: 'telegram' }))
@@ -89,10 +63,8 @@ export async function dispatchReminders(only?: string, env: Env = process.env) {
           if (!reminder.bridge_online) throw new Error('ponte desligada; sai quando ela ligar (até 30 min)');
           return 'na fila da ponte';
         },
-        email: () => email(reminder.email!, link, `${reminder.id}-${reminder.step}`, env),
-        call: () => call(reminder.phone!, env),
       };
-      const deliveries = await Promise.all(channelsFor(reminder, configured).map(async (channel): Promise<Delivery> => {
+      const deliveries = await Promise.all(channelsFor(reminder).map(async (channel): Promise<Delivery> => {
         const at = new Date().toISOString();
         try { return { at, step: reminder.step, channel, ok: true, detail: await senders[channel]() }; }
         catch (error) { return { at, step: reminder.step, channel, ok: false, detail: reason(error) }; }
