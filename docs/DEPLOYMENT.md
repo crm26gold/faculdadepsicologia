@@ -78,7 +78,8 @@ Uma instalação privada nova começa vazia. Dados na chave local existente deve
 
 Cada pessoa liga a própria conta Google à agenda "Jornada Plena" (Jornada → Google). O recurso fica desligado enquanto faltar qualquer um destes: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `AI_KEYS_SECRET` (cifra a autorização guardada) e `FACULDADE_CLOUD_WORKSPACE=true`. A Administração › Inteligência artificial › Integrações mostra se está ativo.
 
-0. Aplique a migração `supabase/migrations/20261008230100_google_agenda.sql` (depois renomeie para a versão registrada e atualize o stub). Sem ela, não cadastre as variáveis abaixo: a Agenda chamaria funções que ainda não existem.
+O banco já está pronto: a migração `20261008230100_google_agenda` foi aplicada em 09/10/2026 pelo SQL Editor e registrada no histórico com a mesma versão.
+
 1. No Google Cloud do projeto do login, ative a **Google Calendar API**.
 2. Na tela de consentimento OAuth, acrescente o escopo `https://www.googleapis.com/auth/calendar.app.created` (só agendas criadas pelo app). Confira no próprio console a classificação do escopo: se aparecer como sensível, o Google pede verificação do app antes de liberar para quem não está na lista de teste.
 3. No cliente OAuth (pode ser o mesmo do login), acrescente o URI de redirecionamento `https://<origem de produção>/api/google-agenda/callback`. Prévias da Vercel têm outra origem e não completam a conexão.
