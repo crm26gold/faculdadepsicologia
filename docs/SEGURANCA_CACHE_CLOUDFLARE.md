@@ -48,7 +48,7 @@ Esses controles reduzem o impacto de conteúdo malicioso. A conferência do cabe
 
 ## Cloudflare: próximo passo com o domínio próprio
 
-Situação confirmada pelo usuário: domínio ainda será comprado. `faculdadepsicologia.vercel.app` é o endereço da Vercel; não temos controle do DNS de `vercel.app` para colocá-lo sob a conta Cloudflare. Nenhuma conexão Cloudflare foi ativada nesta etapa.
+Decisão do proprietário em 12/10/2026: usar o domínio pessoal dele, com um subdomínio por projeto (por exemplo, `jornadaplena.<domínio>.com.br`), configurado com calma depois. Domínio gratuito temporário foi descartado, porque cada troca de endereço exige reconectar o MCP, refazer o login do Google e reativar os avisos. Até lá, o domínio ainda será comprado. `faculdadepsicologia.vercel.app` é o endereço da Vercel; não temos controle do DNS de `vercel.app` para colocá-lo sob a conta Cloudflare. Nenhuma conexão Cloudflare foi ativada nesta etapa.
 
 Quando tiver o domínio:
 

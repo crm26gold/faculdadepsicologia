@@ -1197,7 +1197,7 @@ test('material do curso: o link do assistente abre o quadro da matéria certa', 
   await page.route('**/api/workspace**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(route.request().method() === 'PUT' ? { revision: 2 } : { data: space, revision: 1, accountId: ME }) }));
   await page.route('**/api/materiais**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { items: [], used: 0, limit: 200 * 1024 * 1024 } }) }));
   await page.goto(`/?material=psicologia~neuro&ate=${Date.now() + 10 * 60_000}`);
-  await expect(page.getByRole('region', { name: 'Material desta matéria' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Material desta matéria' })).toContainText('0 KB de 200 MB', { useInnerText: true });
   await expect(page.getByText('Envie o arquivo no quadro Material.')).toBeVisible();
   expect(new URL(page.url()).search).toBe('');
   await page.goto(`/?material=psicologia~neuro&ate=${Date.now() - 60_000}`);
