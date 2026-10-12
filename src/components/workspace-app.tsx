@@ -18,7 +18,7 @@ import { MobileDisclosure } from './mobile-disclosure';
 import { FocusTimer } from './focus-timer';
 import { FocusHistory } from './focus-history';
 import { CaptureSheet } from './capture-sheet';
-import { readCaptureLink } from '@/lib/capture-link';
+import { readCaptureLink, readMaterialLink } from '@/lib/capture-link';
 import { finishFocusAt, pauseFocus } from '@/lib/focus';
 import { AssistantBubble, AssistantChat, AssistantPanel } from './assistant';
 import { useConversations } from './use-conversations';
@@ -292,6 +292,23 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     setCapturePlace(link.place); pushModal('capture'); setCaptureOpen(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialSearch]);
+  // A material link ("manda o PDF para o material de Bases Biológicas"): once the account is loaded, opens that course or
+  // subject at its Material panel, ready to send.
+  const materialLinkRead = useRef(false);
+  useEffect(() => {
+    if (!ready || materialLinkRead.current) return;
+    const link = readMaterialLink(initialSearch, Date.now());
+    if (!link) return;
+    materialLinkRead.current = true;
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+    if ('expired' in link) { setNotice('Este link de envio expirou. Peça outro ao assistente.'); return; }
+    const subject = link.subject_id ? data.subjects.find(item => item.id === link.subject_id && item.courseId === link.course_id) : undefined;
+    if (link.subject_id && !subject) { setNotice('Não encontrei essa matéria. Abra o curso e envie pelo quadro Material.'); return; }
+    if (subject) openSubject(subject); else openCourse(link.course_id);
+    setNotice('Envie o arquivo no quadro Material.');
+    window.setTimeout(() => document.querySelector('.course-material')?.scrollIntoView({ block: 'start' }), 500);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, initialSearch]);
   // "Pausar" or "Encerrar" on a focus reminder (notification, Telegram or WhatsApp): once the account is loaded, the
   // focus pauses, or ends at the end of its time. "Encerrar" names the focus, so a newer one is never touched.
   const focusLink = useRef(new URLSearchParams(initialSearch));

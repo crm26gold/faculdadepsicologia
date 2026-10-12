@@ -9,6 +9,7 @@ import { homeContext, runSharedCommands, sessionTransport } from '../shared-acti
 import type { TrashEntry } from '../commands';
 import { applicationOrigin } from '../auth-input';
 import type { userSession } from '../supabase/server';
+import { materialContext, type MaterialSearch } from '../materials/study';
 
 type Session = NonNullable<Awaited<ReturnType<typeof userSession>>>;
 // The person's rooms and own group-work parts, as the start screen shows them; IDs let the model act.
@@ -31,9 +32,12 @@ export async function runAssistantJob(session: Session, id: string) {
     plan: async (input, workspace) => {
       const runtime = await runtimeForSession(session, 'assistente');
       if (runtime.error || !runtime.data) throw new Error('A Conversa do assistente está desativada. O pedido continua guardado.');
-      const shared = await sharedContext(session);
+      const [shared, material] = await Promise.all([sharedContext(session), materialContext(async (wanted, place) => {
+        const { data, error } = await session.client.rpc('material_search', { wanted, course: place?.course_id ?? null, subject: place?.subject_id ?? null });
+        return error ? null : data as MaterialSearch;
+      }, workspace, input.said ?? input.message, Date.now())]);
       const result = await generateResilient(runtimeConfig(runtime.data), { task: 'assistente',
-        system: `${commandSystem}\nContexto atual da pessoa:\n${commandContext(workspace, input.today, 20_000, input.message)}${shared}`,
+        system: `${commandSystem}\nContexto atual da pessoa:\n${commandContext(workspace, input.today, 20_000, input.message)}${shared}${material}`,
         prompt: input.message, history: input.history, maxTokens: 2400, json: true,
         signal: AbortSignal.timeout(45_000), beforeAttempt: beforeAttemptBudget(session, 'ai'),
       });

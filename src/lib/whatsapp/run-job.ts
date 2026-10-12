@@ -9,7 +9,7 @@ import type { Turn } from '../ai/turns';
 import { speakReply } from '../voice/reply-mode';
 import { bridgeInput, confirmationIntent, validatedMedia } from './protocol';
 import { whatsappRpc } from './server';
-import { botHome, botShared, botSummary, botTrash, splitShared, storeBotConfirmation } from '../bot/shared';
+import { botHome, botMaterial, botShared, botSummary, botTrash, splitShared, storeBotConfirmation } from '../bot/shared';
 import { screenModel, screenText } from '../screens/screen-model';
 import { botServerSecret } from '../bot/secrets';
 import { botDatabase } from '../supabase/bot';
@@ -55,9 +55,9 @@ export async function runWhatsAppJob(token: string, peer: string, id: string) {
     else {
       if (!context.ai) throw new Error('Ative a Conversa do assistente no painel de IA.');
       const data = context.workspace ? parseWorkspace(JSON.stringify(context.workspace.data)) : emptyWorkspace();
-      const rooms = await botHome(botDatabase()!, botServerSecret(), 'whatsapp', peer);
+      const [rooms, material] = await Promise.all([botHome(botDatabase()!, botServerSecret(), 'whatsapp', peer), botMaterial(botDatabase()!, botServerSecret(), 'whatsapp', peer, data, transcript)]);
       const answer = await generateResilient(runtimeConfig(context.ai), { task: 'assistente',
-        system: `${commandSystem}\nCanal: WhatsApp. Responda para ouvir em voz, com calma, frases claras e uma pergunta útil por vez. Você não controla chaves, SQL, permissões ou outros contatos. Não afirme que mandou mensagens a terceiros ou guardou anexos.\nContexto atual:\n${commandContext(data, today, 20_000, transcript)}${rooms}`,
+        system: `${commandSystem}\nCanal: WhatsApp. Responda para ouvir em voz, com calma, frases claras e uma pergunta útil por vez. Você não controla chaves, SQL, permissões ou outros contatos. Não afirme que mandou mensagens a terceiros ou guardou anexos.\nContexto atual:\n${commandContext(data, today, 20_000, transcript)}${rooms}${material}`,
         prompt: transcript, history: context.history, json: true, maxTokens: 2400, signal: AbortSignal.timeout(45_000), beforeAttempt: reserve,
       });
       plan = parseCommand(answer.text);

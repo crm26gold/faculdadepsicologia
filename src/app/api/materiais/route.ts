@@ -86,6 +86,14 @@ export async function GET(request: Request) {
     if (link.error || !link.data) return reply({ error: 'Não consegui abrir o arquivo agora.' }, 503);
     return Response.redirect(link.data.signedUrl, 303);
   }
+  // GET ?busca=<texto>&curso=<id>&materia=<id>: the pieces of material closest to a question (the voice asks this way).
+  const wanted = params.get('busca');
+  if (wanted !== null) {
+    const course = params.get('curso'), subject = params.get('materia');
+    if (wanted.length > 300 || (course && !placeId.safeParse(course).success) || (subject && !placeId.safeParse(subject).success)) return reply({ error: 'Pedido inválido.' }, 400);
+    const { data, error } = await session.client.rpc('material_search', { wanted, course: course || null, subject: subject || null });
+    return error ? dbError(error) : reply({ ok: true, data });
+  }
   const one = params.get('id');
   if (one !== null) {
     if (!id.safeParse(one).success) return reply({ error: 'Pedido inválido.' }, 400);

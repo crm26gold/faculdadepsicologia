@@ -12,6 +12,7 @@ import { confirmationIntent, queryWorkspace } from '@/lib/assistant-query';
 import { collectiveReadResult, collectiveReadUrl } from '@/lib/voice/collective-read';
 import type { LiveCredentials, VoiceTool, VoiceTranscript } from '@/lib/voice/protocol';
 import { voiceActionRequest } from '@/lib/voice/actions';
+import { materialAnswer, materialPlace, type MaterialSearch } from '@/lib/materials/study';
 import { Modal } from './modal';
 import { VoiceCall } from './voice-call';
 import { useAssistantExecutor, type Execution } from './use-assistant-executor';
@@ -308,6 +309,19 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
     if (!response.ok) throw new Error(result.error || 'Não consegui preparar a chamada.');
     return result.data;
   }
+  // The course material lives on the server: the place is found here (named or the class now), the pieces come from there.
+  async function voiceMaterial(current: Workspace, args: Record<string, unknown>, signal: AbortSignal) {
+    if (!cloud) return { found: 0, message: 'O material dos cursos fica na conta conectada; aqui não há material.' };
+    let place;
+    try { place = materialPlace(current, Date.now(), typeof args.curso === 'string' ? args.curso : undefined, typeof args.materia === 'string' ? args.materia : undefined); }
+    catch (problem) { return { found: 0, message: problem instanceof Error ? problem.message : 'Lugar não encontrado.' }; }
+    const query = new URLSearchParams({ busca: typeof args.search === 'string' ? args.search.slice(0, 300) : '' });
+    if (place) { query.set('curso', place.course_id); if (place.subject_id) query.set('materia', place.subject_id); }
+    const response = await fetch(`/api/materiais?${query}`, { signal });
+    const answer = await response.json().catch(() => ({})) as { data?: MaterialSearch; error?: string };
+    if (!response.ok || !answer.data) throw new Error(answer.error ?? 'Não consegui consultar o material agora.');
+    return materialAnswer(current, answer.data, place, dateKey());
+  }
   async function voiceTool(call: VoiceTool, signal: AbortSignal, transcript: VoiceTranscript) {
     signal.throwIfAborted();
     if (photoRunning.current && call.name !== 'consultar_jornada' && call.name !== 'consultar_coletivo') throw new Error('A foto ainda está sendo conferida. Aguarde o resultado antes de pedir uma alteração.');
@@ -321,6 +335,8 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
     if (call.name === 'consultar_jornada') {
       const current = cloud ? await refreshWorkspace() : executor.current();
       signal.throwIfAborted();
+      const args = (call.args ?? {}) as Record<string, unknown>;
+      if (args.section === 'material') return voiceMaterial(current, args, signal);
       return queryWorkspace(current, call.args, dateKey());
     }
     if (call.name === 'cancelar_alteracao') { await cancelPending(); return { saved: true, reply: 'Alteração pendente cancelada.' }; }

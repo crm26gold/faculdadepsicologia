@@ -1189,3 +1189,17 @@ test('material do curso: contexto para a IA, enviar arquivo, mover para a matér
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await panel.screenshot({ path: 'test-results/course-material-mobile.png' });
 });
+
+test('material do curso: o link do assistente abre o quadro da matéria certa', async ({ page }) => {
+  await mockApi(page);
+  const space = { ...EMPTY_SPACE, editorGeneration: 9, courses: [{ id: 'psicologia', name: 'Psicologia', kind: 'graduacao', color: 'rose', status: 'active' }],
+    subjects: [{ id: 'neuro', name: 'Bases Biológicas', semester: 1, color: 'lavender', courseId: 'psicologia' }] };
+  await page.route('**/api/workspace**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(route.request().method() === 'PUT' ? { revision: 2 } : { data: space, revision: 1, accountId: ME }) }));
+  await page.route('**/api/materiais**', route => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, data: { items: [], used: 0, limit: 200 * 1024 * 1024 } }) }));
+  await page.goto(`/?material=psicologia~neuro&ate=${Date.now() + 10 * 60_000}`);
+  await expect(page.getByRole('region', { name: 'Material desta matéria' })).toBeVisible();
+  await expect(page.getByText('Envie o arquivo no quadro Material.')).toBeVisible();
+  expect(new URL(page.url()).search).toBe('');
+  await page.goto(`/?material=psicologia~neuro&ate=${Date.now() - 60_000}`);
+  await expect(page.getByText('Este link de envio expirou. Peça outro ao assistente.')).toBeVisible();
+});

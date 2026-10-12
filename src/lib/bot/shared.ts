@@ -3,6 +3,8 @@ import { applicationOrigin } from '../auth-input';
 import type { CommandAction, TrashEntry } from '../commands';
 import type { PendingItem } from '../assistant-jobs';
 import { botTransport, homeContext, runSharedCommands } from '../shared-actions';
+import { materialContext, type MaterialSearch } from '../materials/study';
+import type { Workspace } from '../workspace';
 
 // Rooms, group work, contacts and administration from Telegram and WhatsApp. The bot acts as the person
 // linked to the chat (public.bot_act), with the same rules as the screens. What needs a confirmation is
@@ -20,6 +22,14 @@ export const splitShared = <T extends { type: string }>(actions: T[]) => ({
 export async function botHome(db: Database, serverSecret: string, channel: Channel, chat: string) {
   const { data, error } = await db.rpc('bot_act', { server_secret: serverSecret, channel_id: channel, chat, operation: 'app_home', args: {} });
   return error ? '' : homeContext(data);
+}
+
+/** The course material for what was said, searched in the account linked to the chat ('' when there is none). */
+export function botMaterial(db: Database, serverSecret: string, channel: Channel, chat: string, data: Workspace, said: string) {
+  return materialContext(async (wanted, place) => {
+    const { data: found, error } = await db.rpc('bot_material_search', { server_secret: serverSecret, channel_id: channel, chat, wanted, course: place?.course_id ?? null, subject: place?.subject_id ?? null });
+    return error ? null : found as MaterialSearch;
+  }, data, said, Date.now());
 }
 
 /** Runs the shared part of a request once; nothing that needs a confirmation runs here. */

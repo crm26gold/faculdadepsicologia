@@ -339,4 +339,5 @@ reset role;
 \ir ../../tests/sql/google-agenda.sql
 \ir ../../tests/sql/reminders.sql
 \ir ../../tests/sql/course-materials.sql
+\ir ../../tests/sql/course-material-search.sql
 \echo 'OK: funções da aplicação passaram.'

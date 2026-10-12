@@ -19,7 +19,9 @@ import { screenLink, SCREEN_LINK_MINUTES } from '../screens/screen-link';
 // Above this (base64 characters), the image goes only by link; Claude keeps a whole result under ~150 000.
 const INLINE_IMAGE_LIMIT = 120_000;
 import { renderScreen } from '../screens/render';
-import { captureLink, CAPTURE_LINK_MINUTES } from '../capture-link';
+import { captureLink, CAPTURE_LINK_MINUTES, materialLink } from '../capture-link';
+import { materialAnswer, materialPlace, placeFromName, placeLabel, type MaterialSearch } from '../materials/study';
+import { chunkMaterial } from '../materials/extract';
 import { applicationOrigin } from '../auth-input';
 import { contractOutdated, MCP_CONTRACT, mcpIdentity, outdatedNotice } from './contract';
 import { placeName, type Place } from '../notebooks';
@@ -76,6 +78,7 @@ Ferramentas:
 - desfazer desfaz a última ação desta conexão ("desfaz isso"); lixeira lista o que saiu, e registrar_na_jornada com {"type":"restaurar"} traz de volta ("restaura aquilo").
 - ver_tela devolve um RESUMO VISUAL de uma tela: uma imagem desenhada com os dados atuais da conta, no visual da Jornada. Não é print nem captura da tela real; se a pessoa pedir um print, diga isso. Onde o aplicativo mostra apps (ChatGPT, Claude), a imagem aparece abaixo da resposta, mas você não consegue confirmar que a pessoa viu: nunca diga que mostrou ou enviou a imagem. Entregue sempre o link que vem junto ("se a imagem não aparecer, abra o link"): abre sem login e vale 10 minutos.
 - "Me mostra o que você fez" ou "como ficou?": depois de registrar, chame ver_tela com ultima_acao: true. A tela do que mudou vem com as alterações no topo e os itens destacados.
+- Material dos cursos: guardar_material guarda texto (plano de aula, aviso do professor, resumo) no curso ou na matéria; para PDF, Word ou slides, enviar_arquivo com material: true entrega o link que abre o material certo.
 - Arquivos: você não consegue repassar foto, áudio, vídeo ou arquivo que vê na conversa. Use enviar_arquivo (com o destino, se ela disser) e entregue o link; vale 10 minutos. Links de sites vão em registrar_na_jornada com anotacao e link.
 ${assistantRules.map(rule => `- ${rule}`).join('\n')}
 - Parte coletiva: consultar_coletivo para ler e obter IDs; gerenciar_salas, gerenciar_trabalhos, gerenciar_contatos e minha_conta para agir, com o papel da pessoa em cada sala. Exclusões coletivas ficam para confirmar no aplicativo.
@@ -122,13 +125,22 @@ export function jornadaMcpServer(db: Database, access: Access) {
   };
   server.registerTool('consultar_jornada', {
     title: 'Consultar a Jornada',
-    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (no título de todas as seções e no texto das anotações, com o trecho e o lugar; com mais resultados, devolve cursor para a próxima página), pendentes (o que espera organização), focos (registros de foco encerrados, com início e fim), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas e configuracoes (saldo inicial, semestre e perfil). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Cada item traz versao, que muda quando o registro muda. Conteúdo completo de anotação só com includeContent e search.',
+    description: 'Consulta dados reais e atuais da vida pessoal: resumo, agenda (aulas com curso, matéria, professor, início, fim e local), busca (no título de todas as seções e no texto das anotações, com o trecho e o lugar; com mais resultados, devolve cursor para a próxima página), pendentes (o que espera organização), focos (registros de foco encerrados, com início e fim), anotações, finanças, hábitos, metas, projetos, cursos, matérias, aulas, cadernos, flashcards, áreas, configuracoes (saldo inicial, semestre e perfil) e material (o material guardado nos cursos e matérias: com search, os trechos mais próximos da dúvida, com arquivo, página e lugar; sem search, a lista do que está guardado; curso e materia opcionais, senão vale a aula do momento). Use antes de responder ou de alterar algo. null = não cadastrado; found 0 = não existe. Cada item traz versao, que muda quando o registro muda. Conteúdo completo de anotação só com includeContent e search.',
     inputSchema: assistantQuery,
     outputSchema: queryOutput,
     annotations: { readOnlyHint: true, openWorldHint: false },
   }, async args => {
     const current = await context();
     const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
+    if (args.section === 'material') {
+      let place;
+      try { place = materialPlace(data, Date.now(), args.curso, args.materia); }
+      catch (problem) { return structured({ today: today(), found: 0, message: problem instanceof Error ? problem.message : 'Lugar não encontrado.' }); }
+      const { data: found, error } = await db.rpc('mcp_material_search', { server_secret: botServerSecret(), token: access.hash, wanted: args.search,
+        course: place?.course_id ?? null, subject: place?.subject_id ?? null });
+      if (error) throw new Error('Não consegui consultar o material agora.');
+      return structured(materialAnswer(data, found as MaterialSearch, place, today()));
+    }
     return structured(queryWorkspace(data, args, today()) as Record<string, unknown>);
   });
   server.registerTool('registrar_na_jornada', {
@@ -255,14 +267,23 @@ export function jornadaMcpServer(db: Database, access: Access) {
   server.registerTool('enviar_arquivo', {
     title: 'Link para enviar foto, áudio, vídeo ou arquivo',
     description: `Gera um link de ${CAPTURE_LINK_MINUTES} minutos que abre o Registro rápido da Jornada já no destino (caderno, matéria ou área; sem destino, Para organizar). Use quando a pessoa quiser guardar uma foto, áudio, vídeo ou arquivo: você não consegue repassar o arquivo em si. Ela abre o link no aparelho em que já está conectada à Jornada e envia por lá, com o próprio login, para o armazenamento privado (até 25 MB). Nada é gravado até ela enviar. Para guardar só um link de site, use registrar_na_jornada com anotacao e link.`,
-    inputSchema: z.object({ destino: z.string().trim().min(1).max(100).optional() }),
+    inputSchema: z.object({ destino: z.string().trim().min(1).max(100).optional(),
+      material: z.boolean().optional().describe('true: o link abre o material do curso ou da matéria (destino é o nome dela ou do curso; sem destino, a aula do momento), para PDF, Word, PowerPoint ou texto que a Jornada lê.') }),
     outputSchema: uploadOutput,
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: false, openWorldHint: false },
-  }, async ({ destino }) => {
+  }, async ({ destino, material }) => {
     const origin = applicationOrigin(process.env);
     if (!origin) return { isError: true, content: [{ type: 'text' as const, text: 'O endereço do aplicativo não está configurado; não consigo gerar o link agora.' }] };
     const current = await context();
     const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
+    if (material) {
+      let place;
+      try { place = placeFromName(data, Date.now(), destino); }
+      catch (problem) { return { isError: true, content: [{ type: 'text' as const, text: problem instanceof Error ? problem.message : 'Lugar não encontrado.' }] }; }
+      if (!place) return { isError: true, content: [{ type: 'text' as const, text: 'Diga o curso ou a matéria do material (não há aula agora para escolher sozinho).' }] };
+      return structured({ link: materialLink(origin, place, Date.now()), destino: `Material de ${placeLabel(data, place)}`, validoPorMinutos: CAPTURE_LINK_MINUTES,
+        instrucao: 'Entregue o link à pessoa. Ela abre onde já está conectada à Jornada e envia PDF, Word, PowerPoint ou texto; a Jornada lê o texto. Depois, consulte material para confirmar o que chegou.' });
+    }
     let place: Place = { kind: 'inbox' };
     try {
       if (destino) place = findPlace(data, destino) ?? place;
@@ -271,6 +292,29 @@ export function jornadaMcpServer(db: Database, access: Access) {
     const url = captureLink(origin, place, Date.now());
     return structured({ link: url, destino: placeName(data, place), validoPorMinutos: CAPTURE_LINK_MINUTES,
       instrucao: 'Entregue o link à pessoa. Ela abre onde já está conectada à Jornada, escolhe o arquivo e envia. Depois, consulte anotacao para confirmar o que chegou.' });
+  });
+  server.registerTool('guardar_material', {
+    title: 'Guardar no material do curso',
+    description: 'Guarda um texto no material de um curso (geral) ou de uma matéria ou módulo: plano de aula, aviso do professor, resumo, orientações. tipo "contexto" é o "o que a IA precisa saber" daquele lugar e substitui o anterior. Sem curso nem matéria, vale a aula do momento. O texto passa a ser consultado com consultar_jornada section "material". Para o arquivo original (PDF, slides), use enviar_arquivo com material: true. Mande o texto como está, sem resumir, a menos que a pessoa peça.',
+    inputSchema: z.object({ curso: z.string().trim().min(1).max(100).optional(), materia: z.string().trim().min(1).max(100).optional(),
+      tipo: z.enum(['texto', 'contexto']).default('texto'), titulo: z.string().trim().min(1).max(200).optional().describe('Obrigatório em texto.'),
+      texto: z.string().trim().min(1).max(20_000) }),
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+  }, async ({ curso, materia, tipo, titulo, texto }) => {
+    if (!access.canWrite) return { ...text('Esta chave só consulta. Crie uma chave com permissão de registrar em Meu espaço › Conectar assistentes.'), isError: true };
+    if (tipo === 'texto' && !titulo) return { ...text('Dê um título ao texto (por exemplo "Plano de ensino" ou "Aviso da professora").'), isError: true };
+    const current = await context();
+    const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();
+    let place;
+    try { place = materialPlace(data, Date.now(), curso, materia); }
+    catch (problem) { return { ...text(problem instanceof Error ? problem.message : 'Lugar não encontrado.'), isError: true }; }
+    if (!place) return { ...text('Em qual curso ou matéria? Não há aula agora para escolher sozinho.'), isError: true };
+    const { data: saved, error } = await db.rpc('mcp_material_save', { server_secret: botServerSecret(), token: access.hash, course: place.course_id, subject: place.subject_id,
+      material_kind: tipo, material_title: titulo ?? null, material_body: texto, chunks: chunkMaterial([{ page: null, text: texto }]) });
+    if (error?.code === 'PT413') return { ...text('A conta chegou ao limite de material (200 MB ou 1.000 itens). Peça para a pessoa liberar espaço no app.'), isError: true };
+    if (error) return { ...text('Não consegui guardar agora. Nada foi salvo.'), isError: true };
+    const where = placeLabel(data, place);
+    return text({ aplicado: tipo === 'contexto' ? `"O que a IA precisa saber" de ${where} atualizado.` : `“${(saved as { title: string }).title}” guardado no material de ${where}.`, lugar: where });
   });
   registerCollectiveTools(server, db, access);
   registerAdminTools(server, db, access);

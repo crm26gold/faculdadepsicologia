@@ -1,6 +1,6 @@
 # Material dos cursos: plano para aprovação
 
-Situação: **etapa 1 implementada** em 09/10/2026, com os padrões do plano: três etapas nessa ordem, 200 MB por conta e leitura de PDF, Word, PowerPoint e texto. As etapas 2 e 3 continuam propostas. Pedido do proprietário em 09/10/2026: em vez de colar o contexto da aula em cada conversa com uma IA, cada curso guarda o próprio material na Jornada, e qualquer porta (app, voz, Telegram, WhatsApp, ChatGPT, Claude) estuda a partir dele.
+Situação: **etapas 1 e 2 implementadas** em 09/10/2026, com os padrões do plano: três etapas nessa ordem, 200 MB por conta e leitura de PDF, Word, PowerPoint e texto. A etapa 3 continua proposta. Pedido do proprietário em 09/10/2026: em vez de colar o contexto da aula em cada conversa com uma IA, cada curso guarda o próprio material na Jornada, e qualquer porta (app, voz, Telegram, WhatsApp, ChatGPT, Claude) estuda a partir dele.
 
 ## O que a pessoa vê
 
@@ -78,7 +78,7 @@ Dependências novas: `unpdf` e `fflate`, as duas pequenas e sem código nativo. 
 - **Assistente interno** (app, voz, Telegram, WhatsApp): antes de responder uma pergunta de estudo, a Jornada busca os trechos e entrega ao modelo junto com a pergunta.
 - **MCP** (ChatGPT, Claude, Codex):
   - `consultar_jornada` ganha a seção `material` (busca com curso e matéria opcionais);
-  - `registrar_na_jornada` ganha a ação `material` (guardar texto num curso ou matéria);
+  - a ferramenta nova `guardar_material` guarda texto num curso ou matéria (veja "Como a etapa 2 ficou");
   - `enviar_arquivo` aceita material como destino.
 
   Isso muda o contrato do MCP. A versão sobe, e cada aplicativo recebe o aviso "atualize o conector" uma vez.
@@ -117,3 +117,19 @@ Em 09/10/2026 o proprietário mandou começar a implementação. A etapa 1 segui
 - `GET/POST /api/materiais` prepara, lê, guarda texto e contexto, move, exclui, restaura, apaga de vez e abre o original por link de 1 minuto. A lixeira e os envios interrompidos são limpos ao listar.
 - Aba **Material geral do curso** na tela do curso, e **Material desta matéria** na matéria (Meu caderno › matéria).
 - Testes: `tests/course-materials.test.ts` (leitura dos formatos, trechos, rota inteira com banco simulado), `tests/sql/course-materials.sql` (isolamento entre contas, limites, bucket, busca sem acento) e navegador (acessibilidade e celular).
+
+### Como a etapa 2 ficou
+
+- **Uma busca só, no banco** (`supabase/migrations/20261009240000_course_material_search.sql`): `private.material_search_for` procura em português sem acento, com peso 3 para a matéria pedida, 2 para o geral do curso, 1,5 para outra matéria do curso e 1 para o resto. Trechos com todas as palavras vêm antes dos que têm só parte. Devolve até 6 a 8 trechos, com arquivo, página e lugar, e o "o que a IA precisa saber" do lugar. Sem pergunta, lista o que está guardado.
+- **Três portas para a mesma busca, cada uma presa à própria pessoa:** `material_search` (login do app, pela RLS de `auth.uid()`), `mcp_material_search` (dona da chave do MCP) e `bot_material_search` (conversa vinculada do Telegram e do WhatsApp).
+- **Aula do momento** (`src/lib/materials/study.ts`): pela grade de aulas, de 15 minutos antes do início até o fim. Às 19h10 de sexta, "como é a prova?" busca primeiro em Psicologia › Bases Biológicas.
+- **Assistente interno, Telegram e WhatsApp:** antes de responder, a Jornada busca com as palavras da pessoa e entrega os trechos ao modelo como dado, nunca como instrução. Se a busca falhar, o pedido segue sem o material.
+- **Voz:** `consultar_jornada` com `section: "material"` (e `curso`/`materia` opcionais) busca pela rota `/api/materiais?busca=`.
+- **MCP:** `consultar_jornada` ganhou a seção `material`. A ferramenta nova `guardar_material` guarda texto ou "o que a IA precisa saber" num curso ou matéria, e exige a permissão de registrar. `enviar_arquivo` com `material: true` devolve um link de 10 minutos que abre o quadro Material do lugar certo. Ali a pessoa envia o arquivo original, com o próprio login.
+- **Ferramenta separada em vez de uma ação em `registrar_na_jornada`:** o material vive em tabelas próprias, fora do documento da conta, e guardar não passa pelo controle de revisão nem pelo desfazer do documento. Uma ação misturada às outras teria regras diferentes das vizinhas.
+- **Regra única** `materialRule` em `src/lib/assistant-rules.ts`, a mesma para texto, voz e MCP: consultar o material em perguntas de estudo, usar a aula do momento quando a pessoa não disser o lugar, citar arquivo e página e dizer quando não encontrou.
+- **Contrato do MCP:** versão `2026.10.09.2`. Cada conector conectado antes recebe uma vez o aviso para atualizar.
+- **Testes:**
+  - `tests/course-material-study.test.ts`: aula do momento, lugar pelo nome, bloco do modelo, MCP lendo e guardando, chave só de leitura e link;
+  - `tests/sql/course-material-search.sql`: isolamento entre contas nas três portas, prioridade da matéria, chave só de leitura, curso que não existe e matéria de outro curso;
+  - navegador: o link abre o quadro da matéria certa.

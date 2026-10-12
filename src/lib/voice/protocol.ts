@@ -12,7 +12,9 @@ export type CallState = 'idle' | 'permission' | 'connecting' | 'listening' | 'sp
 export const voiceTools = [{ functionDeclarations: [
   { name: 'consultar_jornada', description: 'Consulta dados reais e atuais. Use antes de responder sobre agenda, dinheiro, hábitos, estudos, notas, metas e projetos. Nunca invente registros.', parameters: {
     type: 'OBJECT', properties: {
-      section: { type: 'STRING', enum: ['resumo', 'agenda', 'compromisso', 'anotacao', 'financeiro', 'habito', 'meta', 'projeto', 'curso', 'materia', 'aula', 'caderno', 'flashcard', 'area'] },
+      section: { type: 'STRING', enum: ['resumo', 'agenda', 'material', 'compromisso', 'anotacao', 'financeiro', 'habito', 'meta', 'projeto', 'curso', 'materia', 'aula', 'caderno', 'flashcard', 'area'] },
+      curso: { type: 'STRING', description: 'Só em material: o curso, pelo nome (sem curso, vale a aula do momento).' },
+      materia: { type: 'STRING', description: 'Só em material: a matéria ou módulo, pelo nome.' },
       search: { type: 'STRING', description: 'Nome, trecho de título ou ID; vazio para listar.' },
       from: { type: 'STRING', description: 'Data inicial AAAA-MM-DD, opcional.' }, to: { type: 'STRING', description: 'Data final AAAA-MM-DD, opcional.' },
       includeContent: { type: 'BOOLEAN', description: 'Só true se a pessoa pediu leitura do conteúdo de uma anotação específica; search obrigatório.' },

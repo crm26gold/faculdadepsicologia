@@ -21,3 +21,22 @@ export function readCaptureLink(search: string, now: number): { place: Place } |
   if (!Number.isFinite(until) || until < now || until > now + (CAPTURE_LINK_MINUTES + 5) * 60_000) return { expired: true };
   return { place: parsePlace(key) };
 }
+
+// "Manda o PDF para o material de Bases Biológicas": the same kind of link, opening the material of a course or subject.
+export function materialLink(origin: string, place: { course_id: string; subject_id: string | null }, now: number) {
+  const url = new URL('/', origin);
+  url.searchParams.set('material', place.subject_id ? `${place.course_id}~${place.subject_id}` : place.course_id);
+  url.searchParams.set('ate', String(now + CAPTURE_LINK_MINUTES * 60_000));
+  return url.toString();
+}
+
+/** What a material link asks for; null when there is none. */
+export function readMaterialLink(search: string, now: number): { course_id: string; subject_id: string | null } | { expired: true } | null {
+  const params = new URLSearchParams(search);
+  const value = params.get('material');
+  if (!value || !/^[^~]{1,100}(~[^~]{1,100})?$/.test(value)) return null;
+  const until = Number(params.get('ate'));
+  if (!Number.isFinite(until) || until < now || until > now + (CAPTURE_LINK_MINUTES + 5) * 60_000) return { expired: true };
+  const [course_id, subject_id] = value.split('~');
+  return { course_id, subject_id: subject_id ?? null };
+}
