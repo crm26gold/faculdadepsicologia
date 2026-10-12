@@ -12,7 +12,7 @@ Em aberto, sem ordem definida (a prioridade é decisão do proprietário):
 
 - Módulos próprios para saúde, emocional, espiritualidade, família, casa, lazer e documentos, que hoje são apenas áreas; inventário.
 - Prazos dos trabalhos em grupo na agenda e nos alertas pessoais (hoje aparecem só no Meu dia).
-- Networking: perfil, conexões e mensagens, com privacidade em camadas.
+- Networking: perfil, conexões e mensagens, com privacidade em camadas ([concorrentes e lotes, 12/10](PESQUISA_CONCORRENTES_GRUPOS_2026-10-12.md)).
 - Google Drive por OAuth (o Google Agenda, no sentido Jornada → Google, entrou em 08/10/2026); pagamento (Asaas) e Vercel Pro na abertura das vendas.
 - Tirar a vida pessoal do documento JSON único, migrando módulos para tabelas próprias ([arquitetura](ARCHITECTURE.md#modelo-e-persistência)).
 

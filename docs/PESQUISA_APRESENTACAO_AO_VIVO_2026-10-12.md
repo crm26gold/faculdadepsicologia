@@ -95,7 +95,7 @@ O proprietário mandou o PRD que o ChatGPT gerou para reconstruir a apresentaç�
    - Telas apresentar, participar e painel.
    - Perguntas com "apoiar", moderação e destaque.
    - Controle remoto do slide.
-   - Realtime do Supabase.
+   - Realtime do Supabase com resultado agregado: uma fonte publica a cada 2 ou 3 segundos, as respostas passam pelo servidor e não há "quem está online" para a turma inteira ([cálculo](PESQUISA_CONCORRENTES_GRUPOS_2026-10-12.md#integrações-e-apis-grátis)).
    - Ao encerrar, as perguntas abertas vão para o mural.
    - Critério de pronto: duas pessoas (projetor e celular) veem a pergunta destacada em até 2 s. RLS testado no Postgres local.
 3. **Depois:**
