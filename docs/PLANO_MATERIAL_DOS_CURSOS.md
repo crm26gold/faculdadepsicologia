@@ -120,7 +120,7 @@ Em 09/10/2026 o proprietário mandou começar a implementação. A etapa 1 segui
 
 ### Como a etapa 2 ficou
 
-- **Uma busca só, no banco** (`supabase/migrations/20261009240000_course_material_search.sql`): `private.material_search_for` procura em português sem acento, com peso 3 para a matéria pedida, 2 para o geral do curso, 1,5 para outra matéria do curso e 1 para o resto. Trechos com todas as palavras vêm antes dos que têm só parte. Devolve até 6 a 8 trechos, com arquivo, página e lugar, e o "o que a IA precisa saber" do lugar. Sem pergunta, lista o que está guardado.
+- **Uma busca só, no banco** (`supabase/migrations/20261012183017_course_material_search.sql`): `private.material_search_for` procura em português sem acento, com peso 3 para a matéria pedida, 2 para o geral do curso, 1,5 para outra matéria do curso e 1 para o resto. Trechos com todas as palavras vêm antes dos que têm só parte. Devolve até 6 a 8 trechos, com arquivo, página e lugar, e o "o que a IA precisa saber" do lugar. Sem pergunta, lista o que está guardado.
 - **Três portas para a mesma busca, cada uma presa à própria pessoa:** `material_search` (login do app, pela RLS de `auth.uid()`), `mcp_material_search` (dona da chave do MCP) e `bot_material_search` (conversa vinculada do Telegram e do WhatsApp).
 - **Aula do momento** (`src/lib/materials/study.ts`): pela grade de aulas, de 15 minutos antes do início até o fim. Às 19h10 de sexta, "como é a prova?" busca primeiro em Psicologia › Bases Biológicas.
 - **Assistente interno, Telegram e WhatsApp:** antes de responder, a Jornada busca com as palavras da pessoa e entrega os trechos ao modelo como dado, nunca como instrução. Se a busca falhar, o pedido segue sem o material.
