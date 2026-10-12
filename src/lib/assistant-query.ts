@@ -7,8 +7,10 @@ import { isUnorganized } from './capture';
 import { placeOf, placeTrail } from './notebooks';
 
 export const assistantQuery = z.object({
-  section: z.enum(['resumo', 'agenda', 'busca', 'pendentes', 'focos', 'configuracoes', ...entities]).default('resumo'),
+  section: z.enum(['resumo', 'agenda', 'busca', 'pendentes', 'focos', 'configuracoes', 'material', ...entities]).default('resumo'),
   search: z.string().max(160).default(''),
+  curso: z.string().trim().max(100).optional().describe('Só em material: o curso, pelo nome (sem curso, vale a aula do momento).'),
+  materia: z.string().trim().max(100).optional().describe('Só em material: a matéria ou módulo, pelo nome.'),
   from: daySchema.optional(), to: daySchema.optional(),
   includeContent: z.boolean().default(false),
   cursor: z.string().max(40).optional().describe('Só na busca: o "cursor" da página anterior, para continuar a mesma busca.'),
@@ -58,6 +60,8 @@ export function queryWorkspace(data: Workspace, input: unknown, today: string) {
   const related = relations(data);
   // Each item read carries its record's version; a class is versioned as stored, without the computed title.
   const version = (entity: Entity, item: RecordItem) => recordVersion(entity === 'aula' ? data.classes.find(entry => entry.id === item.id) ?? item : item);
+  // The material lives outside the account document: each door searches it in the database (see materials/study).
+  if (query.section === 'material') return { today, found: 0, message: 'O material dos cursos é consultado no servidor da Jornada.' };
   if (query.section === 'resumo') return { today, summary: commandContext(data, today) };
   // The single settings, read only when asked: opening balance, semester and profile without the photo.
   if (query.section === 'configuracoes') {

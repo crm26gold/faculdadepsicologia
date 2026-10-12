@@ -8,7 +8,7 @@ import { botServerSecret, telegramWebhookSecret } from '@/lib/bot/secrets';
 import { downloadFile, sendMessage, sendPhoto, sendTyping, TelegramError, type TelegramUpdate } from '@/lib/bot/telegram';
 const generatedAt = () => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date());
 import { storeTelegramPhoto } from '@/lib/bot/photo';
-import { botHome, botShared, botSummary, botTrash, splitShared, storeBotConfirmation } from '@/lib/bot/shared';
+import { botHome, botMaterial, botShared, botSummary, botTrash, splitShared, storeBotConfirmation } from '@/lib/bot/shared';
 import { screenModel, screenText } from '@/lib/screens/screen-model';
 import { renderScreen } from '@/lib/screens/render';
 import type { AiImage } from '@/lib/ai/media';
@@ -154,8 +154,8 @@ export async function POST(request: Request) {
       said = [said, heard].filter(Boolean).join('\n');
       if (!said) { await say('Não consegui entender o áudio. Pode repetir ou escrever?'); return ok(); }
     }
-    const rooms = photo ? '' : await botHome(db, serverSecret, CHANNEL, chat);
-    const raw = (await generateResilient(config, { task: 'assistente', system: photo ? imageReviewSystem : `${commandSystem}\n\nA conversa acontece pelo Telegram.\n\nContexto da pessoa:\n${commandContext(workspace, today)}${rooms}`,
+    const [rooms, material] = photo ? ['', ''] : await Promise.all([botHome(db, serverSecret, CHANNEL, chat), botMaterial(db, serverSecret, CHANNEL, chat, workspace, said)]);
+    const raw = (await generateResilient(config, { task: 'assistente', system: photo ? imageReviewSystem : `${commandSystem}\n\nA conversa acontece pelo Telegram.\n\nContexto da pessoa:\n${commandContext(workspace, today)}${rooms}${material}`,
       prompt: said || 'Leia a foto, descreva os dados legíveis e pergunte o que quero organizar.', history: photo ? [] : context.history.slice(-12), image, maxTokens: 2400, json: true, signal: AbortSignal.timeout(40_000), beforeAttempt: reserveCandidate })).text;
     const result = photo ? imageReview(raw) : parseCommand(raw);
     // Rooms, group work and contacts act as the linked person, once; the personal part follows as before.

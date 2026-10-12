@@ -70,3 +70,26 @@
 }
 [data-theme='dark'] .nb-inbox.has, [data-theme='dark'] .nb-place.loose { background: #2b2414; }
 [data-theme='dark'] .nb-error, [data-theme='dark'] .nb-problem, [data-theme='dark'] .nb-delete { color: #f2a59d; }
+/* Material do curso e da matéria: contexto para a IA, envio de arquivos e a lista com o que a Jornada leu. */
+.course-material { display: grid; gap: 14px; margin-block: 0 18px; }
+.course-material-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 12px; }
+.course-material-head h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 1.05rem; }
+.course-material > p { margin: 0; }
+.course-material-context { display: grid; gap: 6px; }
+.course-material-context label { font-weight: 600; font-size: .9rem; }
+.course-material-context textarea, .course-material-write textarea { inline-size: 100%; resize: vertical; }
+.course-material-context .button { justify-self: start; }
+.course-material-write { display: grid; gap: 10px; }
+.course-material-write label { display: grid; gap: 4px; }
+.course-material-sending, .course-material-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.course-material-sending li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: .9rem; overflow-wrap: anywhere; }
+.course-material-sending li[data-error='true'] span { color: var(--danger-text); }
+.course-material-list li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.course-material-list li > div:first-child { display: grid; gap: 2px; min-inline-size: 0; flex: 1 1 240px; }
+.course-material-list strong { overflow-wrap: anywhere; }
+.course-material-problem { color: var(--danger-text); }
+.course-material-body { margin: 6px 0 0; white-space: pre-wrap; max-block-size: 320px; overflow: auto; font-size: .9rem; }
+.course-material-move { display: inline-flex; align-items: center; gap: 4px; }
+.course-material-move select { max-inline-size: 180px; }
+.course-material-trash summary { cursor: pointer; font-weight: 600; }
+.course-material-trash ul { margin-block-start: 8px; }

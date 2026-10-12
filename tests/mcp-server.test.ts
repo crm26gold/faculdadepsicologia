@@ -73,7 +73,7 @@ test('servidor MCP: aperto de mão, catálogo, consulta e registro validado na v
   assert.equal(init.result.serverInfo.name, 'jornada-plena');
   assert.match(init.result.instructions, /Exclusões/);
   const list = await call(legacy(2, 'tools/list'));
-  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'enviar_arquivo', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
+  assert.deepEqual(list.result.tools.map((tool: { name: string }) => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'enviar_arquivo', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'guardar_material', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
   assert.equal(list.result.tools.find((tool: { name: string }) => tool.name === 'consultar_jornada').annotations.readOnlyHint, true);
   const query = await call(legacy(3, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'agenda' } }));
   assert.match(query.result.content[0].text, /"items"/);
@@ -133,7 +133,7 @@ test('servidor MCP: clientes da versão 2026-07-28 listam e consultam sem aperto
     body: JSON.stringify(mcpRequest('2026-07-28', id, method, params)) });
   const listed = await jornadaMcpHandler(db as never, access).fetch(modern(1, 'tools/list'));
   assert.equal(listed.status, 200);
-  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'enviar_arquivo', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
+  assert.deepEqual(toolInventory(mcpResult(await listed.text(), 1)).tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'enviar_arquivo', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'guardar_material', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
   const asked = await jornadaMcpHandler(db as never, access).fetch(modern(2, 'tools/call', { name: 'consultar_jornada', arguments: { section: 'resumo' } }));
   assert.match(JSON.stringify(mcpResult(await asked.text(), 2)), /summary/);
 });
@@ -184,7 +184,7 @@ test('servidor MCP: parte coletiva usa as ações da tela pelo ator da pessoa e 
   const access = await mcpAuthenticate(db as never, 'Bearer jp_teste_chave_pessoal_0123456789abcdef');
   const call = async (id: number, name: string, args: unknown) => body(await jornadaMcpHandler(db as never, access).fetch(legacy(id, 'tools/call', { name, arguments: args })));
   const tools = (await body(await jornadaMcpHandler(db as never, access).fetch(legacy(1, 'tools/list')))).result.tools as { name: string; annotations: any }[];
-  assert.deepEqual(tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'enviar_arquivo', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
+  assert.deepEqual(tools.map(tool => tool.name).sort(), ['administrar', 'consultar_administracao', 'consultar_coletivo', 'consultar_jornada', 'desfazer', 'enviar_arquivo', 'gerenciar_contatos', 'gerenciar_salas', 'gerenciar_trabalhos', 'guardar_material', 'lixeira', 'minha_conta', 'registrar_na_jornada', 'ver_tela']);
   assert.equal(tools.find(tool => tool.name === 'consultar_coletivo')!.annotations.readOnlyHint, true);
 
   const space = '00000000-0000-4000-8000-0000000000b1';

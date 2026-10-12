@@ -8,6 +8,7 @@ import { lifeAreas } from '@/lib/life';
 import { noteExcerpt, notebooksOf, notesIn, parsePlace, personalNotebooks, placeFields, placeGroups, placeKey, placeName, placeOf, placeTrail, type Place } from '@/lib/notebooks';
 import type { Note, Workspace } from '@/lib/workspace';
 import { api } from './community/client';
+import { CourseMaterial } from './course-material';
 
 const NoteEditor = dynamic(() => import('./note-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 const plain = (value: string) => value.normalize('NFD').replace(/[̀-ͯ]/g, '').toLocaleLowerCase('pt-BR');
@@ -33,7 +34,7 @@ export function NotesLibrary({ data, blocked, demo, cloud, status, update, place
     const value: Note = { id, title: '', content: '', updatedAt: new Date().toISOString(), ...placeFields(data, target) };
     if (update(previous => ({ ...previous, notes: [value, ...previous.notes] }))) { setFresh(id); onNote(id); }
   }
-  if (place) return <PlaceView {...{ data, blocked, place, onPlace, onNote, onManage, update }} onCreate={() => create(place)} />;
+  if (place) return <PlaceView {...{ data, blocked, cloud, place, onPlace, onNote, onManage, update }} onCreate={() => create(place)} />;
   return <LibraryHome {...{ data, blocked, update, onPlace, onNote }} onCreate={() => create({ kind: 'inbox' })} />;
 }
 
@@ -102,7 +103,7 @@ function LibraryHome({ data, blocked, update, onPlace, onNote, onCreate }: Pick<
   </div>;
 }
 
-function PlaceView({ data, blocked, place, onPlace, onNote, onManage, onCreate, update }: Pick<Props, 'data' | 'blocked' | 'onPlace' | 'onNote' | 'onManage' | 'update'> & { place: Place; onCreate: () => void }) {
+function PlaceView({ data, blocked, cloud, place, onPlace, onNote, onManage, onCreate, update }: Pick<Props, 'data' | 'blocked' | 'cloud' | 'onPlace' | 'onNote' | 'onManage' | 'update'> & { place: Place; onCreate: () => void }) {
   const notes = notesIn(data, place);
   const books = place.kind === 'subject' ? notebooksOf(data, place.id) : [];
   const [naming, setNaming] = useState(false);
@@ -116,6 +117,7 @@ function PlaceView({ data, blocked, place, onPlace, onNote, onManage, onCreate, 
   }
   const trail = placeTrail(data, place);
   const inbox = place.kind === 'inbox';
+  const subject = place.kind === 'subject' ? data.subjects.find(item => item.id === place.id) : undefined;
   return <div className="nb">
     <nav className="nb-crumbs" aria-label="Caminho"><button type="button" className="text-button" onClick={() => onPlace(null)}><ArrowLeft size={15} aria-hidden="true" />Cadernos</button>{trail.slice(0, -1).map(step => <span key={step}><ChevronRight size={13} aria-hidden="true" />{step}</span>)}</nav>
     <header className="nb-head">
@@ -128,6 +130,8 @@ function PlaceView({ data, blocked, place, onPlace, onNote, onManage, onCreate, 
           <span className="nb-new-actions"><button type="button" className="text-button" onClick={() => setNaming(false)}>Cancelar</button><button className="button primary">Criar</button></span></form>
           : <button type="button" className="nb-tile nb-add" disabled={blocked} onClick={() => setNaming(true)}><FolderPlus size={20} aria-hidden="true" /><strong>Novo caderno nesta matéria</strong><small>Resumos, provas, mês a mês…</small></button>}</li>
       </ul></section>}
+    {cloud && subject?.courseId && <CourseMaterial courseId={subject.courseId} subjectId={subject.id} label="Material desta matéria"
+      places={[{ id: null, name: 'Material geral do curso' }, ...subjectsOfCourse(data, subject.courseId).map(item => ({ id: item.id, name: item.name }))]} />}
     {notes.length ? <NoteList data={data} notes={notes} onNote={onNote} organize={inbox} /> : <div className="nb-empty-state"><FileText size={34} aria-hidden="true" /><p>{inbox ? 'Tudo organizado. Nada esperando por aqui.' : 'Nenhuma anotação ainda. A primeira já nasce aqui dentro.'}</p></div>}
     {place.kind === 'notebook' && <button type="button" className="text-button nb-manage" onClick={onManage}>Renomear ou apagar este caderno</button>}
   </div>;

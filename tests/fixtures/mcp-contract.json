@@ -20,6 +20,7 @@
       "pendentes",
       "focos",
       "configuracoes",
+      "material",
       "compromisso",
       "anotacao",
       "financeiro",
@@ -38,6 +39,16 @@
      "default": "",
      "type": "string",
      "maxLength": 160
+    },
+    "curso": {
+     "description": "Só em material: o curso, pelo nome (sem curso, vale a aula do momento).",
+     "type": "string",
+     "maxLength": 100
+    },
+    "materia": {
+     "description": "Só em material: a matéria ou módulo, pelo nome.",
+     "type": "string",
+     "maxLength": 100
     },
     "from": {
      "type": "string"
@@ -929,6 +940,10 @@
      "type": "string",
      "minLength": 1,
      "maxLength": 100
+    },
+    "material": {
+     "description": "true: o link abre o material do curso ou da matéria (destino é o nome dela ou do curso; sem destino, a aula do momento), para PDF, Word, PowerPoint ou texto que a Jornada lê.",
+     "type": "boolean"
     }
    }
   },
@@ -957,6 +972,56 @@
    ],
    "additionalProperties": false
   },
+  "_meta": null
+ },
+ {
+  "name": "guardar_material",
+  "title": "Guardar no material do curso",
+  "annotations": {
+   "readOnlyHint": false,
+   "destructiveHint": false,
+   "idempotentHint": false,
+   "openWorldHint": false
+  },
+  "inputSchema": {
+   "type": "object",
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "properties": {
+    "curso": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 100
+    },
+    "materia": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 100
+    },
+    "tipo": {
+     "default": "texto",
+     "type": "string",
+     "enum": [
+      "texto",
+      "contexto"
+     ]
+    },
+    "titulo": {
+     "description": "Obrigatório em texto.",
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 200
+    },
+    "texto": {
+     "type": "string",
+     "minLength": 1,
+     "maxLength": 20000
+    }
+   },
+   "required": [
+    "texto"
+   ]
+  },
+  "outputSchema": null,
   "_meta": null
  },
  {
