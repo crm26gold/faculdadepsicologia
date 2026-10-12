@@ -12,7 +12,7 @@ type Item = { id: string; course_id: string; subject_id: string | null; kind: 'a
 type State = { items: Item[]; used: number; limit: number };
 type Sending = { key: string; name: string; step: string; error?: boolean };
 
-const megabytes = (bytes: number) => bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1).replace(/\.0$/, '').replace('.', ',')} MB`;
+const megabytes = (bytes: number) => bytes < 1024 * 1024 ? `${bytes ? Math.max(1, Math.round(bytes / 1024)) : 0} KB` : `${(bytes / 1024 / 1024).toFixed(1).replace(/\.0$/, '').replace('.', ',')} MB`;
 const kinds: Record<string, string> = { 'application/pdf': 'PDF', 'text/plain': 'Texto', 'text/markdown': 'Texto',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'Word', 'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'PowerPoint' };
 const statusLabel: Record<Item['status'], string> = { processando: 'lendo…', pronto: 'pronto para a IA', sem_texto: 'sem texto para ler', falhou: 'não deu para ler' };
