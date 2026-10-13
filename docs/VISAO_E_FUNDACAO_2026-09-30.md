@@ -238,6 +238,7 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - Imagens servem para ilustrar o conhecimento; foto pessoal é permitida.
   - Sem vídeo por enquanto.
   - O card de texto é gerado a partir do texto e não ocupa espaço.
+  - Na etapa 3a, a foto (até 4 por publicação, 1 por story) é reduzida no aparelho para até 300 KB e fica no banco presa à publicação: apagar a publicação ou o story vencer apaga a foto junto. No plano grátis, cada pessoa guarda até 25 MB de fotos, e o app inteiro até 300 MB.
   - Fotos da conversa ficam 90 dias.
   - Mensagem direta entre duas pessoas vem depois dos grupos.
 - **Caixa de ferramentas:**

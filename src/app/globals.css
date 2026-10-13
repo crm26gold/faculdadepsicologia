@@ -786,6 +786,8 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
   --muted: #a4b7c9;
   --canvas: #0c1725;
   --sage: #1c3045;
+  /* Tons dos cards e das cores de grupo: escuros no modo escuro, para o texto claro continuar legível. */
+  --lavender: #2a2742; --sand: #33291b; --rose: #3a2329;
   --accent-text: #a4d2f2; --ok-text: #7fd1a4; --ok-bg: #173528; --danger-text: #f2a59d; --danger-bg: #3a1d1d; --soft-bg: #0b2338;
   color-scheme: dark;
 }
@@ -990,6 +992,47 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .nw-events span { display: flex; flex-direction: column; overflow-wrap: anywhere; font-size: .9rem; }
 .nw-events small { color: var(--muted); font-size: .76rem; }
 .nw-chip.card_blue[aria-pressed="false"], .nw-chip.card_sand[aria-pressed="false"], .nw-chip.card_lavender[aria-pressed="false"], .nw-chip.card_rose[aria-pressed="false"], .nw-chip.card_green[aria-pressed="false"] { border-style: dashed; }
+/* Fotos e stories (etapa 3a). O visor de stories é escuro nos dois temas, como a foto pede: as cores dele vêm em hsl(),
+   que o gerador do modo escuro deixa como estão. */
+.nw-photo { display: block; inline-size: 100%; block-size: auto; max-block-size: 75vh; object-fit: cover; border-radius: 14px; background: var(--sage); }
+.nw-photos { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; border-radius: 14px; }
+.nw-photos .nw-photo { flex: 0 0 88%; scroll-snap-align: center; }
+.nw-picked { list-style: none; margin: 0; padding: 8px 8px 0 0; display: flex; flex-wrap: wrap; gap: 12px; }
+.nw-picked li { position: relative; }
+.nw-picked img { display: block; inline-size: 88px; block-size: 88px; object-fit: cover; border-radius: 10px; }
+.nw-picked .icon-button { position: absolute; inset-block-start: -10px; inset-inline-end: -10px; inline-size: 32px; block-size: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); }
+.nw-stories { list-style: none; margin: 0; padding: 4px 2px 2px; display: flex; gap: 10px; overflow-x: auto; }
+.nw-stories li { position: relative; flex: 0 0 auto; }
+.nw-story-bubble { display: flex; flex-direction: column; align-items: center; gap: 4px; inline-size: 74px; padding: 0; }
+.nw-story-ring { display: grid; padding: 2px; border-radius: 50%; border: 3px solid var(--green); }
+.nw-story-ring.seen { border-color: var(--line); }
+.nw-story-ring.empty { border-style: dashed; border-color: var(--line); }
+.nw-story-name { max-inline-size: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .76rem; }
+.nw-story-add { position: absolute; inset-block-start: 42px; inset-inline-end: 4px; display: grid; place-items: center; inline-size: 26px; block-size: 26px; border-radius: 50%; border: 2px solid var(--surface); background: var(--green); color: var(--surface); }
+.nw-story-viewer { inline-size: 100vw; block-size: 100dvh; max-inline-size: 100vw; max-block-size: 100dvh; margin: 0; padding: 10px 12px calc(12px + env(safe-area-inset-bottom)); border: 0; background: hsl(207 70% 7%); color: hsl(0 0% 100%); }
+.nw-story-viewer[open] { display: flex; flex-direction: column; gap: 8px; }
+.nw-story-viewer::backdrop { background: hsl(207 70% 7%); }
+.nw-story-viewer .icon-button, .nw-story-viewer .nw-react { color: hsl(0 0% 100%); background: transparent; border-color: hsl(0 0% 100% / .4); }
+.nw-story-viewer .nw-react[aria-pressed="true"] { color: hsl(351 100% 85%); border-color: hsl(351 100% 85%); background: transparent; }
+.nw-story-progress { display: flex; gap: 4px; }
+.nw-story-progress span { flex: 1; block-size: 3px; border-radius: 2px; background: hsl(0 0% 100% / .3); overflow: hidden; }
+.nw-story-progress i { display: block; block-size: 100%; inline-size: 0; background: hsl(0 0% 100%); }
+.nw-story-progress i.done { inline-size: 100%; }
+.nw-story-progress i.now { animation: nw-story-fill linear forwards; }
+.nw-story-progress i.paused { animation-play-state: paused; }
+@keyframes nw-story-fill { to { inline-size: 100%; } }
+.nw-story-head { display: flex; align-items: center; gap: 10px; }
+.nw-story-who { flex: 1; display: flex; flex-direction: column; min-inline-size: 0; }
+.nw-story-head small { opacity: .8; font-size: .76rem; }
+.nw-story-body { position: relative; flex: 1; min-block-size: 0; display: flex; flex-direction: column; justify-content: center; gap: 10px; }
+.nw-story-body img { inline-size: 100%; block-size: 100%; min-block-size: 0; object-fit: contain; flex: 1; }
+.nw-story-body .nw-card-text { aspect-ratio: auto; max-block-size: none; flex: 1; }
+.nw-story-caption { margin: 0; text-align: center; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nw-story-nav { position: absolute; inset-block: 0; inline-size: 30%; display: flex; align-items: center; padding: 0 4px; color: hsl(0 0% 100%); background: transparent; opacity: .7; }
+.nw-story-nav.prev { inset-inline-start: 0; justify-content: flex-start; }
+.nw-story-nav.next { inset-inline-end: 0; justify-content: flex-end; }
+.nw-story-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+@media (prefers-reduced-motion: reduce) { .nw-story-progress i.now { animation: none; inline-size: 50%; } }
 .cm-progress { display: block; block-size: 8px; border-radius: 99px; background: #dfe7f0; overflow: hidden; margin-block: 6px 4px; max-inline-size: 420px; }
 .cm-progress span { display: block; block-size: 100%; background: var(--green); border-radius: inherit; transition: inline-size .3s; }
 .cm-message { margin: 0; padding: 10px 14px; border-radius: 10px; background: #e9f3ea; border: 1px solid #b7d3bb; color: #1f4d2a; font-size: .92rem; }

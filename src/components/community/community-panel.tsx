@@ -11,6 +11,7 @@ import { Discover } from './discover';
 import { Feed } from './feed';
 import { Composer } from './composer';
 import { PersonView, UpdatesView } from './person-view';
+import { StoriesBar } from './stories';
 import { roleLabels, statusLabels, templateLabels, type Home, type SpaceSummary } from '@/lib/community';
 import type { AgendaAssignment, AgendaLink } from '@/lib/assignment-agenda';
 import type { Workspace } from '@/lib/workspace';
@@ -18,7 +19,7 @@ import type { Workspace } from '@/lib/workspace';
 export type CommunityTab = 'feed' | 'mine' | 'discover';
 export type CommunityRoute = { kind: 'list'; tab?: CommunityTab } | { kind: 'space'; id: string } | { kind: 'work'; id: string; from?: string }
   | { kind: 'create'; parent?: { id: string; name: string } } | { kind: 'profile' } | { kind: 'person'; id: string }
-  | { kind: 'updates' } | { kind: 'compose'; space?: { id: string; name: string } };
+  | { kind: 'updates' } | { kind: 'compose'; space?: { id: string; name: string }; story?: boolean };
 
 export function CommunityPanel({ home, workspace, route, onRoute, refreshHome, onAddToAgenda, onMoveAgendaTask }: {
   home: Home; workspace: Workspace; route: CommunityRoute; onRoute: (route: CommunityRoute) => void; refreshHome: () => void;
@@ -41,7 +42,7 @@ export function CommunityPanel({ home, workspace, route, onRoute, refreshHome, o
     onOpenPerson={id => onRoute({ kind: 'person', id })} onEditProfile={() => onRoute({ kind: 'profile' })} />;
   if (route.kind === 'updates') return <UpdatesView onBack={() => onRoute({ kind: 'list' })} onChanged={refreshHome}
     onOpenPerson={id => onRoute({ kind: 'person', id })} onOpenSpace={id => onRoute({ kind: 'space', id })} />;
-  if (route.kind === 'compose') return <Composer home={home} space={route.space} onCancel={() => onRoute(route.space ? { kind: 'space', id: route.space.id } : { kind: 'list' })}
+  if (route.kind === 'compose') return <Composer home={home} space={route.space} story={route.story} onCancel={() => onRoute(route.space ? { kind: 'space', id: route.space.id } : { kind: 'list' })}
     onPosted={() => onRoute(route.space ? { kind: 'space', id: route.space.id } : { kind: 'list', tab: 'feed' })} />;
   if (route.kind === 'work') return <AssignmentView key={route.id} id={route.id} me={me} onChanged={refreshHome} onAddToAgenda={onAddToAgenda} onMoveAgendaTask={onMoveAgendaTask}
     onBack={() => onRoute(route.from ? { kind: 'space', id: route.from } : { kind: 'list' })} />;
@@ -53,6 +54,8 @@ export function CommunityPanel({ home, workspace, route, onRoute, refreshHome, o
 function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: CommunityTab; onRoute: (route: CommunityRoute) => void; refreshHome: () => void }) {
   const me = home.account.user_id;
   const openPerson = (id: string) => onRoute({ kind: 'person', id });
+  const stories = (feed: 'following' | 'groups') => <StoriesBar feed={feed} me={me} myName={home.account.display_name} myAvatar={home.profile ?? null}
+    onCompose={() => onRoute({ kind: 'compose', story: true })} />;
   const [invite, setInvite] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -101,6 +104,7 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
         className={`planning-tab ${tab === value ? 'active' : ''}`} onClick={() => onRoute({ kind: 'list', tab: value })}>{label}{value === 'mine' && !!home.join_requests && <span className="count-pill">{home.join_requests}</span>}</button>)}
     </div>
 
+    {tab === 'feed' && stories('following')}
     {tab === 'feed' && <Feed source={{ feed: 'following' }} me={me} onOpenPerson={openPerson}
       empty="Aqui aparece o que as pessoas que você segue compartilham. Procure pessoas e #temas em Descobrir, ou publique o primeiro resumo." />}
     {tab === 'discover' && <Discover me={me} email={home.account.email} onOpen={id => onRoute({ kind: 'space', id })} onOpenPerson={openPerson} onJoined={refreshHome} />}
@@ -113,6 +117,10 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
           <ul className="cm-todo">{home.to_review.map(part => <li key={part.id}><button onClick={() => onRoute({ kind: 'work', id: part.assignment_id })}>
             <span className="cm-status submitted">Entregue</span><strong>{part.title}</strong><small>{part.assignment_title} · {formatDay(part.submitted_at)}</small></button></li>)}</ul></section>}
       </div>}
+
+      {active.length > 0 && stories('groups')}
+      {active.length > 0 && <section aria-labelledby="nw-group-posts"><div className="section-heading"><h2 id="nw-group-posts"><Send size={16} aria-hidden="true" /> Publicações dos seus grupos</h2></div>
+        <Feed source={{ feed: 'groups' }} me={me} onOpenPerson={openPerson} empty="Nada publicado nos seus grupos ainda." /></section>}
 
       {teaching.length > 0 && <section><div className="section-heading"><h2><GraduationCap size={17} aria-hidden="true" /> Onde você ensina ou orienta</h2></div><div className="cm-card-grid">{teaching.map(card)}</div></section>}
 
@@ -128,9 +136,6 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
           <div className="button-row"><button type="button" className="button primary" onClick={() => onRoute({ kind: 'create' })}><Plus size={16} aria-hidden="true" />Criar grupo</button>
             <button type="button" className="button outline" onClick={() => onRoute({ kind: 'list', tab: 'discover' })}>Descobrir grupos</button></div></div>}
       </section>
-
-      {active.length > 0 && <section aria-labelledby="nw-group-posts"><div className="section-heading"><h2 id="nw-group-posts"><Send size={16} aria-hidden="true" /> Publicações dos seus grupos</h2></div>
-        <Feed source={{ feed: 'groups' }} me={me} onOpenPerson={openPerson} empty="Nada publicado nos seus grupos ainda." /></section>}
 
       <section className="panel cm-join"><h2><Link2 size={16} aria-hidden="true" /> Entrar com um convite</h2>
         <form onSubmit={event => { event.preventDefault(); void join(invite); }} className="cm-inline-form">

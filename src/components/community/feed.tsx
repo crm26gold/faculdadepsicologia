@@ -3,14 +3,23 @@ import { useCallback, useEffect, useState } from 'react';
 import { Globe2, Heart, LockKeyhole, ThumbsUp, Trash2, Users } from 'lucide-react';
 import { api, formatDay } from './client';
 import { PersonAvatar } from './avatar';
-import { audienceLabels, type NetworkPost, type Reaction } from '@/lib/network';
+import { audienceLabels, type NetworkPost, type Photo, type Reaction } from '@/lib/network';
 
 export type FeedSource = { feed: 'following' | 'groups' } | { feed: 'space'; id: string } | { topic: string };
 const query = (source: FeedSource) => 'topic' in source ? `topic=${encodeURIComponent(source.topic)}`
   : source.feed === 'space' ? `feed=space&id=${source.id}` : `feed=${source.feed}`;
 const audienceIcon = { public: Globe2, followers: Users, group: Users, private: LockKeyhole } as const;
 
-/** Uma publicação: texto ou card, Gostei e Útil. Quem escreveu (ou quem cuida do grupo) pode apagar. */
+/** Fotos da publicação: uma ocupa a largura; várias deslizam para o lado. A foto só sai do servidor para quem pode ver. */
+export function PostPhotos({ photos, author }: { photos: Photo[]; author: string }) {
+  const image = (photo: Photo, index: number) => <img key={photo.id} className="nw-photo" src={`/api/network/photo/${photo.id}`} loading="lazy" decoding="async"
+    width={photo.w} height={photo.h} style={{ aspectRatio: `${photo.w} / ${photo.h}` }}
+    alt={photos.length > 1 ? `Foto ${index + 1} de ${photos.length} de ${author}` : `Foto de ${author}`} />;
+  if (photos.length === 1) return image(photos[0], 0);
+  return <div className="nw-photos" role="group" aria-label={`${photos.length} fotos, deslize para ver`} tabIndex={0}>{photos.map(image)}</div>;
+}
+
+/** Uma publicação: texto, card ou fotos, Gostei e Útil. Quem escreveu (ou quem cuida do grupo) pode apagar. */
 export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
   post: NetworkPost; me: string; canManage?: boolean; onOpenPerson: (id: string) => void; onRemoved: (id: string) => void;
 }) {
@@ -41,7 +50,8 @@ export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
       </button>
       {(post.author.id === me || canManage) && <button type="button" className="icon-button" aria-label="Apagar publicação" onClick={remove}><Trash2 size={15} aria-hidden="true" /></button>}
     </header>
-    {post.style === 'text' ? <p className="nw-post-text">{post.body}</p> : <div className={`nw-card-text ${post.style}`}><p>{post.body}</p></div>}
+    {post.photos.length > 0 && <PostPhotos photos={post.photos} author={post.author.name} />}
+    {post.body && (post.style === 'text' ? <p className="nw-post-text">{post.body}</p> : <div className={`nw-card-text ${post.style}`}><p>{post.body}</p></div>)}
     <div className="nw-post-actions">
       <button type="button" className="nw-react" aria-pressed={mine.includes('gostei')} onClick={() => react('gostei')}><Heart size={17} aria-hidden="true" />Gostei{counts.gostei ? ` · ${counts.gostei}` : ''}</button>
       <button type="button" className="nw-react util" aria-pressed={mine.includes('util')} onClick={() => react('util')}><ThumbsUp size={17} aria-hidden="true" />Útil{counts.util ? ` · ${counts.util}` : ''}</button>
