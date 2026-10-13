@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Camera, FileText, Link as LinkIcon, Mic, Paperclip, Send, Trash2, Download, Square, Video, RefreshCw, X } from 'lucide-react';
 import { CAPTURE_LIMIT, isUnorganized } from '@/lib/capture';
 import { MEDIA_LIMIT, mediaTypes, safeLink, validMedia } from '@/lib/note-media';
+import { shrinkImage } from '@/lib/image-shrink';
 import type { Place } from '@/lib/notebooks';
 import { saveCapture } from '@/lib/save-capture';
 import type { Workspace } from '@/lib/workspace';
@@ -106,8 +107,9 @@ export function QuickCaptureWidget({
     return () => window.removeEventListener('beforeunload', protect);
   }, [file, recording, videoRecording, text]);
 
-  function selectFile(value?: File) {
-    if (!value || blocked || busy) return;
+  async function selectFile(picked?: File) {
+    if (!picked || blocked || busy) return;
+    const value = await shrinkImage(picked);
     if (!validMedia(value.type, value.size)) {
       setMessage(value.type.startsWith('video/') && value.size > MEDIA_LIMIT
         ? 'Este vídeo passa de 25 MB. Grave pelo botão Vídeo do Jornada Plena (o vídeo já sai leve) ou envie um trecho menor.'

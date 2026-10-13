@@ -158,3 +158,20 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
 - Pagamento (Asaas) e Vercel Pro no dia da abertura do carrinho.
 - Integrações Teams, Google Drive (backup), Google Agenda.
 - Tela do Google: a tela de consentimento OAuth precisa estar em "Produção" no Google Cloud para que outras pessoas consigam entrar.
+
+## Decisões de 13/10/2026
+
+- **Rede de conhecimento no estilo do Instagram.** Layout, estilo e forma de pensar do Instagram, inclusive vídeos curtos, mas voltada ao conhecimento: não compete com o Instagram, é um modelo parecido e verdadeiro para trocar informação.
+  - **Autonomia é da pessoa, nunca do proprietário.** Ela decide:
+    - perfil aberto (qualquer um segue) ou fechado (pedido aceito, como amizade no Facebook);
+    - mostrar ou esconder quem segue e quem a segue, e as próprias fotos;
+    - o público de cada publicação: pública, seguidores, uma sala, um grupo, uma lista escolhida ou só ela;
+    - se o perfil aparece fora do app (buscadores, outras redes).
+  - **Agenda de contatos:** continua privada como acima. Seguir alguém na rede não revela contatos.
+  - **Desenho e padrões recomendados:** [pesquisa aprofundada de 13/10](PESQUISA_APROFUNDADA_2026-10-13.md).
+- **Fase piloto grátis, preparada para a cobrança.**
+  - Até o lançamento, tudo é grátis (`open_access` ou cortesia). As pessoas convidadas usam como se fossem pagantes, para treinar, desenvolver e ver o banco funcionando de verdade.
+  - Quando a cobrança começar, o proprietário é avisado e contrata o que for preciso.
+  - Tudo que for comercial fica pronto antes, com a [lista do lançamento](LANCAMENTO_COMERCIAL.md).
+- **Sessão ao vivo:** quem só assiste entra com apelido para perguntar e votar; conta é necessária só para pontuar.
+- **Link da chamada:** no grupo, qualquer membro coloca ou tira; na sala, só quem conduz. Fica registrado quem colocou.

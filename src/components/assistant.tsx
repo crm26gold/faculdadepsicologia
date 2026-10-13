@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from '
 import { z } from 'zod';
 import { ArrowRight, AudioLines, CalendarDays, Check, History, MessageSquarePlus, Mic, NotebookPen, Paperclip, RotateCcw, Send, Square, Trash2, Undo2, X } from 'lucide-react';
 import { validMedia } from '@/lib/note-media';
+import { shrinkImage } from '@/lib/image-shrink';
 import { api } from './community/client';
 import { saveCapture, type CaptureDraft } from '@/lib/save-capture';
 import { dateKey, type Workspace } from '@/lib/workspace';
@@ -194,8 +195,9 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
     utterance.onend = next; utterance.onerror = next;
     window.speechSynthesis.cancel(); setSpeaking(true); window.speechSynthesis.speak(utterance);
   }
-  function attach(value?: File) {
-    if (!value) return;
+  async function attach(picked?: File) {
+    if (!picked) return;
+    const value = await shrinkImage(picked);
     if (!validMedia(value.type, value.size)) { setProblem('Anexe uma foto, um áudio ou um vídeo curto de até 25 MB.'); return; }
     setProblem(''); setFile(value); draft.current = { id: '', src: '' };
   }

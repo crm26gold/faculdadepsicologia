@@ -21,6 +21,7 @@ export function spaceCall(body: SpaceAction, hashedToken = ''): DbCall {
     case 'create_space': return { fn: 'create_space', args: { space_kind: body.kind, space_name: body.name, parent: body.parent, space_description: body.description, space_color: body.color } };
     case 'update_space': return { fn: 'update_space', args: { target: body.space, space_name: body.name, space_description: body.description, space_color: body.color } };
     case 'archive_space': return { fn: 'archive_space', args: { target: body.space, archived: body.archived } };
+    case 'set_call': return { fn: 'set_space_call', args: { target: body.space, url: body.url } };
     case 'add_member': return { fn: 'add_member_by_email', args: { target: body.space, member_email: body.email, member_role: body.role } };
     case 'set_role': return { fn: 'set_member_role', args: { target: body.space, member: body.member, member_role: body.role } };
     case 'remove_member': return { fn: 'remove_member', args: { target: body.space, member: body.member } };

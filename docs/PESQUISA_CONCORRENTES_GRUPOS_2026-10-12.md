@@ -214,12 +214,14 @@ Junta o que foi conversado em 04/10 com os padrões acima.
    - cartaz com `next/og`.
 5. **Na abertura das vendas:** plano de quem organiza, Pix pelo Asaas e Vercel Pro.
 
-## Decisões do proprietário
+## Decisões do proprietário (respondidas em 13/10)
 
-1. **Sessão ao vivo:** quem assiste entra com conta ou com apelido? A recomendação é apelido para perguntar e votar, e conta para pontuar.
-2. **"Pode"** para começar o lote 1.
-3. **Conexões:** aceite dos dois lados (recomendado) ou "seguir" de um lado só?
-4. **Perfil de turma:** visível só dentro da Jornada (recomendado) ou também numa página pública?
+1. **Sessão ao vivo:** apelido para perguntar e votar; conta para pontuar.
+2. **Lote 1:** autorizado em 13/10 (QR Code, fotos leves, link da chamada).
+3. **Conexões:** modelo do Instagram, e quem decide é cada pessoa. Perfil aberto deixa seguir direto; perfil fechado pede aprovação.
+4. **Perfil:** a pessoa escolhe se ele aparece fora da Jornada e quem vê cada publicação.
+
+Detalhes em [decisões de 13/10](VISAO_E_FUNDACAO_2026-09-30.md#decisões-de-13102026). A análise mais funda está na [pesquisa aprofundada](PESQUISA_APROFUNDADA_2026-10-13.md).
 
 ## Fontes principais
 

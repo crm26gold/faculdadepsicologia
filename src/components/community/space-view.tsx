@@ -1,13 +1,15 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, BarChart3, Copy, ExternalLink, Link2, LogOut, Megaphone, Pin, Plus, Settings2, Trash2, UserPlus, Users } from 'lucide-react';
+import { ArrowLeft, BarChart3, Copy, ExternalLink, Link2, LogOut, Megaphone, Pin, Plus, Settings2, Trash2, UserPlus, Users, Video } from 'lucide-react';
 import { Modal } from '../modal';
 import { api, formatDay } from './client';
 import { AssignmentForm } from './assignment-view';
+import { InviteQr } from './invite-qr';
 import { kindLabels, postKindLabels, roleLabels, spaceColors, type Role, type SpaceOverview } from '@/lib/community';
 
 type Tab = 'board' | 'works' | 'groups' | 'people';
 const colorNames: Record<string, string> = { sage: 'Azul claro', lavender: 'Lavanda', sand: 'Areia', blue: 'Azul', rose: 'Rosa' };
+const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
 export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }: {
   id: string; me: string; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
@@ -17,7 +19,7 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState<Tab>('board');
-  const [modal, setModal] = useState<'post' | 'poll' | 'work' | 'group' | 'member' | 'invite' | 'settings' | null>(null);
+  const [modal, setModal] = useState<'post' | 'poll' | 'work' | 'group' | 'member' | 'invite' | 'settings' | 'call' | null>(null);
   const [link, setLink] = useState('');
 
   const load = useCallback(async () => {
@@ -53,8 +55,11 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
         <span className="eyebrow">{kindLabels[space.kind]}{data.my_role ? ` · você é ${roleLabels[data.my_role].toLowerCase()}` : access.is_master ? ' · administração' : ''}{space.archived_at ? ' · arquivado' : ''}</span>
         <h2>{space.name}</h2>
         {space.description && <p>{space.description}</p>}
+        {space.call_url && <p className="cm-call">Chamada em <strong>{hostOf(space.call_url)}</strong>{space.call_set_by ? ` · colocada por ${nameOf(space.call_set_by)}` : ''}</p>}
       </div>
       <div className="button-row">
+        {space.call_url && <a className="button primary" href={space.call_url} target="_blank" rel="noopener noreferrer"><Video size={16} aria-hidden="true" />Entrar na chamada</a>}
+        {access.can_set_call && <button className="button outline" onClick={() => setModal('call')}><Video size={16} aria-hidden="true" />{space.call_url ? 'Mudar a chamada' : 'Link da chamada'}</button>}
         {access.can_manage && <button className="button outline" onClick={() => setModal('settings')}><Settings2 size={16} aria-hidden="true" />Configurar</button>}
         {data.my_role && data.my_role !== 'owner' && <button className="button outline" disabled={busy} onClick={async () => {
           if (!window.confirm(`Sair de ${space.name}? Você deixa de ver o conteúdo, mas o que já entregou continua com o grupo.`)) return;
@@ -192,7 +197,9 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
     {modal === 'invite' && <Modal title="Link de convite" onClose={() => setModal(null)}>
       {link ? <div className="entry-form"><p>Envie este link no grupo da turma. Quem entrar pelo link cai direto em <strong>{space.name}</strong>{space.kind === 'group' ? ' (e na sala)' : ''}.</p>
         <label htmlFor="invite-link">Link</label><input id="invite-link" readOnly value={link} onFocus={event => event.currentTarget.select()} />
-        <div className="form-footer"><button className="button primary" onClick={() => navigator.clipboard.writeText(link).then(() => setMessage('Link copiado.'), () => setMessage('Copie o link manualmente.'))}><Copy size={16} aria-hidden="true" />Copiar link</button></div></div>
+        <div className="form-footer"><button className="button primary" onClick={() => navigator.clipboard.writeText(link).then(() => setMessage('Link copiado.'), () => setMessage('Copie o link manualmente.'))}><Copy size={16} aria-hidden="true" />Copiar link</button></div>
+        <p className="muted small">Ou mostre o QR Code: quem estiver por perto aponta a câmera do celular e entra.</p>
+        <InviteQr link={link} label={space.name} /></div>
         : <form className="entry-form" onSubmit={async event => {
           event.preventDefault(); const f = new FormData(event.currentTarget);
           const result = await run({ action: 'create_invitation', space: space.id, role: f.get('role') ?? 'student', days: Number(f.get('days')), uses: Number(f.get('uses')) }, 'Convite criado.');
@@ -204,6 +211,19 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
           <div className="form-footer"><button className="button primary" disabled={busy}>Gerar link</button></div>
         </form>}
     </Modal>}
+
+    {modal === 'call' && <Modal title="Link da chamada" onClose={() => setModal(null)}><form className="entry-form" onSubmit={async event => {
+      event.preventDefault(); const f = new FormData(event.currentTarget);
+      if (await run({ action: 'set_call', space: space.id, url: String(f.get('url') ?? '').trim() }, 'Link da chamada salvo.')) setModal(null);
+    }}>
+      <p className="muted small">Cole o link do Meet, Zoom, Teams ou outro. {space.kind === 'group' ? 'Todo o grupo' : 'Toda a sala'} vê o botão “Entrar na chamada”.</p>
+      <label htmlFor="call-url">Link</label><input id="call-url" name="url" type="url" required maxLength={500} placeholder="https://meet.google.com/…" defaultValue={space.call_url ?? ''} />
+      <p className="muted small">Para criar um link do Meet: <a href="https://meet.google.com/" target="_blank" rel="noopener noreferrer">abra o Google Meet</a>, toque em Nova reunião › Criar uma reunião para depois e copie o link.</p>
+      <div className="form-footer">
+        {space.call_url && <button type="button" className="button outline" disabled={busy} onClick={async () => { if (await run({ action: 'set_call', space: space.id, url: '' }, 'Link da chamada retirado.')) setModal(null); }}>Tirar o link</button>}
+        <button className="button primary" disabled={busy}>Salvar</button>
+      </div>
+    </form></Modal>}
 
     {modal === 'settings' && <Modal title={`Configurar ${kindLabels[space.kind].toLowerCase()}`} onClose={() => setModal(null)}><form className="entry-form" onSubmit={async event => {
       event.preventDefault(); const f = new FormData(event.currentTarget);

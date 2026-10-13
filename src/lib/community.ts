@@ -47,8 +47,9 @@ export type AssignmentSummary = {
 };
 export type Invitation = { id: string; role: 'student' | 'leader'; max_uses: number; uses: number; expires_at: string; revoked_at: string | null; created_at: string };
 export type SpaceOverview = {
-  space: { id: string; kind: SpaceKind; name: string; description: string; color: SpaceColor; parent_id: string | null; archived_at: string | null; created_at: string };
-  path: PathItem[]; access: { can_lead: boolean; can_manage: boolean; is_master: boolean }; my_role: Role | null;
+  space: { id: string; kind: SpaceKind; name: string; description: string; color: SpaceColor; parent_id: string | null; archived_at: string | null; created_at: string;
+    call_url?: string | null; call_set_by?: string | null; call_set_at?: string | null };
+  path: PathItem[]; access: { can_lead: boolean; can_manage: boolean; is_master: boolean; can_set_call?: boolean }; my_role: Role | null;
   people: Person[]; groups: { id: string; name: string; description: string; color: SpaceColor; archived_at: string | null; members: number }[];
   posts: Post[]; polls: Poll[]; assignments: AssignmentSummary[]; invitations: Invitation[];
 };
@@ -90,6 +91,7 @@ const text = (max: number) => z.string().max(max).transform(value => value.trim(
 const required = (max: number) => z.string().trim().min(1, 'Preencha este campo.').max(max);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable();
 const link = z.string().trim().max(2000).refine(value => !value || (/^https?:\/\//.test(value) && safeLink(value)), 'Use um link completo começando com https://.');
+const callLink = z.string().trim().max(500).refine(value => !value || (value.startsWith('https://') && safeLink(value)), 'Use o link completo da chamada, começando com https://.');
 export const docStyleSchema = z.object({
   font: z.enum(docFonts).optional(), size: z.union([z.literal(11), z.literal(12), z.literal(14)]).optional(),
   spacing: z.union([z.literal(1), z.literal(1.15), z.literal(1.5), z.literal(2)]).optional(),
@@ -106,6 +108,7 @@ export const spaceAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('create_space'), kind: z.enum(['institution', 'class', 'group']), name: required(160), parent: id.nullable(), description: text(2000).default(''), color: z.enum(spaceColors).default('sage') }),
   z.object({ action: z.literal('update_space'), space: id, name: required(160), description: text(2000), color: z.enum(spaceColors) }),
   z.object({ action: z.literal('archive_space'), space: id, archived: z.boolean() }),
+  z.object({ action: z.literal('set_call'), space: id, url: callLink.default('') }),
   z.object({ action: z.literal('add_member'), space: id, email: z.email().max(254), role: z.enum(['owner', 'teacher', 'assistant', 'leader', 'student']) }),
   z.object({ action: z.literal('set_role'), space: id, member: id, role: z.enum(['owner', 'teacher', 'assistant', 'leader', 'student']) }),
   z.object({ action: z.literal('remove_member'), space: id, member: id }),

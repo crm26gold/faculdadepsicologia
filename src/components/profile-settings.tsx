@@ -5,6 +5,7 @@ import { Camera, Check, Download, GraduationCap, Mail, MapPin, Phone, ShieldChec
 import { OrganizationPanel } from './life-organization';
 import type { Workspace } from '@/lib/workspace';
 import { emptyProfile, type UserProfileData } from '@/lib/life-data';
+import { shrinkable, shrinkImage } from '@/lib/image-shrink';
 import { TrashPanel } from './trash-panel';
 export { emptyProfile as defaultUserProfile } from '@/lib/life-data';
 export type { UserProfileData } from '@/lib/life-data';
@@ -106,12 +107,15 @@ export function ProfileSettings({
     }
   }
 
-  function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handlePhotoUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = e.target.files?.[0];
+    if (!picked) return;
     if (blocked) return;
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 250_000) {
-      setPhotoError('Use JPG, PNG ou WebP de até 250 KB para o perfil.');
+    if (!shrinkable(picked.type)) { setPhotoError('Use uma foto JPG, PNG ou WebP.'); return; }
+    // A foto do perfil aparece pequena: reduzida no aparelho, ocupa poucos KB no backup e na sincronização.
+    const file = await shrinkImage(picked, { maxSide: 480, quality: 0.8 });
+    if (file.size > 250_000) {
+      setPhotoError('Não consegui deixar esta foto leve. Tente outra foto.');
       return;
     }
     setPhotoError('');
@@ -192,7 +196,7 @@ export function ProfileSettings({
                   Usar iniciais originais
                 </button>
               )}
-              <small className="muted">JPG, PNG ou WebP · até 250 KB · incluída no backup</small>
+              <small className="muted">JPG, PNG ou WebP · fica leve sozinha · incluída no backup</small>
               {photoError && <p role="alert">{photoError}</p>}
             </div>
           </div>

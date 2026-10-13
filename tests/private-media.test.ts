@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { privateMedia, mediaRange, mediaSignature } from '../src/lib/private-media';
 import { imageReview } from '../src/lib/ai/image-review';
 import { parseCommand } from '../src/lib/commands';
+import { fitWithin, shrinkable } from '../src/lib/image-shrink';
 
 function fixture() {
   const file = `${randomUUID()}.png`, owner = randomUUID();
@@ -76,4 +77,12 @@ test('foto não pode produzir ações mesmo quando o modelo devolve um plano ace
   const raw = JSON.stringify({ reply: 'Total legível: R$50.', actions: [{ type: 'financeiro', description: 'Não autorizado pela foto', amount: 500, flow: 'expense', date: '2026-10-03' }] });
   assert.equal(parseCommand(raw).actions.length, 1);
   const result = imageReview(raw); assert.deepEqual(result.actions, []); assert.equal(result.reply, 'Total legível: R$50.');
+});
+
+test('foto reduzida no aparelho: cabe no lado maior sem distorcer e só formatos que encolhem', () => {
+  assert.deepEqual(fitWithin(4032, 3024, 2000), { width: 2000, height: 1500 });
+  assert.deepEqual(fitWithin(3024, 4032, 480), { width: 360, height: 480 });
+  assert.deepEqual(fitWithin(800, 600, 2000), { width: 800, height: 600 });
+  assert.deepEqual(fitWithin(10000, 3, 480), { width: 480, height: 1 });
+  assert.deepEqual(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4'].map(shrinkable), [true, true, true, false, false]);
 });

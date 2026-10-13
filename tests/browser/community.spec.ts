@@ -203,6 +203,60 @@ test('meu dia mostra trabalhos em grupo e aniversários; salas levam ao mural e 
   await expect(page.getByText('Professora Bia')).toBeVisible();
 });
 
+test('grupo: o link da chamada vira o botão Entrar na chamada e o convite traz o QR Code', async ({ page }) => {
+  const invite = 'https://jornada.example/convite/A1b2_C3d4-E5f6G7h8I9j0K1l2M3n4O5p6';
+  let call: string | null = null;
+  const posted = await mockApi(page, { onPost: ({ body }) => {
+    if (body.action === 'set_call') call = String(body.url) || null;
+    return body.action === 'create_invitation' ? { link: invite } : null;
+  } });
+  await page.route(/\/api\/spaces\?id=/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+    ...groupOverview, space: { ...groupOverview.space, call_url: call, call_set_by: call ? ME : null }, access: { ...groupOverview.access, can_set_call: true } } }) }));
+  await page.goto('/');
+  await nav(page).getByRole('button', { name: /^Salas e grupos/ }).click();
+  await page.getByRole('button', { name: /Ética · Grupo 1/ }).first().click();
+  await expect(page.getByRole('link', { name: 'Entrar na chamada' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Link da chamada' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Link da chamada' });
+  await expect(dialog.getByRole('link', { name: 'abra o Google Meet' })).toHaveAttribute('href', 'https://meet.google.com/');
+  await dialog.getByLabel('Link', { exact: true }).fill('https://meet.google.com/abc-defg-hij');
+  await dialog.getByRole('button', { name: 'Salvar' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'set_call')?.body).toEqual({ action: 'set_call', space: G1, url: 'https://meet.google.com/abc-defg-hij' });
+  const enter = page.getByRole('link', { name: 'Entrar na chamada' });
+  await expect(enter).toHaveAttribute('href', 'https://meet.google.com/abc-defg-hij');
+  await expect(enter).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(page.getByText('Chamada em meet.google.com · colocada por Pessoa Teste')).toBeVisible();
+
+  await page.getByRole('tab', { name: /Pessoas/ }).click();
+  await page.getByRole('button', { name: 'Link de convite' }).click();
+  await page.getByRole('button', { name: 'Gerar link' }).click();
+  await expect(page.getByLabel('Link', { exact: true })).toHaveValue(invite);
+  const qr = page.getByRole('img', { name: 'QR Code do convite para Ética · Grupo 1' });
+  await expect(qr).toBeVisible();
+  expect((await qr.boundingBox())!.width).toBeGreaterThan(150);
+});
+
+test('foto do perfil grande fica leve sozinha, em vez de ser recusada', async ({ page }) => {
+  await mockApi(page);
+  await page.goto('/#settings');
+  // A "foto de celular": ruído de 1600×1200 em JPEG de alta qualidade, bem acima do antigo limite de 250 KB.
+  const photo = await page.evaluate(async () => {
+    const canvas = Object.assign(document.createElement('canvas'), { width: 1600, height: 1200 });
+    const context = canvas.getContext('2d')!, image = context.createImageData(1600, 1200);
+    for (let i = 0; i < image.data.length; i++) image.data[i] = i % 4 === 3 ? 255 : Math.random() * 255;
+    context.putImageData(image, 0, 0);
+    const blob = await new Promise<Blob>(resolve => canvas.toBlob(value => resolve(value!), 'image/jpeg', 0.95));
+    return { size: blob.size, base64: await new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.readAsDataURL(blob); }) };
+  });
+  expect(photo.size).toBeGreaterThan(250_000);
+  await page.getByLabel('Upload de foto de perfil').setInputFiles({ name: 'foto.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(photo.base64, 'base64') });
+  const preview = page.getByRole('img', { name: 'Foto de perfil' });
+  await expect(preview).toHaveAttribute('src', /^data:image\/webp;base64,/);
+  expect(await preview.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(480);
+  expect((await preview.getAttribute('src'))!.length).toBeLessThan(250_000);
+  await expect(page.getByText(/Não consegui deixar esta foto leve|até 250 KB/)).toHaveCount(0);
+});
+
 test('meu dia lista os pedidos aguardando você e abre a confirmação exata, sem confirmar sozinho', async ({ page }) => {
   // Dois pedidos na mesma conversa, que não está na primeira página carregada: o link abre exatamente o escolhido.
   const CONVERSA = 'abababab-0000-4000-8000-000000000001', ANTIGO = 'abababab-0000-4000-8000-0000000000a1', NOVO = 'abababab-0000-4000-8000-0000000000a2';

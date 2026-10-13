@@ -908,6 +908,12 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .cm-hero h2 { font-size: 1.45rem; margin: 4px 0 6px; overflow-wrap: anywhere; }
 .cm-hero p { margin: 0 0 8px; font-size: .88rem; }
 .cm-hero > div:first-child { min-inline-size: 0; flex: 1 1 280px; }
+.cm-hero .cm-call { color: var(--muted); font-size: .82rem; overflow-wrap: anywhere; }
+.cm-qr { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.cm-qr svg { inline-size: min(260px, 70vw); block-size: auto; border-radius: 8px; }
+.cm-qr:fullscreen { justify-content: center; }
+.cm-qr:fullscreen svg { inline-size: min(88vw, 88vh); }
+.cm-qr:fullscreen button { display: none; }
 .cm-progress { display: block; block-size: 8px; border-radius: 99px; background: #dfe7f0; overflow: hidden; margin-block: 6px 4px; max-inline-size: 420px; }
 .cm-progress span { display: block; block-size: 100%; background: var(--green); border-radius: inherit; transition: inline-size .3s; }
 .cm-message { margin: 0; padding: 10px 14px; border-radius: 10px; background: #e9f3ea; border: 1px solid #b7d3bb; color: #1f4d2a; font-size: .92rem; }
