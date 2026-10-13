@@ -9,7 +9,7 @@ import { CreateGroup } from './group-form';
 import { Discover } from './discover';
 import { Feed } from './feed';
 import { Composer } from './composer';
-import { PersonView, UpdatesView } from './person-view';
+import { PersonView, UpdatesView, type ProfileView } from './person-view';
 import { StoriesBar } from './stories';
 import { roleLabels, statusLabels, templateLabels, type Home, type SpaceSummary } from '@/lib/community';
 import type { AgendaAssignment, AgendaLink } from '@/lib/assignment-agenda';
@@ -17,7 +17,7 @@ import type { Workspace } from '@/lib/workspace';
 
 export type CommunityTab = 'feed' | 'mine' | 'discover';
 export type CommunityRoute = { kind: 'list'; tab?: CommunityTab } | { kind: 'space'; id: string } | { kind: 'work'; id: string; from?: string }
-  | { kind: 'create'; parent?: { id: string; name: string } } | { kind: 'profile' } | { kind: 'person'; id: string; post?: string }
+  | { kind: 'create'; parent?: { id: string; name: string } } | { kind: 'profile' } | ({ kind: 'person'; id: string } & ProfileView)
   | { kind: 'updates' } | { kind: 'compose'; space?: { id: string; name: string }; story?: boolean };
 
 /** Cada passo dentro do Networking vira uma entrada do histórico: o Voltar (do app ou do celular) desfaz um passo.
@@ -40,8 +40,8 @@ export function CommunityPanel({ home, workspace, route, onRoute, onBack, onOpen
     onOpenSpace={id => onRoute({ kind: 'space', id })} onOpenWork={id => onRoute({ kind: 'work', id, from: route.id })}
     onCreateGroup={parent => onRoute({ kind: 'create', parent })} onCompose={space => onRoute({ kind: 'compose', space })}
     onOpenPerson={id => onRoute({ kind: 'person', id })} />;
-  if (route.kind === 'person') return <PersonView key={route.id} id={route.id} me={me} post={route.post} onChanged={refreshHome}
-    onOpenPerson={id => onRoute({ kind: 'person', id })} onOpenPost={post => onRoute({ kind: 'person', id: route.id, post })}
+  if (route.kind === 'person') return <PersonView key={route.id} id={route.id} me={me} post={route.post} tab={route.tab} as={route.as} onChanged={refreshHome}
+    onOpenPerson={id => onRoute({ kind: 'person', id })} onView={(next, replace) => onRoute({ kind: 'person', id: route.id, ...next }, replace)} onBack={onBack}
     onEditProfile={() => onRoute({ kind: 'profile' })} onNewStory={() => onRoute({ kind: 'compose', story: true })} onOpenSettings={onOpenSettings} />;
   if (route.kind === 'updates') return <UpdatesView onChanged={refreshHome}
     onOpenPerson={id => onRoute({ kind: 'person', id })} onOpenSpace={id => onRoute({ kind: 'space', id })} />;

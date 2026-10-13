@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Globe2, Heart, LockKeyhole, ThumbsUp, Trash2, Users } from 'lucide-react';
+import { Bookmark, Globe2, Heart, LockKeyhole, ThumbsUp, Trash2, Users } from 'lucide-react';
 import { api, formatDay } from './client';
 import { PersonAvatar } from './avatar';
 import { audienceLabels, type NetworkPost, type Photo, type Reaction } from '@/lib/network';
@@ -10,21 +10,23 @@ const query = (source: FeedSource) => 'topic' in source ? `topic=${encodeURIComp
   : source.feed === 'space' ? `feed=space&id=${source.id}` : `feed=${source.feed}`;
 const audienceIcon = { public: Globe2, followers: Users, group: Users, private: LockKeyhole } as const;
 
-/** Fotos da publicação: uma ocupa a largura; várias deslizam para o lado. A foto só sai do servidor para quem pode ver. */
+/** Fotos da publicação: uma ocupa a largura; várias deslizam para o lado. A foto só sai do servidor para quem pode ver.
+ * A descrição escrita por quem publicou vale para o leitor de tela; sem ela, diz de quem é a foto. */
 export function PostPhotos({ photos, author }: { photos: Photo[]; author: string }) {
   const image = (photo: Photo, index: number) => <img key={photo.id} className="nw-photo" src={`/api/network/photo/${photo.id}`} loading="lazy" decoding="async"
     width={photo.w} height={photo.h} style={{ aspectRatio: `${photo.w} / ${photo.h}` }}
-    alt={photos.length > 1 ? `Foto ${index + 1} de ${photos.length} de ${author}` : `Foto de ${author}`} />;
+    alt={photo.alt || (photos.length > 1 ? `Foto ${index + 1} de ${photos.length} de ${author}` : `Foto de ${author}`)} />;
   if (photos.length === 1) return image(photos[0], 0);
   return <div className="nw-photos" role="group" aria-label={`${photos.length} fotos, deslize para ver`} tabIndex={0}>{photos.map(image)}</div>;
 }
 
-/** Uma publicação: texto, card ou fotos, Gostei e Útil. Quem escreveu (ou quem cuida do grupo) pode apagar. */
+/** Uma publicação: texto, card ou fotos, Gostei, Útil e Salvar. Quem escreveu (ou quem cuida do grupo) pode apagar. */
 export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
   post: NetworkPost; me: string; canManage?: boolean; onOpenPerson: (id: string) => void; onRemoved: (id: string) => void;
 }) {
   const [counts, setCounts] = useState(post.counts);
   const [mine, setMine] = useState(post.mine);
+  const [saved, setSaved] = useState(!!post.saved);
   const [message, setMessage] = useState('');
   const Icon = audienceIcon[post.audience];
   async function react(kind: Reaction) {
@@ -36,6 +38,12 @@ export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
       setMine(post.mine); setCounts(post.counts);
       setMessage(reason instanceof Error ? reason.message : 'Não foi possível marcar.');
     }
+  }
+  // Salvos ficam só para você: quem publicou não fica sabendo.
+  async function save() {
+    setSaved(!saved);
+    try { setSaved(await api<boolean>('/api/network', { action: 'save', post: post.id })); }
+    catch (reason) { setSaved(saved); setMessage(reason instanceof Error ? reason.message : 'Não foi possível salvar.'); }
   }
   async function remove() {
     if (!window.confirm('Apagar esta publicação?')) return;
@@ -55,6 +63,7 @@ export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
     <div className="nw-post-actions">
       <button type="button" className="nw-react" aria-pressed={mine.includes('gostei')} onClick={() => react('gostei')}><Heart size={17} aria-hidden="true" />Gostei{counts.gostei ? ` · ${counts.gostei}` : ''}</button>
       <button type="button" className="nw-react util" aria-pressed={mine.includes('util')} onClick={() => react('util')}><ThumbsUp size={17} aria-hidden="true" />Útil{counts.util ? ` · ${counts.util}` : ''}</button>
+      <button type="button" className="nw-react save" aria-pressed={saved} onClick={save}><Bookmark size={17} aria-hidden="true" />{saved ? 'Salvo' : 'Salvar'}</button>
     </div>
     {message && <p className="cm-message" role="alert">{message}</p>}
   </article>;

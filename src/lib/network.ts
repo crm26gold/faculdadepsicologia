@@ -14,17 +14,18 @@ export const audienceLabels: Record<Audience, string> = { followers: 'Seguidores
 export type Reaction = 'gostei' | 'util';
 
 export type Person = { id: string; name: string; avatar: Avatar | null; bio?: string };
-export type Photo = { id: string; w: number; h: number };
+export type Photo = { id: string; w: number; h: number; alt?: string };
 export type NetworkPost = {
   id: string; author: Person; body: string; style: PostStyle; audience: Audience; topics: string[]; created_at: string;
   space: { id: string; name: string } | null; counts: Record<Reaction, number>; mine: Reaction[];
-  photos: Photo[]; expires_at: string | null;
+  photos: Photo[]; expires_at: string | null; highlight?: string | null; saved?: boolean; saved_at?: string;
 };
+export type Highlight = { title: string; stories: NetworkPost[] };
 export type StoryGroup = { author: Person; stories: NetworkPost[] };
 export type PersonProfile = Person & {
   bio: string; closed: boolean; is_me: boolean; discoverable: boolean | null; show_follows: boolean;
   status: 'none' | 'requested' | 'following'; follows_me: boolean; requested_me: boolean;
-  followers: number; following: number; posts: NetworkPost[];
+  followers: number; following: number; posts: NetworkPost[]; highlights?: Highlight[]; photo_large?: string | null;
 };
 export type NetworkEvent = {
   id: number; kind: 'follow' | 'follow_request' | 'follow_accepted' | Reaction | 'join_request' | 'join_approved';
@@ -46,7 +47,8 @@ export function photoOk(data: string, mime: string) {
   return mime === 'image/jpeg' ? head.startsWith('\xff\xd8\xff') : mime === 'image/webp' && head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP';
 }
 const side = z.number().int().min(1).max(4096);
-const photo = z.object({ data: z.string().max(PHOTO_LIMIT / 3 * 4 + 4), mime: z.enum(photoTypes), width: side, height: side })
+const photo = z.object({ data: z.string().max(PHOTO_LIMIT / 3 * 4 + 4), mime: z.enum(photoTypes), width: side, height: side,
+  alt: z.string().trim().max(300, 'A descrição da foto vai até 300 letras.').default('') })
   .refine(value => photoOk(value.data, value.mime), 'Use uma foto JPG ou WebP de até 300 KB.');
 
 const id = z.uuid();
@@ -59,6 +61,8 @@ export const networkAction = z.discriminatedUnion('action', [
     .refine(value => !value.story || (value.photos.length <= 1 && value.audience !== 'private'), 'O story leva uma foto e não pode ser só para você.'),
   z.object({ action: z.literal('delete_post'), post: id }),
   z.object({ action: z.literal('react'), post: id, kind: z.enum(['gostei', 'util']) }),
+  z.object({ action: z.literal('save'), post: id }),
+  z.object({ action: z.literal('keep_story'), post: id, title: z.string().trim().max(30, 'O título do destaque vai até 30 letras.') }),
   z.object({ action: z.literal('follow'), person: id }),
   z.object({ action: z.literal('unfollow'), person: id }),
   z.object({ action: z.literal('answer_follow'), person: id, accept: z.boolean() }),
@@ -75,6 +79,8 @@ export function networkCall(body: NetworkAction): DbCall {
       post_photos: body.photos, is_story: body.story } };
     case 'delete_post': return { fn: 'delete_network_post', args: { target: body.post } };
     case 'react': return { fn: 'toggle_reaction', args: { target: body.post, reaction: body.kind } };
+    case 'save': return { fn: 'toggle_save', args: { target: body.post } };
+    case 'keep_story': return { fn: 'keep_story', args: { target: body.post, title: body.title } };
     case 'follow': return { fn: 'follow_person', args: { target: body.person } };
     case 'unfollow': return { fn: 'unfollow_person', args: { target: body.person } };
     case 'answer_follow': return { fn: 'answer_follow', args: { follower: body.person, accept: body.accept } };
@@ -83,7 +89,7 @@ export function networkCall(body: NetworkAction): DbCall {
   }
 }
 
-/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações e listas. Null quando o pedido não faz sentido. */
+/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos e listas. Null quando o pedido não faz sentido. */
 export function networkRead(params: URLSearchParams): DbCall | null {
   const uuid = (value: string | null) => id.safeParse(value).success ? value : null;
   const raw = params.get('before');
@@ -97,6 +103,7 @@ export function networkRead(params: URLSearchParams): DbCall | null {
   if (params.has('people')) { const term = params.get('people') ?? ''; return term.length <= 60 ? { fn: 'search_people', args: { term } } : null; }
   if (params.has('topic')) { const tag = normalizeTopics(params.get('topic') ?? '')[0]; return tag ? { fn: 'topic_posts', args: { tag, before } } : null; }
   if (params.get('updates') === '1') return { fn: 'network_updates', args: {} };
+  if (params.get('saved') === '1') return { fn: 'saved_feed', args: { before } };
   if (params.has('follows')) {
     const target = uuid(params.get('follows')), which = params.get('list');
     return target && (which === 'followers' || which === 'following') ? { fn: 'follow_list', args: { target, which } } : null;

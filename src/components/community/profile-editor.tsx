@@ -17,6 +17,7 @@ export function ProfileEditor({ name: initialName, profile, personalPhoto, first
   const [kind, setKind] = useState<AvatarKind>(profile?.kind ?? 'initials');
   const [value, setValue] = useState(profile?.value || animals[0]);
   const [photo, setPhoto] = useState(profile?.photo ?? '');
+  const [large, setLarge] = useState<string | null>(null);
   const [bio, setBio] = useState(profile?.bio ?? '');
   const [closed, setClosed] = useState(profile?.closed ?? true);
   const [discoverable, setDiscoverable] = useState(profile?.discoverable ?? false);
@@ -35,14 +36,16 @@ export function ProfileEditor({ name: initialName, profile, personalPhoto, first
     setMessage('');
     const thumb = await avatarThumbnail(file);
     if (!thumb) { setMessage('Não consegui usar esta imagem. Tente uma foto JPG, PNG ou WebP.'); return; }
-    setPhoto(thumb); setKind('photo');
+    // A miniatura vai para listas e cards; a de 256 px só para o perfil aberto, nítida no tamanho grande.
+    setPhoto(thumb); setLarge(await avatarThumbnail(file, { side: 256, limit: 48000 })); setKind('photo');
   }
   async function save() {
     if (!name.trim()) { setMessage('Escreva seu nome.'); return; }
     if (kind === 'photo' && !photo) { setMessage('Escolha uma foto ou outro avatar.'); return; }
     setBusy(true); setMessage('');
     try {
-      await api('/api/me', { action: 'save_profile', name: name.trim(), kind, value: kind === 'animal' || kind === 'symbol' ? value : '', photo: kind === 'photo' ? photo : null, bio: bio.trim() });
+      await api('/api/me', { action: 'save_profile', name: name.trim(), kind, value: kind === 'animal' || kind === 'symbol' ? value : '', photo: kind === 'photo' ? photo : null,
+        photo_large: kind === 'photo' ? large : null, bio: bio.trim() });
       await api('/api/me', { action: 'save_privacy', closed, discoverable, show_follows: showFollows });
       onSaved();
     } catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Não foi possível salvar.'); }

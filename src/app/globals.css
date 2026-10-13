@@ -977,6 +977,8 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .nw-react { display: inline-flex; align-items: center; gap: 6px; min-block-size: 40px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-weight: 600; font-size: .86rem; }
 .nw-react[aria-pressed="true"] { border-color: var(--danger-text); color: var(--danger-text); background: var(--danger-bg); }
 .nw-react.util[aria-pressed="true"] { border-color: var(--ok-text); color: var(--ok-text); background: var(--ok-bg); }
+.nw-react.save { margin-inline-start: auto; }
+.nw-react.save[aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); background: var(--blue); }
 .nw-person { display: flex; flex-direction: column; gap: 8px; }
 .nw-person h2 { margin: 4px 0 0; font-size: 1.2rem; display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
 .nw-person p { margin: 0; }
@@ -997,10 +999,12 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .nw-photo { display: block; inline-size: 100%; block-size: auto; max-block-size: 75vh; object-fit: cover; border-radius: 14px; background: var(--sage); }
 .nw-photos { display: flex; gap: 8px; overflow-x: auto; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; border-radius: 14px; }
 .nw-photos .nw-photo { flex: 0 0 88%; scroll-snap-align: center; }
-.nw-picked { list-style: none; margin: 0; padding: 8px 8px 0 0; display: flex; flex-wrap: wrap; gap: 12px; }
-.nw-picked li { position: relative; }
-.nw-picked img { display: block; inline-size: 88px; block-size: 88px; object-fit: cover; border-radius: 10px; }
-.nw-picked .icon-button { position: absolute; inset-block-start: -10px; inset-inline-end: -10px; inline-size: 32px; block-size: 32px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); }
+.nw-picked { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.nw-picked li { display: flex; align-items: center; gap: 10px; }
+.nw-picked img { display: block; flex: 0 0 auto; inline-size: 64px; block-size: 64px; object-fit: cover; border-radius: 10px; }
+.nw-picked label { flex: 1; min-inline-size: 0; display: grid; gap: 4px; font-size: .8rem; color: var(--muted); }
+.nw-picked input { inline-size: 100%; }
+.nw-picked .icon-button { flex: 0 0 auto; inline-size: 40px; block-size: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); }
 .nw-stories { list-style: none; margin: 0; padding: 4px 2px 2px; display: flex; gap: 10px; overflow-x: auto; }
 .nw-stories li { position: relative; flex: 0 0 auto; }
 .nw-story-bubble { display: flex; flex-direction: column; align-items: center; gap: 4px; inline-size: 74px; padding: 0; }
@@ -1032,6 +1036,9 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .nw-story-nav.prev { inset-inline-start: 0; justify-content: flex-start; }
 .nw-story-nav.next { inset-inline-end: 0; justify-content: flex-end; }
 .nw-story-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nw-story-keep { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; inline-size: 100%; }
+.nw-story-keep label { flex-basis: 100%; font-size: .85rem; }
+.nw-story-keep input { flex: 1 1 160px; min-block-size: 44px; }
 @media (prefers-reduced-motion: reduce) { .nw-story-progress i.now { animation: none; inline-size: 50%; } }
 /* Perfil no jeito do Instagram, barra de cima e novidades (entrega 1 da reorganização). */
 .button.soft { background: var(--sage); color: var(--ink); border: 1px solid transparent; }
@@ -1059,6 +1066,19 @@ button.nw-story-ring { background: transparent; cursor: pointer; }
 .nw-tile.photo img { inline-size: 100%; block-size: 100%; object-fit: cover; }
 .nw-tile-many { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; color: hsl(0 0% 100%); filter: drop-shadow(0 0 2px hsl(0 0% 0% / .6)); }
 .nw-anchor { scroll-margin-top: 84px; }
+/* Entrega 2: destaques, Salvos e ver como visitante. */
+.nw-highlights { padding-inline: 4px; }
+.nw-highlight-cover { display: grid; place-items: center; inline-size: 56px; block-size: 56px; border-radius: 50%; object-fit: cover; font-family: var(--serif); font-size: 1.3rem; font-weight: 700; background: var(--sage); color: var(--ink); }
+.nw-highlight-cover.card_blue { background: var(--green); color: var(--surface); } .nw-highlight-cover.card_sand { background: var(--sand); }
+.nw-highlight-cover.card_lavender { background: var(--lavender); } .nw-highlight-cover.card_rose { background: var(--rose); } .nw-highlight-cover.card_green { background: var(--ok-bg); }
+.nw-profile-tabs { display: flex; margin-block-start: 4px; border-block-end: 1px solid var(--line); }
+.nw-profile-tabs button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-block-size: 44px; border: 0; border-block-end: 2px solid transparent; background: transparent; color: var(--muted); font-weight: 600; font-size: .92rem; }
+.nw-profile-tabs button[aria-pressed="true"] { color: var(--ink); border-block-end-color: var(--ink); }
+.nw-saved-note { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.nw-visitor-open { align-self: flex-start; color: var(--accent-text); min-block-size: 40px; }
+.nw-visitor-bar { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border-radius: 14px; background: var(--blue); color: var(--ink); }
+.nw-visitor-bar p { display: inline-flex; align-items: center; gap: 8px; margin: 0; font-weight: 600; }
+.nw-visitor-bar .button { align-self: flex-start; }
 .topbar-bell { position: relative; }
 .topbar-count { position: absolute; inset-block-start: 2px; inset-inline-end: 0; min-inline-size: 18px; block-size: 18px; padding: 0 5px; border-radius: 999px; background: var(--danger-text); color: var(--surface); font-size: .68rem; font-weight: 700; line-height: 18px; text-align: center; }
 .workspace-shell .topbar .avatar { position: relative; overflow: visible; }

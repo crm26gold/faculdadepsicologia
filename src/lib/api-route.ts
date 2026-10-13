@@ -25,6 +25,7 @@ const messages: Record<string, [number, string]> = {
   '40001': [409, 'Outra pessoa alterou isto agora. Recarregue e tente de novo.'],
   PT409: [409, 'Outra sessão alterou isto agora. Recarregue e tente de novo.'],
   PT429: [429, 'Você chegou ao limite de hoje. Tente de novo amanhã.'],
+  PT430: [429, 'Você já tem 500 publicações salvas. Tire algumas dos Salvos para guardar novas.'],
   PT413: [413, 'Você chegou ao limite de fotos guardadas. Apague publicações antigas com foto para liberar espaço.'],
   PT507: [507, 'O espaço de fotos do app encheu. Avise quem cuida do app; textos e cards continuam funcionando.'],
 };

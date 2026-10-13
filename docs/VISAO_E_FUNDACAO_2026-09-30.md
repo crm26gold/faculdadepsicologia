@@ -260,3 +260,4 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
 - **QR do perfil:** anotado para depois; no piloto as pessoas se conhecem e se acham pelos grupos.
 - **Limites pensando no plano pago:** foto nítida sem ultra resolução (até 1440 px e 300 KB, faixa do Instagram), vídeo só por link. Os limites ficam ajustáveis num lugar só, para subir quando o Supabase e a Vercel forem para o Pro. O piloto roda grátis com pessoas próximas antes da venda.
 - **Protótipo aprovado:** https://claude.ai/artifact/NXnz7nXAGvdoGpHjfYYUCm
+- **Entrega 2 (feita):** Salvos (aba no perfil, só a pessoa vê), Destaques (story guardado no perfil com título), descrição da foto, "Ver como visitante", avatar de 256 px só no perfil aberto e os limites em `platform_settings`. Para subir um limite no plano pago: `update public.platform_settings set posts_per_day = 60, photo_mb_per_person = 100, photo_mb_total = 5000;` no SQL do Supabase.

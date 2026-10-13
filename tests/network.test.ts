@@ -47,7 +47,7 @@ test('rede: só passa foto JPEG ou WebP de verdade, até 300 KB e até 4 por pub
   assert.equal(photoOk('não é base64!', 'image/jpeg'), false);
   const post = networkAction.parse({ action: 'create_post', body: '', style: 'card_rose', photos: [photo()] });
   assert.deepEqual(networkCall(post).args, { post_body: '', post_style: 'text', post_audience: 'followers', post_space: null, post_topics: [],
-    post_photos: [photo()], is_story: false }, 'com foto, a legenda é opcional e o card vira texto');
+    post_photos: [{ ...photo(), alt: '' }], is_story: false }, 'com foto, a legenda é opcional e o card vira texto');
   assert.equal(networkAction.safeParse({ action: 'create_post', body: 'x', photos: Array(5).fill(photo()) }).success, false, 'cinco fotos');
   assert.equal(networkAction.safeParse({ action: 'create_post', body: 'x', photos: [{ ...photo(), mime: 'image/png' }] }).success, false, 'PNG chega convertido');
   assert.equal(networkAction.safeParse({ action: 'create_post', body: 'x', photos: [{ ...photo(), width: 0 }] }).success, false, 'tamanho inválido');
@@ -61,4 +61,18 @@ test('rede: story leva uma foto ou um card e nunca é só para mim', () => {
   assert.deepEqual(read('stories=following'), { fn: 'network_stories', args: { feed: 'following' } });
   assert.deepEqual(read('stories=groups'), { fn: 'network_stories', args: { feed: 'groups' } });
   assert.equal(read('stories=todos'), null);
+});
+
+test('rede: Salvos, destaques e descrição da foto', () => {
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'save', post: person })), { fn: 'toggle_save', args: { target: person } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'keep_story', post: person, title: '  Estágio ' })), { fn: 'keep_story', args: { target: person, title: 'Estágio' } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'keep_story', post: person, title: '' })).args, { target: person, title: '' }, 'título vazio tira do perfil');
+  assert.equal(networkAction.safeParse({ action: 'keep_story', post: person, title: 'a'.repeat(31) }).success, false, 'título longo');
+  assert.equal(networkAction.safeParse({ action: 'save', post: 'x' }).success, false);
+  const post = networkAction.parse({ action: 'create_post', body: '', photos: [{ ...photo(), alt: '  Mapa mental do capítulo 3 ' }] });
+  assert.equal((networkCall(post).args.post_photos as { alt: string }[])[0].alt, 'Mapa mental do capítulo 3');
+  assert.equal(networkAction.safeParse({ action: 'create_post', body: '', photos: [{ ...photo(), alt: 'a'.repeat(301) }] }).success, false, 'descrição longa');
+  const read = (query: string) => networkRead(new URLSearchParams(query));
+  assert.deepEqual(read('saved=1'), { fn: 'saved_feed', args: { before: null } });
+  assert.deepEqual(read('saved=1&before=2026-10-13T10:00:00Z'), { fn: 'saved_feed', args: { before: '2026-10-13T10:00:00Z' } });
 });

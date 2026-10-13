@@ -264,7 +264,7 @@ test('Networking: perfil primeiro, criar grupo do jeito da pessoa e entrar pela 
   await editor.getByRole('button', { name: '🦉' }).click();
   await editor.getByLabel('Sobre você · opcional').fill('Psicologia e corrida');
   await editor.getByRole('button', { name: 'Continuar' }).click();
-  await expect.poll(() => posted.find(item => item.body.action === 'save_profile')?.body).toEqual({ action: 'save_profile', name: 'Pessoa Teste', kind: 'animal', value: '🦉', photo: null, bio: 'Psicologia e corrida' });
+  await expect.poll(() => posted.find(item => item.body.action === 'save_profile')?.body).toEqual({ action: 'save_profile', name: 'Pessoa Teste', kind: 'animal', value: '🦉', photo: null, photo_large: null, bio: 'Psicologia e corrida' });
 
   await page.getByRole('button', { name: 'Criar grupo' }).first().click();
   const form = page.getByRole('region', { name: 'Criar grupo' });
@@ -412,7 +412,8 @@ test('Networking: fotos no feed, stories de 24 horas e publicar com foto reduzid
   await page.getByRole('button', { name: 'Publicar', exact: true }).click();
   const composer = page.getByRole('region', { name: 'Publicar' });
   await composer.locator('input[type=file]').setInputFiles({ name: 'quadro.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(big, 'base64') });
-  await expect(composer.getByRole('img', { name: 'Foto 1' })).toBeVisible();
+  // A descrição da foto é opcional e vai para quem usa leitor de tela.
+  await composer.getByLabel(/Descrição da foto 1/).fill('  Quadro com o mapa da aula ');
   await expect(composer.getByRole('group', { name: 'Jeito' })).toHaveCount(0);
   await composer.getByLabel(/O que você quer compartilhar/).fill('Quadro da aula de hoje');
   await page.screenshot({ path: 'test-results/networking-publicar-foto-mobile-dark.png', fullPage: true });
@@ -421,8 +422,9 @@ test('Networking: fotos no feed, stories de 24 horas e publicar com foto reduzid
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await composer.getByRole('button', { name: 'Publicar' }).click();
   await expect.poll(() => posted.some(item => item.body.action === 'create_post')).toBe(true);
-  const sent = posted.find(item => item.body.action === 'create_post')!.body as { photos: { data: string; mime: string; width: number; height: number }[]; story: boolean; style: string };
+  const sent = posted.find(item => item.body.action === 'create_post')!.body as { photos: { data: string; mime: string; width: number; height: number; alt: string }[]; story: boolean; style: string };
   expect(sent.photos).toHaveLength(1);
+  expect(sent.photos[0].alt).toBe('Quadro com o mapa da aula');
   expect(sent.story).toBe(false);
   expect(sent.style).toBe('text');
   expect(Math.max(sent.photos[0].width, sent.photos[0].height)).toBeLessThanOrEqual(1440);
@@ -510,6 +512,78 @@ test('perfil no jeito do Instagram, Voltar passo a passo, Meu espaço organizado
   await expect(page.getByRole('heading', { name: 'Novidades', level: 2 })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Hoje', level: 3 })).toBeVisible();
   await expect(page.getByText('gostou da sua publicação: “Os três princípios”')).toBeVisible();
+});
+
+test('perfil: destaques, Salvos só para mim, ver como visitante e avatar nítido', async ({ page }) => {
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const small = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const me = { id: ME, name: 'Pessoa Teste', avatar: { kind: 'photo', value: '', photo: small } };
+  const base = { author: me, topics: [], space: null, counts: { gostei: 0, util: 0 }, mine: [], expires_at: null, created_at: '2026-10-13T10:00:00Z', photos: [], style: 'text' };
+  const posts = [
+    { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000d1', audience: 'public', body: 'Para todo mundo' },
+    { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000d2', audience: 'followers', body: 'Para quem me segue' },
+    { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000d3', audience: 'private', body: 'Só eu vejo' },
+    { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000d4', audience: 'group', body: 'Para o grupo', space: { id: 'eeeeeeee-0000-4000-8000-0000000000e1', name: 'Grupo de estudos' } },
+  ];
+  const kept = { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000d5', audience: 'followers', body: 'Primeiro dia de estágio', style: 'card_rose', highlight: 'Estágio',
+    expires_at: new Date(Date.now() - 3_600_000).toISOString() };
+  const savedPost = { ...base, author: ana, id: 'eeeeeeee-0000-4000-8000-0000000000d6', audience: 'public', body: 'Resumo de Ética da Ana', saved: true, saved_at: '2026-10-13T11:00:00Z' };
+  const profile = { ...me, bio: 'Psicologia e corrida', closed: false, is_me: true, discoverable: true, show_follows: false, status: 'none', follows_me: false, requested_me: false,
+    followers: 4, following: 2, posts, highlights: [{ title: 'Estágio', stories: [kept] }], photo_large: `${small}#256` };
+  const posted = await mockApi(page, { home: { ...homeFixture(), profile: { kind: 'photo', value: '', photo: small, bio: '' } },
+    onPost: ({ body }) => body.action === 'save' ? false : null,
+    network: url => url.searchParams.get('person') === ME ? profile : url.searchParams.get('saved') ? [savedPost] : [] });
+  page.on('dialog', dialog => void dialog.accept());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#community');
+  await page.locator('.topbar').getByRole('button', { name: 'Meu perfil' }).click();
+
+  // O perfil aberto usa o avatar de 256 px; listas e cards seguem com a miniatura.
+  await expect(page.locator('.nw-profile-avatar img')).toHaveAttribute('src', `${small}#256`);
+  await expect(page.locator('.nw-grid .nw-tile')).toHaveCount(4);
+
+  // Destaque: o story guardado fica no perfil depois das 24 horas; tirar de lá avisa que ele será apagado.
+  await page.getByRole('list', { name: 'Destaques' }).getByRole('button', { name: 'Destaque Estágio, 1 story' }).click();
+  const viewer = page.getByRole('dialog', { name: 'Story de Pessoa Teste' });
+  await expect(viewer).toContainText('Destaque: Estágio');
+  await viewer.getByRole('button', { name: 'Tirar do perfil' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'keep_story')?.body).toEqual({ action: 'keep_story', post: kept.id, title: '' });
+  await expect(viewer).toHaveCount(0);
+
+  // Salvos: só você vê; tocar abre a lista e o Voltar volta para os Salvos.
+  await page.getByRole('button', { name: 'Salvos' }).click();
+  await expect(page.getByText('Só você vê seus salvos. Quem publicou não fica sabendo.')).toBeVisible();
+  await page.getByRole('button', { name: /Abrir publicação. Resumo de Ética/ }).click();
+  const card = page.getByRole('article', { name: 'Publicação de Colega Ana' });
+  await expect(card.getByRole('button', { name: 'Salvo' })).toHaveAttribute('aria-pressed', 'true');
+  await card.getByRole('button', { name: 'Salvo' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'save')?.body).toEqual({ action: 'save', post: savedPost.id });
+  await expect(card.getByRole('button', { name: 'Salvar' })).toHaveAttribute('aria-pressed', 'false');
+  await page.locator('.topbar').getByRole('button', { name: 'Voltar' }).click();
+  await expect(page.getByRole('button', { name: 'Salvos' })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Publicações' }).click();
+
+  // Ver como visitante: quem não segue vê só o que é para todos; quem segue vê também o dos seguidores.
+  await page.getByRole('button', { name: 'Ver como visitante' }).click();
+  await expect(page.getByText('Assim quem não segue você vê seu perfil.')).toBeVisible();
+  await expect(page.locator('.nw-grid .nw-tile')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Salvos' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Editar perfil' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Quem segue' }).click();
+  await expect(page.locator('.nw-grid .nw-tile')).toHaveCount(2);
+  await expect(page.getByRole('list', { name: 'Destaques' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const audit = await new AxeBuilder({ page }).include('.nw-profile').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await page.screenshot({ path: 'test-results/networking-ver-como-visitante-mobile.png', fullPage: true });
+  // O Voltar sai da visualização e volta para o seu perfil.
+  await page.locator('.topbar').getByRole('button', { name: 'Voltar' }).click();
+  await expect(page.getByRole('button', { name: 'Ver como visitante' })).toBeVisible();
+  await expect(page.locator('.nw-grid .nw-tile')).toHaveCount(4);
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  const darkAudit = await new AxeBuilder({ page }).include('.nw-profile').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(darkAudit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await page.screenshot({ path: 'test-results/networking-perfil-destaques-mobile-dark.png', fullPage: true });
 });
 
 test('foto do perfil grande fica leve sozinha, em vez de ser recusada', async ({ page }) => {

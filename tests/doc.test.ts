@@ -88,6 +88,10 @@ test('perfil do Networking: nome obrigatório, foto só como miniatura em data U
   assert.equal(meAction.safeParse({ action: 'save_profile', name: 'Ana', kind: 'photo' }).success, false, 'foto sem imagem');
   assert.equal(meAction.safeParse({ action: 'save_profile', name: 'Ana', kind: 'photo', photo: 'https://exemplo.invalid/a.png' }).success, false, 'foto externa');
   assert.equal(meAction.safeParse({ action: 'save_profile', name: 'Ana', kind: 'photo', photo: `data:image/webp;base64,${'A'.repeat(16000)}` }).success, false, 'foto pesada');
+  const large = (size: number) => `data:image/webp;base64,${'A'.repeat(size)}`;
+  assert.equal(meAction.safeParse({ action: 'save_profile', name: 'Ana', kind: 'photo', photo: large(8), photo_large: large(40000) }).success, true, 'avatar de 256 px');
+  assert.equal(meAction.safeParse({ action: 'save_profile', name: 'Ana', kind: 'photo', photo: large(8), photo_large: large(48000) }).success, false, 'avatar grande pesado');
+  assert.equal(meAction.safeParse({ action: 'save_profile', name: 'Ana', kind: 'animal', value: '🦉', photo_large: large(8) }).success, false, 'avatar grande sem foto');
 });
 
 test('plano e termos: piloto liberado, Pro com validade e aceite por versão', () => {
