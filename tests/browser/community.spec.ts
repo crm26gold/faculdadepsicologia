@@ -581,6 +581,7 @@ test('perfil: destaques, Salvos só para mim, ver como visitante e avatar nítid
   await expect(page.getByRole('button', { name: 'Ver como visitante' })).toBeVisible();
   await expect(page.locator('.nw-grid .nw-tile')).toHaveCount(4);
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await settleAnimations(page);
   const darkAudit = await new AxeBuilder({ page }).include('.nw-profile').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(darkAudit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
   await page.screenshot({ path: 'test-results/networking-perfil-destaques-mobile-dark.png', fullPage: true });
