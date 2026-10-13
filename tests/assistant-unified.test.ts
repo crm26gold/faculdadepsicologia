@@ -19,7 +19,9 @@ process.env.APP_ORIGIN ??= 'https://jornada.example';
 
 // O caso real de 09/10/2026: a voz ao vivo montou a ação sozinha, sem aviso e com a hora calculada por ela.
 const said = 'Me lembra de tomar água daqui três minutos.';
-const voiceProposal = (today: string): CommandAction => ({ type: 'compromisso', title: 'Tomar água', date: today, time: '12:15' });
+// A hora que o modelo "chutou": 5 horas à frente, para nunca coincidir com agora + 3 minutos (com '12:15' fixo, o teste falhava às 12:12).
+const modelTime = saoPauloMoment(Date.now() + 5 * 3_600_000).time;
+const voiceProposal = (today: string): CommandAction => ({ type: 'compromisso', title: 'Tomar água', date: today, time: modelTime });
 
 test('uma regra só: texto, voz e MCP recebem as mesmas regras de lembrete, categoria e foco', async () => {
   const { mcpInstructions } = await import('../src/lib/mcp/server');
@@ -97,7 +99,7 @@ test('mesma frase, mesmo resultado: texto no app, voz ao vivo e MCP gravam o mes
   const mcp = saved(mcpData as Workspace, 'Tomar água');
   for (const [name, result] of Object.entries({ text, voice, mcp })) {
     assert.deepEqual(result.remind, { minutes: 0, level: 'normal' }, `${name}: com aviso`);
-    assert.notEqual(result.time, '12:15', `${name}: a hora é do servidor, não do modelo`);
+    assert.notEqual(result.time, modelTime, `${name}: a hora é do servidor, não do modelo`);
     assert.ok(Math.abs(minutes(result.time) - minutes(text.time)) <= 1, `${name}: mesma hora`);
     assert.deepEqual({ ...result, time: undefined }, { ...text, time: undefined }, `${name}: mesmo compromisso`);
   }
