@@ -27,7 +27,7 @@ const text = (value: string) => ({ type: 'doc', content: [{ type: 'paragraph', c
 function homeFixture(options: { master?: boolean; consents?: boolean; openAccess?: boolean; profile?: boolean } = {}) {
   return {
     profile: options.profile === false ? null as null | { kind: string; value: string; photo: string | null; bio: string } : { kind: 'initials', value: '', photo: null, bio: '' },
-    join_requests: 0,
+    join_requests: 0, updates: 0,
     account: { user_id: ME, email: 'eu@example.invalid', display_name: 'Pessoa Teste', is_master: !!options.master, plan: 'academic', plan_source: 'free', pro_until: null, ai_credits: 0, features: [], created_at: '2026-09-30T10:00:00Z' },
     settings: { open_access: options.openAccess ?? true },
     consents: options.consents === false ? [] : [{ document: 'terms', version: TERMS }, { document: 'privacy', version: TERMS }],
@@ -86,7 +86,7 @@ const admin = {
 
 type Posted = { url: string; body: Record<string, unknown> };
 // jobs: pedidos do assistente desta conta; elsewhere: conversas fora da primeira página, só abertas pelo id.
-async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown; usage?: unknown; jobs?: AssistantJob[]; elsewhere?: Record<string, unknown>[] } = {}) {
+async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixture>; onPost?: (post: Posted) => unknown; ai?: unknown; usage?: unknown; jobs?: AssistantJob[]; elsewhere?: Record<string, unknown>[]; network?: (url: URL) => unknown } = {}) {
   const posted: Posted[] = [];
   let home = options.home ?? homeFixture();
   const conversations = new Map<string, Record<string, unknown>>();
@@ -133,6 +133,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
     }
     if (url.pathname === '/api/me') return json(route, { ok: true, data: home });
     if (url.pathname === '/api/contacts') return json(route, { ok: true, data: [{ id: 'c1', name: 'Amiga da turma', email: '', phone: '', birthdate: `2000-${spDay().slice(5, 10)}`, notes: '', created_at: '' }] });
+    if (url.pathname === '/api/network') return json(route, { ok: true, data: options.network?.(url) ?? (url.searchParams.get('updates') ? { requests: [], events: [] } : []) });
     if (url.pathname === '/api/spaces' && url.searchParams.has('discover')) return json(route, { ok: true, data: discoverCards.filter(card => !url.searchParams.get('discover') || card.topics.includes(url.searchParams.get('discover')!.replace('#', ''))) });
     if (url.pathname === '/api/spaces') return json(route, { ok: true, data: groupOverview });
     if (url.pathname === '/api/work') return json(route, { ok: true, data: detail });
@@ -304,6 +305,60 @@ test('Networking: perfil primeiro, criar grupo do jeito da pessoa e entrar pela 
   await enter.getByLabel('Senha do grupo').fill('chave123');
   await enter.getByRole('button', { name: 'Entrar' }).click();
   await expect(page.getByRole('heading', { name: 'Ética · Grupo 1', level: 2 })).toBeVisible();
+});
+
+test('Networking: seguir, publicar com público escolhido, Gostei e Útil, e atualizações com contador', async ({ page }) => {
+  const POST1 = 'eeeeeeee-0000-4000-8000-0000000000a1';
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const post = { id: POST1, author: ana, body: 'Resumo de Ética: os três princípios #ética', style: 'card_lavender', audience: 'followers', topics: ['ética'],
+    created_at: '2026-10-13T10:00:00Z', space: null, counts: { gostei: 2, util: 0 }, mine: [] };
+  const posted = await mockApi(page, { home: { ...homeFixture(), updates: 2 }, onPost: ({ body }) => body.action === 'follow' ? 'requested' : body.action === 'react' ? true : null,
+    network: url => url.searchParams.get('feed') === 'following' ? [post]
+      : url.searchParams.get('updates') ? { requests: [ana], events: [{ id: 1, kind: 'gostei', created_at: '2026-10-13T11:00:00Z', read: false, actor: { id: PROF, name: 'Professora Bia', avatar: null }, post: { id: POST1, body: 'Meu resumo' }, space: null }] }
+      : url.searchParams.get('person') ? { ...ana, bio: 'Psicologia', closed: true, is_me: false, discoverable: null, show_follows: false, status: 'none', follows_me: false, requested_me: false, followers: 12, following: 3, posts: [] }
+      : url.searchParams.get('people') ? [{ ...ana, bio: 'Psicologia' }] : [] });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#community');
+  await expect(page.getByRole('navigation', { name: 'Atalhos mobile' }).getByRole('button', { name: /Ir para Networking \(3 novidades\)/ })).toBeVisible();
+
+  await page.getByRole('tab', { name: 'Seguindo' }).click();
+  const card = page.getByRole('article', { name: 'Publicação de Colega Ana' });
+  await expect(card).toContainText('os três princípios');
+  await card.getByRole('button', { name: /Útil/ }).click();
+  await expect(card.getByRole('button', { name: /Útil · 1/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => posted.find(item => item.body.action === 'react')?.body).toEqual({ action: 'react', post: POST1, kind: 'util' });
+
+  await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+  const composer = page.getByRole('region', { name: 'Publicar' });
+  await composer.getByLabel('O que você quer compartilhar?').fill('Mapa mental de #neurociência');
+  await composer.getByRole('button', { name: 'Card lavanda' }).click();
+  await expect(composer.getByLabel('Prévia do card')).toContainText('Mapa mental');
+  await composer.getByLabel(/Todos/).check();
+  await expect(composer.getByText('Seu perfil é fechado: vale só para quem segue você.')).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const audit = await new AxeBuilder({ page }).include('.nw-form').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await composer.getByRole('button', { name: 'Publicar' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'create_post')?.body).toEqual({ action: 'create_post', body: 'Mapa mental de #neurociência', style: 'card_lavender', audience: 'public', space: null });
+
+  await page.getByRole('button', { name: 'Atualizações: 2 novas' }).click();
+  await expect(page.getByRole('heading', { name: 'Atualizações' })).toBeVisible();
+  await expect(page.getByText('gostou da sua publicação: “Meu resumo”')).toBeVisible();
+  await expect.poll(() => posted.some(item => item.body.action === 'mark_read')).toBe(true);
+  await page.getByRole('button', { name: 'Aceitar' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'answer_follow')?.body).toEqual({ action: 'answer_follow', person: COLEGA, accept: true });
+
+  await page.getByRole('button', { name: /Colega Ana/ }).first().click();
+  await expect(page.getByRole('heading', { name: /Colega Ana/ })).toBeVisible();
+  await expect(page.getByText('Perfil fechado: as publicações aparecem quando o pedido para seguir for aceito.')).toBeVisible();
+  await page.getByRole('button', { name: 'Seguir' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'follow')?.body).toEqual({ action: 'follow', person: COLEGA });
+  await expect(page.getByText('Pedido enviado.')).toBeVisible();
+
+  await page.locator('.cm-page').getByRole('button', { name: 'Voltar' }).click();
+  await page.getByRole('tab', { name: 'Descobrir' }).click();
+  await page.getByLabel('Buscar grupos').fill('ana');
+  await expect(page.getByRole('region', { name: 'Pessoas' }).getByText('Colega Ana')).toBeVisible();
 });
 
 test('foto do perfil grande fica leve sozinha, em vez de ser recusada', async ({ page }) => {

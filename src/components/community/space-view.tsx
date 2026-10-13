@@ -7,6 +7,7 @@ import { AssignmentForm } from './assignment-view';
 import { InviteQr } from './invite-qr';
 import { PersonAvatar } from './avatar';
 import { GroupRules } from './group-form';
+import { Feed } from './feed';
 import { kindLabels, postKindLabels, roleLabels, spaceColors, templateLabels, type GroupTool, type Role, type SpaceOverview } from '@/lib/community';
 import type { Workspace } from '@/lib/workspace';
 
@@ -14,9 +15,10 @@ type Tab = 'board' | 'works' | 'groups' | 'people';
 const colorNames: Record<string, string> = { sage: 'Azul claro', lavender: 'Lavanda', sand: 'Areia', blue: 'Azul', rose: 'Rosa' };
 const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
-export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, onChanged, onCreateGroup }: {
+export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, onChanged, onCreateGroup, onCompose, onOpenPerson }: {
   id: string; me: string; workspace: Workspace; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
-  onCreateGroup: (parent: { id: string; name: string }) => void;
+  onCreateGroup: (parent: { id: string; name: string }) => void; onCompose: (space: { id: string; name: string }) => void;
+  onOpenPerson: (id: string) => void;
 }) {
   const [data, setData] = useState<SpaceOverview | null>(null);
   const [error, setError] = useState('');
@@ -53,7 +55,7 @@ export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, 
   const roleOf = (role: Role | 'master') => freeGroup && role === 'student' ? 'Membro' : roleLabels[role];
   const avatar = (person: { user_id: string; display_name: string }) => <PersonAvatar name={person.display_name || '?'} avatar={data.avatars?.[person.user_id]} />;
   const tabs: [Tab, string, number | null][] = [
-    ...(has('mural') || has('enquetes') ? [['board', 'Mural', data.posts.length + data.polls.length] as [Tab, string, number]] : []),
+    ['board', 'Mural', data.posts.length + data.polls.length],
     ...(has('partes') ? [['works', 'Trabalhos', data.assignments.length] as [Tab, string, number]] : []),
     ...(space.kind === 'class' ? [['groups', 'Grupos', data.groups.length] as [Tab, string, number]] : []), ['people', 'Pessoas', direct.length + requests.length]];
   const current = tabs.some(([value]) => value === tab) ? tab : tabs[0][0];
@@ -116,7 +118,10 @@ export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, 
         {post.body && <p className="cm-pre">{post.body}</p>}
         {post.link_url && <a className="cm-link" href={post.link_url} target="_blank" rel="noopener noreferrer"><ExternalLink size={14} aria-hidden="true" />{post.link_url.replace(/^https?:\/\//, '').slice(0, 60)}</a>}
       </article>)}
-      {!data.posts.length && !data.polls.length && <div className="empty-inline"><Megaphone size={22} aria-hidden="true" /><p>Nada no mural ainda.{access.can_lead ? ' Publique avisos, datas, vídeos e materiais para todos.' : ' Avisos e materiais aparecem aqui.'}</p></div>}
+      {(has('mural') || has('enquetes')) && !data.posts.length && !data.polls.length && <div className="empty-inline"><Megaphone size={22} aria-hidden="true" /><p>Nada no mural ainda.{access.can_lead ? ' Publique avisos, datas, vídeos e materiais para todos.' : ' Avisos e materiais aparecem aqui.'}</p></div>}
+      <div className="section-heading"><h3 className="small-heading">Publicações das pessoas</h3>
+        {data.my_role && !space.archived_at && <button className="button outline" onClick={() => onCompose({ id: space.id, name: space.name })}><Plus size={16} aria-hidden="true" />Publicar aqui</button>}</div>
+      <Feed source={{ feed: 'space', id: space.id }} me={me} canManage={access.can_manage} onOpenPerson={onOpenPerson} empty="Ninguém publicou aqui ainda." />
     </div>}
 
     {current === 'works' && <div className="cm-stack">
@@ -154,7 +159,7 @@ export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, 
         <button className="button outline" onClick={() => { setLink(''); setModal('invite'); }}><Link2 size={16} aria-hidden="true" />Link de convite</button>
       </div>}
       <ul className="cm-people">{direct.map(person => <li key={person.user_id}>
-        {avatar(person)}
+        <button type="button" className="nw-person-link" onClick={() => onOpenPerson(person.user_id)} aria-label={`Abrir o perfil de ${person.display_name || 'Sem nome'}`}>{avatar(person)}</button>
         <span className="cm-person"><strong>{person.display_name || 'Sem nome'}{person.user_id === me ? ' (você)' : ''}</strong><small>{roleOf(person.role)}{person.email ? ` · ${person.email}` : ''}</small></span>
         {access.can_manage && person.user_id !== me && person.role !== 'master' && <span className="cm-person-tools">
           <label className="sr-only" htmlFor={`role-${person.user_id}`}>Papel de {person.display_name}</label>

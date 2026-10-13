@@ -18,6 +18,9 @@ export function ProfileEditor({ name: initialName, profile, personalPhoto, first
   const [value, setValue] = useState(profile?.value || animals[0]);
   const [photo, setPhoto] = useState(profile?.photo ?? '');
   const [bio, setBio] = useState(profile?.bio ?? '');
+  const [closed, setClosed] = useState(profile?.closed ?? true);
+  const [discoverable, setDiscoverable] = useState(profile?.discoverable ?? false);
+  const [showFollows, setShowFollows] = useState(profile?.show_follows ?? false);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -40,6 +43,7 @@ export function ProfileEditor({ name: initialName, profile, personalPhoto, first
     setBusy(true); setMessage('');
     try {
       await api('/api/me', { action: 'save_profile', name: name.trim(), kind, value: kind === 'animal' || kind === 'symbol' ? value : '', photo: kind === 'photo' ? photo : null, bio: bio.trim() });
+      await api('/api/me', { action: 'save_privacy', closed, discoverable, show_follows: showFollows });
       onSaved();
     } catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Não foi possível salvar.'); }
     finally { setBusy(false); }
@@ -63,6 +67,12 @@ export function ProfileEditor({ name: initialName, profile, personalPhoto, first
     </fieldset>
     <label htmlFor="nw-bio">Sobre você · opcional</label>
     <textarea id="nw-bio" rows={2} maxLength={300} value={bio} onChange={event => setBio(event.target.value)} placeholder="Ex.: Psicologia na UNIP · corrida e neurociência" />
+    <fieldset className="nw-choice"><legend>Privacidade · você decide</legend>
+      <label className="cm-check"><input type="checkbox" checked={closed} onChange={event => setClosed(event.target.checked)} /> Perfil fechado: quem quiser seguir pede e você aceita</label>
+      <label className="cm-check"><input type="checkbox" checked={discoverable} onChange={event => setDiscoverable(event.target.checked)} /> Aparecer na busca de pessoas</label>
+      <label className="cm-check"><input type="checkbox" checked={showFollows} onChange={event => setShowFollows(event.target.checked)} /> Mostrar quem eu sigo e quem me segue</label>
+      <p className="muted small">Quem divide um grupo com você chega ao seu perfil mesmo fora da busca. Cada publicação tem o público que você escolher.</p>
+    </fieldset>
     {message && <p className="cm-message" role="alert">{message}</p>}
     <div className="form-footer">
       {onCancel && <button type="button" className="button outline" onClick={onCancel}>Cancelar</button>}

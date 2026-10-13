@@ -47,7 +47,7 @@ export type Visibility = typeof visibilities[number];
 export const avatarKinds = ['initials', 'animal', 'symbol', 'photo'] as const;
 export type AvatarKind = typeof avatarKinds[number];
 export type Avatar = { kind: AvatarKind; value: string; photo: string | null };
-export type MyProfile = Avatar & { bio: string };
+export type MyProfile = Avatar & { bio: string; closed?: boolean; discoverable?: boolean; show_follows?: boolean };
 /** "#Saúde #Corrida, leitura" → ['saúde', 'corrida', 'leitura']: uma palavra por tema, minúsculas, sem repetir, até 5. */
 export function normalizeTopics(raw: string) {
   const topics = raw.split(/[,#\s]+/).map(value => value.toLowerCase().replace(/[^a-z0-9_áàâãéêíóôõúüç]/g, '').slice(0, 30)).filter(value => value.length >= 2);
@@ -68,7 +68,7 @@ export type SpaceSummary = {
 export type Home = {
   account: Account; settings: { open_access: boolean };
   consents: { document: 'terms' | 'privacy'; version: string }[];
-  profile?: MyProfile | null; join_requests?: number;
+  profile?: MyProfile | null; join_requests?: number; updates?: number;
   spaces: SpaceSummary[];
   my_parts: { id: string; title: string; status: PartStatus; assignment_id: string; assignment_title: string; due_date: string | null; space_id: string }[];
   to_review: { id: string; title: string; assignment_id: string; assignment_title: string; space_id: string; submitted_at: string }[];
@@ -147,6 +147,7 @@ export const meAction = z.discriminatedUnion('action', [
     photo: z.string().max(16000).regex(/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/).nullable().default(null),
     bio: text(300).default(''),
   }).refine(value => (value.kind === 'photo') === Boolean(value.photo), 'Escolha uma foto ou outro avatar.'),
+  z.object({ action: z.literal('save_privacy'), closed: z.boolean(), discoverable: z.boolean(), show_follows: z.boolean() }),
 ]);
 
 const password = z.string().max(72).refine(value => !value || value.length >= 4, 'A senha precisa ter pelo menos 4 caracteres.');
