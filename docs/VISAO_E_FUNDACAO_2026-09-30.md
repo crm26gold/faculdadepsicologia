@@ -204,7 +204,13 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - em "Meus grupos", os stories e as publicações de todos os grupos dela, e embaixo a lista dos grupos.
   - Stories somem em 24 horas junto com as fotos, o que poupa espaço.
 - **Desafios com competição saudável:**
-  - O desafio é uma ferramenta da Caixa que qualquer grupo pode rodar, de três tipos: diário, por meta (somar km, páginas, minutos) ou por sequência.
+  - O desafio é uma ferramenta da Caixa, usada num grupo ou fora dele.
+  - **Para quem é:**
+    - **do grupo:** o grupo vence junto; cada pessoa escolhe participar ou sair;
+    - **pessoal que o grupo acompanha:** é da pessoa; o grupo vê e dá força;
+    - **só para mim:** ninguém vê, e as medalhas ficam guardadas com a pessoa.
+  - **Quem muda as regras:** só quem criou o desafio (ou os moderadores, no do grupo). Quem participa ou entra junto segue as regras como estão.
+  - **Tipos, quanto mais personalizável melhor:** feito ou não, quantidade (páginas, km, copos de água), tempo (pode vir do Foco), etapas, evitar algo (dias seguidos sem), estudo (flashcards ou quiz) e foto leve. Quem cria também escolhe a duração, os dias de descanso, como confirmar (automático, eu marco, foto, um colega confirma) e quem vê.
   - **Check-in automático:** pode vir da vida pessoal (Foco, hábito, flashcards). Para o grupo vai só o "fez", nunca os detalhes.
   - **No feed:** entram os marcos (7, 15, 30 dias, desafio concluído), não todo check-in, com o botão "Dar força". A pessoa escolhe se as conquistas aparecem para os seguidores.
   - **Competição:**
@@ -213,8 +219,17 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
     - placar de pessoas só com quem quiser aparecer, contando constância, nunca peso ou medida;
     - vida extra de 1 dia por semana.
   - **Toque gentil** em quem ainda não fez, uma vez por dia e sem dizer quem foi.
-  - **Medalhas no perfil.**
   - **Depois:** desafio entre grupos ou salas.
+- **Interações, poucas por vez para não poluir:**
+  - "Gostei" existe em tudo.
+  - Em desafio e conquista: "Dar força" e "Me inspirei". "Me inspirei" começa algo parecido no perfil de quem tocou e avisa a pessoa que ela inspirou alguém.
+  - Em post de conhecimento: "Útil" e "Salvar no meu baralho" (flashcards).
+  - No desafio pessoal de outra pessoa: "Entrar junto" (segue as regras dela) e "Me inspirei" (cria o próprio).
+  - Dentro do desafio do grupo: "Dar um toque".
+- **Medalhas e conquistas no perfil:**
+  - Medalha vem de desafio concluído. A IA desenha cada uma a partir do nome e do tipo; o desenho é gerado na hora e não ocupa espaço.
+  - Conquista é marco da jornada: horas de foco, primeiro grupo criado, pessoas inspiradas.
+  - Cada medalha e cada conquista tem seu público: Público, Seguidores ou Só eu. "Ver como visitante" mostra o que os outros enxergam; o que é "Só eu" não aparece nem na contagem.
 - **Perfil primeiro:** antes de criar um grupo ou usar o Networking, um passo rápido pede o nome (obrigatório) e uma foto ou avatar (bichinho, iniciais ou símbolo). O resto é opcional.
 - **Conteúdo:**
   - Imagens servem para ilustrar o conhecimento; foto pessoal é permitida.
