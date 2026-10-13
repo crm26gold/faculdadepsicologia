@@ -9,10 +9,10 @@ import type { StoryGroup } from '@/lib/network';
 const SEEN_KEY = 'jornada-plena:stories-seen';
 const STORY_MS = 6000;
 // Os stories já vistos ficam só neste aparelho: o app não registra quem viu o quê.
-function readSeen(): Set<string> {
+export function readSeen(): Set<string> {
   try { return new Set(JSON.parse(localStorage.getItem(SEEN_KEY) ?? '[]') as string[]); } catch { return new Set(); }
 }
-function markSeen(id: string) {
+export function markSeen(id: string) {
   const seen = readSeen();
   if (seen.has(id)) return;
   try { localStorage.setItem(SEEN_KEY, JSON.stringify([...seen, id].slice(-300))); } catch { /* sem armazenamento */ }
@@ -50,7 +50,7 @@ export function StoriesBar({ feed, me, myName, myAvatar, onCompose }: {
 }
 
 /** Tela cheia: avança sozinho a cada 6 segundos, com pausa, setas e teclado. */
-function StoryViewer({ groups, start, me, onSeen, onRemoved, onClose }: {
+export function StoryViewer({ groups, start, me, onSeen, onRemoved, onClose }: {
   groups: StoryGroup[]; start: number; me: string; onSeen: (id: string) => void; onRemoved: () => void; onClose: () => void;
 }) {
   const [place, setPlace] = useState({ group: start, story: 0 });

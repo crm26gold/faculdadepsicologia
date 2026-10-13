@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, BookOpen, Cake, CalendarDays, Check, CheckCheck, ChevronRight, CircleHelp, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, Users, Wallet, X } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Bell, BookOpen, Heart, Cake, CalendarDays, Check, CheckCheck, ChevronRight, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, UserRound, Users, Wallet, X } from 'lucide-react';
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Course, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { activeCourses, capitalize, courseKindLabels, courseOf, courseStatusLabels, courseUnits, ensureCourses, subjectsOfCourse, unitCount, unitPresets } from '@/lib/courses';
 import { calendarEntries, weekdays } from '@/lib/academic';
@@ -38,6 +38,9 @@ import { WhatsAppMyLink } from './whatsapp-my-link';
 import { OAUTH_RETURN_KEY } from './oauth-consent';
 import type { Place } from '@/lib/notebooks';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
+import { PersonAvatar } from './community/avatar';
+import { SettingsIndex, settingsAvailable, settingsSections, settingsTitle, type SettingsSection } from './settings-index';
+import type { Updates } from '@/lib/network';
 import { ConsentGate } from './community/consent-gate';
 import { api, formatDay as formatShortDay } from './community/client';
 import { WorkspaceNavigation } from './workspace-navigation';
@@ -89,9 +92,10 @@ const subtitles: Record<View, string> = {
   notes: 'Ideias, aulas e reflexões, organizadas do seu jeito.', agenda: 'Compromissos, aulas e prazos de todas as áreas da vida.', focus: 'Para onde vai o seu tempo, dia após dia.',
   planning: 'Metas apontam a direção; projetos organizam os passos.', finances: 'O que entra, o que sai e o que está por vir.', routine: 'Seus hábitos, por período do dia.',
   flashcards: 'Cartões de pergunta e resposta para fixar o que você aprende.', assistant: 'Converse por voz ou escreva para cuidar da sua jornada.', contacts: 'Sua agenda de pessoas. Só você vê.',
-  admin: 'Pessoas, papéis e planos, com histórico de tudo.', settings: 'Seu perfil, suas áreas da vida e seus dados.',
+  admin: 'Pessoas, papéis e planos, com histórico de tudo.', settings: 'O que é só seu e muda pouco: conta, contato, avisos, conexões e dados.',
 };
-const viewOf = (value: string) => (value === 'subjects' ? 'studies' : value) as View; // old links to "Matérias"
+const viewOf = (value: string) => { const first = value.split('/')[0]; return (first === 'subjects' ? 'studies' : first) as View; }; // old links to "Matérias"; #settings/avisos
+const sectionOf = (value: unknown) => (settingsSections as readonly unknown[]).includes(value) ? value as SettingsSection : null;
 const SHORTCUT_KEY = 'jornada-atalho-barra';
 const BUBBLE_KEY = 'jornada-assistente-escondido';
 const FOLLOW_KEY = 'jornada-acompanhar-ia';
@@ -148,12 +152,45 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const [homeError, setHomeError] = useState('');
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [communityRoute, setCommunityRoute] = useState<CommunityRoute>({ kind: 'list' });
+  const [settingsSection, setSettingsSection] = useState<SettingsSection | null>(null);
   const [studiesRoute, setStudiesRoute] = useState<StudiesRoute>({ kind: 'list' });
   const refreshHome = useCallback(() => {
     if (!cloud) return;
     api<Home>('/api/me').then(value => { setHome(value); setHomeError(''); }).catch(reason => setHomeError(reason instanceof Error ? reason.message : 'Não foi possível carregar sua conta.'));
   }, [cloud]);
   useEffect(() => { refreshHome(); }, [refreshHome]);
+  // Novidades sem precisar recarregar: com o app aberto, confere a cada minuto. A conta só é trocada quando um número
+  // muda, para não recarregar o resto da tela à toa.
+  useEffect(() => {
+    if (!cloud || !home) return;
+    const timer = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      api<Home>('/api/me').then(next => setHome(previous => previous && (next.updates !== previous.updates || next.join_requests !== previous.join_requests
+        || next.to_review.length !== previous.to_review.length) ? next : previous), () => undefined);
+    }, 60_000);
+    return () => clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloud, home?.account.user_id]);
+  // Quando chega algo novo, os números dão um pulinho e um balão mostra o que chegou, como no Instagram.
+  const [pulse, setPulse] = useState(0);
+  const [balloon, setBalloon] = useState<{ likes: number; people: number; groups: number } | null>(null);
+  const seenUpdates = useRef<number | null>(null);
+  useEffect(() => {
+    const now = home?.updates ?? 0, before = seenUpdates.current;
+    seenUpdates.current = home ? now : null;
+    if (!cloud || !home || !now || (before !== null && now <= before)) return;
+    setPulse(Date.now());
+    let current = true;
+    api<Updates>('/api/network?updates=1').then(data => {
+      if (!current) return;
+      const unread = data.events.filter(event => !event.read), count = (...kinds: string[]) => unread.filter(event => kinds.includes(event.kind)).length;
+      const next = { likes: count('gostei', 'util'), people: data.requests.length + count('follow', 'follow_accepted'), groups: count('join_request', 'join_approved') };
+      if (next.likes + next.people + next.groups) setBalloon(next);
+    }, () => undefined);
+    return () => { current = false; };
+  }, [cloud, home]);
+  useEffect(() => { if (!balloon) return; const timer = setTimeout(() => setBalloon(null), 6000); return () => clearTimeout(timer); }, [balloon]);
+  useEffect(() => { if (!pulse) return; const timer = setTimeout(() => setPulse(0), 2400); return () => clearTimeout(timer); }, [pulse]);
   // Back to an MCP consent (ChatGPT, Claude) that started before Google login. Same-origin path only.
   useEffect(() => {
     if (!cloud || !home) return;
@@ -172,7 +209,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     return () => { current = false; };
   }, [consented, accountId, view, assistantOpen]);
   usePendingInvite(cloud && !!home && acceptedTerms(home), (spaceId, message) => {
-    if (spaceId) { setCommunityRoute({ kind: 'space', id: spaceId }); setView('community'); setNotice('Convite aceito. Bem-vindo(a)!'); refreshHome(); }
+    if (spaceId) { routeCommunity({ kind: 'space', id: spaceId }); setNotice('Convite aceito. Bem-vindo(a)!'); refreshHome(); }
     else if (message) setNotice(message);
   });
   const pro = !cloud || !home || hasPro(home);
@@ -212,7 +249,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const studyCourse = studiesRoute.kind === 'course' ? courses.find((item) => item.id === studiesRoute.id) : undefined;
   const unitsOf = (item: Pick<Subject, 'courseId'>) => { const course = courseOf(data, item); return course ? courseUnits(course) : unitPresets[0]; };
   const formCourseId = form?.courseId ?? form?.subject?.courseId ?? studyCourse?.id ?? active[0]?.id ?? courses[0]?.id ?? '';
-  const firstName = (userProfile.name || home?.account.display_name || '').trim().split(/\s+/)[0];
+  // Um nome e uma foto só: com perfil no Networking, os dele valem para o app inteiro.
+  const identity = cloud && home?.profile ? { name: home.account.display_name, avatar: home.profile } : null;
+  const myName = identity?.name || userProfile.name || home?.account.display_name || '';
+  const firstName = myName.trim().split(/\s+/)[0];
   const previewLabel = authenticated ? 'Administrador · conectado' : hostedPreview ? 'Prévia online' : 'Prévia local';
   const storageNotice = authenticated
     ? 'Conta administradora · sessão autenticada. Dados só neste navegador, sem sincronização na nuvem.'
@@ -231,19 +271,27 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     window.addEventListener('pageshow', refresh);
     return () => window.removeEventListener('pageshow', refresh);
   }, [authenticated]);
-  const pageName = view === 'studies' && studyCourse ? studyCourse.name : names[view];
+  const communityPage: Partial<Record<CommunityRoute['kind'], string>> = { updates: 'Novidades', profile: 'Editar perfil', compose: 'Publicar', create: 'Criar grupo' };
+  const pageName = view === 'studies' && studyCourse ? studyCourse.name
+    : view === 'settings' && settingsSection ? settingsTitle(settingsSection)
+    : view === 'community' && communityRoute.kind === 'person' ? communityRoute.id === home?.account.user_id ? 'Meu perfil' : 'Perfil'
+    : view === 'community' ? communityPage[communityRoute.kind] ?? names[view] : names[view];
   useEffect(() => { document.title = `${pageName} · Jornada Plena`; }, [pageName]);
   useEffect(() => {
     const initial = viewOf(window.location.hash.slice(1));
     if (initial && initial !== 'today' && names[initial]) setView(initial);
     if (initial === 'studies' && window.history.state?.course) setStudiesRoute({ kind: 'course', id: window.history.state.course });
+    // Um link direto para uma parte do Meu espaço (#settings/avisos) ou a volta ao mesmo passo do Networking depois de recarregar.
+    if (initial === 'settings') setSettingsSection(sectionOf(window.location.hash.split('/')[1]) ?? sectionOf(window.history.state?.section));
+    if (initial === 'community' && window.history.state?.community) setCommunityRoute(window.history.state.community);
   }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!window.history.state || window.history.state.app !== 'jornada-plena') {
       // Keeps Next's own keys (a first entry without them reloads the page on Back) and the real starting view.
       const start = viewOf(window.location.hash.slice(1));
-      window.history.replaceState({ ...window.history.state, app: 'jornada-plena', view: names[start] ? start : 'today' }, '', start === 'studies' ? '#studies' : window.location.hash || window.location.pathname);
+      const section = start === 'settings' ? sectionOf(window.location.hash.split('/')[1]) : null;
+      window.history.replaceState({ ...window.history.state, app: 'jornada-plena', view: names[start] ? start : 'today', ...(section ? { section } : {}) }, '', start === 'studies' ? '#studies' : window.location.hash || window.location.pathname);
     }
 
     const onPopState = (event: PopStateEvent) => {
@@ -276,6 +324,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       if (names[targetView]) {
         const course = targetView === 'studies' ? event.state?.course as string | undefined : undefined;
         if (targetView === 'studies') setStudiesRoute(course ? { kind: 'course', id: course } : { kind: 'list' });
+        if (targetView === 'community') setCommunityRoute(event.state?.community ?? { kind: 'list' });
+        if (targetView === 'settings') setSettingsSection(sectionOf(event.state?.section));
         if (targetView === 'studies' && (view !== 'studies' || course !== (studiesRoute.kind === 'course' ? studiesRoute.id : undefined))) requestAnimationFrame(() => main.current?.focus());
         setView(targetView);
       } else {
@@ -351,13 +401,18 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   function pauseFollow() { setFollowPaused(true); setAiTouch(null); try { localStorage.setItem(FOLLOW_KEY, 'off'); } catch {} }
   useLiveFollow({ enabled: cloud && ready && !demo && !followPaused && !!home, accountId: home?.account.user_id, revision: revisionNow, snapshot: snapshotNow, refresh,
     // Mid-conversation the assistant's own answer tells what changed: the screen stays and only the notice shows.
-    onTouched: items => { if (view !== 'assistant' && !assistantOpen) navigate(items[0].view); setAiTouch({ ...items[0] }); } });
+    onTouched: items => {
+      if (view !== 'assistant' && !assistantOpen) { if (items[0].view === 'settings') openSettingsSection(items[0].title === 'Perfil' ? 'contato' : 'areas'); else navigate(items[0].view); }
+      setAiTouch({ ...items[0] });
+    } });
   function navigate(next: View) {
     const modal = !!window.history.state?.modal;
-    if (modal || next !== view || (next === 'studies' && studiesRoute.kind === 'course')) {
+    if (modal || next !== view || (next === 'studies' && studiesRoute.kind === 'course') || (next === 'settings' && settingsSection) || (next === 'community' && communityRoute.kind !== 'list')) {
       window.history[modal ? 'replaceState' : 'pushState']({ app: 'jornada-plena', view: next }, '', `#${next}`);
     }
     if (next === 'studies') setStudiesRoute({ kind: 'list' });
+    if (next === 'community') setCommunityRoute({ kind: 'list' });
+    if (next === 'settings') setSettingsSection(null);
     setAgendaFocus(null); setFocusJob(undefined); if (next !== 'notes' || next !== view) { setNotesPlace(null); setSelectedNote(''); }
     setView(next);
     setMobileMenu(false);
@@ -384,6 +439,30 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     requestAnimationFrame(() => main.current?.focus());
   }
 
+  // Networking por dentro: cada passo vira uma entrada do histórico (com a profundidade), e o Voltar do app ou do celular
+  // desfaz um passo. `replace` troca a entrada atual: troca de aba, ou a tela que acabou de cumprir seu papel.
+  function routeCommunity(route: CommunityRoute, replace = false) {
+    const state = window.history.state ?? {};
+    const depth = state.view === 'community' ? Number(state.depth) || 0 : 0;
+    window.history[replace || state.modal ? 'replaceState' : 'pushState']({ app: 'jornada-plena', view: 'community', community: route, depth: replace ? depth : depth + 1 }, '', '#community');
+    setCommunityRoute(route); setView('community'); setMobileMenu(false);
+    requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' }));
+  }
+  function communityBack() {
+    if ((Number(window.history.state?.depth) || 0) > 0) window.history.back();
+    else routeCommunity({ kind: 'list' }, true);
+  }
+  // Meu espaço: a lista e, dentro, uma parte por vez. O Voltar sai da parte e volta para a lista.
+  function openSettingsSection(section: SettingsSection) {
+    window.history.pushState({ app: 'jornada-plena', view: 'settings', section }, '', `#settings/${section}`);
+    setSettingsSection(section); setView('settings'); setMobileMenu(false);
+    requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' }));
+  }
+  function openMyProfile() {
+    if (cloud && home) routeCommunity({ kind: 'person', id: home.account.user_id });
+    else navigate('settings');
+  }
+
   function handleGoBack() {
     if (form) {
       closeForm();
@@ -397,7 +476,9 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
       closeSearch();
       return;
     }
-    if (studyCourse && view === 'studies') showStudies();
+    if (view === 'community' && (communityRoute.kind !== 'list' || (Number(window.history.state?.depth) || 0) > 0)) communityBack();
+    else if (view === 'settings' && settingsSection) window.history.back();
+    else if (studyCourse && view === 'studies') showStudies();
     else if (view !== 'today') {
       navigate('today');
     }
@@ -502,7 +583,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const navContent = (mobile = false) => <WorkspaceNavigation
     items={visibleNavigation.map((item) => ({ ...item, badge: proViews.has(item.id) && !pro ? 'Pro' : item.id === 'community' && networkCount ? networkCount : undefined }))}
     view={view} onNavigate={navigate} collapsed={!mobile && sidebarCollapsed} onToggle={toggleSidebar} mobile={mobile}
-    name={userProfile.name || home?.account.display_name || 'Meu espaço'} email={home?.account.email || userProfile.email || ''} photo={userProfile.photoUrl}
+    name={myName || 'Meu espaço'} email={home?.account.email || userProfile.email || ''} photo={userProfile.photoUrl}
+    avatar={identity ? <PersonAvatar name={identity.name} avatar={identity.avatar} size={32} /> : undefined} onProfile={cloud && home ? openMyProfile : undefined}
     status={status} modeLabel={demo ? 'Demonstração' : cloud ? 'Espaço pessoal' : previewLabel}
   />;
 
@@ -587,7 +669,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             <button
               type="button"
               className="topbar-back-button"
-              aria-label={view === 'studies' && studyCourse ? 'Voltar para Estudos' : 'Voltar para início'}
+              aria-label={view === 'studies' && studyCourse ? 'Voltar para Estudos' : 'Voltar'}
               onClick={handleGoBack}
             >
               <ArrowLeft size={16} aria-hidden="true" />
@@ -605,11 +687,14 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             <span>Buscar no meu espaço</span>
             <kbd>Ctrl K</kbd>
           </button>
-          <button className="icon-button" aria-label="Ajuda e configurações" onClick={() => navigate('settings')}>
-            <CircleHelp size={18} aria-hidden="true" />
-          </button>
-          <button className="avatar small" onClick={() => navigate('settings')} aria-label="Meu perfil e configurações">
-            {userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="Avatar" /> : userProfile.name.slice(0,1) || 'P'}
+          {cloud && home && <button type="button" className="icon-button topbar-bell" onClick={() => routeCommunity({ kind: 'updates' })}
+            aria-label={home.updates ? `Novidades: ${home.updates} ${home.updates === 1 ? 'nova' : 'novas'}` : 'Novidades'}>
+            <Bell size={20} aria-hidden="true" />
+            {!!home.updates && <span key={pulse} className={`topbar-count${pulse ? ' pulse' : ''}`} aria-hidden="true">{home.updates > 99 ? '99+' : home.updates}</span>}
+          </button>}
+          <button type="button" className="avatar small" onClick={openMyProfile} aria-label={cloud && home ? 'Meu perfil' : 'Meu espaço e configurações'}>
+            {identity ? <PersonAvatar name={identity.name} avatar={identity.avatar} size={30} /> : userProfile.photoUrl ? <img src={userProfile.photoUrl} alt="" /> : (myName.slice(0, 1) || 'P')}
+            {!!home?.updates && <span key={pulse} className={`topbar-dot${pulse ? ' pulse' : ''}`} aria-hidden="true" />}
           </button>
         </div>
       </header>
@@ -624,7 +709,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         {view !== 'today' && <div className="page-heading">
           <div>
             <h1>{pageName}</h1>
-            <p>{view === 'studies' && studyCourse ? [courseKindLabels[studyCourse.kind], studyCourse.institution, studyCourse.stage].filter(Boolean).join(' · ') : subtitles[view]}</p>
+            {/* Dentro do Networking e numa parte do Meu espaço, o título basta. */}
+            {!(view === 'community' && communityRoute.kind !== 'list') && !(view === 'settings' && settingsSection) && <p>{view === 'studies' && studyCourse ? [courseKindLabels[studyCourse.kind], studyCourse.institution, studyCourse.stage].filter(Boolean).join(' · ') : subtitles[view]}</p>}
           </div>
           <div className="heading-actions-row">
             {ready && view === 'studies' && !studyCourse && <button className="button primary" disabled={blocked || courses.length >= 30} onClick={() => openForm({ kind: 'course' })}><Plus size={16} aria-hidden="true" />Novo curso</button>}
@@ -713,10 +799,10 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
               <aside className="dashboard-secondary">
                 {cloud && home && (home.my_parts.length > 0 || home.to_review.length > 0) && <section className="panel cm-today">
-                  <div className="section-heading"><h2><PenLine size={16} aria-hidden="true" /> Trabalhos em grupo</h2><button className="text-button" onClick={() => { setCommunityRoute({ kind: 'list' }); navigate('community'); }}>Abrir <ArrowRight size={13} aria-hidden="true" /></button></div>
+                  <div className="section-heading"><h2><PenLine size={16} aria-hidden="true" /> Trabalhos em grupo</h2><button className="text-button" onClick={() => navigate('community')}>Abrir <ArrowRight size={13} aria-hidden="true" /></button></div>
                   <ul className="cm-todo">
-                    {home.my_parts.slice(0, 3).map(part => <li key={part.id}><button onClick={() => { setCommunityRoute({ kind: 'work', id: part.assignment_id }); navigate('community'); }}><span className={`cm-status ${part.status}`}>{statusLabels[part.status]}</span><strong>{part.title}</strong><small>{part.assignment_title}{part.due_date ? ` · ${formatShortDay(part.due_date)}` : ''}</small></button></li>)}
-                    {home.to_review.slice(0, 3).map(part => <li key={part.id}><button onClick={() => { setCommunityRoute({ kind: 'work', id: part.assignment_id }); navigate('community'); }}><span className="cm-status submitted">Revisar</span><strong>{part.title}</strong><small>{part.assignment_title}</small></button></li>)}
+                    {home.my_parts.slice(0, 3).map(part => <li key={part.id}><button onClick={() => routeCommunity({ kind: 'work', id: part.assignment_id })}><span className={`cm-status ${part.status}`}>{statusLabels[part.status]}</span><strong>{part.title}</strong><small>{part.assignment_title}{part.due_date ? ` · ${formatShortDay(part.due_date)}` : ''}</small></button></li>)}
+                    {home.to_review.slice(0, 3).map(part => <li key={part.id}><button onClick={() => routeCommunity({ kind: 'work', id: part.assignment_id })}><span className="cm-status submitted">Revisar</span><strong>{part.title}</strong><small>{part.assignment_title}</small></button></li>)}
                   </ul>
                 </section>}
                 {cloud && upcomingBirthdays(contacts, today, 7).length > 0 && <section className="panel cm-today">
@@ -773,11 +859,11 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             </section>
           ))}
 
-          {view === 'notes' && <NotesLibrary data={data} blocked={blocked} demo={demo} cloud={mode === 'cloud'} status={status} update={update} place={notesPlace} noteId={selectedNote} onPlace={setNotesPlace} onNote={setSelectedNote} onManage={() => navigate('settings')} />}
+          {view === 'notes' && <NotesLibrary data={data} blocked={blocked} demo={demo} cloud={mode === 'cloud'} status={status} update={update} place={notesPlace} noteId={selectedNote} onPlace={setNotesPlace} onNote={setSelectedNote} onManage={() => openSettingsSection('areas')} />}
 
-          {view === 'community' && (cloud && home ? <CommunityPanel home={home} workspace={data} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} onMoveAgendaTask={moveToDeadline} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
+          {view === 'community' && (cloud && home ? <CommunityPanel home={home} workspace={data} route={communityRoute} onRoute={routeCommunity} onBack={communityBack} onOpenSettings={() => navigate('settings')} refreshHome={refreshHome} onAddToAgenda={addToAgenda} onMoveAgendaTask={moveToDeadline} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
-          {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><WhatsAppAdmin /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
+          {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><WhatsAppAdmin /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => routeCommunity({ kind: 'space', id })} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
 
           {view === 'agenda' && <AcademicCalendar focus={agendaFocus} data={data} date={agendaDate} onDateChange={setAgendaDate} update={update} blocked={blocked} onNew={(date) => { setAgendaDate(date); openForm({ kind: 'task' }); }} onEdit={(task) => openForm({ kind: 'task', task })} />}
 
@@ -798,31 +884,32 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
           </>}
 
           {view === 'settings' && <>
-            {cloud && home && <AccountSettings home={home} refreshHome={refreshHome} />}
-            {cloud && home && <RemindersPanel key={`reminders-${home.account.user_id}`} />}
-            {cloud && home && <TelegramLink key={`telegram-${home.account.user_id}`} />}
-            {cloud && home && <AssistantConnections update={update} />}
-            {cloud && home && <MyAiKeys key={`ai-keys-${home.account.user_id}`} />}
-            {cloud && home && <WhatsAppMyLink key={`whatsapp-${home.account.user_id}`} />}
-            {!demo && <LegacyImport data={data} update={update} blocked={blocked} />}
             {!demo && <input className="sr-only" tabIndex={-1} ref={fileInput} type="file" accept=".json,application/json" aria-label="Selecionar backup JSON" onChange={async (event) => { const file = event.target.files?.[0]; event.target.value = ''; if (!file) return; try { if (file.size > 2_000_000) throw new Error(); setImported(parseWorkspace(await file.text())); } catch { setNotice('Backup inválido ou maior que 2 MB. Nada foi alterado.'); } }} />}
-            <ProfileSettings
-              data={data}
-              update={update}
-              blocked={blocked}
-              demo={demo}
-              mode={mode}
-              privacyNotice={privacyNotice}
-              downloadData={() => download(data)}
-              onImportClick={() => fileInput.current?.click()}
-              authenticated={authenticated}
-            />
+            {!settingsSection || !settingsAvailable(settingsSection, cloud && !!home)
+              ? <SettingsIndex cloud={cloud && !!home} identity={identity} onOpen={openSettingsSection} onProfile={openMyProfile} />
+              : <>
+                {settingsSection === 'conta' && home && <AccountSettings home={home} refreshHome={refreshHome} part="conta" />}
+                {settingsSection === 'avisos' && home && <RemindersPanel key={`reminders-${home.account.user_id}`} />}
+                {settingsSection === 'conexoes' && home && <><TelegramLink key={`telegram-${home.account.user_id}`} /><WhatsAppMyLink key={`whatsapp-${home.account.user_id}`} /></>}
+                {settingsSection === 'assistentes' && home && <><AssistantConnections update={update} /><MyAiKeys key={`ai-keys-${home.account.user_id}`} /></>}
+                {settingsSection === 'dados' && cloud && home && <AccountSettings home={home} refreshHome={refreshHome} part="dados" />}
+                {settingsSection === 'dados' && !demo && <LegacyImport data={data} update={update} blocked={blocked} />}
+                {(['contato', 'areas', 'aparencia', 'dados'] as const).map(part => settingsSection === part && <ProfileSettings key={part} part={part} identityElsewhere={!!identity}
+                  data={data} update={update} blocked={blocked} demo={demo} mode={mode} privacyNotice={privacyNotice}
+                  downloadData={() => download(data)} onImportClick={() => fileInput.current?.click()} authenticated={authenticated} />)}
+              </>}
           </>}
         </motion.div>}
         <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status}</span></footer>
       </main>
+      {balloon && <button type="button" className="news-balloon" onClick={() => { setBalloon(null); routeCommunity({ kind: 'updates' }); }}
+        aria-label={`Novidades: ${[balloon.likes && `${balloon.likes} Gostei ou Útil`, balloon.people && `${balloon.people} ${balloon.people === 1 ? 'pessoa' : 'pessoas'}`, balloon.groups && `${balloon.groups} de grupos`].filter(Boolean).join(', ')}. Abrir novidades`}>
+        {!!balloon.likes && <span><Heart size={15} aria-hidden="true" fill="currentColor" />{balloon.likes}</span>}
+        {!!balloon.people && <span><UserRound size={15} aria-hidden="true" />{balloon.people}</span>}
+        {!!balloon.groups && <span><Users size={15} aria-hidden="true" />{balloon.groups}</span>}
+      </button>}
       <nav className="mobile-tabbar" aria-label="Atalhos mobile">
-        {[navigation[0], navigation.find((item) => item.id === secondTab)!].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}${id === 'community' && networkCount ? ` (${networkCount} novidades)` : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" />{id === 'community' && networkCount > 0 && <span className="tabbar-badge" aria-hidden="true">{networkCount > 99 ? '99+' : networkCount}</span>}<span>{tabLabel(id, label)}</span></button>)}
+        {[navigation[0], navigation.find((item) => item.id === secondTab)!].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}${id === 'community' && networkCount ? ` (${networkCount} novidades)` : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" />{id === 'community' && networkCount > 0 && <span key={pulse} className={`tabbar-badge${pulse ? ' pulse' : ''}`} aria-hidden="true">{networkCount > 99 ? '99+' : networkCount}</span>}<span>{tabLabel(id, label)}</span></button>)}
         <button type="button" className="tabbar-center" aria-haspopup="dialog" disabled={!ready} onClick={openCapture}><span className="tabbar-center-badge"><img src="/brand/simbolo.svg" alt="" width={56} height={56} /></span><span>Registrar</span></button>
         {[tabShortcut].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{tabLabel(id, label)}</span></button>)}
         <button type="button" aria-label="Ver todas as áreas" aria-expanded={mobileMenu} onClick={openMobileMenu}><Menu size={21} aria-hidden="true" /><span>Mais</span></button>

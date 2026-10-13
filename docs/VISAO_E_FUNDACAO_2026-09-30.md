@@ -247,3 +247,16 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - Entram os flashcards. Foco, agenda, hábitos e metas ficam onde estão; o "Estudar junto" da Caixa usa o Foco por baixo.
   - **Material** fica no seu contexto (curso e grade, matéria, grupo, pessoal), nunca num lugar genérico.
 - **Protótipo para aprovação** (só desenho, sem mexer no app): https://claude.ai/artifact/Tf3o3JAunPUSm56d4jWyWt
+
+### Perfil, Meu espaço e navegação (13/10/2026, conversa com o proprietário)
+
+- **Perfil no jeito do Instagram:** a foto do canto abre "Meu perfil" (anel do story, publicações, seguidores, seguindo, Editar perfil, Novo story, publicações em grade). O "?" sai do canto; o sininho mostra as Novidades.
+- **Meu espaço separado do perfil:** o perfil é o que a pessoa mexe sempre (nome, foto, "sobre você", privacidade); o Meu espaço é o que é só dela e muda pouco (conta, contato, áreas, aparência, avisos, conexões, assistentes, dados). Um nome e uma foto só para o app inteiro.
+- **Voltar passo a passo**, dentro do Networking e do Meu espaço, no botão do app e no do celular.
+- **Novidades que pulam:** número vermelho na aba Networking, na foto e no sininho, e um balão do que chegou.
+- **Conquistas, não medalhas:** a aba do perfil chama Conquistas (as medalhas dos desafios ficam dentro). Coerente com "Sua vida é uma jornada, não uma corrida": a gamificação existe, mas o coração é a plenitude, não a competição. A aba só aparece quando houver a primeira conquista; a pessoa pode esconder a aba inteira ou cada conquista e medalha.
+- **Publicação não vira flashcard.** A ideia de "Salvar no meu baralho" saiu, e a palavra "baralho" também. "Salvos" guarda publicações só para a pessoa.
+- **Flashcards novos depois:** modelos de múltipla escolha e de resposta escrita, a partir dos modelos de prova do proprietário. Não mexer agora.
+- **QR do perfil:** anotado para depois; no piloto as pessoas se conhecem e se acham pelos grupos.
+- **Limites pensando no plano pago:** foto nítida sem ultra resolução (até 1440 px e 300 KB, faixa do Instagram), vídeo só por link. Os limites ficam ajustáveis num lugar só, para subir quando o Supabase e a Vercel forem para o Pro. O piloto roda grátis com pessoas próximas antes da venda.
+- **Protótipo aprovado:** https://claude.ai/artifact/NXnz7nXAGvdoGpHjfYYUCm

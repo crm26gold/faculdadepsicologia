@@ -191,6 +191,7 @@ test('áreas e cadernos pessoais organizam notas e agenda sem exigir matéria', 
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
   await page.getByRole('button', { name: 'Meu espaço', exact: true }).click();
+  await page.getByRole('button', { name: /^Áreas da vida e cadernos/ }).click();
   await expect(page.getByRole('button', { name: 'Editar área Espiritualidade e propósito', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Nova área', exact: true }).click();
   await page.getByLabel('Nome', { exact: true }).fill('Criatividade');
@@ -1375,7 +1376,7 @@ test('a bolinha do assistente acompanha a altura da janela até ser arrastada, e
   const intro = (await page.locator('.assistant-intro').boundingBox())!;
   const topbar = (await page.locator('.topbar').boundingBox())!;
   expect(intro.y).toBeGreaterThan(topbar.y + topbar.height);
-  await page.getByRole('button', { name: 'Ajuda e configurações' }).click();
+  await page.getByRole('button', { name: 'Meu espaço e configurações' }).click();
   await expect(page.getByRole('heading', { name: 'Meu espaço', level: 1 })).toBeVisible();
 });
 

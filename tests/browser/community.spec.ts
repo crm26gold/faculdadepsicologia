@@ -341,8 +341,8 @@ test('Networking: seguir, publicar com público escolhido, Gostei e Útil, e atu
   await composer.getByRole('button', { name: 'Publicar' }).click();
   await expect.poll(() => posted.find(item => item.body.action === 'create_post')?.body).toEqual({ action: 'create_post', body: 'Mapa mental de #neurociência', style: 'card_lavender', audience: 'public', space: null, photos: [], story: false });
 
-  await page.getByRole('button', { name: 'Atualizações: 2 novas' }).click();
-  await expect(page.getByRole('heading', { name: 'Atualizações' })).toBeVisible();
+  await page.getByRole('button', { name: 'Novidades: 2 novas' }).click();
+  await expect(page.getByRole('heading', { name: 'Novidades', level: 2 })).toBeVisible();
   await expect(page.getByText('gostou da sua publicação: “Meu resumo”')).toBeVisible();
   await expect.poll(() => posted.some(item => item.body.action === 'mark_read')).toBe(true);
   await page.getByRole('button', { name: 'Aceitar' }).click();
@@ -355,7 +355,10 @@ test('Networking: seguir, publicar com público escolhido, Gostei e Útil, e atu
   await expect.poll(() => posted.find(item => item.body.action === 'follow')?.body).toEqual({ action: 'follow', person: COLEGA });
   await expect(page.getByText('Pedido enviado.')).toBeVisible();
 
-  await page.locator('.cm-page').getByRole('button', { name: 'Voltar' }).click();
+  // Voltar desfaz um passo: do perfil da Ana para as Novidades, e daí para o Networking.
+  await page.locator('.topbar').getByRole('button', { name: 'Voltar' }).click();
+  await expect(page.getByRole('heading', { name: 'Novidades', level: 2 })).toBeVisible();
+  await page.locator('.topbar').getByRole('button', { name: 'Voltar' }).click();
   await page.getByRole('tab', { name: 'Descobrir' }).click();
   await page.getByLabel('Buscar grupos').fill('ana');
   await expect(page.getByRole('region', { name: 'Pessoas' }).getByText('Colega Ana')).toBeVisible();
@@ -439,9 +442,80 @@ test('Networking: fotos no feed, stories de 24 horas e publicar com foto reduzid
     style: 'card_rose', audience: 'followers', space: null, photos: [], story: true });
 });
 
+test('perfil no jeito do Instagram, Voltar passo a passo, Meu espaço organizado e novidades que pulam', async ({ page }) => {
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const me = { id: ME, name: 'Pessoa Teste', avatar: { kind: 'initials', value: '', photo: null } };
+  const base = { author: me, audience: 'followers', topics: [], space: null, counts: { gostei: 1, util: 0 }, mine: [], expires_at: null, created_at: '2026-10-13T10:00:00Z' };
+  const posts = [
+    { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000c1', body: 'Quadro da aula', style: 'text', photos: [{ id: 'eeeeeeee-0000-4000-8000-0000000000f2', w: 1080, h: 1080 }, { id: 'eeeeeeee-0000-4000-8000-0000000000f3', w: 1080, h: 1080 }] },
+    { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000c2', body: 'Os três princípios da Ética', style: 'card_blue', photos: [] },
+    { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000c3', body: 'Hoje terminei o capítulo 3', style: 'text', photos: [] },
+  ];
+  const profile = { ...me, bio: 'Psicologia e corrida', closed: true, is_me: true, discoverable: false, show_follows: false, status: 'none', follows_me: false, requested_me: false, followers: 4, following: 2, posts };
+  await mockApi(page, { home: { ...homeFixture(), updates: 2 },
+    network: url => url.searchParams.get('person') === ME ? profile
+      : url.searchParams.get('updates') ? { requests: [ana], events: [{ id: 9, kind: 'gostei', created_at: new Date().toISOString(), read: false, actor: ana, post: { id: posts[1].id, body: 'Os três princípios' }, space: null }] } : [] });
+  await page.route('**/api/network/photo/**', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#community');
+
+  // Chegou novidade: o balão mostra o que chegou e leva às Novidades; o "?" não existe mais.
+  const balloon = page.getByRole('button', { name: 'Novidades: 1 Gostei ou Útil, 1 pessoa. Abrir novidades' });
+  await expect(balloon).toBeVisible();
+  await page.screenshot({ path: 'test-results/networking-novidades-balao-mobile.png' });
+  await expect(page.getByRole('button', { name: 'Ajuda e configurações' })).toHaveCount(0);
+  await expect(page.locator('.topbar').getByRole('button', { name: 'Novidades: 2 novas' })).toBeVisible();
+
+  // A foto do canto abre Meu perfil, com números, ações e a grade.
+  await page.locator('.topbar').getByRole('button', { name: 'Meu perfil' }).click();
+  await expect(page.locator('.topbar')).toContainText('Meu perfil');
+  const head = page.locator('.nw-profile-head');
+  await expect(head.getByRole('heading', { name: 'Pessoa Teste' })).toBeVisible();
+  await expect(head).toContainText('Psicologia e corrida');
+  await expect(head.getByRole('button', { name: 'Editar perfil' })).toBeVisible();
+  await expect(page.locator('.nw-grid .nw-tile')).toHaveCount(3);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const audit = await new AxeBuilder({ page }).include('.nw-profile').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await page.screenshot({ path: 'test-results/networking-meu-perfil-mobile.png' });
+
+  // Tocar num quadrado abre a lista; o Voltar volta para a grade, um passo por vez.
+  await page.getByRole('button', { name: /Abrir publicação. Os três princípios/ }).click();
+  await expect(page.getByRole('article', { name: 'Publicação de Pessoa Teste' })).toHaveCount(3);
+  await page.locator('.topbar').getByRole('button', { name: 'Voltar' }).click();
+  await expect(page.locator('.nw-grid .nw-tile')).toHaveCount(3);
+
+  // O ☰ do perfil abre o Meu espaço: uma lista do que é privado; nome e foto ficam no perfil.
+  await head.getByRole('button', { name: 'Meu espaço e configurações' }).click();
+  await expect(page.getByRole('heading', { name: 'Meu espaço', level: 1 })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Nome, foto e “sobre você”: Meu perfil/ })).toBeVisible();
+  const settingsAudit = await new AxeBuilder({ page }).include('.settings-index').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(settingsAudit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await page.screenshot({ path: 'test-results/meu-espaco-lista-mobile.png' });
+  await page.getByRole('button', { name: /^Contato/ }).click();
+  await expect(page.getByRole('heading', { name: 'Contato', level: 2 })).toBeVisible();
+  await expect(page.getByLabel('Seu nome')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Salvar contato' })).toBeVisible();
+
+  // Voltar (do app e do celular) desfaz um passo: Contato → lista → Meu perfil → Networking.
+  await page.locator('.topbar').getByRole('button', { name: 'Voltar' }).click();
+  await expect(page.getByRole('button', { name: /^Aparência/ })).toBeVisible();
+  await page.goBack();
+  await expect(page.locator('.nw-profile-head').getByRole('heading', { name: 'Pessoa Teste' })).toBeVisible();
+  await page.locator('.topbar').getByRole('button', { name: 'Voltar' }).click();
+  await expect(page.getByRole('tab', { name: 'Seguindo' })).toBeVisible();
+
+  // O sininho abre as Novidades, separadas por quando chegaram.
+  await page.locator('.topbar').getByRole('button', { name: 'Novidades: 2 novas' }).click();
+  await expect(page.getByRole('heading', { name: 'Novidades', level: 2 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Hoje', level: 3 })).toBeVisible();
+  await expect(page.getByText('gostou da sua publicação: “Os três princípios”')).toBeVisible();
+});
+
 test('foto do perfil grande fica leve sozinha, em vez de ser recusada', async ({ page }) => {
-  await mockApi(page);
-  await page.goto('/#settings');
+  // Sem perfil no Networking, a foto e o nome ficam em Meu espaço › Contato.
+  await mockApi(page, { home: homeFixture({ profile: false }) });
+  await page.goto('/#settings/contato');
   // A "foto de celular": ruído de 1600×1200 em JPEG de alta qualidade, bem acima do antigo limite de 250 KB.
   const photo = await page.evaluate(async () => {
     const canvas = Object.assign(document.createElement('canvas'), { width: 1600, height: 1200 });
@@ -597,7 +671,7 @@ test('lixeira: o que foi excluído aparece em Minha conta, Restaurar traz de vol
     if (route.request().method() === 'PUT') { saved.take(route.request().postDataJSON()); return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ revision: 1 + saved.versions.length }) }); }
     return route.fallback();
   });
-  await page.goto('/#settings');
+  await page.goto('/#settings/dados');
   const trash = page.getByRole('region', { name: 'Lixeira', exact: true });
   await expect(trash.getByText('Dentista excluído')).toBeVisible();
   await trash.getByRole('listitem').filter({ hasText: 'Dentista excluído' }).getByRole('button', { name: 'Restaurar' }).click();
@@ -945,7 +1019,7 @@ test('minhas chaves ficam fora do navegador e a remoção pessoal exige confirma
     }
     return json(route,{ok:true,data:{available:true,keys,isOwner:false,baseEnabled:false,secretReady:true}});
   });
-  await page.goto('/#settings');
+  await page.goto('/#settings/assistentes');
   const card=page.getByRole('region',{name:'Minhas chaves de IA'});
   await card.getByLabel('Chave de API',{exact:true}).fill('synthetic-personal-key-test');
   await card.getByLabel('Condições de privacidade da minha API').selectOption('no_training');
@@ -1101,7 +1175,7 @@ test('telegram: a pessoa gera o código, abre o robô e a tela confirma quando o
     }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { owner: true, channels: [{ channel: 'telegram', enabled: true, bot_username: 'jornada_teste_bot', linked }, { channel: 'whatsapp', enabled: false, bot_username: '', linked: false }] } }) });
   });
-  await page.goto('/#settings');
+  await page.goto('/#settings/conexoes');
   const card = page.getByRole('region', { name: 'Telegram' });
   await card.getByRole('button', { name: 'Conectar meu Telegram' }).click();
   await expect(card.getByRole('link', { name: 'Abrir no Telegram e conectar' })).toHaveAttribute('href', 'https://t.me/jornada_teste_bot?start=ABCD2345');
@@ -1127,7 +1201,7 @@ test('avisos: cada canal é um passo; o teste mostra o que cada canal fez; só c
     }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: state }) });
   });
-  await page.goto('/#settings');
+  await page.goto('/#settings/avisos');
   const card = page.getByRole('region', { name: 'Avisos' });
   await expect(card.locator('.reminder-steps li[data-done="true"]')).toHaveCount(3);
   await expect(card).toContainText('a ponte está desligada');
@@ -1165,7 +1239,7 @@ test('assistentes externos: a pessoa cria uma chave MCP, vê a configuração de
     }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { tokens, endpoint } }) });
   });
-  await page.goto('/#settings');
+  await page.goto('/#settings/assistentes');
   const card = page.getByRole('region', { name: 'Conectar assistentes (MCP)' });
   await expect(card).toContainText(endpoint);
   await card.getByLabel('Nome').fill('Claude Code do notebook');
@@ -1189,7 +1263,7 @@ test('conector desatualizado: a conexão aparece como "precisa atualizar", com o
   const tokens = [{ id: '11111111-2222-4333-8444-555555555556', label: 'ChatGPT', hint: 'oauth', oauth: true, can_write: true, created_at: new Date().toISOString(), expires_at: null, last_used_at: new Date().toISOString(), outdated: true },
     { id: '11111111-2222-4333-8444-555555555557', label: 'Claude Code', hint: 'abcd', can_write: false, created_at: new Date().toISOString(), expires_at: null, last_used_at: new Date().toISOString(), outdated: false }];
   await page.route('**/api/mcp-tokens', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { tokens, endpoint: 'https://jornada.example/api/mcp', version: '2026.10.09' } }) }));
-  await page.goto('/#settings');
+  await page.goto('/#settings/assistentes');
   const card = page.getByRole('region', { name: 'Conectar assistentes (MCP)' });
   await expect(card).toContainText('versão 2026.10.09');
   const notice = card.locator('.mcp-outdated');
@@ -1388,7 +1462,7 @@ test('o que os assistentes fizeram: lista as alterações das conexões e Desfaz
       : target ? [{ ...list[0], applied: [{ label: list[0].labels[0], view: 'agenda', id: 't-ia', undo: { kind: 'task', id: 't-ia' } }] }] : list;
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) });
   });
-  await page.goto('/#settings');
+  await page.goto('/#settings/assistentes');
   const history = page.getByRole('region', { name: 'O que os assistentes fizeram' });
   await expect(history).toContainText('Tarefa: Comprar pão · hoje');
   await expect(history).toContainText('Claude');

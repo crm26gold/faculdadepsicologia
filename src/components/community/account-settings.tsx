@@ -5,7 +5,8 @@ import { Modal } from '../modal';
 import { api } from './client';
 import { hasPro, type Home } from '@/lib/community';
 
-export function AccountSettings({ home, refreshHome }: { home: Home; refreshHome: () => void }) {
+/** Conta (e-mail de login, plano, excluir) e Seus dados (LGPD). Com perfil no Networking, o nome muda lá. */
+export function AccountSettings({ home, refreshHome, part }: { home: Home; refreshHome: () => void; part?: 'conta' | 'dados' }) {
   const [name, setName] = useState(home.account.display_name);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -20,19 +21,20 @@ export function AccountSettings({ home, refreshHome }: { home: Home; refreshHome
     finally { setBusy(false); }
   }
 
+  const conta = part !== 'dados', dados = part !== 'conta';
   return <section className="panel cm-account">
-    <div className="section-heading"><h2><UserRound size={16} aria-hidden="true" /> Minha conta</h2></div>
+    {conta && <><div className="section-heading"><h2><UserRound size={16} aria-hidden="true" /> Minha conta</h2></div>
     <p className="muted small">{account.email} · Plano: <strong>{plan}</strong>{home.settings.open_access && !account.is_master ? ' · período de lançamento: tudo liberado' : ''}</p>
     {!hasPro(home) && <p className="cm-privacy-note">No plano Acadêmico você usa tudo da vida acadêmica e das salas. Finanças, rotina e metas fazem parte do Pro.</p>}
-    <label htmlFor="display-name">Nome exibido no Networking</label>
-    <div className="cm-inline-form"><input id="display-name" value={name} maxLength={120} onChange={event => setName(event.target.value)} /><button className="button outline" disabled={busy || !name.trim() || name.trim() === account.display_name} onClick={rename}>Salvar nome</button></div>
+    {!home.profile && <><label htmlFor="display-name">Nome exibido no Networking</label>
+    <div className="cm-inline-form"><input id="display-name" value={name} maxLength={120} onChange={event => setName(event.target.value)} /><button className="button outline" disabled={busy || !name.trim() || name.trim() === account.display_name} onClick={rename}>Salvar nome</button></div></>}
     {message && <p className="cm-message" role="status">{message}</p>}
-    <h3><ShieldCheck size={15} aria-hidden="true" /> Seus dados (LGPD)</h3>
+    {!account.is_master && <div className="button-row"><button className="button outline cm-danger" onClick={() => setDeleting(true)}><Trash2 size={16} aria-hidden="true" />Excluir minha conta</button></div>}</>}
+    {dados && <><h3><ShieldCheck size={15} aria-hidden="true" /> Seus dados (LGPD)</h3>
     <p className="muted small">Seu espaço pessoal é visível só para você. O que você envia a uma sala ou grupo fica visível para quem participa dela. Leia os <a href="/termos" target="_blank" rel="noopener">termos de uso</a> e a <a href="/privacidade" target="_blank" rel="noopener">política de privacidade</a>.</p>
     <div className="button-row">
       <a className="button outline" href="/api/me?export=1" download><Download size={16} aria-hidden="true" />Baixar todos os meus dados</a>
-      {!account.is_master && <button className="button outline cm-danger" onClick={() => setDeleting(true)}><Trash2 size={16} aria-hidden="true" />Excluir minha conta</button>}
-    </div>
+    </div></>}
     {deleting && <Modal title="Excluir minha conta" onClose={() => setDeleting(false)}><form className="entry-form" onSubmit={async event => {
       event.preventDefault();
       const confirm = String(new FormData(event.currentTarget).get('confirm') ?? '');

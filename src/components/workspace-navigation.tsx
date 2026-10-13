@@ -16,6 +16,10 @@ type NavigationProps = {
   name: string;
   email: string;
   photo?: string;
+  /** Avatar do perfil do Networking (bichinho, símbolo ou foto), quando a pessoa já criou o perfil. */
+  avatar?: React.ReactNode;
+  /** Abre "Meu perfil"; sem perfil na rede, o cartão leva ao Meu espaço. */
+  onProfile?: () => void;
   status: string;
   modeLabel: string;
 };
@@ -26,7 +30,7 @@ const groups: { label: string; ids: WorkspaceView[] }[] = [
   { label: 'Conectar', ids: ['assistant', 'community', 'contacts', 'admin'] },
 ];
 
-export function WorkspaceNavigation({ items, view, onNavigate, collapsed = false, onToggle, mobile = false, name, email, photo, status, modeLabel }: NavigationProps) {
+export function WorkspaceNavigation({ items, view, onNavigate, collapsed = false, onToggle, mobile = false, name, email, photo, avatar, onProfile, status, modeLabel }: NavigationProps) {
   const id = useId();
   const reduced = useReducedMotion();
   const [folded, setFolded] = useState<string[]>([]);
@@ -93,8 +97,8 @@ export function WorkspaceNavigation({ items, view, onNavigate, collapsed = false
     <div className="sidebar-bottom">
       {!collapsed && <button type="button" className="sidebar-assistant-shortcut" onClick={() => onNavigate('assistant')}><span><Sparkles size={16} aria-hidden="true" /></span><div><strong>Uma ideia por vez</strong><small>Abra o assistente</small></div><ChevronRight size={14} aria-hidden="true" /></button>}
       {itemButton({ id: 'settings', label: 'Meu espaço', Icon: Settings2 })}
-      <button type="button" className="sidebar-user-card" onClick={() => onNavigate('settings')} aria-label="Abrir meu perfil" title={collapsed ? name : undefined}>
-        <span className="user-avatar-badge" aria-hidden="true">{photo ? <img src={photo} alt="" /> : name.slice(0, 1) || 'P'}</span>
+      <button type="button" className="sidebar-user-card" onClick={onProfile ?? (() => onNavigate('settings'))} aria-label="Abrir meu perfil" title={collapsed ? name : undefined}>
+        <span className="user-avatar-badge" aria-hidden="true">{avatar ?? (photo ? <img src={photo} alt="" /> : name.slice(0, 1) || 'P')}</span>
         <span className="user-meta-info"><strong>{name}</strong><span title={email}>{email || 'Meu perfil e preferências'}</span></span>
         {!collapsed && <ChevronRight size={13} aria-hidden="true" />}
       </button>

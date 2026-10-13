@@ -4,7 +4,8 @@ import { settleAnimations } from './axe-ready';
 
 async function navigate(page: Page, name: string) {
   if (name === 'Meu espaço') {
-    await page.getByRole('button', { name: 'Meu perfil e configurações', exact: true }).click();
+    // Sem conta na nuvem, a foto do canto leva ao Meu espaço; com conta, ao Meu perfil.
+    await page.getByRole('button', { name: 'Meu espaço e configurações', exact: true }).click();
     return;
   }
   const menu = page.getByRole('button', { name: 'Abrir navegação', exact: true });
@@ -53,6 +54,7 @@ test('tema automático acompanha o sistema em outras áreas e preserva a escolha
   await page.emulateMedia({ colorScheme: 'light' });
   await page.goto('/');
   await navigate(page, 'Meu espaço');
+  await page.getByRole('button', { name: /^Aparência/ }).click();
   await page.getByRole('button', { name: '⚙️ Automático', exact: true }).click();
   await navigate(page, 'Agenda');
   await page.emulateMedia({ colorScheme: 'dark' });
@@ -60,6 +62,7 @@ test('tema automático acompanha o sistema em outras áreas e preserva a escolha
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
   await navigate(page, 'Meu espaço');
+  await page.getByRole('button', { name: /^Aparência/ }).click();
   await expect(page.getByRole('button', { name: '⚙️ Automático', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await page.getByRole('button', { name: '🌙 Modo Escuro', exact: true }).click();
   await navigate(page, 'Agenda');
@@ -67,6 +70,7 @@ test('tema automático acompanha o sistema em outras áreas e preserva a escolha
   await page.emulateMedia({ colorScheme: 'light' });
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   await navigate(page, 'Meu espaço');
+  await page.getByRole('button', { name: /^Aparência/ }).click();
   await page.getByRole('button', { name: '☀️ Modo Claro', exact: true }).click();
   await page.emulateMedia({ colorScheme: 'dark' });
   await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark');
@@ -197,7 +201,9 @@ test('demo acessível e responsiva, sem API ou armazenamento pessoal', async ({ 
   await navigate(page, 'Foco');
   await page.getByRole('button', { name: 'Começar foco', exact: true }).click();
   await page.getByRole('button', { name: 'Pausar', exact: true }).click();
-  await page.getByRole('button', { name: 'Ajuda e configurações' }).click();
+  await navigate(page, 'Meu espaço');
+  await page.getByRole('button', { name: /^Seus dados/ }).click();
+  await expect(page.getByRole('heading', { name: 'Segurança e Backup dos Dados' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Importar backup', exact: true })).toHaveCount(0);
   await expect(page.getByText(/Webhook|Número Próprio|Supabase|Conexões & Serviços/)).toHaveCount(0);
   await expect(page.locator('input[type=file]')).toHaveCount(0);
