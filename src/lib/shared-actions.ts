@@ -69,7 +69,15 @@ export async function readShared(transport: Transport, what: SharedRead, id?: st
   if ((what === 'sala' || what === 'trabalho') && !id) return { error: 'Informe o ID. Consulte "inicio" para ver as salas e os trabalhos.' };
   const fn = what === 'sala' ? 'space_overview' : what === 'trabalho' ? 'assignment_detail' : reads[what];
   const result = await transport.call(fn, id ? { target: id } : {});
-  return result.error ? { error: errorText(result.error, ['contas', 'uso', 'recursos'].includes(what) ? ownerOnly : undefined) } : { data: result.data };
+  return result.error ? { error: errorText(result.error, ['contas', 'uso', 'recursos'].includes(what) ? ownerOnly : undefined) } : { data: withoutPhotos(result.data) };
+}
+/** Fotos de avatar (data URL, inclusive de outras pessoas) ficam fora do que o assistente lê: pesam e não ajudam a agir. */
+export function withoutPhotos(data: unknown) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return data;
+  const copy: Record<string, unknown> = { ...data as Record<string, unknown> };
+  delete copy.avatars;
+  if (copy.profile && typeof copy.profile === 'object') copy.profile = { ...copy.profile as Record<string, unknown>, photo: null };
+  return copy;
 }
 
 const kinds = { institution: 'instituição', class: 'sala', group: 'grupo' } as const;

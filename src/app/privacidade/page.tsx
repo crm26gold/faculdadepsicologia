@@ -22,7 +22,8 @@ export default function PrivacyPage() {
     <h2>3. Quem vê o quê</h2>
     <ul>
       <li><strong>Seu espaço pessoal e seus contatos:</strong> só você. Nem a administração tem acesso pelo sistema.</li>
-      <li><strong>Salas e grupos:</strong> quem participa daquele espaço e quem o orienta. O e-mail das pessoas aparece apenas para quem gerencia a sala.</li>
+      <li><strong>Networking (salas e grupos):</strong> quem participa daquele espaço e quem o orienta veem seu nome e seu avatar. O e-mail aparece para a equipe da sala (professores e responsáveis); num grupo criado por outra pessoa, só se você aceitar mostrar ao entrar. Grupos abertos aparecem na busca com nome, descrição e temas, nunca com a lista de quem participa.</li>
+      <li><strong>Perfil do Networking:</strong> só existe se você criar. Avatar e “sobre você” aparecem para quem está nos mesmos grupos.</li>
       <li><strong>Administração:</strong> vê nome, e-mail, plano e em quais salas cada conta participa, para gerenciar acessos.</li>
     </ul>
     <p>A separação é garantida no banco de dados, não apenas na tela.</p>
@@ -33,6 +34,7 @@ export default function PrivacyPage() {
     <p className="legal-version">Acréscimo de 8 de outubro de 2026: Google Agenda opcional. Nada muda para quem não conecta.</p>
     <p>Avisos (opcionais, só quando você escolhe Avisar ou pede ao assistente): na hora marcada, o título e o horário do compromisso vão para você pelos canais que você ligou em Meu espaço › Avisos. A notificação do app passa pelo serviço de notificações do seu navegador (Google, Apple ou Mozilla), cifrada até o aparelho; o Telegram e o WhatsApp entregam pela conversa que você vinculou. Nos compromissos com o Google Agenda conectado, o próprio Google também avisa. Guardamos a hora, a intensidade e se cada canal entregou, nunca o texto enviado.</p>
     <p className="legal-version">Acréscimo de 9 de outubro de 2026: avisos opcionais. Nada sai para quem não liga um aviso.</p>
+    <p className="legal-version">Acréscimo de 13 de outubro de 2026: perfil e grupos do Networking. Nada aparece para os outros sem você criar o perfil ou entrar num grupo.</p>
     <h2>5. Inteligência artificial</h2>
     <p>Quando recursos de IA forem ativados (por exemplo, para revisar um trabalho de grupo), você será avisado antes sobre qual conteúdo é enviado e para qual provedor. Não usamos seus dados para treinar modelos e não vendemos dados.</p>
     <p>Na chamada do assistente, o áudio é enviado ao provedor de voz configurado. A Jornada não guarda a gravação; a transcrição fica na sua conversa. Com ElevenLabs, a gravação é desativada e a exclusão do áudio e da transcrição no provedor é solicitada com retenção programada de zero dias para novas conversas. Essa exclusão depende do processamento do provedor e não equivale a retenção zero instantânea. A configuração não apaga retroativamente conversas anteriores.</p>

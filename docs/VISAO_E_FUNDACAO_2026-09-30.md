@@ -191,6 +191,7 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
     - grupos silenciados.
 - **Qualquer pessoa cria sala ou grupo.**
   - Quando um professor ou líder assume, ele ganha o **selo de oficial**, sem ferramentas a mais.
+  - Na etapa 1, o selo é dado pela equipe da sala acima do grupo (professor ou responsável) ou pela administração. Para o líder de fora de uma instituição, a administração marca.
   - Cada pessoa gerencia os grupos que criou e participa dos grupos dos outros, de vários lugares ao mesmo tempo (UNIP, SEBRAE…).
 - **Grupo personalizável.**
   - Modelos que só ligam ferramentas: Estudo, Trabalho da faculdade, Desafio, Saúde e bem-estar, Livre.
@@ -198,6 +199,8 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - Convite, QR, link da chamada e configurações ficam no menu ⋯ do grupo.
 - **A que o grupo se liga** (opcional): estudos (instituição › curso › matéria), uma área da vida, temas livres (#hashtags) ou nada. O vínculo mostra de onde o grupo vem e ajuda na busca.
 - **Quem vê o grupo no Networking** (o dono escolhe): todos, só a instituição ou a sala, pessoas escolhidas, ou só quem tem o link.
+  - Na etapa 1, "pessoas escolhidas" e "só quem tem o link" viraram uma opção só, "Só quem recebe o convite": não aparece na busca, e entra-se pelo link, pelo QR ou por aprovação. "Só a sala" vale para grupo criado dentro de uma sala.
+  - Num grupo criado por aluno, o dono vê o e-mail só de quem aceitou mostrar ao entrar e não adiciona ninguém por e-mail. Professores e responsáveis da sala continuam como antes.
 - **Como se entra** (pode combinar): entrada livre, pedido com aprovação, senha, pedir nome e e-mail. Neste último, a pessoa é avisada antes de que o e-mail vai para o dono do grupo.
 - **Stories por aba:**
   - em "Seguindo", os stories de quem a pessoa segue;

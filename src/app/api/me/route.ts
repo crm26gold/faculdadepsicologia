@@ -27,6 +27,11 @@ export async function POST(request: Request) {
   switch (body.action) {
     case 'accept_terms': return rpc(session, 'accept_terms', { terms_version: TERMS_VERSION });
     case 'rename': return rpc(session, 'update_my_name', { new_name: body.name });
+    case 'save_profile': {
+      const { error } = await session.client.rpc('update_my_name', { new_name: body.name });
+      if (error) return dbError(error);
+      return rpc(session, 'save_my_profile', { next_kind: body.kind, next_value: body.value, next_photo: body.photo, next_bio: body.bio });
+    }
     case 'delete_account': {
       // Anexos privados saem antes da conta; o banco apaga o resto e anonimiza o que foi do grupo.
       const storage = session.client.storage.from(NOTE_BUCKET);

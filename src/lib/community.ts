@@ -26,13 +26,49 @@ export type Account = {
   plan: 'academic' | 'pro'; plan_source: 'free' | 'paid' | 'courtesy'; pro_until: string | null;
   ai_credits: number; features: string[]; created_at: string;
 };
+// ---------- Networking ----------
+export const groupTemplates = ['estudo', 'trabalho', 'desafio', 'saude', 'livre'] as const;
+export type GroupTemplate = typeof groupTemplates[number];
+export const templateLabels: Record<GroupTemplate, string> = { estudo: 'Estudo', trabalho: 'Trabalho da faculdade', desafio: 'Desafio', saude: 'Saúde e bem-estar', livre: 'Livre' };
+export const groupTools = ['mural', 'enquetes', 'partes', 'encontros', 'conversa', 'material', 'checkin', 'placar'] as const;
+export type GroupTool = typeof groupTools[number];
+export const toolLabels: Record<GroupTool, string> = {
+  mural: 'Mural', enquetes: 'Enquetes', partes: 'Trabalho dividido em partes', encontros: 'Encontros e chamada',
+  conversa: 'Conversa', material: 'Material do grupo', checkin: 'Check-in diário', placar: 'Placar',
+};
+/** Ferramentas que ainda não existem ficam guardadas e aparecem quando chegarem. */
+export const readyTools: readonly GroupTool[] = ['mural', 'enquetes', 'partes', 'encontros'];
+export const templateTools: Record<GroupTemplate, GroupTool[]> = {
+  estudo: ['mural', 'enquetes', 'conversa', 'material'], trabalho: ['partes', 'encontros', 'conversa'],
+  desafio: ['conversa', 'checkin', 'placar'], saude: ['mural', 'conversa', 'checkin'], livre: ['conversa'],
+};
+export const visibilities = ['public', 'class', 'invite'] as const;
+export type Visibility = typeof visibilities[number];
+export const avatarKinds = ['initials', 'animal', 'symbol', 'photo'] as const;
+export type AvatarKind = typeof avatarKinds[number];
+export type Avatar = { kind: AvatarKind; value: string; photo: string | null };
+export type MyProfile = Avatar & { bio: string };
+/** "#Saúde #Corrida, leitura" → ['saúde', 'corrida', 'leitura']: uma palavra por tema, minúsculas, sem repetir, até 5. */
+export function normalizeTopics(raw: string) {
+  const topics = raw.split(/[,#\s]+/).map(value => value.toLowerCase().replace(/[^a-z0-9_áàâãéêíóôõúüç]/g, '').slice(0, 30)).filter(value => value.length >= 2);
+  return [...new Set(topics)].slice(0, 5);
+}
+export type DiscoverCard = {
+  id: string; name: string; description: string; color: SpaceColor; template: GroupTemplate; topics: string[]; origin: string;
+  official: boolean; class_name: string | null; members: number; join_approval: boolean; join_asks_email: boolean;
+  has_password: boolean; is_member: boolean; requested: boolean;
+};
+export type JoinResult = 'joined' | 'requested' | 'wrong_password' | 'too_many_attempts' | 'email_required';
+
 export type SpaceSummary = {
   id: string; kind: SpaceKind; name: string; description: string; color: SpaceColor;
   parent_id: string | null; archived_at: string | null; my_role: Role | null;
+  template?: GroupTemplate; visibility?: Visibility; official?: boolean; topics?: string[]; origin?: string; requests?: number;
 };
 export type Home = {
   account: Account; settings: { open_access: boolean };
   consents: { document: 'terms' | 'privacy'; version: string }[];
+  profile?: MyProfile | null; join_requests?: number;
   spaces: SpaceSummary[];
   my_parts: { id: string; title: string; status: PartStatus; assignment_id: string; assignment_title: string; due_date: string | null; space_id: string }[];
   to_review: { id: string; title: string; assignment_id: string; assignment_title: string; space_id: string; submitted_at: string }[];
@@ -48,9 +84,13 @@ export type AssignmentSummary = {
 export type Invitation = { id: string; role: 'student' | 'leader'; max_uses: number; uses: number; expires_at: string; revoked_at: string | null; created_at: string };
 export type SpaceOverview = {
   space: { id: string; kind: SpaceKind; name: string; description: string; color: SpaceColor; parent_id: string | null; archived_at: string | null; created_at: string;
-    call_url?: string | null; call_set_by?: string | null; call_set_at?: string | null };
-  path: PathItem[]; access: { can_lead: boolean; can_manage: boolean; is_master: boolean; can_set_call?: boolean }; my_role: Role | null;
-  people: Person[]; groups: { id: string; name: string; description: string; color: SpaceColor; archived_at: string | null; members: number }[];
+    call_url?: string | null; call_set_by?: string | null; call_set_at?: string | null;
+    template?: GroupTemplate; tools?: GroupTool[]; topics?: string[]; origin?: string; visibility?: Visibility;
+    join_approval?: boolean; join_asks_email?: boolean; official_at?: string | null; has_password?: boolean | null };
+  path: PathItem[]; access: { can_lead: boolean; can_manage: boolean; is_master: boolean; can_set_call?: boolean; is_staff?: boolean }; my_role: Role | null;
+  people: Person[]; avatars?: Record<string, Avatar>;
+  requests?: { user_id: string; display_name: string; email: string | null; created_at: string }[];
+  groups: { id: string; name: string; description: string; color: SpaceColor; archived_at: string | null; members: number; official?: boolean }[];
   posts: Post[]; polls: Poll[]; assignments: AssignmentSummary[]; invitations: Invitation[];
 };
 export type DocStyle = { font?: typeof docFonts[number]; size?: 11 | 12 | 14; spacing?: 1 | 1.15 | 1.5 | 2; align?: 'left' | 'justify' };
@@ -102,8 +142,20 @@ export const meAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('accept_terms') }),
   z.object({ action: z.literal('rename'), name: required(120) }),
   z.object({ action: z.literal('delete_account'), confirm: z.literal('EXCLUIR') }),
+  z.object({
+    action: z.literal('save_profile'), name: required(120), kind: z.enum(avatarKinds), value: text(16).default(''),
+    photo: z.string().max(16000).regex(/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/).nullable().default(null),
+    bio: text(300).default(''),
+  }).refine(value => (value.kind === 'photo') === Boolean(value.photo), 'Escolha uma foto ou outro avatar.'),
 ]);
 
+const password = z.string().max(72).refine(value => !value || value.length >= 4, 'A senha precisa ter pelo menos 4 caracteres.');
+const groupFields = {
+  template: z.enum(groupTemplates).default('livre'), tools: z.array(z.enum(groupTools)).max(groupTools.length).transform(value => [...new Set(value)]).default([]),
+  topics: z.array(z.string().regex(/^[a-z0-9_áàâãéêíóôõúüç]{2,30}$/)).max(5).transform(value => [...new Set(value)]).default([]),
+  origin: text(240).default(''), visibility: z.enum(visibilities).default('invite'),
+  approval: z.boolean().default(false), asks_email: z.boolean().default(false),
+};
 export const spaceAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('create_space'), kind: z.enum(['institution', 'class', 'group']), name: required(160), parent: id.nullable(), description: text(2000).default(''), color: z.enum(spaceColors).default('sage') }),
   z.object({ action: z.literal('update_space'), space: id, name: required(160), description: text(2000), color: z.enum(spaceColors) }),
@@ -120,6 +172,12 @@ export const spaceAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('create_poll'), space: id, question: required(300), options: z.array(required(120)).min(2).max(10) }),
   z.object({ action: z.literal('delete_poll'), poll: id }),
   z.object({ action: z.literal('vote'), poll: id, choice: z.number().int().min(0).max(9) }),
+  z.object({ action: z.literal('create_group'), name: required(160), parent: id.nullable().default(null), description: text(2000).default(''), color: z.enum(spaceColors).default('sage'), ...groupFields, password: password.default('') }),
+  z.object({ action: z.literal('update_group'), space: id, ...groupFields, password: password.nullable().default(null) }),
+  z.object({ action: z.literal('join_group'), space: id, password: z.string().max(72).nullable().default(null), share_email: z.boolean().default(false) }),
+  z.object({ action: z.literal('decide_request'), space: id, member: id, approve: z.boolean() }),
+  z.object({ action: z.literal('withdraw_request'), space: id }),
+  z.object({ action: z.literal('set_official'), space: id, official: z.boolean() }),
 ]);
 
 const workFields = {

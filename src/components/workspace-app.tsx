@@ -69,7 +69,7 @@ type StudiesRoute = { kind: 'list' } | { kind: 'course'; id: string };
 const navigation = [
   { id: 'today', label: 'Meu dia', Icon: LayoutDashboard },
   { id: 'studies', label: 'Estudos', Icon: GraduationCap },
-  { id: 'community', label: 'Salas e grupos', Icon: Users },
+  { id: 'community', label: 'Networking', Icon: Users },
   { id: 'notes', label: 'Caderno', Icon: FileText },
   { id: 'agenda', label: 'Agenda', Icon: CalendarDays },
   { id: 'focus', label: 'Foco', Icon: Clock3 },
@@ -83,9 +83,9 @@ const navigation = [
 ] as const;
 const proViews = new Set<View>(['planning', 'finances', 'routine']);
 const serverViews = new Set<View>(['community', 'contacts', 'admin']);
-const names: Record<View, string> = { today: 'Meu dia', community: 'Salas e grupos', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente', settings: 'Meu espaço' };
+const names: Record<View, string> = { today: 'Meu dia', community: 'Networking', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente', settings: 'Meu espaço' };
 const subtitles: Record<View, string> = {
-  today: '', studies: 'Graduação, pós, cursos livres e extensões, cada um no seu lugar.', community: 'Seus grupos, salas e trabalhos em conjunto.',
+  today: '', studies: 'Graduação, pós, cursos livres e extensões, cada um no seu lugar.', community: 'Seus grupos, salas e pessoas, com a privacidade que você escolher.',
   notes: 'Ideias, aulas e reflexões, organizadas do seu jeito.', agenda: 'Compromissos, aulas e prazos de todas as áreas da vida.', focus: 'Para onde vai o seu tempo, dia após dia.',
   planning: 'Metas apontam a direção; projetos organizam os passos.', finances: 'O que entra, o que sai e o que está por vir.', routine: 'Seus hábitos, por período do dia.',
   flashcards: 'Cartões de pergunta e resposta para fixar o que você aprende.', assistant: 'Converse por voz ou escreva para cuidar da sua jornada.', contacts: 'Sua agenda de pessoas. Só você vê.',
@@ -99,7 +99,7 @@ const viewTransitions: Variants = {
   ...Object.fromEntries(Object.keys(names).map((name) => [name, { opacity: 1, y: [8, 0] }])),
   still: { opacity: 1, y: 0 },
 };
-const tabLabel = (id: View, label: string) => id === 'today' ? 'Hoje' : id === 'community' ? 'Salas' : id === 'planning' ? 'Metas' : id === 'routine' ? 'Rotina' : label;
+const tabLabel = (id: View, label: string) => id === 'today' ? 'Hoje' : id === 'community' ? 'Networking' : id === 'planning' ? 'Metas' : id === 'routine' ? 'Rotina' : label;
 function download(data: Workspace) {
   const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
   const link = document.createElement('a'); link.href = url; link.download = `jornada-plena-${dateKey()}.json`; link.click();
@@ -172,12 +172,14 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     return () => { current = false; };
   }, [consented, accountId, view, assistantOpen]);
   usePendingInvite(cloud && !!home && acceptedTerms(home), (spaceId, message) => {
-    if (spaceId) { setCommunityRoute({ kind: 'space', id: spaceId }); setView('community'); setNotice('Convite aceito. Bem-vindo(a) à sala!'); refreshHome(); }
+    if (spaceId) { setCommunityRoute({ kind: 'space', id: spaceId }); setView('community'); setNotice('Convite aceito. Bem-vindo(a)!'); refreshHome(); }
     else if (message) setNotice(message);
   });
   const pro = !cloud || !home || hasPro(home);
   const visibleNavigation = navigation.filter(item => item.id !== 'admin' || !!home?.account.is_master);
-  const shortcutOptions = navigation.filter(item => !['today', 'agenda', 'admin'].includes(item.id) && (cloud || !serverViews.has(item.id)));
+  // Com conta, o Networking fica na barra de baixo no lugar da Agenda, que passa a poder ser o atalho.
+  const secondTab: View = cloud ? 'community' : 'agenda';
+  const shortcutOptions = navigation.filter(item => !['today', secondTab, 'admin'].includes(item.id) && (cloud || !serverViews.has(item.id)));
   const tabShortcut = shortcutOptions.find(item => item.id === shortcut) ?? shortcutOptions[0];
   const conversations = useConversations(mode, home?.account.user_id);
   const { messages: assistantMessages, setMessages: setAssistantMessages } = conversations;
@@ -496,7 +498,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   }
 
   const navContent = (mobile = false) => <WorkspaceNavigation
-    items={visibleNavigation.map((item) => ({ ...item, badge: proViews.has(item.id) && !pro ? 'Pro' : item.id === 'community' && home?.to_review.length ? home.to_review.length : undefined }))}
+    items={visibleNavigation.map((item) => ({ ...item, badge: proViews.has(item.id) && !pro ? 'Pro' : item.id === 'community' && home && home.to_review.length + (home.join_requests ?? 0) ? home.to_review.length + (home.join_requests ?? 0) : undefined }))}
     view={view} onNavigate={navigate} collapsed={!mobile && sidebarCollapsed} onToggle={toggleSidebar} mobile={mobile}
     name={userProfile.name || home?.account.display_name || 'Meu espaço'} email={home?.account.email || userProfile.email || ''} photo={userProfile.photoUrl}
     status={status} modeLabel={demo ? 'Demonstração' : cloud ? 'Espaço pessoal' : previewLabel}
@@ -771,7 +773,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'notes' && <NotesLibrary data={data} blocked={blocked} demo={demo} cloud={mode === 'cloud'} status={status} update={update} place={notesPlace} noteId={selectedNote} onPlace={setNotesPlace} onNote={setSelectedNote} onManage={() => navigate('settings')} />}
 
-          {view === 'community' && (cloud && home ? <CommunityPanel home={home} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} onMoveAgendaTask={moveToDeadline} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
+          {view === 'community' && (cloud && home ? <CommunityPanel home={home} workspace={data} route={communityRoute} onRoute={route => { setCommunityRoute(route); requestAnimationFrame(() => main.current?.scrollIntoView({ block: 'start' })); }} refreshHome={refreshHome} onAddToAgenda={addToAgenda} onMoveAgendaTask={moveToDeadline} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
           {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><WhatsAppAdmin /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => { setCommunityRoute({ kind: 'space', id }); navigate('community'); }} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
 
@@ -818,7 +820,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status}</span></footer>
       </main>
       <nav className="mobile-tabbar" aria-label="Atalhos mobile">
-        {[navigation[0], navigation.find((item) => item.id === 'agenda')!].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{tabLabel(id, label)}</span></button>)}
+        {[navigation[0], navigation.find((item) => item.id === secondTab)!].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{tabLabel(id, label)}</span></button>)}
         <button type="button" className="tabbar-center" aria-haspopup="dialog" disabled={!ready} onClick={openCapture}><span className="tabbar-center-badge"><img src="/brand/simbolo.svg" alt="" width={56} height={56} /></span><span>Registrar</span></button>
         {[tabShortcut].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{tabLabel(id, label)}</span></button>)}
         <button type="button" aria-label="Ver todas as áreas" aria-expanded={mobileMenu} onClick={openMobileMenu}><Menu size={21} aria-hidden="true" /><span>Mais</span></button>
@@ -853,7 +855,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 function ServerOnly({ view, cloud, error }: { view: 'community' | 'contacts' | 'admin'; cloud: boolean; error: string }) {
   if (cloud) return error ? <div className="error-banner" role="alert">{error}</div> : <p role="status" className="loading-panel">Carregando sua conta…</p>;
   const text = view === 'community'
-    ? 'Salas, grupos e trabalhos em grupo funcionam com a conta conectada: cada pessoa entrega a sua parte e o sistema monta o documento final padronizado.'
+    ? 'O Networking (grupos, salas e trabalhos em grupo) funciona com a conta conectada: você cria grupos de qualquer assunto, encontra outros por #tema e entrega sua parte dos trabalhos.'
     : view === 'contacts' ? 'Sua agenda privada de contatos, com lembrete de aniversários, fica disponível ao entrar com sua conta.'
     : 'O painel de administração é exclusivo da conta master.';
   return <div className="empty-state"><Users size={40} aria-hidden="true" /><h2>{names[view]}</h2><p>{text}</p></div>;

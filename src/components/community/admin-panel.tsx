@@ -39,6 +39,7 @@ export function AdminPanel({ me, onOpenSpace }: { me: string; onOpenSpace: (id: 
   const filtered = data.accounts.filter(account => `${account.display_name} ${account.email}`.toLocaleLowerCase('pt-BR').includes(query.trim().toLocaleLowerCase('pt-BR')));
   const institutions = data.spaces.filter(space => space.kind === 'institution');
   const children = (id: string) => data.spaces.filter(space => space.parent_id === id);
+  const freeGroups = data.spaces.filter(space => space.kind === 'group' && !space.parent_id);
   const spaceName = (id: string | null) => data.spaces.find(space => space.id === id)?.name ?? '';
 
   return <div className="cm-stack">
@@ -63,6 +64,8 @@ export function AdminPanel({ me, onOpenSpace }: { me: string; onOpenSpace: (id: 
         </div>)}
       </div>)}
       {!institutions.length && <p className="muted">Comece criando a instituição (ex.: UNIP), depois a sala e os professores. Dentro da sala você ou o professor criam os grupos.</p>}
+      {freeGroups.length > 0 && <div className="cm-tree"><div className="cm-tree-row"><strong>Grupos do Networking, sem sala</strong><small>{freeGroups.length}</small></div>
+        {freeGroups.map(group => <div key={group.id} className="cm-tree-leaf"><button className="text-button" onClick={() => onOpenSpace(group.id)}>{group.name}</button><small>{group.members} pessoas{group.archived_at ? ' · arquivado' : ''}</small></div>)}</div>}
     </section>
 
     <section className="panel">

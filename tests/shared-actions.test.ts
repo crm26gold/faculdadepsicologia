@@ -61,3 +61,12 @@ test('negativas do banco viram mensagens claras, e a administração fala só co
   assert.match(created.done[0], /^Convite criado \(aluno, 7 dias, até 30 usos\): https:\/\/jornada\.example\/convite\/[A-Za-z0-9_-]{32}$/);
   assert.match(String(invite.calls[0].args?.hashed_token), /^[a-f0-9]{64}$/, 'o banco recebe só o hash do link');
 });
+
+test('o assistente lê o grupo e o início sem as fotos de avatar', async () => {
+  const { readShared, sessionTransport, withoutPhotos } = await import('../src/lib/shared-actions');
+  const photo = 'data:image/webp;base64,UklGRg==';
+  const fake = client({ space_overview: { data: { space: { id: SPACE }, avatars: { [ANA]: { kind: 'photo', value: '', photo } }, people: [] }, error: null } });
+  assert.deepEqual(await readShared(sessionTransport(fake), 'sala', SPACE), { data: { space: { id: SPACE }, people: [] } });
+  assert.deepEqual(withoutPhotos({ profile: { kind: 'photo', value: '', photo, bio: 'oi' }, spaces: [] }), { profile: { kind: 'photo', value: '', photo: null, bio: 'oi' }, spaces: [] });
+  assert.deepEqual(withoutPhotos({ profile: null }), { profile: null });
+});

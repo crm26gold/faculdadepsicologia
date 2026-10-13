@@ -24,7 +24,7 @@ export function AccountSettings({ home, refreshHome }: { home: Home; refreshHome
     <div className="section-heading"><h2><UserRound size={16} aria-hidden="true" /> Minha conta</h2></div>
     <p className="muted small">{account.email} · Plano: <strong>{plan}</strong>{home.settings.open_access && !account.is_master ? ' · período de lançamento: tudo liberado' : ''}</p>
     {!hasPro(home) && <p className="cm-privacy-note">No plano Acadêmico você usa tudo da vida acadêmica e das salas. Finanças, rotina e metas fazem parte do Pro.</p>}
-    <label htmlFor="display-name">Nome exibido nas salas e grupos</label>
+    <label htmlFor="display-name">Nome exibido no Networking</label>
     <div className="cm-inline-form"><input id="display-name" value={name} maxLength={120} onChange={event => setName(event.target.value)} /><button className="button outline" disabled={busy || !name.trim() || name.trim() === account.display_name} onClick={rename}>Salvar nome</button></div>
     {message && <p className="cm-message" role="status">{message}</p>}
     <h3><ShieldCheck size={15} aria-hidden="true" /> Seus dados (LGPD)</h3>

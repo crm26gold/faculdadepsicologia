@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { privateMedia, mediaRange, mediaSignature } from '../src/lib/private-media';
 import { imageReview } from '../src/lib/ai/image-review';
 import { parseCommand } from '../src/lib/commands';
-import { fitWithin, shrinkable } from '../src/lib/image-shrink';
+import { centerSquare, fitWithin, shrinkable } from '../src/lib/image-shrink';
 
 function fixture() {
   const file = `${randomUUID()}.png`, owner = randomUUID();
@@ -83,6 +83,8 @@ test('foto reduzida no aparelho: cabe no lado maior sem distorcer e só formatos
   assert.deepEqual(fitWithin(4032, 3024, 2000), { width: 2000, height: 1500 });
   assert.deepEqual(fitWithin(3024, 4032, 480), { width: 360, height: 480 });
   assert.deepEqual(fitWithin(800, 600, 2000), { width: 800, height: 600 });
+  assert.deepEqual(centerSquare(4032, 3024), { sx: 504, sy: 0, side: 3024 }, 'avatar recorta o centro');
+  assert.deepEqual(centerSquare(300, 500), { sx: 0, sy: 100, side: 300 });
   assert.deepEqual(fitWithin(10000, 3, 480), { width: 480, height: 1 });
   assert.deepEqual(['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4'].map(shrinkable), [true, true, true, false, false]);
 });

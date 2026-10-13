@@ -27,3 +27,29 @@ export async function shrinkImage(file: File, { maxSide = 2000, quality = 0.82 }
   const ext = blob.type === 'image/webp' ? 'webp' : 'jpg';
   return new File([blob], `${file.name.replace(/\.[^.]*$/, '') || 'foto'}.${ext}`, { type: blob.type, lastModified: file.lastModified });
 }
+
+/** Recorte quadrado do centro: a parte que aparece num avatar redondo. */
+export function centerSquare(width: number, height: number) {
+  const side = Math.min(width, height);
+  return { sx: Math.round((width - side) / 2), sy: Math.round((height - side) / 2), side };
+}
+
+/** Miniatura do avatar (128 px, quadrada) como data URL de até `limit` caracteres, ou null se não couber. */
+export async function avatarThumbnail(file: Blob, { side = 128, limit = 16000 } = {}): Promise<string | null> {
+  if (!shrinkable(file.type) || typeof createImageBitmap !== 'function') return null;
+  let bitmap: ImageBitmap;
+  try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { return null; }
+  const crop = centerSquare(bitmap.width, bitmap.height);
+  const canvas = document.createElement('canvas');
+  canvas.width = side; canvas.height = side;
+  const context = canvas.getContext('2d');
+  if (!context) { bitmap.close(); return null; }
+  context.drawImage(bitmap, crop.sx, crop.sy, crop.side, crop.side, 0, 0, side, side);
+  bitmap.close();
+  for (const quality of [0.8, 0.65, 0.5]) {
+    let url = canvas.toDataURL('image/webp', quality);
+    if (!url.startsWith('data:image/webp')) url = canvas.toDataURL('image/jpeg', quality);
+    if (url.length <= limit) return url;
+  }
+  return null;
+}
