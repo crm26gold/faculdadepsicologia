@@ -203,6 +203,18 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - em "Seguindo", os stories de quem a pessoa segue;
   - em "Meus grupos", os stories e as publicações de todos os grupos dela, e embaixo a lista dos grupos.
   - Stories somem em 24 horas junto com as fotos, o que poupa espaço.
+- **Desafios com competição saudável:**
+  - O desafio é uma ferramenta da Caixa que qualquer grupo pode rodar, de três tipos: diário, por meta (somar km, páginas, minutos) ou por sequência.
+  - **Check-in automático:** pode vir da vida pessoal (Foco, hábito, flashcards). Para o grupo vai só o "fez", nunca os detalhes.
+  - **No feed:** entram os marcos (7, 15, 30 dias, desafio concluído), não todo check-in, com o botão "Dar força". A pessoa escolhe se as conquistas aparecem para os seguidores.
+  - **Competição:**
+    - meta do grupo na semana (todos ganham a medalha);
+    - times dentro do desafio;
+    - placar de pessoas só com quem quiser aparecer, contando constância, nunca peso ou medida;
+    - vida extra de 1 dia por semana.
+  - **Toque gentil** em quem ainda não fez, uma vez por dia e sem dizer quem foi.
+  - **Medalhas no perfil.**
+  - **Depois:** desafio entre grupos ou salas.
 - **Perfil primeiro:** antes de criar um grupo ou usar o Networking, um passo rápido pede o nome (obrigatório) e uma foto ou avatar (bichinho, iniciais ou símbolo). O resto é opcional.
 - **Conteúdo:**
   - Imagens servem para ilustrar o conhecimento; foto pessoal é permitida.
