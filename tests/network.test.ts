@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { networkAction, networkCall, networkRead, photoOk, topicsIn } from '../src/lib/network';
+import { networkAction, networkCall, networkPush, networkRead, photoOk, topicsIn } from '../src/lib/network';
 
 const person = '11111111-1111-4111-8111-111111111111';
 
@@ -75,4 +75,14 @@ test('rede: Salvos, destaques e descrição da foto', () => {
   const read = (query: string) => networkRead(new URLSearchParams(query));
   assert.deepEqual(read('saved=1'), { fn: 'saved_feed', args: { before: null } });
   assert.deepEqual(read('saved=1&before=2026-10-13T10:00:00Z'), { fn: 'saved_feed', args: { before: '2026-10-13T10:00:00Z' } });
+});
+
+test('rede: a notificação conta a primeira novidade e quantas mais chegaram', () => {
+  assert.deepEqual(networkPush([{ kind: 'follow', actor: 'Ana', post: null, space: null }]), { title: 'Networking', body: 'Ana começou a seguir você' });
+  assert.equal(networkPush([{ kind: 'join_request', actor: 'Caio', post: null, space: 'Corrida' }]).body, 'Caio pediu para entrar no grupo Corrida');
+  const long = 'Resumo do capítulo 3 de Ética com os três princípios e exemplos da aula de hoje';
+  assert.equal(networkPush([{ kind: 'gostei', actor: 'Duda', post: long, space: null },
+    { kind: 'util', actor: 'Ana', post: long, space: null }]).body, 'Duda gostou da sua publicação: “Resumo do capítulo 3 de Ética com os três princípios e…” e mais 1 novidade');
+  assert.equal(networkPush([{ kind: 'gostei', actor: null, post: '', space: null }, { kind: 'follow', actor: 'B', post: null, space: null },
+    { kind: 'follow', actor: 'C', post: null, space: null }]).body, 'Alguém gostou da sua publicação e mais 2 novidades', 'foto sem legenda e conta apagada');
 });

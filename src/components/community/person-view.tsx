@@ -6,7 +6,7 @@ import { api, formatDay } from './client';
 import { PersonAvatar } from './avatar';
 import { PostCard } from './feed';
 import { StoryViewer, markSeen, readSeen } from './stories';
-import type { NetworkEvent, NetworkPost, Person, PersonProfile, StoryGroup, Updates as UpdatesData } from '@/lib/network';
+import { eventText, type NetworkPost, type Person, type PersonProfile, type StoryGroup, type Updates as UpdatesData } from '@/lib/network';
 
 /** Um quadrado da grade: a primeira foto, o card ou o começo do texto. */
 function PostTile({ post, onOpen }: { post: NetworkPost; onOpen: () => void }) {
@@ -176,10 +176,6 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
   </section>;
 }
 
-const eventText: Record<NetworkEvent['kind'], string> = {
-  follow: 'começou a seguir você', follow_request: 'pediu para seguir você', follow_accepted: 'aceitou seu pedido para seguir',
-  gostei: 'gostou da sua publicação', util: 'achou útil sua publicação', join_request: 'pediu para entrar no grupo', join_approved: 'aceitou você no grupo',
-};
 // Como no Instagram: o que chegou hoje, nesta semana e antes.
 const when = (value: string) => {
   const days = (Date.now() - Date.parse(value)) / 86_400_000;

@@ -1,5 +1,4 @@
 'use client';
-import { InstallJornada } from './install-jornada';
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
 import { z } from 'zod';
 import { ArrowRight, AudioLines, CalendarDays, Check, History, MessageSquarePlus, Mic, NotebookPen, Paperclip, RotateCcw, Send, Square, Trash2, Undo2, X } from 'lucide-react';
@@ -407,7 +406,6 @@ export function AssistantChat({ conversations, cloud, blocked, demo, data, updat
       </div>
       <ul className="assistant-home-capabilities" aria-label="O que podemos organizar"><li><CalendarDays size={15} aria-hidden="true" />Agenda e tarefas</li><li><NotebookPen size={15} aria-hidden="true" />Notas e estudos</li><li><Check size={15} aria-hidden="true" />Rotina e planos</li></ul>
     </section>
-    {!demo && <InstallJornada />}
     <div className="assistant-top">
       <p className={`assistant-status${ai?.ready ? ' on' : ''}`}><span className="assistant-status-dot" aria-hidden="true" />{ai?.ready ? 'Pronto para conversar e organizar' : ai ? 'IA ainda não ligada: guardo tudo em Para organizar' : cloud ? 'Converse comigo: eu respondo e organizo' : 'Neste modo, guardo tudo em Para organizar'}</p>
     </div>

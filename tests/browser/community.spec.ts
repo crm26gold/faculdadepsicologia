@@ -1266,25 +1266,33 @@ test('telegram: a pessoa gera o código, abre o robô e a tela confirma quando o
   await expect(card.getByRole('button', { name: 'Conectar meu Telegram' })).toBeVisible();
 });
 
-test('avisos: cada canal é um passo; o teste mostra o que cada canal fez; só canais grátis', async ({ page }) => {
+test('avisos: a notificação do app é o principal; Networking com silêncio e grupos; complementos opcionais; só canais grátis', async ({ page }) => {
   await mockApi(page, { home: homeFixture({ master: true }) });
-  const tests: Record<string, unknown>[] = [];
+  const posts: Record<string, unknown>[] = [];
+  const GROUP = '33333333-3333-4333-8333-333333333333';
   const state = { devices: [], telegram: true, whatsapp: true, bridge_online: false,
     upcoming: [{ id: '6f1c2b0e-1d2a-4c3b-9e8f-0a1b2c3d4e5f', title: 'Dentista', event_at: '2030-01-08T13:00:00.000Z', next_at: '2030-01-08T12:45:00.000Z', level: 'insistente', status: 'agendado' }],
+    network: { enabled: true, quiet_from: '22:00', quiet_to: '07:00', muted: [] }, groups: [{ id: GROUP, name: 'Estudo de Ética' }],
     vapid: 'BAAA' };
   await page.route('**/api/reminders', route => {
     if (route.request().method() === 'POST') {
-      const body = route.request().postDataJSON(); tests.push(body);
-      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { id: 'x', deliveries: [
+      const body = route.request().postDataJSON(); posts.push(body);
+      return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: body.action !== 'test' ? null : { id: 'x', deliveries: [
         { at: '', step: 0, channel: 'telegram', ok: true, detail: 'enviado' }, { at: '', step: 0, channel: 'whatsapp', ok: false, detail: 'ponte desligada; sai quando ela ligar (até 30 min)' }] } }) });
     }
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: state }) });
   });
+  // O navegador de teste nasce com a notificação bloqueada; aqui ele ainda não decidiu, como um aparelho na primeira vez.
+  await page.addInitScript(() => Object.defineProperty(Notification, 'permission', { get: () => 'default' }));
   await page.goto('/#settings/avisos');
   const card = page.getByRole('region', { name: 'Avisos' });
-  await expect(card.locator('.reminder-steps li[data-done="true"]')).toHaveCount(3);
-  await expect(card).toContainText('a ponte está desligada');
-  await expect(card.locator('.reminder-steps li')).toHaveCount(4);
+  // O principal vem primeiro e sozinho; os outros canais são complementos opcionais dos lembretes.
+  await expect(card.locator('.reminder-main')).toContainText('Notificações neste aparelho');
+  await expect(card.getByRole('button', { name: 'Ligar notificações' })).toBeVisible();
+  await expect(card.getByRole('heading', { name: 'Complementos dos lembretes · opcional' })).toBeVisible();
+  const extras = card.getByRole('list', { name: 'Complementos' });
+  await expect(extras.locator('li')).toHaveCount(3);
+  await expect(extras).toContainText('a ponte está desligada');
   await expect(card).not.toContainText(/Twilio|Resend|Ligação/);
   await expect(card.locator('.reminder-upcoming')).toContainText('Dentista');
   await card.getByRole('radio', { name: 'Não me deixa esquecer' }).check();
@@ -1293,11 +1301,90 @@ test('avisos: cada canal é um passo; o teste mostra o que cada canal fez; só c
   const result = card.getByRole('list', { name: 'Resultado do teste' });
   await expect(result).toContainText('Telegram: enviado');
   await expect(result).toContainText('WhatsApp: ponte desligada');
-  expect(tests).toEqual([{ action: 'test', level: 'insistente' }]);
+  expect(posts).toEqual([{ action: 'test', level: 'insistente' }]);
+
+  // Networking: silêncio das 22h às 7h por padrão, que dá para mudar ou tirar; grupos silenciados.
+  const network = card.getByRole('group', { name: 'Networking' });
+  await expect(network.getByLabel('das')).toHaveValue('22:00');
+  await network.getByLabel('às').fill('06:30');
+  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, quiet_from: '22:00', quiet_to: '06:30', muted: [] });
+  await network.getByText('Silenciar grupos').click();
+  await network.getByRole('checkbox', { name: 'Estudo de Ética' }).check();
+  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, quiet_from: '22:00', quiet_to: '06:30', muted: [GROUP] });
+  await expect(network).toContainText('Silenciar grupos (1)');
+  await network.getByRole('checkbox', { name: 'Horário de silêncio' }).uncheck();
+  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, quiet_from: null, quiet_to: null, muted: [GROUP] });
+  await expect(network.getByLabel('das')).toHaveCount(0);
   expect((await new AxeBuilder({ page }).include('.reminders-panel').analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 }); await settleAnimations(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/reminders-mobile.png', fullPage: false });
+  await card.scrollIntoViewIfNeeded(); await page.screenshot({ path: 'test-results/reminders-mobile.png' });
+});
+
+test('convite do Meu dia: no computador, ligar as notificações; Agora não guarda a escolha; a notificação do Networking abre as Novidades', async ({ page }) => {
+  await mockApi(page, { home: { ...homeFixture(), updates: 1 },
+    network: url => url.searchParams.get('updates') ? { requests: [], events: [] } : [] });
+  await page.route('**/api/reminders', route => route.fulfill({ contentType: 'application/json',
+    body: JSON.stringify({ ok: true, data: { devices: [], telegram: false, whatsapp: false, bridge_online: false, upcoming: [], vapid: 'BAAA' } }) }));
+  // O navegador de teste nasce com a notificação bloqueada; aqui ele ainda não decidiu, como um aparelho na primeira vez.
+  await page.addInitScript(() => Object.defineProperty(Notification, 'permission', { get: () => 'default' }));
+  await page.goto('/');
+  const invite = page.getByRole('region', { name: 'Ligue as notificações neste computador' });
+  await expect(invite).toBeVisible();
+  await expect(invite.getByRole('button', { name: 'Ligar notificações' })).toBeVisible();
+  expect((await new AxeBuilder({ page }).include('.app-invite').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/convite-notificacoes-desktop.png' });
+  // O atalho leva às preferências; "Agora não" some com o convite e vale depois de recarregar.
+  await invite.getByRole('button', { name: 'Meu espaço › Avisos' }).click();
+  await expect(page.getByRole('heading', { name: 'Avisos', level: 2 })).toBeVisible();
+  await page.goto('/');
+  await page.getByRole('region', { name: 'Ligue as notificações neste computador' }).getByRole('button', { name: 'Agora não' }).click();
+  await expect(page.locator('.app-invite')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Um passo de cada vez.' })).toBeVisible();
+  await expect(page.locator('.app-invite')).toHaveCount(0);
+  // Tocar na notificação do Networking abre a Jornada direto nas Novidades, e o endereço fica limpo.
+  await page.goto('/?abrir=novidades');
+  await expect(page.getByRole('heading', { name: 'Novidades', level: 2 })).toBeVisible();
+  expect(new URL(page.url()).search).toBe('');
+  // A barra de cima mostra só o nome da tela, sem o antigo "Meu espaço ›".
+  await expect(page.locator('.topbar .breadcrumb')).not.toContainText('Meu espaço');
+});
+
+test.describe('convite do Meu dia no celular', () => {
+  test.use({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1', viewport: { width: 390, height: 844 } });
+  test('no iPhone, o passo a passo para instalar; no Android, o botão Instalar agora', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/');
+    const invite = page.getByRole('region', { name: 'Instale a Jornada Plena no seu celular' });
+    await expect(invite).toContainText('Adicionar à Tela de Início');
+    await expect(invite).toContainText('recebe as notificações dos seus lembretes e do Networking');
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect((await new AxeBuilder({ page }).include('.app-invite').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+    await page.screenshot({ path: 'test-results/convite-instalar-iphone.png' });
+    await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+    await settleAnimations(page);
+    expect((await new AxeBuilder({ page }).include('.app-invite').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+    await page.screenshot({ path: 'test-results/convite-instalar-iphone-escuro.png' });
+    await invite.getByRole('button', { name: 'Fechar o convite' }).click();
+    await expect(page.locator('.app-invite')).toHaveCount(0);
+  });
+});
+
+test.describe('convite do Meu dia no Android', () => {
+  test.use({ userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Mobile Safari/537.36', viewport: { width: 412, height: 915 } });
+  test('o botão Instalar agora usa o pedido do próprio navegador', async ({ page }) => {
+    await mockApi(page);
+    await page.goto('/');
+    const invite = page.getByRole('region', { name: 'Instale a Jornada Plena no seu celular' });
+    await expect(invite).toContainText('Instalar aplicativo');
+    await page.evaluate(() => {
+      const event = Object.assign(new Event('beforeinstallprompt', { cancelable: true }), { prompt: async () => undefined, userChoice: Promise.resolve({ outcome: 'accepted' }) });
+      window.dispatchEvent(event);
+    });
+    await invite.getByRole('button', { name: 'Instalar agora' }).click();
+    await expect(page.locator('.app-invite')).toHaveCount(0);
+  });
 });
 
 test('assistentes externos: a pessoa cria uma chave MCP, vê a configuração de cada app uma vez e revoga', async ({ page }) => {

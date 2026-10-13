@@ -39,6 +39,7 @@ import { OAUTH_RETURN_KEY } from './oauth-consent';
 import type { Place } from '@/lib/notebooks';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
 import { PersonAvatar } from './community/avatar';
+import { AppInvite } from './app-invite';
 import { SettingsIndex, settingsAvailable, settingsSections, settingsTitle, type SettingsSection } from './settings-index';
 import type { Updates } from '@/lib/network';
 import { ConsentGate } from './community/consent-gate';
@@ -363,6 +364,15 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     window.setTimeout(() => document.querySelector('.course-material')?.scrollIntoView({ block: 'start' }), 500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, initialSearch]);
+  // A notificação do Networking abre as Novidades (/?abrir=novidades), uma vez, depois que a conta carrega.
+  const newsLink = useRef(new URLSearchParams(initialSearch).get('abrir') === 'novidades');
+  useEffect(() => {
+    if (!ready || !newsLink.current || !cloud || !home) return;
+    newsLink.current = false;
+    window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
+    routeCommunity({ kind: 'updates' }, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, cloud, home]);
   // "Pausar" or "Encerrar" on a focus reminder (notification, Telegram or WhatsApp): once the account is loaded, the
   // focus pauses, or ends at the end of its time. "Encerrar" names the focus, so a newer one is never touched.
   const focusLink = useRef(new URLSearchParams(initialSearch));
@@ -676,15 +686,14 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               <span>Voltar</span>
             </button>
           )}
-          {view !== 'today' && <><span>Meu espaço</span><ChevronRight aria-hidden="true" size={14} /></>}
           {view === 'studies' && studyCourse && <><span><button type="button" className="cm-crumb" onClick={showStudies}>Estudos</button></span><ChevronRight aria-hidden="true" size={14} /></>}
           {view === 'today' && ready ? <span className="topbar-today"><strong>{greeting(new Date().getHours())}{firstName ? `, ${firstName}` : ''}</strong><span className="topbar-cycle"><span className="sr-only">{`${cycles.month}: semana ${cycles.cycle} de 4, dia ${cycles.day} de ${cycles.last}`}</span><span className="cycle-bars" aria-hidden="true">{cycles.cycles.map((cycle) => <i key={cycle.index} className={cycle.current ? 'on' : cycle.end < cycles.day ? 'past' : ''} />)}</span><span aria-hidden="true"><span className="cycle-month">{cycles.month} · </span>semana {cycles.cycle}/4<span className="cycle-day"> · dia {cycles.day}/{cycles.last}</span></span></span></span> : <strong>{pageName}</strong>}
         </div>
         <div className="topbar-actions">
           <button type="button" className="button primary topbar-capture" disabled={!ready} onClick={openCapture}><img src="/brand/simbolo-reduzido.svg" alt="" width={22} height={22} />Registrar</button>
-          <button type="button" className="search-trigger" aria-label="Buscar no meu espaço" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" onClick={openSearch}>
+          <button type="button" className="search-trigger" aria-label="Buscar na Jornada" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K" onClick={openSearch}>
             <Search size={16} aria-hidden="true" />
-            <span>Buscar no meu espaço</span>
+            <span>Buscar na Jornada</span>
             <kbd>Ctrl K</kbd>
           </button>
           {cloud && home && <button type="button" className="icon-button topbar-bell" onClick={() => routeCommunity({ kind: 'updates' })}
@@ -742,6 +751,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
               {agendaToday.length > 5 && <button type="button" className="text-button" onClick={() => { setAgendaDate(today); navigate('agenda'); }}>Mais {agendaToday.length - 5} hoje na agenda <ArrowRight size={13} aria-hidden="true" /></button>}
               </div>
             </section>
+
+            {!demo && <AppInvite cloud={cloud} onOpenAvisos={() => openSettingsSection('avisos')} />}
 
             {consented && waiting.length > 0 && <section className="panel today-waiting" aria-labelledby="today-waiting-title">
               <h2 id="today-waiting-title">Pedidos aguardando você ({waiting.length})</h2>

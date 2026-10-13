@@ -30,8 +30,6 @@ body { margin: 0; background: var(--canvas); color: var(--ink); font-size: 1rem;
 .assistant-conversation-bar > div:first-child { min-width: 0; display: grid; gap: .2rem; }
 .assistant-conversation-bar strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 32ch; }
 .assistant-conversation-bar .button-row { flex-shrink: 0; }
-.assistant-install { display: grid; justify-items: center; gap: .4rem; margin: 1rem 0; text-align: center; }
-.assistant-install p { margin: 0; }
 .conversation-manager { display: grid; gap: 1rem; }
 .conversation-manager p { margin: 0; }
 .conversation-search { display: flex; align-items: center; gap: .5rem; }
@@ -1069,6 +1067,20 @@ button.nw-story-ring { background: transparent; cursor: pointer; }
 .nw-tile.photo img { inline-size: 100%; block-size: 100%; object-fit: cover; }
 .nw-tile-many { position: absolute; inset-block-start: 6px; inset-inline-end: 6px; color: hsl(0 0% 100%); filter: drop-shadow(0 0 2px hsl(0 0% 0% / .6)); }
 .nw-anchor { scroll-margin-top: 84px; }
+/* Convite do Meu dia: instalar no celular e no tablet; ligar as notificações (entrega 3). */
+.app-invite { position: relative; display: grid; gap: 12px; padding: 18px; border: 2px solid var(--accent-text); }
+.app-invite-close { position: absolute; inset-block-start: 8px; inset-inline-end: 8px; inline-size: 44px; block-size: 44px; }
+.app-invite-head { display: flex; gap: 14px; align-items: flex-start; padding-inline-end: 40px; }
+.app-invite-head img { border-radius: 12px; flex-shrink: 0; }
+.app-invite-head h2 { margin: 0 0 4px; font-size: 1.05rem; }
+.app-invite-head p { margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.5; }
+.app-invite-icon { display: grid; place-items: center; inline-size: 52px; block-size: 52px; border-radius: 14px; background: var(--blue); color: var(--accent-text); flex-shrink: 0; }
+.app-invite-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.app-invite-steps li { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--soft-bg); font-size: .92rem; }
+.app-invite-steps li svg { color: var(--accent-text); flex-shrink: 0; }
+.app-invite-tip { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--soft-bg); font-size: .92rem; }
+.app-invite-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.app-invite-actions .button { flex: 1 1 160px; min-block-size: 44px; }
 /* Entrega 2: destaques, Salvos e ver como visitante. */
 .nw-highlights { padding-inline: 4px; }
 .nw-highlight-cover { display: grid; place-items: center; inline-size: 56px; block-size: 56px; border-radius: 50%; object-fit: cover; font-family: var(--serif); font-size: 1.3rem; font-weight: 700; background: var(--sage); color: var(--ink); }

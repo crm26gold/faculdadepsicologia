@@ -4,6 +4,7 @@ import { openKey } from '@/lib/ai/crypto';
 import { botServerSecret, vapidKeys } from '@/lib/bot/secrets';
 import { sendMessage } from '@/lib/bot/telegram';
 import { botDatabase } from '@/lib/supabase/bot';
+import { networkPush, type PushEvent } from './network';
 import { channelsFor, focusStopLink, reminderLink, reminderText, type ClaimedReminder, type Delivery, type ReminderChannel } from './reminders';
 
 type Env = Record<string, string | undefined>;
@@ -82,4 +83,36 @@ export async function dispatchReminders(only?: string, env: Env = process.env) {
   if (done.some(item => item.deliveries.some(delivery => !delivery.ok)))
     console.warn('[lembretes]', { sent: done.length, failed: done.flatMap(item => item.deliveries.filter(delivery => !delivery.ok).map(delivery => `${delivery.channel}: ${delivery.detail}`)).slice(0, 10) });
   return done;
+}
+
+type Device = { endpoint: string; p256dh: string; auth: string };
+/** Networking pelo aviso principal: a notificação do app. Uma por pessoa a cada batida do relógio, que substitui a
+ * anterior na bandeja (mesma etiqueta) e abre as Novidades. Silêncio, grupos silenciados e aviso desligado já vêm
+ * filtrados pelo banco; Telegram e WhatsApp ficam só para os lembretes. */
+export async function dispatchNetwork(env: Env = process.env) {
+  const db = botDatabase();
+  if (!db) return 0;
+  const secret = botServerSecret();
+  // As chaves antes de marcar as novidades como avisadas: sem elas, nada se perde.
+  const { publicKey, privateKey } = vapidKeys();
+  const claimed = await db.rpc('network_push_claim', { server_secret: secret, batch: 200 });
+  if (claimed.error) throw new Error('Não consegui ler as novidades.');
+  const people = (claimed.data ?? []) as { user: string; devices: Device[] | null; events: PushEvent[] }[];
+  if (!people.length) return 0;
+  const url = `${appOrigin(env)}/?abrir=novidades`;
+  let sent = 0;
+  await Promise.all(people.map(async person => {
+    const payload = JSON.stringify({ ...networkPush(person.events), url, tag: 'jornada-rede', soft: true });
+    await Promise.all((person.devices ?? []).map(async device => {
+      try {
+        await webpush.sendNotification({ endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } }, payload,
+          { vapidDetails: { subject: appOrigin(env), publicKey, privateKey }, TTL: 3600, urgency: 'normal', timeout: TIMEOUT });
+        sent++;
+      } catch (error) {
+        const status = (error as { statusCode?: number }).statusCode;
+        if (status === 404 || status === 410) await db.rpc('push_drop', { server_secret: secret, old_endpoint: device.endpoint });
+      }
+    }));
+  }));
+  return sent;
 }

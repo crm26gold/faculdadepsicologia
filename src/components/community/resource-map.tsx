@@ -92,7 +92,7 @@ export function ResourceMap({ state, onChanged, onResolve }: { state: ResourceMa
         if (privacy && audience === 'members' && map.base_enabled && !offeredNow) setOffer({ resource, privacy_basis: privacy });
         else void savePolicy(resource, privacy, audience);
       }} />)}</div>
-    {personal.length > 0 && <div className="ai-card"><strong>Suas chaves pessoais</strong><p className="muted small">Ficam em Meu espaço › Minhas chaves de IA e entram primeiro nas suas conversas de texto. Nunca atendem outra pessoa.</p>
+    {personal.length > 0 && <div className="ai-card"><strong>Suas chaves pessoais</strong><p className="muted small">Ficam em Meu espaço › Assistentes e IA e entram primeiro nas suas conversas de texto. Nunca atendem outra pessoa.</p>
       <ul className="ai-source-states">{personal.map(resource => <li key={resource.source_id} data-state={resource.enabled ? 'active' : 'unusable'}><span className="ai-source-name">{aiCatalog[resource.provider].name}</span><span className="ai-state">{resource.enabled ? 'Ligada' : 'Pausada'}</span></li>)}</ul></div>}
 
     <h3>Base para membros</h3>

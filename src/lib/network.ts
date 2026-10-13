@@ -32,6 +32,22 @@ export type NetworkEvent = {
   created_at: string; read: boolean; actor: Person | null; post: { id: string; body: string } | null; space: { id: string; name: string } | null;
 };
 export type Updates = { requests: Person[]; events: NetworkEvent[] };
+export const eventText: Record<NetworkEvent['kind'], string> = {
+  follow: 'começou a seguir você', follow_request: 'pediu para seguir você', follow_accepted: 'aceitou seu pedido para seguir',
+  gostei: 'gostou da sua publicação', util: 'achou útil sua publicação', join_request: 'pediu para entrar no grupo', join_approved: 'aceitou você no grupo',
+};
+
+/** Uma notificação por pessoa a cada minuto do relógio: a primeira novidade escrita e quantas mais chegaram. */
+export type PushEvent = { kind: NetworkEvent['kind']; actor: string | null; post: string | null; space: string | null };
+export function networkPush(events: PushEvent[]) {
+  const [first] = events;
+  const cut = first.post?.slice(0, 60) ?? '', end = cut.lastIndexOf(' ');
+  // O trecho para numa palavra inteira.
+  const post = !first.post ? '' : first.post.length <= 60 ? first.post : `${(end > 40 ? cut.slice(0, end) : cut).trimEnd()}…`;
+  const line = `${first.actor || 'Alguém'} ${eventText[first.kind]}${first.space ? ` ${first.space}` : ''}${post ? `: “${post}”` : ''}`;
+  const more = events.length - 1;
+  return { title: 'Networking', body: more ? `${line} e mais ${more} ${more === 1 ? 'novidade' : 'novidades'}` : line };
+}
 
 /** Os #temas citados no texto viram a busca por tema da publicação. */
 export const topicsIn = (body: string) => normalizeTopics((body.match(/#[^\s#.,;:!?()]+/g) ?? []).join(' '));
