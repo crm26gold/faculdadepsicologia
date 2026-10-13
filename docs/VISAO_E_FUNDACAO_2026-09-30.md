@@ -199,6 +199,10 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
 - **A que o grupo se liga** (opcional): estudos (instituição › curso › matéria), uma área da vida, temas livres (#hashtags) ou nada. O vínculo mostra de onde o grupo vem e ajuda na busca.
 - **Quem vê o grupo no Networking** (o dono escolhe): todos, só a instituição ou a sala, pessoas escolhidas, ou só quem tem o link.
 - **Como se entra** (pode combinar): entrada livre, pedido com aprovação, senha, pedir nome e e-mail. Neste último, a pessoa é avisada antes de que o e-mail vai para o dono do grupo.
+- **Stories por aba:**
+  - em "Seguindo", os stories de quem a pessoa segue;
+  - em "Meus grupos", os stories e as publicações de todos os grupos dela, e embaixo a lista dos grupos.
+  - Stories somem em 24 horas junto com as fotos, o que poupa espaço.
 - **Perfil primeiro:** antes de criar um grupo ou usar o Networking, um passo rápido pede o nome (obrigatório) e uma foto ou avatar (bichinho, iniciais ou símbolo). O resto é opcional.
 - **Conteúdo:**
   - Imagens servem para ilustrar o conhecimento; foto pessoal é permitida.
