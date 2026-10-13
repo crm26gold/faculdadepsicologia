@@ -74,6 +74,20 @@ select expect((space_overview(current_setting('test.c1')::uuid)->'path'->0->>'na
 select vote((select id from polls), 0);
 select expect((space_overview(current_setting('test.c1')::uuid)->'polls'->0->>'my_vote')::int = 0, 'enquete mostra o voto da pessoa');
 select expect((space_overview(current_setting('test.c1')::uuid)->'polls'->0->'results'->0->>'votes')::int = 1, 'enquete mostra totais');
+-- Link da chamada: no grupo, qualquer membro coloca; na sala, só quem conduz; só https e só pela função.
+select set_space_call(current_setting('test.g1')::uuid, '  https://meet.google.com/abc-defg-hij  ');
+select expect((space_overview(current_setting('test.g1')::uuid)->'space'->>'call_url') = 'https://meet.google.com/abc-defg-hij', 'aluno coloca o link da chamada do grupo');
+select expect((space_overview(current_setting('test.g1')::uuid)->'space'->>'call_set_by') = '00000000-0000-4000-8000-000000000004', 'fica registrado quem colocou o link');
+select expect((space_overview(current_setting('test.g1')::uuid)->'access'->>'can_set_call')::boolean, 'aluno pode mudar o link do grupo');
+select expect(not (space_overview(current_setting('test.c1')::uuid)->'access'->>'can_set_call')::boolean, 'aluno não muda o link da sala');
+do $$ begin perform set_space_call(current_setting('test.c1')::uuid, 'https://meet.google.com/xyz'); raise exception 'FALHA: aluno mudou o link da sala';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform set_space_call(current_setting('test.g3')::uuid, 'https://meet.google.com/xyz'); raise exception 'FALHA: aluno mudou o link de outro grupo';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform set_space_call(current_setting('test.g1')::uuid, 'javascript:alert(1)'); raise exception 'FALHA: link sem https';
+exception when invalid_parameter_value then null; end $$;
+do $$ begin update spaces set call_url = 'https://outro.example' where id = current_setting('test.g1')::uuid; raise exception 'FALHA: gravou o link direto na tabela';
+exception when insufficient_privilege then null; end $$;
 select set_config('test.a1', (select id::text from assignments), false);
 do $$ begin perform assignment_detail((string_to_array(current_setting('test.works'), ','))[2]::uuid); raise exception 'FALHA: trabalho de outro grupo';
 exception when no_data_found then null; end $$;
@@ -113,6 +127,11 @@ select save_part(part('Conclusão'), null, 'approved');
 select expect((assignment_detail(current_setting('test.a1')::uuid)->'parts'->2->>'status') = 'approved', 'partes em ordem com estado');
 select update_assignment(current_setting('test.a1')::uuid, 'Direitos Humanos', 'Ética', 'Use o modelo enviado.', 'ABNT',
   '{"font": "Times New Roman", "size": 12, "spacing": 2}', '2026-10-21', 'open');
+select set_space_call(current_setting('test.c1')::uuid, 'https://zoom.us/j/123');
+select expect((space_overview(current_setting('test.c1')::uuid)->'space'->>'call_url') = 'https://zoom.us/j/123', 'professora coloca o link da sala');
+select set_space_call(current_setting('test.g1')::uuid, '');
+select expect((space_overview(current_setting('test.g1')::uuid)->'space'->>'call_url') is null
+  and (space_overview(current_setting('test.g1')::uuid)->'space'->>'call_set_by') is null, 'tirar o link limpa quem colocou');
 
 select act_as('00000000-0000-4000-8000-000000000004');
 select expect((select status from assignment_parts where id = part('Desenvolvimento')) = 'needs_revision', 'revisão pedida');

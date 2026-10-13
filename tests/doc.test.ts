@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { docText, docToHtml, emptyDoc, sanitizeDoc, toEditorJson, wordCount } from '../src/lib/doc';
 import { acceptedTerms, contactAction, hasPro, spaceAction, TERMS_VERSION, upcomingBirthdays, workAction } from '../src/lib/community';
+import { spaceCall } from '../src/lib/community-calls';
 
 test('documento de parte remove fontes, cores, estilos e nós desconhecidos', () => {
   const doc = sanitizeDoc({ type: 'doc', content: [
@@ -53,6 +54,15 @@ test('ações coletivas validam formato antes de chegar ao banco', () => {
   assert.equal(workAction.safeParse({ action: 'create_assignments', spaces: [crypto.randomUUID()], title: 'T', style: { font: 'Comic Sans' } }).success, false);
   assert.equal(workAction.safeParse({ action: 'create_assignments', spaces: [crypto.randomUUID()], title: 'T', style: { font: 'Arial', size: 12, spacing: 1.5 } }).success, true);
   assert.equal(contactAction.safeParse({ action: 'save', contact: null, name: ' ', email: '' }).success, false);
+});
+
+test('link da chamada: só https, vazio tira o link e vai para a função do banco', () => {
+  const space = crypto.randomUUID();
+  for (const url of ['http://meet.google.com/x', 'javascript:alert(1)', 'https://meet.google.com/a b', `https://x.com/${'a'.repeat(500)}`])
+    assert.equal(spaceAction.safeParse({ action: 'set_call', space, url }).success, false, url);
+  const parsed = spaceAction.parse({ action: 'set_call', space, url: ' https://meet.google.com/abc-defg-hij ' });
+  assert.deepEqual(spaceCall(parsed), { fn: 'set_space_call', args: { target: space, url: 'https://meet.google.com/abc-defg-hij' } });
+  assert.deepEqual(spaceCall(spaceAction.parse({ action: 'set_call', space })), { fn: 'set_space_call', args: { target: space, url: '' } });
 });
 
 test('plano e termos: piloto liberado, Pro com validade e aceite por versão', () => {

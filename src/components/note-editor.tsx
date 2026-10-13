@@ -13,6 +13,7 @@ import { Modal } from './modal';
 import { NoteSpelling } from './note-spelling';
 import { NoteImage, NoteAudio, NoteVideo, SpellingMarks } from './note-extensions';
 import { mediaKind, mediaTypes, safeLink, safeMediaSource, validMedia } from '@/lib/note-media';
+import { shrinkImage } from '@/lib/image-shrink';
 import { attachLocalMediaFallback, saveLocalMedia } from '@/lib/local-media-db';
 
 export default function NoteEditor({ content, onChange, disabled, noteId, cloud = false, demo = false }: {
@@ -76,9 +77,10 @@ export default function NoteEditor({ content, onChange, disabled, noteId, cloud 
     if (editor && editor.getHTML() !== content) editor.commands.setContent(content, { emitUpdate: false });
   }, [content, editor]);
   useEffect(() => {
-    insertFile.current = async file => {
+    insertFile.current = async picked => {
       if (!editor || disabled || controller.current) return;
       if (demo) { setMessage('Anexos indisponíveis na demonstração.'); return; }
+      const file = await shrinkImage(picked);
       if (!validMedia(file.type, file.size)) { setMessage('Use imagem (JPG, PNG, WebP, GIF), áudio (MP3, M4A, WAV, OGG, WebM) ou vídeo (MP4, WebM, MOV), até 25 MB.'); return; }
       if (!cloud) {
         bookmark.current ??= editor.state.selection.getBookmark();
