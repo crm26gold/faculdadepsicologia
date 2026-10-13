@@ -63,6 +63,8 @@ export function ProfileSettings({
   downloadData,
   onImportClick,
   authenticated,
+  part,
+  identityElsewhere = false,
 }: {
   data: Workspace;
   update: (change: (previous: Workspace) => Workspace) => boolean;
@@ -73,6 +75,10 @@ export function ProfileSettings({
   downloadData: () => void;
   onImportClick: () => void;
   authenticated: boolean;
+  /** Meu espaço abre uma parte por vez; sem `part`, mostra tudo. */
+  part?: 'contato' | 'areas' | 'aparencia' | 'dados';
+  /** Com perfil no Networking, nome e foto ficam lá: aqui só o contato. */
+  identityElsewhere?: boolean;
 }) {
   const [profile, setProfile] = useState<UserProfileData>(data.profile ?? emptyProfile);
   const [photoError, setPhotoError] = useState('');
@@ -137,15 +143,15 @@ export function ProfileSettings({
   }
 
   return (
-    <div className="profile-settings-layout">
+    <div className={`profile-settings-layout${part ? ' single' : ''}`}>
       {/* LEFT COLUMN: EDIT FORM */}
       <div className="profile-form-column">
-        <form onSubmit={handleSave} className="panel profile-editor-panel">
+        {(!part || part === 'contato') && <form onSubmit={handleSave} className="panel profile-editor-panel">
           <fieldset disabled={blocked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="section-heading">
             <div>
-              <h2>Seu perfil</h2>
-              <p>Como você aparece no app e como podemos falar com você. Cursos e instituições ficam em Estudos.</p>
+              <h2>{identityElsewhere ? 'Contato' : 'Seu perfil'}</h2>
+              <p>{identityElsewhere ? 'Para falarmos com você. Ninguém mais vê. Seu nome e sua foto ficam em Meu perfil.' : 'Como você aparece no app e como podemos falar com você. Cursos e instituições ficam em Estudos.'}</p>
             </div>
             {savedNotice && (
               <span className="tiny-tag positive" style={{ background: 'var(--ok-bg)', color: 'var(--ok-text)' }}>
@@ -154,7 +160,7 @@ export function ProfileSettings({
             )}
           </div>
 
-          <div className="photo-upload-row">
+          {!identityElsewhere && <div className="photo-upload-row">
             <div className="profile-avatar-large">
               {profile.photoUrl ? (
                 <img src={profile.photoUrl} alt="Foto de perfil" />
@@ -199,10 +205,10 @@ export function ProfileSettings({
               <small className="muted">JPG, PNG ou WebP · fica leve sozinha · incluída no backup</small>
               {photoError && <p role="alert">{photoError}</p>}
             </div>
-          </div>
+          </div>}
 
           <div className="form-grid" style={{ marginTop: '16px' }}>
-            <div>
+            {!identityElsewhere && <div>
               <label htmlFor="p-name">Seu nome</label>
               <input
                 id="p-name"
@@ -210,7 +216,7 @@ export function ProfileSettings({
                 onChange={e => setProfile(prev => ({ ...prev, name: e.target.value }))}
                 required
               />
-            </div>
+            </div>}
             <div>
               <label htmlFor="p-email">E-mail para contato · opcional</label>
               <input
@@ -232,20 +238,20 @@ export function ProfileSettings({
 
           <div className="form-footer" style={{ marginTop: '20px' }}>
             <button type="submit" className="button primary">
-              Salvar perfil
+              {identityElsewhere ? 'Salvar contato' : 'Salvar perfil'}
             </button>
           </div>
           </fieldset>
-        </form>
+        </form>}
 
         {/* ORGANIZAÇÃO: ÁREAS E CADERNOS */}
-        <OrganizationPanel data={data} update={update} blocked={blocked} />
+        {(!part || part === 'areas') && <OrganizationPanel data={data} update={update} blocked={blocked} />}
       </div>
 
       {/* RIGHT COLUMN: PREVIEW CARD & SYSTEM INTEGRATIONS */}
       <div className="profile-preview-column">
         {/* BACKUP & PRIVACIDADE */}
-        <div className="panel backup-card">
+        {(!part || part === 'dados') && <div className="panel backup-card">
           <h3>Segurança e Backup dos Dados</h3>
           <p style={{ fontSize: '0.82rem', color: 'var(--muted)' }}>
             {demo
@@ -280,10 +286,10 @@ export function ProfileSettings({
               <button className="button outline">Sair da conta</button>
             </form>
           )}
-        </div>
+        </div>}
 
         {/* TEMA & MODO NOTURNO */}
-        <div className="panel" style={{ padding: 18, background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)' }}>
+        {(!part || part === 'aparencia') && <div className="panel" style={{ padding: 18, background: 'var(--surface)', borderRadius: 12, border: '1px solid var(--line)' }}>
           <h3>Aparência & Modo Noturno</h3>
           <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: '4px 0 12px' }}>
             Adapte a interface para estudar à noite sem cansar a visão.
@@ -317,7 +323,7 @@ export function ProfileSettings({
               ⚙️ Automático
             </button>
           </div>
-        </div>
+        </div>}
 
       </div>
     </div>

@@ -1,10 +1,9 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ArrowRight, BadgeCheck, Bell, ClipboardCheck, GraduationCap, Link2, PenLine, Plus, Send, Users } from 'lucide-react';
+import { ArrowRight, BadgeCheck, ClipboardCheck, GraduationCap, Link2, PenLine, Plus, Send, Users } from 'lucide-react';
 import { api, formatDay, PENDING_INVITE_KEY } from './client';
 import { SpaceView } from './space-view';
 import { AssignmentView } from './assignment-view';
-import { PersonAvatar } from './avatar';
 import { ProfileEditor } from './profile-editor';
 import { CreateGroup } from './group-form';
 import { Discover } from './discover';
@@ -18,11 +17,14 @@ import type { Workspace } from '@/lib/workspace';
 
 export type CommunityTab = 'feed' | 'mine' | 'discover';
 export type CommunityRoute = { kind: 'list'; tab?: CommunityTab } | { kind: 'space'; id: string } | { kind: 'work'; id: string; from?: string }
-  | { kind: 'create'; parent?: { id: string; name: string } } | { kind: 'profile' } | { kind: 'person'; id: string }
+  | { kind: 'create'; parent?: { id: string; name: string } } | { kind: 'profile' } | { kind: 'person'; id: string; post?: string }
   | { kind: 'updates' } | { kind: 'compose'; space?: { id: string; name: string }; story?: boolean };
 
-export function CommunityPanel({ home, workspace, route, onRoute, refreshHome, onAddToAgenda, onMoveAgendaTask }: {
-  home: Home; workspace: Workspace; route: CommunityRoute; onRoute: (route: CommunityRoute) => void; refreshHome: () => void;
+/** Cada passo dentro do Networking vira uma entrada do histórico: o Voltar (do app ou do celular) desfaz um passo.
+ * `replace` troca a entrada atual (aba, ou a tela que acabou de cumprir seu papel); `onBack` volta um passo. */
+export function CommunityPanel({ home, workspace, route, onRoute, onBack, onOpenSettings, refreshHome, onAddToAgenda, onMoveAgendaTask }: {
+  home: Home; workspace: Workspace; route: CommunityRoute; onRoute: (route: CommunityRoute, replace?: boolean) => void; onBack: () => void;
+  onOpenSettings: () => void; refreshHome: () => void;
   onAddToAgenda?: (assignment: AgendaAssignment) => AgendaLink | null;
   onMoveAgendaTask?: (taskId: string, due: string) => boolean;
 }) {
@@ -31,27 +33,27 @@ export function CommunityPanel({ home, workspace, route, onRoute, refreshHome, o
   // Perfil primeiro: nos grupos, as pessoas veem nome e avatar.
   if (!home.profile) return <ProfileEditor first name={home.account.display_name} personalPhoto={personalPhoto} onSaved={refreshHome} />;
   if (route.kind === 'profile') return <ProfileEditor name={home.account.display_name} profile={home.profile} personalPhoto={personalPhoto}
-    onSaved={() => { refreshHome(); onRoute({ kind: 'list' }); }} onCancel={() => onRoute({ kind: 'list' })} />;
-  if (route.kind === 'create') return <CreateGroup data={workspace} parent={route.parent} onCancel={() => onRoute(route.parent ? { kind: 'space', id: route.parent.id } : { kind: 'list' })}
-    onCreated={id => { refreshHome(); onRoute({ kind: 'space', id }); }} />;
-  if (route.kind === 'space') return <SpaceView key={route.id} id={route.id} me={me} workspace={workspace} onBack={() => onRoute({ kind: 'list' })} onChanged={refreshHome}
+    onSaved={() => { refreshHome(); onBack(); }} onCancel={onBack} />;
+  if (route.kind === 'create') return <CreateGroup data={workspace} parent={route.parent} onCancel={onBack}
+    onCreated={id => { refreshHome(); onRoute({ kind: 'space', id }, true); }} />;
+  if (route.kind === 'space') return <SpaceView key={route.id} id={route.id} me={me} workspace={workspace} onBack={onBack} onChanged={refreshHome}
     onOpenSpace={id => onRoute({ kind: 'space', id })} onOpenWork={id => onRoute({ kind: 'work', id, from: route.id })}
     onCreateGroup={parent => onRoute({ kind: 'create', parent })} onCompose={space => onRoute({ kind: 'compose', space })}
     onOpenPerson={id => onRoute({ kind: 'person', id })} />;
-  if (route.kind === 'person') return <PersonView key={route.id} id={route.id} me={me} onBack={() => onRoute({ kind: 'list' })} onChanged={refreshHome}
-    onOpenPerson={id => onRoute({ kind: 'person', id })} onEditProfile={() => onRoute({ kind: 'profile' })} />;
-  if (route.kind === 'updates') return <UpdatesView onBack={() => onRoute({ kind: 'list' })} onChanged={refreshHome}
+  if (route.kind === 'person') return <PersonView key={route.id} id={route.id} me={me} post={route.post} onChanged={refreshHome}
+    onOpenPerson={id => onRoute({ kind: 'person', id })} onOpenPost={post => onRoute({ kind: 'person', id: route.id, post })}
+    onEditProfile={() => onRoute({ kind: 'profile' })} onNewStory={() => onRoute({ kind: 'compose', story: true })} onOpenSettings={onOpenSettings} />;
+  if (route.kind === 'updates') return <UpdatesView onChanged={refreshHome}
     onOpenPerson={id => onRoute({ kind: 'person', id })} onOpenSpace={id => onRoute({ kind: 'space', id })} />;
-  if (route.kind === 'compose') return <Composer home={home} space={route.space} story={route.story} onCancel={() => onRoute(route.space ? { kind: 'space', id: route.space.id } : { kind: 'list' })}
-    onPosted={() => onRoute(route.space ? { kind: 'space', id: route.space.id } : { kind: 'list', tab: 'feed' })} />;
+  if (route.kind === 'compose') return <Composer home={home} space={route.space} story={route.story} onCancel={onBack} onPosted={onBack} />;
   if (route.kind === 'work') return <AssignmentView key={route.id} id={route.id} me={me} onChanged={refreshHome} onAddToAgenda={onAddToAgenda} onMoveAgendaTask={onMoveAgendaTask}
-    onBack={() => onRoute(route.from ? { kind: 'space', id: route.from } : { kind: 'list' })} />;
+    onBack={onBack} />;
   // Quem tem parte de trabalho esperando abre em Meus grupos; os outros, no que as pessoas compartilham.
   const tab = route.tab ?? (home.my_parts.length || home.to_review.length ? 'mine' : 'feed');
   return <NetworkingHome home={home} tab={tab} onRoute={onRoute} refreshHome={refreshHome} />;
 }
 
-function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: CommunityTab; onRoute: (route: CommunityRoute) => void; refreshHome: () => void }) {
+function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: CommunityTab; onRoute: (route: CommunityRoute, replace?: boolean) => void; refreshHome: () => void }) {
   const me = home.account.user_id;
   const openPerson = (id: string) => onRoute({ kind: 'person', id });
   const stories = (feed: 'following' | 'groups') => <StoriesBar feed={feed} me={me} myName={home.account.display_name} myAvatar={home.profile ?? null}
@@ -87,21 +89,13 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
   </button>;
 
   return <div className="cm-stack">
-    <div className="nw-head">
-      <button type="button" className="nw-me" onClick={() => onRoute({ kind: 'profile' })} aria-label="Editar meu perfil">
-        <PersonAvatar name={home.account.display_name} avatar={home.profile} size={44} />
-        <span><strong>{home.account.display_name}</strong><small>Editar perfil</small></span>
-      </button>
-      <div className="nw-head-actions">
-        <button type="button" className="icon-button nw-bell" onClick={() => onRoute({ kind: 'updates' })} aria-label={home.updates ? `Atualizações: ${home.updates} novas` : 'Atualizações'}>
-          <Bell size={20} aria-hidden="true" />{!!home.updates && <span className="nw-bell-count" aria-hidden="true">{home.updates > 99 ? '99+' : home.updates}</span>}</button>
-        <button type="button" className="button primary" onClick={() => onRoute({ kind: 'compose' })}><Send size={16} aria-hidden="true" />Publicar</button>
-        <button type="button" className="button outline" onClick={() => onRoute({ kind: 'create' })}><Plus size={16} aria-hidden="true" />Criar grupo</button>
-      </div>
+    <div className="nw-head-actions">
+      <button type="button" className="button primary" onClick={() => onRoute({ kind: 'compose' })}><Plus size={16} aria-hidden="true" />Publicar</button>
+      <button type="button" className="button outline" onClick={() => onRoute({ kind: 'create' })}>Criar grupo</button>
     </div>
     <div className="planning-nav-bar" role="tablist" aria-label="Networking">
       {([['feed', 'Seguindo'], ['mine', 'Meus grupos'], ['discover', 'Descobrir']] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={tab === value}
-        className={`planning-tab ${tab === value ? 'active' : ''}`} onClick={() => onRoute({ kind: 'list', tab: value })}>{label}{value === 'mine' && !!home.join_requests && <span className="count-pill">{home.join_requests}</span>}</button>)}
+        className={`planning-tab ${tab === value ? 'active' : ''}`} onClick={() => onRoute({ kind: 'list', tab: value }, true)}>{label}{value === 'mine' && !!home.join_requests && <span className="count-pill">{home.join_requests}</span>}</button>)}
     </div>
 
     {tab === 'feed' && stories('following')}
@@ -134,7 +128,7 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
         {!active.length && <div className="panel cm-empty"><Users size={30} aria-hidden="true" /><h3>Você ainda não está em nenhum grupo.</h3>
           <p>Crie um grupo de estudo, de desafio ou de qualquer assunto, procure um em Descobrir ou cole abaixo o convite que recebeu. Sua vida pessoal no app continua só sua.</p>
           <div className="button-row"><button type="button" className="button primary" onClick={() => onRoute({ kind: 'create' })}><Plus size={16} aria-hidden="true" />Criar grupo</button>
-            <button type="button" className="button outline" onClick={() => onRoute({ kind: 'list', tab: 'discover' })}>Descobrir grupos</button></div></div>}
+            <button type="button" className="button outline" onClick={() => onRoute({ kind: 'list', tab: 'discover' }, true)}>Descobrir grupos</button></div></div>}
       </section>
 
       <section className="panel cm-join"><h2><Link2 size={16} aria-hidden="true" /> Entrar com um convite</h2>
