@@ -24,6 +24,9 @@ const messages: Record<string, [number, string]> = {
   '23505': [409, 'Isso já existe.'],
   '40001': [409, 'Outra pessoa alterou isto agora. Recarregue e tente de novo.'],
   PT409: [409, 'Outra sessão alterou isto agora. Recarregue e tente de novo.'],
+  PT429: [429, 'Você chegou ao limite de hoje. Tente de novo amanhã.'],
+  PT413: [413, 'Você chegou ao limite de fotos guardadas. Apague publicações antigas com foto para liberar espaço.'],
+  PT507: [507, 'O espaço de fotos do app encheu. Avise quem cuida do app; textos e cards continuam funcionando.'],
 };
 /** Função do banco ainda não publicada: o PostgREST não a encontra (PGRST202) ou o Postgres não a conhece (42883). */
 export const missingRpc = (error: { code?: string } | null) => ['PGRST202', '42883'].includes(error?.code ?? '');

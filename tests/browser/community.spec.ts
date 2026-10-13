@@ -311,7 +311,7 @@ test('Networking: seguir, publicar com público escolhido, Gostei e Útil, e atu
   const POST1 = 'eeeeeeee-0000-4000-8000-0000000000a1';
   const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
   const post = { id: POST1, author: ana, body: 'Resumo de Ética: os três princípios #ética', style: 'card_lavender', audience: 'followers', topics: ['ética'],
-    created_at: '2026-10-13T10:00:00Z', space: null, counts: { gostei: 2, util: 0 }, mine: [] };
+    created_at: '2026-10-13T10:00:00Z', space: null, counts: { gostei: 2, util: 0 }, mine: [], photos: [], expires_at: null };
   const posted = await mockApi(page, { home: { ...homeFixture(), updates: 2 }, onPost: ({ body }) => body.action === 'follow' ? 'requested' : body.action === 'react' ? true : null,
     network: url => url.searchParams.get('feed') === 'following' ? [post]
       : url.searchParams.get('updates') ? { requests: [ana], events: [{ id: 1, kind: 'gostei', created_at: '2026-10-13T11:00:00Z', read: false, actor: { id: PROF, name: 'Professora Bia', avatar: null }, post: { id: POST1, body: 'Meu resumo' }, space: null }] }
@@ -339,7 +339,7 @@ test('Networking: seguir, publicar com público escolhido, Gostei e Útil, e atu
   const audit = await new AxeBuilder({ page }).include('.nw-form').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
   await composer.getByRole('button', { name: 'Publicar' }).click();
-  await expect.poll(() => posted.find(item => item.body.action === 'create_post')?.body).toEqual({ action: 'create_post', body: 'Mapa mental de #neurociência', style: 'card_lavender', audience: 'public', space: null });
+  await expect.poll(() => posted.find(item => item.body.action === 'create_post')?.body).toEqual({ action: 'create_post', body: 'Mapa mental de #neurociência', style: 'card_lavender', audience: 'public', space: null, photos: [], story: false });
 
   await page.getByRole('button', { name: 'Atualizações: 2 novas' }).click();
   await expect(page.getByRole('heading', { name: 'Atualizações' })).toBeVisible();
@@ -359,6 +359,84 @@ test('Networking: seguir, publicar com público escolhido, Gostei e Útil, e atu
   await page.getByRole('tab', { name: 'Descobrir' }).click();
   await page.getByLabel('Buscar grupos').fill('ana');
   await expect(page.getByRole('region', { name: 'Pessoas' }).getByText('Colega Ana')).toBeVisible();
+});
+
+test('Networking: fotos no feed, stories de 24 horas e publicar com foto reduzida no aparelho', async ({ page }) => {
+  const PHOTO = 'eeeeeeee-0000-4000-8000-0000000000f1', STORY = 'eeeeeeee-0000-4000-8000-0000000000b1';
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const base = { author: ana, audience: 'followers', topics: [], space: null, counts: { gostei: 0, util: 0 }, mine: [] };
+  const post = { ...base, id: 'eeeeeeee-0000-4000-8000-0000000000a2', body: '', style: 'text', created_at: '2026-10-13T10:00:00Z', expires_at: null, photos: [{ id: PHOTO, w: 1080, h: 1350 }] };
+  const story = { ...base, id: STORY, body: 'Estudando agora', style: 'card_rose', created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 5 * 3_600_000).toISOString(), photos: [] };
+  const posted = await mockApi(page, { onPost: ({ body }) => body.action === 'react' ? true : null,
+    network: url => url.searchParams.get('feed') === 'following' ? [post] : url.searchParams.get('stories') === 'following' ? [{ author: ana, stories: [story] }] : [] });
+  const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  const asked: string[] = [];
+  await page.route('**/api/network/photo/**', route => { asked.push(new URL(route.request().url()).pathname); return route.fulfill({ contentType: 'image/png', body: pixel }); });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#community');
+  await page.getByRole('tab', { name: 'Seguindo' }).click();
+
+  const photo = page.getByRole('article', { name: 'Publicação de Colega Ana' }).getByRole('img', { name: 'Foto de Colega Ana' });
+  await expect(photo).toBeVisible();
+  await expect.poll(() => photo.evaluate(image => (image as HTMLImageElement).naturalWidth)).toBe(1);
+  expect(asked).toContain(`/api/network/photo/${PHOTO}`);
+  await page.screenshot({ path: 'test-results/networking-fotos-stories-mobile-light.png' });
+
+  // Story: abre em tela cheia, dá para pausar e marcar Gostei; depois de visto, o anel muda.
+  await page.getByRole('button', { name: 'Stories de Colega Ana, novos' }).click();
+  const viewer = page.getByRole('dialog', { name: 'Story de Colega Ana' });
+  await expect(viewer).toContainText('Estudando agora');
+  await expect(viewer).toContainText('some em 5 h');
+  await viewer.getByRole('button', { name: 'Pausar' }).click();
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await page.screenshot({ path: 'test-results/networking-story-mobile-dark.png' });
+  const viewerAudit = await new AxeBuilder({ page }).include('.nw-story-viewer').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(viewerAudit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await viewer.getByRole('button', { name: 'Gostei' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'react')?.body).toEqual({ action: 'react', post: STORY, kind: 'gostei' });
+  await viewer.getByRole('button', { name: 'Fechar stories' }).click();
+  await expect(page.getByRole('button', { name: 'Stories de Colega Ana', exact: true })).toBeVisible();
+
+  // Publicar com foto: o aparelho reduz uma foto grande para até 300 KB e 1440 px antes de enviar.
+  const big = await page.evaluate(async () => {
+    const canvas = Object.assign(document.createElement('canvas'), { width: 3000, height: 2000 });
+    const context = canvas.getContext('2d')!, image = context.createImageData(3000, 2000);
+    for (let i = 0; i < image.data.length; i++) image.data[i] = i % 4 === 3 ? 255 : Math.random() * 255;
+    context.putImageData(image, 0, 0);
+    const blob = await new Promise<Blob>(resolve => canvas.toBlob(value => resolve(value!), 'image/jpeg', 0.95));
+    return new Promise<string>(resolve => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result).split(',')[1]); reader.readAsDataURL(blob); });
+  });
+  await page.getByRole('button', { name: 'Publicar', exact: true }).click();
+  const composer = page.getByRole('region', { name: 'Publicar' });
+  await composer.locator('input[type=file]').setInputFiles({ name: 'quadro.jpg', mimeType: 'image/jpeg', buffer: Buffer.from(big, 'base64') });
+  await expect(composer.getByRole('img', { name: 'Foto 1' })).toBeVisible();
+  await expect(composer.getByRole('group', { name: 'Jeito' })).toHaveCount(0);
+  await composer.getByLabel(/O que você quer compartilhar/).fill('Quadro da aula de hoje');
+  await page.screenshot({ path: 'test-results/networking-publicar-foto-mobile-dark.png', fullPage: true });
+  const audit = await new AxeBuilder({ page }).include('.nw-form').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await composer.getByRole('button', { name: 'Publicar' }).click();
+  await expect.poll(() => posted.some(item => item.body.action === 'create_post')).toBe(true);
+  const sent = posted.find(item => item.body.action === 'create_post')!.body as { photos: { data: string; mime: string; width: number; height: number }[]; story: boolean; style: string };
+  expect(sent.photos).toHaveLength(1);
+  expect(sent.story).toBe(false);
+  expect(sent.style).toBe('text');
+  expect(Math.max(sent.photos[0].width, sent.photos[0].height)).toBeLessThanOrEqual(1440);
+  expect(sent.photos[0].data.length * 3 / 4).toBeLessThanOrEqual(300 * 1024);
+  expect(['image/webp', 'image/jpeg']).toContain(sent.photos[0].mime);
+
+  // Story pelo "Seu story": some em 24 horas e nunca é "só para mim".
+  await page.getByRole('tab', { name: 'Seguindo' }).click();
+  await page.getByRole('button', { name: 'Publicar um story' }).click();
+  const storyForm = page.getByRole('region', { name: 'Novo story' });
+  await expect(storyForm.getByRole('button', { name: 'Story · some em 24 h' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(storyForm.getByLabel(/Só eu/)).toHaveCount(0);
+  await storyForm.getByLabel('Texto do story').fill('Revisando para a prova');
+  await storyForm.getByRole('button', { name: 'Card rosa' }).click();
+  await storyForm.getByRole('button', { name: 'Publicar story' }).click();
+  await expect.poll(() => posted.filter(item => item.body.action === 'create_post').at(-1)?.body).toEqual({ action: 'create_post', body: 'Revisando para a prova',
+    style: 'card_rose', audience: 'followers', space: null, photos: [], story: true });
 });
 
 test('foto do perfil grande fica leve sozinha, em vez de ser recusada', async ({ page }) => {

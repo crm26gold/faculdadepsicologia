@@ -53,3 +53,27 @@ export async function avatarThumbnail(file: Blob, { side = 128, limit = 16000 } 
   }
   return null;
 }
+
+export type PostPhoto = { data: string; mime: 'image/jpeg' | 'image/webp'; width: number; height: number; url: string };
+
+/** Foto de publicação ou story: até 1440 px e até `limit` bytes, em WebP (JPEG no Safari). Null se não der para usar. */
+export async function postPhoto(file: Blob, { limit = 300 * 1024 } = {}): Promise<PostPhoto | null> {
+  if (!shrinkable(file.type) || typeof createImageBitmap !== 'function') return null;
+  let bitmap: ImageBitmap;
+  try { bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }); } catch { return null; }
+  try {
+    for (const [maxSide, quality] of [[1440, 0.8], [1440, 0.65], [1080, 0.6], [800, 0.55]]) {
+      const size = fitWithin(bitmap.width, bitmap.height, maxSide);
+      const canvas = document.createElement('canvas');
+      canvas.width = size.width; canvas.height = size.height;
+      const context = canvas.getContext('2d');
+      if (!context) return null;
+      context.drawImage(bitmap, 0, 0, size.width, size.height);
+      let url = canvas.toDataURL('image/webp', quality);
+      if (!url.startsWith('data:image/webp')) url = canvas.toDataURL('image/jpeg', quality);
+      const data = url.slice(url.indexOf(',') + 1);
+      if (data.length / 4 * 3 <= limit) return { data, mime: url.startsWith('data:image/webp') ? 'image/webp' : 'image/jpeg', width: size.width, height: size.height, url };
+    }
+    return null;
+  } finally { bitmap.close(); }
+}

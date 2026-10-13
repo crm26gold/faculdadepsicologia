@@ -112,7 +112,7 @@ export function UpdatesView({ onBack, onOpenPerson, onOpenSpace, onChanged }: {
     {data && <ul className="nw-events">{data.events.filter(event => event.kind !== 'follow_request').map(event => <li key={event.id} className={event.read ? '' : 'unread'}>
       <button type="button" onClick={() => event.space ? onOpenSpace(event.space.id) : event.actor && onOpenPerson(event.actor.id)}>
         <PersonAvatar name={event.actor?.name ?? '?'} avatar={event.actor?.avatar} />
-        <span><strong>{event.actor?.name ?? 'Alguém'}</strong> {eventText[event.kind]}{event.space ? ` ${event.space.name}` : ''}{event.post ? `: “${event.post.body}”` : ''}<small>{formatDay(event.created_at)}</small></span>
+        <span><strong>{event.actor?.name ?? 'Alguém'}</strong> {eventText[event.kind]}{event.space ? ` ${event.space.name}` : ''}{event.post?.body ? `: “${event.post.body}”` : ''}<small>{formatDay(event.created_at)}</small></span>
       </button></li>)}</ul>}
     {data && !data.requests.length && !data.events.some(event => event.kind !== 'follow_request') && <div className="empty-inline"><Check size={22} aria-hidden="true" /><p>Nada novo por aqui.</p></div>}
   </section>;
