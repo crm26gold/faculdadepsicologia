@@ -21,7 +21,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const input = await writeRequest(request, meAction);
+  const input = await writeRequest(request, meAction, 80_000);
   if (input instanceof Response) return input;
   const { session, body } = input;
   switch (body.action) {
@@ -31,7 +31,8 @@ export async function POST(request: Request) {
     case 'save_profile': {
       const { error } = await session.client.rpc('update_my_name', { new_name: body.name });
       if (error) return dbError(error);
-      return rpc(session, 'save_my_profile', { next_kind: body.kind, next_value: body.value, next_photo: body.photo, next_bio: body.bio });
+      return rpc(session, 'save_my_profile', { next_kind: body.kind, next_value: body.value, next_photo: body.photo, next_bio: body.bio,
+        next_large: body.photo_large });
     }
     case 'delete_account': {
       // Anexos privados saem antes da conta; o banco apaga o resto e anonimiza o que foi do grupo.

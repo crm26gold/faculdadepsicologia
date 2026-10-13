@@ -14,7 +14,7 @@ export function Composer({ home, space, story: startAsStory, onPosted, onCancel 
   const [story, setStory] = useState(Boolean(startAsStory));
   const [body, setBody] = useState('');
   const [style, setStyle] = useState<PostStyle>('text');
-  const [photos, setPhotos] = useState<PostPhoto[]>([]);
+  const [photos, setPhotos] = useState<(PostPhoto & { alt: string })[]>([]);
   const [audience, setAudience] = useState<Audience>(space ? 'group' : 'followers');
   const [target, setTarget] = useState(space?.id ?? places[0]?.id ?? '');
   const [message, setMessage] = useState('');
@@ -33,10 +33,10 @@ export function Composer({ home, space, story: startAsStory, onPosted, onCancel 
     const chosen = [...(files ?? [])].slice(0, maxPhotos - photos.length);
     if (!chosen.length) return;
     setBusy(true); setMessage('');
-    const ready: PostPhoto[] = [];
+    const ready: (PostPhoto & { alt: string })[] = [];
     for (const file of chosen) {
       const shrunk = await postPhoto(file);
-      if (shrunk) ready.push(shrunk);
+      if (shrunk) ready.push({ ...shrunk, alt: '' });
       else setMessage('Uma das fotos não pôde ser usada. Tente JPG, PNG ou WebP.');
     }
     setPhotos(list => [...list, ...ready].slice(0, maxPhotos));
@@ -48,7 +48,7 @@ export function Composer({ home, space, story: startAsStory, onPosted, onCancel 
     setBusy(true); setMessage('');
     try {
       await api('/api/network', { action: 'create_post', body: body.trim(), style: photos.length ? 'text' : style, audience,
-        space: audience === 'group' ? target : null, photos: photos.map(({ url: _url, ...photo }) => photo), story });
+        space: audience === 'group' ? target : null, photos: photos.map(({ url: _url, ...photo }) => ({ ...photo, alt: photo.alt.trim() })), story });
       onPosted();
     } catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Não foi possível publicar.'); }
     finally { setBusy(false); }
@@ -67,7 +67,10 @@ export function Composer({ home, space, story: startAsStory, onPosted, onCancel 
 
     <fieldset className="nw-choice"><legend>{story ? 'Foto' : 'Fotos'}</legend>
       {photos.length > 0 && <ul className="nw-picked">{photos.map((photo, index) => <li key={photo.url.slice(-40) + index}>
-        <img src={photo.url} alt={`Foto ${index + 1}`} />
+        <img src={photo.url} alt="" />
+        <label><span>Descrição da foto {index + 1} · opcional, para quem usa leitor de tela</span>
+          <input value={photo.alt} maxLength={300} placeholder="Ex.: mapa mental do capítulo 3"
+            onChange={event => setPhotos(list => list.map((item, at) => at === index ? { ...item, alt: event.target.value } : item))} /></label>
         <button type="button" className="icon-button" aria-label={`Tirar a foto ${index + 1}`} onClick={() => setPhotos(list => list.filter((_, item) => item !== index))}><X size={16} aria-hidden="true" /></button>
       </li>)}</ul>}
       {photos.length < maxPhotos && <button type="button" className="button outline" disabled={busy} onClick={() => picker.current?.click()}>

@@ -145,8 +145,11 @@ export const meAction = z.discriminatedUnion('action', [
   z.object({
     action: z.literal('save_profile'), name: required(120), kind: z.enum(avatarKinds), value: text(16).default(''),
     photo: z.string().max(16000).regex(/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/).nullable().default(null),
+    // A mesma foto em 256 px, só para o perfil aberto. Sem ela, o banco mantém a anterior se a foto não mudou.
+    photo_large: z.string().max(48000).regex(/^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/]+={0,2}$/).nullable().default(null),
     bio: text(300).default(''),
-  }).refine(value => (value.kind === 'photo') === Boolean(value.photo), 'Escolha uma foto ou outro avatar.'),
+  }).refine(value => (value.kind === 'photo') === Boolean(value.photo), 'Escolha uma foto ou outro avatar.')
+    .refine(value => !value.photo_large || value.photo, 'Escolha uma foto ou outro avatar.'),
   z.object({ action: z.literal('save_privacy'), closed: z.boolean(), discoverable: z.boolean(), show_follows: z.boolean() }),
 ]);
 

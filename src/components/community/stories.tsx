@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight, Heart, Pause, Play, Plus, Trash2, X } from 'lucide-react';
+import { Bookmark, ChevronLeft, ChevronRight, Heart, Pause, Play, Plus, Trash2, X } from 'lucide-react';
 import { api } from './client';
 import { PersonAvatar } from './avatar';
 import type { Avatar } from '@/lib/community';
@@ -45,18 +45,22 @@ export function StoriesBar({ feed, me, myName, myAvatar, onCompose }: {
         <span className="nw-story-name">{group.author.name.split(' ')[0]}</span></button></li>)}
     </ul>
     {open !== null && groups[open] && <StoryViewer groups={groups} start={open} me={me}
-      onSeen={seenNow} onRemoved={() => void load()} onClose={() => setOpen(null)} />}
+      onSeen={seenNow} onChanged={() => void load()} onClose={() => setOpen(null)} />}
   </>;
 }
 
-/** Tela cheia: avança sozinho a cada 6 segundos, com pausa, setas e teclado. */
-export function StoryViewer({ groups, start, me, onSeen, onRemoved, onClose }: {
-  groups: StoryGroup[]; start: number; me: string; onSeen: (id: string) => void; onRemoved: () => void; onClose: () => void;
+/** Tela cheia: avança sozinho a cada 6 segundos, com pausa, setas e teclado.
+ * Quem publicou guarda o story no perfil, com um título (o destaque fica depois das 24 horas), ou tira de lá. */
+export function StoryViewer({ groups, start, me, titles = [], onSeen, onChanged, onClose }: {
+  groups: StoryGroup[]; start: number; me: string; titles?: string[];
+  onSeen: (id: string) => void; onChanged: () => void; onClose: () => void;
 }) {
   const [place, setPlace] = useState({ group: start, story: 0 });
   const [paused, setPaused] = useState(false);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState('');
+  const [kept, setKept] = useState<Record<string, string | null>>({});
+  const [naming, setNaming] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
   const group = groups[place.group];
   const story = group?.stories[place.story];
@@ -86,6 +90,8 @@ export function StoryViewer({ groups, start, me, onSeen, onRemoved, onClose }: {
   }, [storyId, paused, next]);
   if (!group || !story) return null;
   const isLiked = liked[story.id] ?? story.mine.includes('gostei');
+  const highlight = story.id in kept ? kept[story.id] : story.highlight ?? null;
+  const expired = !!story.expires_at && Date.parse(story.expires_at) <= Date.now();
 
   async function like() {
     if (!story) return;
@@ -93,32 +99,55 @@ export function StoryViewer({ groups, start, me, onSeen, onRemoved, onClose }: {
     try { await api('/api/network', { action: 'react', post: story.id, kind: 'gostei' }); }
     catch (reason) { setLiked(value => ({ ...value, [story.id]: isLiked })); setMessage(reason instanceof Error ? reason.message : 'Não foi possível marcar.'); }
   }
+  function startNaming() { setPaused(true); setNaming(titles[0] ?? 'Destaques'); }
+  async function keep(title: string) {
+    if (!story) return;
+    if (!title && expired && !window.confirm('Este story já passou de 24 horas. Tirar do perfil apaga o story. Continuar?')) return;
+    try {
+      await api('/api/network', { action: 'keep_story', post: story.id, title });
+      setKept(value => ({ ...value, [story.id]: title || null })); setNaming(null); setPaused(false);
+      setMessage(title ? `Guardado no perfil em “${title}”.` : 'Saiu do perfil.'); onChanged();
+      if (!title && expired) onClose();
+    } catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Não foi possível guardar.'); }
+  }
   async function remove() {
     if (!story || !window.confirm('Apagar este story?')) return;
-    try { await api('/api/network', { action: 'delete_post', post: story.id }); onRemoved(); onClose(); }
+    try { await api('/api/network', { action: 'delete_post', post: story.id }); onChanged(); onClose(); }
     catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Não foi possível apagar.'); }
   }
   return <dialog ref={dialog} className="nw-story-viewer" aria-label={`Story de ${group.author.name}`} onCancel={onClose}
-    onKeyDown={event => { if (event.key === 'ArrowRight') next(); if (event.key === 'ArrowLeft') previous(); }}>
+    onKeyDown={event => { if (event.target instanceof HTMLInputElement) return; if (event.key === 'ArrowRight') next(); if (event.key === 'ArrowLeft') previous(); }}>
     <div className="nw-story-progress" aria-hidden="true">{group.stories.map((item, index) => <span key={item.id}>
       <i className={index < place.story ? 'done' : index === place.story ? paused ? 'now paused' : 'now' : ''} style={index === place.story ? { animationDuration: `${STORY_MS}ms` } : undefined} /></span>)}</div>
     <header className="nw-story-head">
       <PersonAvatar name={group.author.name} avatar={group.author.avatar} size={36} />
-      <span className="nw-story-who"><strong>{group.author.name}</strong><small>{story.space ? `${story.space.name} · ` : ''}some em {hoursLeft(story.expires_at)} h</small></span>
+      <span className="nw-story-who"><strong>{group.author.name}</strong><small>{story.space ? `${story.space.name} · ` : ''}{highlight ? `Destaque: ${highlight}` : `some em ${hoursLeft(story.expires_at)} h`}</small></span>
       <button type="button" className="icon-button" aria-label={paused ? 'Continuar' : 'Pausar'} onClick={() => setPaused(value => !value)}>{paused ? <Play size={18} aria-hidden="true" /> : <Pause size={18} aria-hidden="true" />}</button>
       <button type="button" className="icon-button" aria-label="Fechar stories" onClick={onClose}><X size={20} aria-hidden="true" /></button>
     </header>
     <div className="nw-story-body">
-      {story.photos[0] ? <img src={`/api/network/photo/${story.photos[0].id}`} alt={story.body || `Story de ${group.author.name}`} />
+      {story.photos[0] ? <img src={`/api/network/photo/${story.photos[0].id}`} alt={story.photos[0].alt || story.body || `Story de ${group.author.name}`} />
         : <div className={`nw-card-text ${story.style === 'text' ? 'card_blue' : story.style}`}><p>{story.body}</p></div>}
       {story.photos[0] && story.body && <p className="nw-story-caption">{story.body}</p>}
       <button type="button" className="nw-story-nav prev" aria-label="Story anterior" onClick={previous}><ChevronLeft size={28} aria-hidden="true" /></button>
       <button type="button" className="nw-story-nav next" aria-label="Próximo story" onClick={next}><ChevronRight size={28} aria-hidden="true" /></button>
     </div>
     <footer className="nw-story-foot">
-      {group.author.id === me ? <button type="button" className="nw-react" onClick={remove}><Trash2 size={17} aria-hidden="true" />Apagar</button>
+      {group.author.id === me ? naming !== null
+        ? <form className="nw-story-keep" onSubmit={event => { event.preventDefault(); void keep(naming.trim()); }}>
+          <label htmlFor="nw-keep-title">Título do destaque</label>
+          <input id="nw-keep-title" list="nw-keep-titles" value={naming} maxLength={30} autoFocus onChange={event => setNaming(event.target.value)} />
+          <datalist id="nw-keep-titles">{titles.map(title => <option key={title} value={title} />)}</datalist>
+          <button type="submit" className="nw-react" disabled={!naming.trim()}>Guardar</button>
+          <button type="button" className="nw-react" onClick={() => { setNaming(null); setPaused(false); }}>Cancelar</button>
+        </form>
+        : <>
+          <button type="button" className="nw-react" onClick={() => highlight ? void keep('') : startNaming()}>
+            <Bookmark size={17} aria-hidden="true" />{highlight ? 'Tirar do perfil' : 'Guardar no perfil'}</button>
+          <button type="button" className="nw-react" onClick={remove}><Trash2 size={17} aria-hidden="true" />Apagar</button>
+        </>
         : <button type="button" className="nw-react" aria-pressed={isLiked} onClick={like}><Heart size={17} aria-hidden="true" />Gostei</button>}
-      {message && <p className="cm-message" role="alert">{message}</p>}
+      {message && <p className="cm-message" role="status">{message}</p>}
     </footer>
   </dialog>;
 }
