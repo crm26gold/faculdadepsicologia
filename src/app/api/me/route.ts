@@ -27,6 +27,7 @@ export async function POST(request: Request) {
   switch (body.action) {
     case 'accept_terms': return rpc(session, 'accept_terms', { terms_version: TERMS_VERSION });
     case 'rename': return rpc(session, 'update_my_name', { new_name: body.name });
+    case 'save_privacy': return rpc(session, 'save_my_privacy', { is_closed: body.closed, is_discoverable: body.discoverable, follows_visible: body.show_follows });
     case 'save_profile': {
       const { error } = await session.client.rpc('update_my_name', { new_name: body.name });
       if (error) return dbError(error);

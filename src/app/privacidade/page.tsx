@@ -23,7 +23,8 @@ export default function PrivacyPage() {
     <ul>
       <li><strong>Seu espaço pessoal e seus contatos:</strong> só você. Nem a administração tem acesso pelo sistema.</li>
       <li><strong>Networking (salas e grupos):</strong> quem participa daquele espaço e quem o orienta veem seu nome e seu avatar. O e-mail aparece para a equipe da sala (professores e responsáveis); num grupo criado por outra pessoa, só se você aceitar mostrar ao entrar. Grupos abertos aparecem na busca com nome, descrição e temas, nunca com a lista de quem participa.</li>
-      <li><strong>Perfil do Networking:</strong> só existe se você criar. Avatar e “sobre você” aparecem para quem está nos mesmos grupos.</li>
+      <li><strong>Perfil do Networking:</strong> só existe se você criar. Avatar e “sobre você” aparecem para quem está nos mesmos grupos. O perfil começa fechado e fora da busca de pessoas; você muda quando quiser.</li>
+      <li><strong>Publicações e seguidores:</strong> cada publicação tem o público que você escolhe (seguidores, todos, um grupo ou só você). Quem reage aparece só como número. As atualizações (novos seguidores, pedidos, reações) ficam 90 dias.</li>
       <li><strong>Administração:</strong> vê nome, e-mail, plano e em quais salas cada conta participa, para gerenciar acessos.</li>
     </ul>
     <p>A separação é garantida no banco de dados, não apenas na tela.</p>

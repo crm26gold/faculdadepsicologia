@@ -179,6 +179,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   const visibleNavigation = navigation.filter(item => item.id !== 'admin' || !!home?.account.is_master);
   // Com conta, o Networking fica na barra de baixo no lugar da Agenda, que passa a poder ser o atalho.
   const secondTab: View = cloud ? 'community' : 'agenda';
+  // Trabalhos para revisar, pedidos para entrar e atualizações da rede: o mesmo número no menu e na barra de baixo.
+  const networkCount = home ? home.to_review.length + (home.join_requests ?? 0) + (home.updates ?? 0) : 0;
   const shortcutOptions = navigation.filter(item => !['today', secondTab, 'admin'].includes(item.id) && (cloud || !serverViews.has(item.id)));
   const tabShortcut = shortcutOptions.find(item => item.id === shortcut) ?? shortcutOptions[0];
   const conversations = useConversations(mode, home?.account.user_id);
@@ -498,7 +500,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   }
 
   const navContent = (mobile = false) => <WorkspaceNavigation
-    items={visibleNavigation.map((item) => ({ ...item, badge: proViews.has(item.id) && !pro ? 'Pro' : item.id === 'community' && home && home.to_review.length + (home.join_requests ?? 0) ? home.to_review.length + (home.join_requests ?? 0) : undefined }))}
+    items={visibleNavigation.map((item) => ({ ...item, badge: proViews.has(item.id) && !pro ? 'Pro' : item.id === 'community' && networkCount ? networkCount : undefined }))}
     view={view} onNavigate={navigate} collapsed={!mobile && sidebarCollapsed} onToggle={toggleSidebar} mobile={mobile}
     name={userProfile.name || home?.account.display_name || 'Meu espaço'} email={home?.account.email || userProfile.email || ''} photo={userProfile.photoUrl}
     status={status} modeLabel={demo ? 'Demonstração' : cloud ? 'Espaço pessoal' : previewLabel}
@@ -820,7 +822,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
         <footer className="page-footer"><span><Sprout aria-hidden="true" size={15} />Sua vida é uma jornada, não uma corrida.</span><span>{status}</span></footer>
       </main>
       <nav className="mobile-tabbar" aria-label="Atalhos mobile">
-        {[navigation[0], navigation.find((item) => item.id === secondTab)!].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{tabLabel(id, label)}</span></button>)}
+        {[navigation[0], navigation.find((item) => item.id === secondTab)!].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}${id === 'community' && networkCount ? ` (${networkCount} novidades)` : ''}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" />{id === 'community' && networkCount > 0 && <span className="tabbar-badge" aria-hidden="true">{networkCount > 99 ? '99+' : networkCount}</span>}<span>{tabLabel(id, label)}</span></button>)}
         <button type="button" className="tabbar-center" aria-haspopup="dialog" disabled={!ready} onClick={openCapture}><span className="tabbar-center-badge"><img src="/brand/simbolo.svg" alt="" width={56} height={56} /></span><span>Registrar</span></button>
         {[tabShortcut].map(({ id, label, Icon }) => <button key={id} type="button" aria-label={`Ir para ${label}`} aria-current={view === id ? 'page' : undefined} onClick={() => navigate(id)}><Icon size={21} aria-hidden="true" /><span>{tabLabel(id, label)}</span></button>)}
         <button type="button" aria-label="Ver todas as áreas" aria-expanded={mobileMenu} onClick={openMobileMenu}><Menu size={21} aria-hidden="true" /><span>Mais</span></button>

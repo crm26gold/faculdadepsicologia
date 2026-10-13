@@ -3,6 +3,9 @@ import { useEffect, useState } from 'react';
 import { BadgeCheck, KeyRound, LockKeyhole, Search, Users } from 'lucide-react';
 import { Modal } from '../modal';
 import { api } from './client';
+import { PersonAvatar } from './avatar';
+import { Feed } from './feed';
+import type { Person } from '@/lib/network';
 import { templateLabels, type DiscoverCard, type JoinResult } from '@/lib/community';
 
 const results: Record<Exclude<JoinResult, 'joined'>, string> = {
@@ -13,13 +16,15 @@ const results: Record<Exclude<JoinResult, 'joined'>, string> = {
 };
 
 /** Busca de grupos abertos (a todos ou à sua sala) por nome, origem ou #tema. */
-export function Discover({ email, onOpen, onJoined }: { email: string; onOpen: (id: string) => void; onJoined: () => void }) {
+export function Discover({ me, email, onOpen, onOpenPerson, onJoined }: { me: string; email: string; onOpen: (id: string) => void; onOpenPerson: (id: string) => void; onJoined: () => void }) {
   const [term, setTerm] = useState('');
   const [cards, setCards] = useState<DiscoverCard[] | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [joining, setJoining] = useState<DiscoverCard | null>(null);
   const [busy, setBusy] = useState(false);
+  const [people, setPeople] = useState<Person[]>([]);
+  const tag = term.trim().startsWith('#') && term.trim().length > 2 ? term.trim() : '';
 
   useEffect(() => {
     let current = true;
@@ -28,6 +33,16 @@ export function Discover({ email, onOpen, onJoined }: { email: string; onOpen: (
         .then(list => { if (current) { setCards(list ?? []); setError(''); } })
         .catch(reason => { if (current) setError(reason instanceof Error ? reason.message : 'Não foi possível buscar.'); });
     }, term ? 300 : 0);
+    return () => { current = false; clearTimeout(timer); };
+  }, [term]);
+  // Pessoas: só quem aceitou aparecer na busca ou divide um grupo com você.
+  useEffect(() => {
+    const wanted = term.trim();
+    if (wanted.length < 2 || wanted.startsWith('#')) { setPeople([]); return; }
+    let current = true;
+    const timer = setTimeout(() => {
+      api<Person[]>(`/api/network?people=${encodeURIComponent(wanted)}`).then(list => { if (current) setPeople(list ?? []); }, () => { if (current) setPeople([]); });
+    }, 300);
     return () => { current = false; clearTimeout(timer); };
   }, [term]);
 
@@ -50,7 +65,13 @@ export function Discover({ email, onOpen, onJoined }: { email: string; onOpen: (
 
   return <div className="cm-stack">
     <label className="nw-search" htmlFor="nw-search"><Search size={17} aria-hidden="true" /><span className="sr-only">Buscar grupos</span>
-      <input id="nw-search" type="search" value={term} onChange={event => setTerm(event.target.value)} maxLength={60} placeholder="Buscar por nome, curso ou #tema" /></label>
+      <input id="nw-search" type="search" value={term} onChange={event => setTerm(event.target.value)} maxLength={60} placeholder="Buscar grupos, pessoas ou #tema" /></label>
+    {people.length > 0 && <section aria-label="Pessoas"><h3 className="small-heading">Pessoas</h3><ul className="cm-people">{people.map(person => <li key={person.id}>
+      <button type="button" className="nw-post-author" onClick={() => onOpenPerson(person.id)}><PersonAvatar name={person.name} avatar={person.avatar} />
+        <span><strong>{person.name}</strong>{person.bio && <small>{person.bio}</small>}</span></button></li>)}</ul></section>}
+    {tag && <section aria-label={`Publicações com ${tag}`}><h3 className="small-heading">Publicações com {tag}</h3>
+      <Feed source={{ topic: tag }} me={me} empty="Nenhuma publicação aberta com este tema." onOpenPerson={onOpenPerson} /></section>}
+    {(people.length > 0 || tag) && <h3 className="small-heading">Grupos</h3>}
     {message && <p className="cm-message" role="status">{message}</p>}
     {error && <div className="error-banner" role="alert">{error}</div>}
     {!cards && !error && <p role="status" className="muted">Buscando…</p>}
