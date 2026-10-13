@@ -585,6 +585,10 @@ test('perfil: destaques, Salvos só para mim, ver como visitante e avatar nítid
   const darkAudit = await new AxeBuilder({ page }).include('.nw-profile').withTags(['wcag2a', 'wcag2aa']).analyze();
   expect(darkAudit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
   await page.screenshot({ path: 'test-results/networking-perfil-destaques-mobile-dark.png', fullPage: true });
+  // No computador, o perfil fica numa coluna: a grade não estica na tela larga.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  expect((await page.locator('.nw-profile').boundingBox())!.width).toBeLessThanOrEqual(760);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
 test('foto do perfil grande fica leve sozinha, em vez de ser recusada', async ({ page }) => {

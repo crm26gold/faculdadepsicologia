@@ -962,6 +962,9 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .mobile-tabbar button { position: relative; }
 .tabbar-badge { inset-inline-end: calc(50% - 22px); }
 .nw-feed { display: flex; flex-direction: column; gap: 12px; }
+/* No computador, o Networking fica numa coluna, como no Instagram: foto do feed e grade do perfil não esticam na tela larga. */
+.nw-feed { max-inline-size: 640px; }
+.nw-profile { max-inline-size: 760px; }
 .nw-post { display: flex; flex-direction: column; gap: 10px; }
 .nw-post-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .nw-post-author { display: flex; align-items: center; gap: 10px; text-align: start; min-block-size: 44px; padding: 0; min-inline-size: 0; }
