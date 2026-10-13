@@ -175,3 +175,33 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - Tudo que for comercial fica pronto antes, com a [lista do lançamento](LANCAMENTO_COMERCIAL.md).
 - **Sessão ao vivo:** quem só assiste entra com apelido para perguntar e votar; conta é necessária só para pontuar.
 - **Link da chamada:** no grupo, qualquer membro coloca ou tira; na sala, só quem conduz. Fica registrado quem colocou.
+
+### Networking e Caixa de ferramentas (13/10/2026, conversa com o proprietário)
+
+- **A aba "Salas e grupos" deixa de existir.**
+  - **Networking:** a rede social de conhecimento no estilo do Instagram. Reúne o perfil, as salas, os grupos de qualquer assunto, o feed, a busca por #tema, a conversa em grupo, as enquetes e os trabalhos em grupo.
+  - **Caixa de ferramentas:** vem depois.
+  - **No celular,** o Networking entra na barra de baixo no lugar da Agenda.
+- **Qualquer pessoa cria sala ou grupo.**
+  - Quando um professor ou líder assume, ele ganha o **selo de oficial**, sem ferramentas a mais.
+  - Cada pessoa gerencia os grupos que criou e participa dos grupos dos outros, de vários lugares ao mesmo tempo (UNIP, SEBRAE…).
+- **Grupo personalizável.**
+  - Modelos que só ligam ferramentas: Estudo, Trabalho da faculdade, Desafio, Saúde e bem-estar, Livre.
+  - O dono liga e desliga as ferramentas: conversa, mural, enquetes, material do grupo, trabalho em partes, encontros e chamada, check-in diário, placar.
+  - Convite, QR, link da chamada e configurações ficam no menu ⋯ do grupo.
+- **A que o grupo se liga** (opcional): estudos (instituição › curso › matéria), uma área da vida, temas livres (#hashtags) ou nada. O vínculo mostra de onde o grupo vem e ajuda na busca.
+- **Quem vê o grupo no Networking** (o dono escolhe): todos, só a instituição ou a sala, pessoas escolhidas, ou só quem tem o link.
+- **Como se entra** (pode combinar): entrada livre, pedido com aprovação, senha, pedir nome e e-mail. Neste último, a pessoa é avisada antes de que o e-mail vai para o dono do grupo.
+- **Perfil primeiro:** antes de criar um grupo ou usar o Networking, um passo rápido pede o nome (obrigatório) e uma foto ou avatar (bichinho, iniciais ou símbolo). O resto é opcional.
+- **Conteúdo:**
+  - Imagens servem para ilustrar o conhecimento; foto pessoal é permitida.
+  - Sem vídeo por enquanto.
+  - O card de texto é gerado a partir do texto e não ocupa espaço.
+  - Fotos da conversa ficam 90 dias.
+  - Mensagem direta entre duas pessoas vem depois dos grupos.
+- **Caixa de ferramentas:**
+  - A ferramenta mora na Caixa e pode ser usada em qualquer lugar do sistema, inclusive dentro de um grupo.
+  - Regra: ferramenta pega um conteúdo e faz algo com ele; o que organiza o tempo ou guarda a história da pessoa fica no próprio lugar.
+  - Entram os flashcards. Foco, agenda, hábitos e metas ficam onde estão; o "Estudar junto" da Caixa usa o Foco por baixo.
+  - **Material** fica no seu contexto (curso e grade, matéria, grupo, pessoal), nunca num lugar genérico.
+- **Protótipo para aprovação** (só desenho, sem mexer no app): https://claude.ai/artifact/Tf3o3JAunPUSm56d4jWyWt
