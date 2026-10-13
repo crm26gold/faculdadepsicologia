@@ -175,3 +175,71 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - Tudo que for comercial fica pronto antes, com a [lista do lançamento](LANCAMENTO_COMERCIAL.md).
 - **Sessão ao vivo:** quem só assiste entra com apelido para perguntar e votar; conta é necessária só para pontuar.
 - **Link da chamada:** no grupo, qualquer membro coloca ou tira; na sala, só quem conduz. Fica registrado quem colocou.
+
+### Networking e Caixa de ferramentas (13/10/2026, conversa com o proprietário)
+
+- **A aba "Salas e grupos" deixa de existir.**
+  - **Networking:** a rede social de conhecimento no estilo do Instagram. Reúne o perfil, as salas, os grupos de qualquer assunto, o feed, a busca por #tema, a conversa em grupo, as enquetes e os trabalhos em grupo.
+  - **Caixa de ferramentas:** vem depois.
+  - **No celular,** o Networking entra na barra de baixo no lugar da Agenda (confirmado pelo proprietário).
+  - **No menu lateral,** o Networking fica em "Conectar".
+  - **Atualizações:** pedidos para seguir, pedidos para entrar em grupo, convites, menções, curtidas e lembretes dos desafios. Ficam numa tela própria com contador, que aparece na barra de baixo, no menu lateral e no sino do Networking.
+  - **Avisos no celular:** usam os mesmos canais grátis dos lembretes (notificação do app, Telegram, WhatsApp). A pessoa escolhe:
+    - o canal;
+    - o tipo de aviso: pedidos e convites, menções, conversa dos grupos, e curtidas em resumo diário;
+    - um horário de silêncio;
+    - grupos silenciados.
+- **Qualquer pessoa cria sala ou grupo.**
+  - Quando um professor ou líder assume, ele ganha o **selo de oficial**, sem ferramentas a mais.
+  - Cada pessoa gerencia os grupos que criou e participa dos grupos dos outros, de vários lugares ao mesmo tempo (UNIP, SEBRAE…).
+- **Grupo personalizável.**
+  - Modelos que só ligam ferramentas: Estudo, Trabalho da faculdade, Desafio, Saúde e bem-estar, Livre.
+  - O dono liga e desliga as ferramentas: conversa, mural, enquetes, material do grupo, trabalho em partes, encontros e chamada, check-in diário, placar.
+  - Convite, QR, link da chamada e configurações ficam no menu ⋯ do grupo.
+- **A que o grupo se liga** (opcional): estudos (instituição › curso › matéria), uma área da vida, temas livres (#hashtags) ou nada. O vínculo mostra de onde o grupo vem e ajuda na busca.
+- **Quem vê o grupo no Networking** (o dono escolhe): todos, só a instituição ou a sala, pessoas escolhidas, ou só quem tem o link.
+- **Como se entra** (pode combinar): entrada livre, pedido com aprovação, senha, pedir nome e e-mail. Neste último, a pessoa é avisada antes de que o e-mail vai para o dono do grupo.
+- **Stories por aba:**
+  - em "Seguindo", os stories de quem a pessoa segue;
+  - em "Meus grupos", os stories e as publicações de todos os grupos dela, e embaixo a lista dos grupos.
+  - Stories somem em 24 horas junto com as fotos, o que poupa espaço.
+- **Desafios com competição saudável:**
+  - O desafio é uma ferramenta da Caixa, usada num grupo ou fora dele.
+  - **Para quem é:**
+    - **do grupo:** o grupo vence junto; cada pessoa escolhe participar ou sair;
+    - **pessoal que o grupo acompanha:** é da pessoa; o grupo vê e dá força;
+    - **só para mim:** ninguém vê, e as medalhas ficam guardadas com a pessoa.
+  - **Quem muda as regras:** só quem criou o desafio (ou os moderadores, no do grupo). Quem participa ou entra junto segue as regras como estão.
+  - **Tipos, quanto mais personalizável melhor:** feito ou não, quantidade (páginas, km, copos de água), tempo (pode vir do Foco), etapas, evitar algo (dias seguidos sem), estudo (flashcards ou quiz) e foto leve. Quem cria também escolhe a duração, os dias de descanso, como confirmar (automático, eu marco, foto, um colega confirma) e quem vê.
+  - **Check-in automático:** pode vir da vida pessoal (Foco, hábito, flashcards). Para o grupo vai só o "fez", nunca os detalhes.
+  - **No feed:** entram os marcos (7, 15, 30 dias, desafio concluído), não todo check-in, com o botão "Dar força". A pessoa escolhe se as conquistas aparecem para os seguidores.
+  - **Competição:**
+    - meta do grupo na semana (todos ganham a medalha);
+    - times dentro do desafio;
+    - placar de pessoas só com quem quiser aparecer, contando constância, nunca peso ou medida;
+    - vida extra de 1 dia por semana.
+  - **Toque gentil** em quem ainda não fez, uma vez por dia e sem dizer quem foi.
+  - **Depois:** desafio entre grupos ou salas.
+- **Interações, poucas por vez para não poluir:**
+  - "Gostei" existe em tudo.
+  - Em desafio e conquista: "Dar força" e "Me inspirei". "Me inspirei" começa algo parecido no perfil de quem tocou e avisa a pessoa que ela inspirou alguém.
+  - Em post de conhecimento: "Útil" e "Salvar no meu baralho" (flashcards).
+  - No desafio pessoal de outra pessoa: "Entrar junto" (segue as regras dela) e "Me inspirei" (cria o próprio).
+  - Dentro do desafio do grupo: "Dar um toque".
+- **Medalhas e conquistas no perfil:**
+  - Medalha vem de desafio concluído. A IA desenha cada uma a partir do nome e do tipo; o desenho é gerado na hora e não ocupa espaço.
+  - Conquista é marco da jornada: horas de foco, primeiro grupo criado, pessoas inspiradas.
+  - Cada medalha e cada conquista tem seu público: Público, Seguidores ou Só eu. "Ver como visitante" mostra o que os outros enxergam; o que é "Só eu" não aparece nem na contagem.
+- **Perfil primeiro:** antes de criar um grupo ou usar o Networking, um passo rápido pede o nome (obrigatório) e uma foto ou avatar (bichinho, iniciais ou símbolo). O resto é opcional.
+- **Conteúdo:**
+  - Imagens servem para ilustrar o conhecimento; foto pessoal é permitida.
+  - Sem vídeo por enquanto.
+  - O card de texto é gerado a partir do texto e não ocupa espaço.
+  - Fotos da conversa ficam 90 dias.
+  - Mensagem direta entre duas pessoas vem depois dos grupos.
+- **Caixa de ferramentas:**
+  - A ferramenta mora na Caixa e pode ser usada em qualquer lugar do sistema, inclusive dentro de um grupo.
+  - Regra: ferramenta pega um conteúdo e faz algo com ele; o que organiza o tempo ou guarda a história da pessoa fica no próprio lugar.
+  - Entram os flashcards. Foco, agenda, hábitos e metas ficam onde estão; o "Estudar junto" da Caixa usa o Foco por baixo.
+  - **Material** fica no seu contexto (curso e grade, matéria, grupo, pessoal), nunca num lugar genérico.
+- **Protótipo para aprovação** (só desenho, sem mexer no app): https://claude.ai/artifact/Tf3o3JAunPUSm56d4jWyWt
