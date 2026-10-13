@@ -63,6 +63,30 @@ O código e o conteúdo foram gerados para o proprietário, a pedido dele. Reapr
 
 Dados de colegas (nomes e RAs) ficam fora.
 
+## O PRD recebido (12/10)
+
+O proprietário mandou o PRD que o ChatGPT gerou para reconstruir a apresentação e avalia que não é um plano a seguir: serve só como fonte de ideias. Nomes, RAs e conteúdo dos colegas não entram no repositório.
+
+**Vale levar para a Jornada:**
+- **Crédito separado de quem apresenta:** integrante, contribuição escrita e quem apresenta são três coisas diferentes. A parte do trabalho já tem responsável; a apresentação acrescenta "quem apresenta" sem apagar o crédito de quem escreveu.
+- **O texto do colega não se reescreve:** a apresentação recorta trechos literais do documento final. Uma correção vira apontamento para o grupo revisar, e isso vale também para a IA que gerar slides.
+- **Um cursor só:**
+  - a apresentação é uma lista de etapas (slide e subetapa);
+  - teclado, botões, passador e celular movem o mesmo cursor, uma etapa por toque, sem voltar ao início depois do último slide;
+  - quem assiste acompanha, mas não muda o slide;
+  - uma pessoa controla por vez.
+- **O QR fica em todos os slides** e leva sempre à mesma sala. Atividades como dilema e votação têm entrada própria.
+- **Perguntas chegam pendentes** e só aparecem depois da moderação. Com a sala pausada, a tela diz isso; numa falha, o texto digitado não se perde.
+- **O material continua aberto** mesmo se a parte ao vivo cair.
+- **Limites já pensados:** pergunta de 5 a 700 caracteres, 12 por minuto por pessoa e 500 por sala.
+- **Reflexão sem pontos:** o dilema mostra perspectivas complementares, sem resposta certa. Na Jornada, "reflexão" e "desafio com pontos" são modos diferentes.
+
+**Não vale:**
+- **Pedir RA:** conta ou apelido bastam.
+- **Confiar na identificação enviada pelo navegador:** o próprio PRD avisa que o cabeçalho de usuário do ChatGPT não vale fora de lá. Na Jornada, quem é a pessoa vem da sessão do Supabase.
+- **Página única de 7 MB com imagens embutidas:** na Jornada, as imagens são leves e carregam só quando aparecem.
+- **Duas telas com sincronização aproximada** (a projeção nova e a sala antiga): na Jornada, uma fonte só de etapas.
+
 ## Recomendação (lotes pequenos)
 
 1. **Agora: QR Code nos convites de sala e grupo.** Reaproveita `space_invitations`. Critério de pronto: escanear e entrar na sala pelo celular, com teste de navegador.
@@ -71,7 +95,7 @@ Dados de colegas (nomes e RAs) ficam fora.
    - Telas apresentar, participar e painel.
    - Perguntas com "apoiar", moderação e destaque.
    - Controle remoto do slide.
-   - Realtime do Supabase.
+   - Realtime do Supabase com resultado agregado: uma fonte publica a cada 2 ou 3 segundos, as respostas passam pelo servidor e não há "quem está online" para a turma inteira ([cálculo](PESQUISA_CONCORRENTES_GRUPOS_2026-10-12.md#integrações-e-apis-grátis)).
    - Ao encerrar, as perguntas abertas vão para o mural.
    - Critério de pronto: duas pessoas (projetor e celular) veem a pergunta destacada em até 2 s. RLS testado no Postgres local.
 3. **Depois:**
