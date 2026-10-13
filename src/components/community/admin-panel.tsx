@@ -1,15 +1,17 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Building2, History, KeyRound, Plus, School, Search, ShieldCheck, UserCog } from 'lucide-react';
+import { Building2, Flag, History, KeyRound, Plus, School, Search, ShieldCheck, UserCog } from 'lucide-react';
 import { Modal } from '../modal';
 import { api, formatDay } from './client';
 import { roleLabels, type AdminOverview } from '@/lib/community';
+import { reasonLabels } from '@/lib/network';
 
 type Account = AdminOverview['accounts'][number];
 const actionLabels: Record<string, string> = {
   update_account: 'alterou a conta', set_open_access: 'mudou o acesso da plataforma', create_institution: 'criou a instituição',
-  grant_space_role: 'concedeu papel', change_space_role: 'mudou papel',
+  grant_space_role: 'concedeu papel', change_space_role: 'mudou papel', resolve_report: 'resolveu uma denúncia',
 };
+const outcomeLabels: Record<string, string> = { apagar: 'apagou a publicação', resolvida: 'marcou como resolvida', descartada: 'descartou' };
 
 export function AdminPanel({ me, onOpenSpace }: { me: string; onOpenSpace: (id: string) => void }) {
   const [data, setData] = useState<AdminOverview | null>(null);
@@ -79,11 +81,28 @@ export function AdminPanel({ me, onOpenSpace }: { me: string; onOpenSpace: (id: 
       </li>)}</ul>
     </section>
 
+    <section className="panel" aria-labelledby="admin-reports-title">
+      <div className="section-heading"><h2 id="admin-reports-title"><Flag size={16} aria-hidden="true" /> Denúncias abertas ({data.reports?.length ?? 0})</h2></div>
+      {data.reports?.length ? <ul className="cm-reports">{data.reports.map(report => <li key={report.id}>
+        <p><strong>{reasonLabels[report.reason]}</strong> · sobre {report.target?.name ?? 'conta removida'} · por {report.reporter ?? 'conta removida'}
+          <small> · {formatDay(report.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></p>
+        {report.excerpt && <blockquote>{report.excerpt}</blockquote>}
+        {report.note && <p className="muted small">“{report.note}”</p>}
+        <div className="button-row">
+          {report.post && report.post_exists && <button type="button" className="button primary cm-danger" disabled={busy}
+            onClick={() => window.confirm('Apagar esta publicação para todo mundo?') && void run('/api/admin', { action: 'resolve_report', report: report.id, outcome: 'apagar' }, 'Publicação apagada.')}>Apagar publicação</button>}
+          <button type="button" className="button outline" disabled={busy} onClick={() => void run('/api/admin', { action: 'resolve_report', report: report.id, outcome: 'resolvida' }, 'Denúncia resolvida.')}>Resolvida</button>
+          <button type="button" className="button outline" disabled={busy} onClick={() => void run('/api/admin', { action: 'resolve_report', report: report.id, outcome: 'descartada' }, 'Denúncia descartada.')}>Descartar</button>
+        </div>
+      </li>)}</ul> : <p className="muted">Nenhuma denúncia aberta.</p>}
+    </section>
+
     <section className="panel">
       <div className="section-heading"><h2><History size={16} aria-hidden="true" /> Histórico administrativo</h2></div>
       <ul className="cm-audit">{data.audit.map(item => <li key={item.id}><small>{formatDay(item.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small>
         <span><strong>{names.get(item.actor_id ?? '') ?? 'Conta removida'}</strong> {actionLabels[item.action] ?? item.action}{item.target_user_id ? ` · ${names.get(item.target_user_id) ?? 'conta'}` : ''}{item.target_space_id ? ` · ${spaceName(item.target_space_id) || 'espaço'}` : ''}
-          {typeof item.details.role === 'string' ? ` (${roleLabels[item.details.role as keyof typeof roleLabels] ?? item.details.role})` : ''}</span></li>)}</ul>
+          {typeof item.details.role === 'string' ? ` (${roleLabels[item.details.role as keyof typeof roleLabels] ?? item.details.role})` : ''}
+          {typeof item.details.outcome === 'string' ? ` (${outcomeLabels[item.details.outcome] ?? item.details.outcome})` : ''}</span></li>)}</ul>
       {!data.audit.length && <p className="muted">Nenhuma ação administrativa ainda.</p>}
     </section>
 

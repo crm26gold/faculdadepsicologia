@@ -1,6 +1,7 @@
 'use client';
 import { useRef, useState } from 'react';
-import { Camera, Check } from 'lucide-react';
+import { Ban, Camera, Check } from 'lucide-react';
+import { BlockedList } from './safety';
 import { api } from './client';
 import { PersonAvatar, animals, symbols } from './avatar';
 import { avatarThumbnail } from '@/lib/image-shrink';
@@ -24,6 +25,7 @@ export function ProfileEditor({ name: initialName, profile, personalPhoto, first
   const [showFollows, setShowFollows] = useState(profile?.show_follows ?? false);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [blockedOpen, setBlockedOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
 
   function pickKind(next: AvatarKind) {
@@ -75,7 +77,9 @@ export function ProfileEditor({ name: initialName, profile, personalPhoto, first
       <label className="cm-check"><input type="checkbox" checked={discoverable} onChange={event => setDiscoverable(event.target.checked)} /> Aparecer na busca de pessoas</label>
       <label className="cm-check"><input type="checkbox" checked={showFollows} onChange={event => setShowFollows(event.target.checked)} /> Mostrar quem eu sigo e quem me segue</label>
       <p className="muted small">Quem divide um grupo com você chega ao seu perfil mesmo fora da busca. Cada publicação tem o público que você escolher.</p>
+      {!first && <button type="button" className="text-button" onClick={() => setBlockedOpen(true)}><Ban size={14} aria-hidden="true" />Pessoas bloqueadas</button>}
     </fieldset>
+    {blockedOpen && <BlockedList onClose={() => setBlockedOpen(false)} />}
     {message && <p className="cm-message" role="alert">{message}</p>}
     <div className="form-footer">
       {onCancel && <button type="button" className="button outline" onClick={onCancel}>Cancelar</button>}

@@ -27,6 +27,7 @@ export default function PrivacyPage() {
       <li><strong>Publicações e seguidores:</strong> cada publicação tem o público que você escolhe (seguidores, todos, um grupo ou só você). Quem reage aparece só como número. As atualizações (novos seguidores, pedidos, reações) ficam 90 dias.</li>
       <li><strong>Fotos e stories:</strong> a foto é reduzida no seu aparelho antes de sair e fica guardada junto com a publicação, para o mesmo público dela. Apagar a publicação apaga a foto. O story, com a foto, é apagado do banco em até uma hora depois de completar 24 horas. Quais stories você já viu fica só no seu navegador: ninguém recebe a lista de quem viu. O story que você guarda no perfil como destaque fica até você tirar de lá, para o mesmo público dele.</li>
       <li><strong>Salvos:</strong> só você vê o que salvou, e quem publicou não fica sabendo. Se você perder o acesso a uma publicação, ela some dos seus salvos.</li>
+      <li><strong>Bloquear e denunciar:</strong> quem você bloqueia não vê seu perfil nem suas publicações, e você não vê os da pessoa; ninguém recebe aviso do bloqueio. Uma denúncia vai só para a administração do app, com o motivo, o que você escreveu e um trecho da publicação; a pessoa denunciada não fica sabendo quem denunciou. As decisões da administração ficam registradas no histórico administrativo.</li>
       <li><strong>Administração:</strong> vê nome, e-mail, plano e em quais salas cada conta participa, para gerenciar acessos.</li>
     </ul>
     <p>A separação é garantida no banco de dados, não apenas na tela.</p>
@@ -42,6 +43,7 @@ export default function PrivacyPage() {
     <p className="legal-version">Acréscimo de 13 de outubro de 2026: fotos nas publicações e stories de 24 horas. Nada muda para quem não publica foto.</p>
     <p className="legal-version">Acréscimo de 13 de outubro de 2026: Salvos e destaques do perfil. Nada muda para quem não usa.</p>
     <p className="legal-version">Acréscimo de 13 de outubro de 2026: notificações do Networking. Nada sai para quem não liga as notificações do app.</p>
+    <p className="legal-version">Acréscimo de 13 de outubro de 2026: bloquear e denunciar no Networking.</p>
     <h2>5. Inteligência artificial</h2>
     <p>Quando recursos de IA forem ativados (por exemplo, para revisar um trabalho de grupo), você será avisado antes sobre qual conteúdo é enviado e para qual provedor. Não usamos seus dados para treinar modelos e não vendemos dados.</p>
     <p>Na chamada do assistente, o áudio é enviado ao provedor de voz configurado. A Jornada não guarda a gravação; a transcrição fica na sua conversa. Com ElevenLabs, a gravação é desativada e a exclusão do áudio e da transcrição no provedor é solicitada com retenção programada de zero dias para novas conversas. Essa exclusão depende do processamento do provedor e não equivale a retenção zero instantânea. A configuração não apaga retroativamente conversas anteriores.</p>

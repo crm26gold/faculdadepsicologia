@@ -86,3 +86,13 @@ test('rede: a notificação conta a primeira novidade e quantas mais chegaram', 
   assert.equal(networkPush([{ kind: 'gostei', actor: null, post: '', space: null }, { kind: 'follow', actor: 'B', post: null, space: null },
     { kind: 'follow', actor: 'C', post: null, space: null }]).body, 'Alguém gostou da sua publicação e mais 2 novidades', 'foto sem legenda e conta apagada');
 });
+
+test('rede: bloquear e denunciar vão ao banco só com o permitido', () => {
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'block', person, blocking: true })), { fn: 'block_person', args: { target: person, blocking: true } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'report', person, reason: 'spam', note: '  propaganda ' })),
+    { fn: 'report_content', args: { target: person, post: null, why: 'spam', details: 'propaganda' } });
+  assert.equal(networkAction.safeParse({ action: 'report', person, reason: 'chato' }).success, false, 'motivo fora da lista');
+  assert.equal(networkAction.safeParse({ action: 'report', person, reason: 'outro', note: 'a'.repeat(501) }).success, false, 'observação longa');
+  assert.equal(networkAction.safeParse({ action: 'block', person: 'x', blocking: true }).success, false);
+  assert.deepEqual(networkRead(new URLSearchParams('blocked=1')), { fn: 'my_blocks', args: {} });
+});

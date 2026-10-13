@@ -20,5 +20,6 @@ export async function POST(request: Request) {
       next_credits: body.credits, next_features: body.features, next_master: body.master,
     });
     case 'set_open_access': return rpc(session, 'admin_set_open_access', { value: body.value });
+    case 'resolve_report': return rpc(session, 'admin_resolve_report', { target: body.report, outcome: body.outcome });
   }
 }

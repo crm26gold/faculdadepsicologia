@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Bookmark, Check, Copy, Eye, Grid3x3, LockKeyhole, Menu, Plus, X } from 'lucide-react';
+import { Ban, Bookmark, Check, Copy, Eye, Grid3x3, LockKeyhole, Menu, MoreHorizontal, Plus, X } from 'lucide-react';
+import { SafetyMenu } from './safety';
 import { Modal } from '../modal';
 import { api, formatDay } from './client';
 import { PersonAvatar } from './avatar';
@@ -44,6 +45,7 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
   const [seen, setSeen] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState<NetworkPost[] | null>(null);
   const [more, setMore] = useState(false);
+  const [options, setOptions] = useState(false);
   const load = useCallback(async () => {
     try { setPerson(await api<PersonProfile>(`/api/network?person=${id}`)); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível abrir este perfil.'); }
@@ -78,6 +80,16 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
 
   if (error) return <div className="error-banner" role="alert">{error}</div>;
   if (!person) return <p role="status" className="loading-panel">Abrindo…</p>;
+  // Você bloqueou: só o cartão para desbloquear.
+  if (person.blocked) return <section className="cm-page nw-profile" aria-labelledby="nw-profile-name">
+    <div className="nw-blocked-card">
+      <PersonAvatar name={person.name} avatar={person.avatar} size={64} />
+      <h2 id="nw-profile-name" className="nw-profile-name">{person.name}</h2>
+      <p className="muted"><Ban size={14} aria-hidden="true" /> Você bloqueou {person.name.split(' ')[0]}. Ninguém dos dois vê o perfil nem as publicações do outro.</p>
+      <button type="button" className="button outline" disabled={busy} onClick={() => run({ action: 'block', person: id, blocking: false }, 'Desbloqueado. O seguir não volta sozinho.')}>Desbloquear</button>
+      {message && <p className="cm-message" role="status">{message}</p>}
+    </div>
+  </section>;
   // Ver como visitante: o filtro repete a regra do banco (publicação "Todos" só aparece em perfil aberto, ou para quem segue).
   const viewer = person.is_me ? as : undefined;
   const visible = (item: NetworkPost) => !viewer || (item.audience === 'public' && (viewer === 'follower' || !person.closed))
@@ -138,6 +150,7 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
         </> : person.status === 'following' ? <button type="button" className="button soft" disabled={busy} onClick={() => run({ action: 'unfollow', person: id }, 'Você deixou de seguir.')}>Seguindo</button>
           : person.status === 'requested' ? <button type="button" className="button soft" disabled={busy} onClick={() => run({ action: 'unfollow', person: id }, 'Pedido cancelado.')}>Pedido enviado · cancelar</button>
           : <button type="button" className="button primary" disabled={busy} onClick={() => run({ action: 'follow', person: id }, person.closed ? 'Pedido enviado.' : 'Agora você segue.')}>Seguir</button>}
+        {!person.is_me && <button type="button" className="button soft nw-profile-menu" aria-label="Mais opções" onClick={() => setOptions(true)}><MoreHorizontal size={20} aria-hidden="true" /></button>}
         {person.requested_me && <>
           <button type="button" className="button primary" disabled={busy} onClick={() => run({ action: 'answer_follow', person: id, accept: true }, 'Pedido aceito.')}><Check size={15} aria-hidden="true" />Aceitar pedido</button>
           <button type="button" className="button outline" disabled={busy} onClick={() => run({ action: 'answer_follow', person: id, accept: false }, 'Pedido recusado.')}><X size={15} aria-hidden="true" />Recusar</button></>}
@@ -171,6 +184,7 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
         {person.is_me && !viewer && list.which === 'followers' && <button className="text-button" disabled={busy} onClick={async () => { await run({ action: 'remove_follower', person: item.id }, 'Seguidor removido.'); setList(value => value && { ...value, people: value.people.filter(p => p.id !== item.id) }); }}>Remover</button>}
       </li>)}</ul> : <p className="muted">Ninguém por aqui ainda.</p>}
     </Modal>}
+    {options && <SafetyMenu person={person} onClose={() => setOptions(false)} onBlocked={() => { void load(); onChanged(); }} />}
     {watching && <StoryViewer groups={[watching]} start={0} me={me} titles={titles} onSeen={seenNow}
       onChanged={() => { void load(); void loadStories(); }} onClose={() => setWatching(null)} />}
   </section>;

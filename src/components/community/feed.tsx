@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Bookmark, Globe2, Heart, LockKeyhole, ThumbsUp, Trash2, Users } from 'lucide-react';
+import { Bookmark, Globe2, Heart, LockKeyhole, MoreHorizontal, ThumbsUp, Trash2, Users } from 'lucide-react';
+import { SafetyMenu } from './safety';
 import { api, formatDay } from './client';
 import { PersonAvatar } from './avatar';
 import { audienceLabels, type NetworkPost, type Photo, type Reaction } from '@/lib/network';
@@ -27,6 +28,7 @@ export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
   const [counts, setCounts] = useState(post.counts);
   const [mine, setMine] = useState(post.mine);
   const [saved, setSaved] = useState(!!post.saved);
+  const [options, setOptions] = useState(false);
   const [message, setMessage] = useState('');
   const Icon = audienceIcon[post.audience];
   async function react(kind: Reaction) {
@@ -57,7 +59,9 @@ export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
         <span><strong>{post.author.name}</strong><small>{formatDay(post.created_at)} · <Icon size={12} aria-hidden="true" /> {post.space ? post.space.name : audienceLabels[post.audience]}</small></span>
       </button>
       {(post.author.id === me || canManage) && <button type="button" className="icon-button" aria-label="Apagar publicação" onClick={remove}><Trash2 size={15} aria-hidden="true" /></button>}
+      {post.author.id !== me && <button type="button" className="icon-button" aria-label="Mais opções da publicação" onClick={() => setOptions(true)}><MoreHorizontal size={18} aria-hidden="true" /></button>}
     </header>
+    {options && <SafetyMenu person={post.author} post={post.id} onClose={() => setOptions(false)} onBlocked={blocking => { if (blocking) onRemoved(post.id); }} />}
     {post.photos.length > 0 && <PostPhotos photos={post.photos} author={post.author.name} />}
     {post.body && (post.style === 'text' ? <p className="nw-post-text">{post.body}</p> : <div className={`nw-card-text ${post.style}`}><p>{post.body}</p></div>)}
     <div className="nw-post-actions">
