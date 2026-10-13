@@ -1,4 +1,4 @@
-// Jornada Plena: recebe os lembretes que a própria pessoa pediu. Não guarda páginas nem dados (sem cache offline).
+// Jornada Plena: recebe os lembretes que a própria pessoa pediu e as novidades do Networking. Não guarda páginas nem dados (sem cache offline).
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', event => event.waitUntil(self.clients.claim()));
 
@@ -7,10 +7,11 @@ self.addEventListener('push', event => {
   try { data = event.data ? event.data.json() : {}; } catch { data = {}; }
   const id = typeof data.id === 'string' ? data.id : '';
   const url = typeof data.url === 'string' && data.url.startsWith(self.location.origin) ? data.url : '/';
+  // O Networking usa uma etiqueta só: a novidade nova substitui a anterior na bandeja, com vibração curta.
+  const tag = id || (typeof data.tag === 'string' ? data.tag.slice(0, 64) : '');
   event.waitUntil(self.registration.showNotification(typeof data.title === 'string' ? data.title : 'Jornada Plena', {
     body: typeof data.body === 'string' ? data.body.slice(0, 300) : 'Você tem um lembrete.',
-    icon: '/brand/icone-192.png', badge: '/brand/icone-192.png', tag: id || undefined, renotify: true,
-    requireInteraction: data.insist === true, vibrate: [300, 120, 300, 120, 600],
+    icon: '/brand/icone-192.png', badge: '/brand/icone-192.png', tag: tag || undefined, renotify: !!tag, requireInteraction: data.insist === true, vibrate: data.soft === true ? [120] : [300, 120, 300, 120, 600],
     data: { id, url, focus: data.focus === true, stop: typeof data.stop === 'string' && data.stop.startsWith(self.location.origin) ? data.stop : '' },
     // A focus near its end asks whether to keep going; "Pausar" opens the app, which pauses it on this account.
     actions: !id ? [] : data.forgotten === true ? [{ action: 'encerrar', title: 'Encerrar' }, { action: 'feito', title: 'Continuar' }]

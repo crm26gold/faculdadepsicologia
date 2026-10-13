@@ -31,7 +31,7 @@ export const helpText = [
   '"desfazer" volta o último registro · /sair desconecta este Telegram.',
 ].join('\n');
 
-export const notLinkedText = 'Este Telegram ainda não está ligado à sua Jornada Plena. No aplicativo, abra Meu espaço › Telegram, toque em "Conectar meu Telegram" e volte aqui pelo botão.';
+export const notLinkedText = 'Este Telegram ainda não está ligado à sua Jornada Plena. No aplicativo, abra Meu espaço › Telegram e WhatsApp, toque em "Conectar meu Telegram" e volte aqui pelo botão.';
 
 /** The answer plus a checklist of what was actually done, in plain text (no Markdown to escape). */
 export function botReply(reply: string, applied: Applied[], failed: string[]) {

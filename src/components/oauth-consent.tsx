@@ -47,7 +47,7 @@ export function OAuthConsent({ problem, clientName, identity, request }: { probl
           <li>{write ? 'Registrar e editar itens com as validações do aplicativo.' : 'Não poderá registrar nem editar nada.'}</li>
           <li>Exclusões continuam sendo confirmadas aqui no aplicativo. Grupos, salas e outras pessoas nunca entram.</li>
         </ul>
-        <p className="muted small"><ShieldCheck size={15} aria-hidden="true" /> Você pode revogar a qualquer momento em Meu espaço › Conectar assistentes.</p>
+        <p className="muted small"><ShieldCheck size={15} aria-hidden="true" /> Você pode revogar a qualquer momento em Meu espaço › Assistentes e IA.</p>
         {signedIn === false && <button type="button" className="button primary" onClick={login}>Entrar para continuar</button>}
         {signedIn === null && !message && <p role="status">Verificando sua conta…</p>}
         {signedIn && <form method="post" action="/api/oauth/authorize" aria-busy={busy} onSubmit={event => { event.preventDefault(); void decide(true); }}>

@@ -7,6 +7,7 @@ import { dispatchReminders } from '@/lib/reminders-server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
+const clock = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 const action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('subscribe'), endpoint: z.url().startsWith('https://').max(1000), p256dh: z.string().regex(/^[A-Za-z0-9_-]{40,200}$/),
     auth: z.string().regex(/^[A-Za-z0-9_-]{10,100}$/), label: z.string().trim().max(80) }).strict(),
@@ -14,6 +15,11 @@ const action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('test'), level: z.enum(reminderLevels) }).strict(),
   z.object({ action: z.literal('ack'), id: z.uuid(), choice: z.enum(['feito', 'adiar']) }).strict(),
   z.object({ action: z.literal('get'), id: z.uuid() }).strict(),
+  // Networking: avisar ou não, horário de silêncio (os dois horários ou nenhum) e grupos silenciados.
+  z.object({ action: z.literal('alerts'), network: z.boolean(), quiet_from: clock.nullable(), quiet_to: clock.nullable(),
+    muted: z.array(z.uuid()).max(200) }).strict()
+    .refine(value => (value.quiet_from === null) === (value.quiet_to === null) && (!value.quiet_from || value.quiet_from !== value.quiet_to),
+      'Escolha o começo e o fim do silêncio, diferentes.'),
 ]);
 
 export async function GET() {
@@ -51,6 +57,10 @@ export async function POST(request: Request) {
     case 'ack': {
       const { data, error } = await call('reminder_ack', { reminder: body.id, choice: body.choice });
       return error ? dbError(error) : reply({ ok: true, data });
+    }
+    case 'alerts': {
+      const { error } = await call('save_alerts', { network: body.network, from_time: body.quiet_from, to_time: body.quiet_to, muted: body.muted });
+      return error ? dbError(error) : reply({ ok: true, data: null });
     }
     case 'get': {
       const { data, error } = await call('reminder_get', { reminder: body.id });

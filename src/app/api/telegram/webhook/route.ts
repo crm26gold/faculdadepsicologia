@@ -70,7 +70,7 @@ export async function POST(request: Request) {
   if (intent.kind === 'start' || intent.kind === 'help') { await say(helpText); return ok(); }
   if (intent.kind === 'unlink') {
     await db.rpc('bot_unlink', { server_secret: serverSecret, channel_id: CHANNEL, chat });
-    await say('Desconectado. Para ligar de novo, use Meu espaço › Telegram no aplicativo.');
+    await say('Desconectado. Para ligar de novo, use Meu espaço › Telegram e WhatsApp no aplicativo.');
     return ok();
   }
   if (message.photo?.length && !photo) { await say('Envie uma foto de até 4 MB para guardar e ler os detalhes.'); return ok(); }

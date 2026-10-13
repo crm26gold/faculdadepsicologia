@@ -3,7 +3,7 @@ import { reply } from '@/lib/api-route';
 import { botServerSecret } from '@/lib/bot/secrets';
 import { demoRequested } from '@/lib/config';
 import { syncDueGoogleAgendas } from '@/lib/google-agenda-server';
-import { dispatchReminders } from '@/lib/reminders-server';
+import { dispatchNetwork, dispatchReminders } from '@/lib/reminders-server';
 import { botDatabase } from '@/lib/supabase/bot';
 
 export const dynamic = 'force-dynamic';
@@ -21,8 +21,9 @@ export async function POST(request: Request) {
   try { secret = botServerSecret(); } catch { return reply({ error: 'Indisponível.' }, 503); }
   const clock = await db.rpc('reminders_clock_ok', { server_secret: secret, token });
   if (clock.error || clock.data !== true) return reply({ error: 'Relógio não autorizado.' }, 401);
-  // Reminders first (they have a time); then the Google copies the app did not make, after the answer goes out.
+  // Reminders first (they have a time); then the Networking news; the Google copies go after the answer.
   after(() => syncDueGoogleAgendas().catch(() => null));
-  try { return reply({ ok: true, data: { sent: (await dispatchReminders()).length } }); }
-  catch { return reply({ error: 'Não consegui enviar os lembretes agora.' }, 503); }
+  const [reminders, network] = await Promise.allSettled([dispatchReminders(), dispatchNetwork()]);
+  if (reminders.status === 'rejected') return reply({ error: 'Não consegui enviar os lembretes agora.' }, 503);
+  return reply({ ok: true, data: { sent: reminders.value.length, network: network.status === 'fulfilled' ? network.value : 0 } });
 }

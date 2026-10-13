@@ -150,7 +150,7 @@ export function jornadaMcpServer(db: Database, access: Access) {
       pedido: z.string().trim().max(2000).optional().describe('As palavras da pessoa, como ela disse (por exemplo "me lembra daqui 3 minutos de beber água"). A Jornada usa para garantir o aviso e a hora certa.') }),
     annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
   }, async ({ acoes, request_id, pedido }) => {
-    if (!access.canWrite) return { ...text('Esta chave só consulta. Crie uma chave com permissão de registrar em Meu espaço › Conectar assistentes.'), isError: true };
+    if (!access.canWrite) return { ...text('Esta chave só consulta. Crie uma chave com permissão de registrar em Meu espaço › Assistentes e IA.'), isError: true };
     const requestId = request_id ?? crypto.randomUUID();
     const digest = createHash('sha256').update(JSON.stringify(acoes)).digest('hex');
     type Receipt = JobOutcome & { conversation_id: string | null };
@@ -301,7 +301,7 @@ export function jornadaMcpServer(db: Database, access: Access) {
       texto: z.string().trim().min(1).max(20_000) }),
     annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
   }, async ({ curso, materia, tipo, titulo, texto }) => {
-    if (!access.canWrite) return { ...text('Esta chave só consulta. Crie uma chave com permissão de registrar em Meu espaço › Conectar assistentes.'), isError: true };
+    if (!access.canWrite) return { ...text('Esta chave só consulta. Crie uma chave com permissão de registrar em Meu espaço › Assistentes e IA.'), isError: true };
     if (tipo === 'texto' && !titulo) return { ...text('Dê um título ao texto (por exemplo "Plano de ensino" ou "Aviso da professora").'), isError: true };
     const current = await context();
     const data = current.workspace ? parseWorkspace(JSON.stringify(current.workspace.data)) : emptyWorkspace();

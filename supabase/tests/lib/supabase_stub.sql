@@ -82,6 +82,7 @@ values ('00000000-0000-4000-8000-00000000000a', '{"version": "1", "subjects": []
 \ir ../../migrations/20261013080000_networking_feed.sql
 \ir ../../migrations/20261013113000_networking_photos_stories.sql
 \ir ../../migrations/20261013160000_networking_profile_extras.sql
+\ir ../../migrations/20261013190000_networking_alerts.sql
 
 create function public.expect(ok boolean, message text) returns void language plpgsql
 as $$ begin if not coalesce(ok, false) then raise exception 'FALHA: %', message; end if; end $$;

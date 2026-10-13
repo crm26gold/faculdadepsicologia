@@ -11,7 +11,7 @@ const rows: { id: SettingsSection; title: string; detail: string; Icon: typeof B
   { id: 'contato', title: 'Contato', detail: 'E-mail e telefone para falarmos com você. Ninguém mais vê.', Icon: Mail },
   { id: 'areas', title: 'Áreas da vida e cadernos', detail: 'O que organiza metas, rotina, finanças e o caderno', Icon: LayoutGrid },
   { id: 'aparencia', title: 'Aparência', detail: 'Claro, escuro ou igual ao celular', Icon: Palette },
-  { id: 'avisos', title: 'Avisos', detail: 'Notificação no celular, Telegram, WhatsApp e Google Agenda', Icon: Bell, cloud: true },
+  { id: 'avisos', title: 'Avisos', detail: 'Notificações do app, horário de silêncio e extras', Icon: Bell, cloud: true },
   { id: 'conexoes', title: 'Telegram e WhatsApp', detail: 'Converse com o app pelo Telegram e pelo WhatsApp', Icon: MessageCircle, cloud: true },
   { id: 'assistentes', title: 'Assistentes e IA', detail: 'Claude, ChatGPT e suas chaves de IA', Icon: Sparkles, cloud: true },
   { id: 'dados', title: 'Seus dados', detail: 'Baixar, backup, lixeira, termos e privacidade', Icon: Database },
