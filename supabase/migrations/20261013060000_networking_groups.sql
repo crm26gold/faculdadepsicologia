@@ -79,6 +79,9 @@ create table private.join_attempts (
 create index join_attempts_lookup_idx on private.join_attempts(user_id, space_id, at);
 create index join_attempts_space_idx on private.join_attempts(space_id);
 revoke all on private.space_join_secrets, private.join_attempts from public, anon, authenticated;
+-- Ninguém além das funções do banco lê ou grava; o RLS ligado reforça isso.
+alter table private.space_join_secrets enable row level security;
+alter table private.join_attempts enable row level security;
 
 -- E-mail que a pessoa aceitou mostrar ao dono do grupo ao entrar.
 alter table public.space_members add column email_shared boolean not null default false;
