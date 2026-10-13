@@ -181,7 +181,14 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
 - **A aba "Salas e grupos" deixa de existir.**
   - **Networking:** a rede social de conhecimento no estilo do Instagram. Reúne o perfil, as salas, os grupos de qualquer assunto, o feed, a busca por #tema, a conversa em grupo, as enquetes e os trabalhos em grupo.
   - **Caixa de ferramentas:** vem depois.
-  - **No celular,** o Networking entra na barra de baixo no lugar da Agenda.
+  - **No celular,** o Networking entra na barra de baixo no lugar da Agenda (confirmado pelo proprietário).
+  - **No menu lateral,** o Networking fica em "Conectar".
+  - **Atualizações:** pedidos para seguir, pedidos para entrar em grupo, convites, menções, curtidas e lembretes dos desafios. Ficam numa tela própria com contador, que aparece na barra de baixo, no menu lateral e no sino do Networking.
+  - **Avisos no celular:** usam os mesmos canais grátis dos lembretes (notificação do app, Telegram, WhatsApp). A pessoa escolhe:
+    - o canal;
+    - o tipo de aviso: pedidos e convites, menções, conversa dos grupos, e curtidas em resumo diário;
+    - um horário de silêncio;
+    - grupos silenciados.
 - **Qualquer pessoa cria sala ou grupo.**
   - Quando um professor ou líder assume, ele ganha o **selo de oficial**, sem ferramentas a mais.
   - Cada pessoa gerencia os grupos que criou e participa dos grupos dos outros, de vários lugares ao mesmo tempo (UNIP, SEBRAE…).
