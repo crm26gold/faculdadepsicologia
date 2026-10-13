@@ -33,8 +33,19 @@ export function spaceCall(body: SpaceAction, hashedToken = ''): DbCall {
     case 'create_poll': return { fn: 'create_poll', args: { target: body.space, poll_question: body.question, poll_options: body.options, poll_closes: null } };
     case 'delete_poll': return { fn: 'delete_poll', args: { target: body.poll } };
     case 'vote': return { fn: 'vote', args: { target: body.poll, choice: body.choice } };
+    case 'create_group': return { fn: 'create_group', args: { group_name: body.name, parent: body.parent, group_description: body.description, group_color: body.color, ...groupArgs(body), password: body.password } };
+    case 'update_group': return { fn: 'update_group_settings', args: { target: body.space, ...groupArgs(body), password: body.password } };
+    case 'join_group': return { fn: 'join_group', args: { target: body.space, password: body.password, share_email: body.share_email } };
+    case 'decide_request': return { fn: 'decide_join_request', args: { target: body.space, member: body.member, approve: body.approve } };
+    case 'withdraw_request': return { fn: 'withdraw_join_request', args: { target: body.space } };
+    case 'set_official': return { fn: 'set_space_official', args: { target: body.space, official: body.official } };
   }
 }
+
+const groupArgs = (body: Extract<SpaceAction, { action: 'create_group' | 'update_group' }>) => ({
+  group_template: body.template, group_tools: body.tools, group_topics: body.topics, group_origin: body.origin,
+  group_visibility: body.visibility, approval: body.approval, asks_email: body.asks_email,
+});
 
 /** Null when a part's text is too large to save; the text is rebuilt so only allowed structure reaches the group. */
 export function workCall(body: WorkAction): DbCall | null {

@@ -9,7 +9,13 @@ export const dynamic = 'force-dynamic';
 export async function GET(request: Request) {
   const session = await readSession();
   if (session instanceof Response) return session;
-  const id = z.uuid().safeParse(new URL(request.url).searchParams.get('id'));
+  const params = new URL(request.url).searchParams;
+  const search = params.get('discover');
+  if (search !== null) {
+    if (search.length > 60) return reply({ error: 'Busca longa demais.' }, 400);
+    return rpc(session, 'discover_groups', { search });
+  }
+  const id = z.uuid().safeParse(params.get('id'));
   if (!id.success) return reply({ error: 'Sala inválida.' }, 400);
   return rpc(session, 'space_overview', { target: id.data });
 }

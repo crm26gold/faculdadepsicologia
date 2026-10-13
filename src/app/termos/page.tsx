@@ -13,6 +13,7 @@ export default function TermsPage() {
       <li><strong>Espaço pessoal</strong> (matérias, caderno, agenda, finanças, rotina, metas, contatos): visível apenas para você.</li>
       <li><strong>Salas e grupos</strong>: o que você envia (partes de trabalho, comentários, votos, publicações) fica visível para quem participa daquele espaço e para quem o orienta. Em enquetes, as pessoas veem só os totais; seu voto individual é secreto.</li>
       <li>Você só entra em uma sala por convite ou por inclusão feita por professor(a) ou pela administração. Um grupo não vê o conteúdo de outro grupo.</li>
+      <li>Qualquer pessoa pode criar um grupo no Networking e escolher quem o encontra e como se entra (livre, com aprovação, com senha ou pedindo nome e e-mail). Quem cria cuida do grupo e responde pelo que é publicado nele.</li>
     </ul>
     <h2>3. Papéis</h2>
     <p>A administração da plataforma define quem é professor(a) em cada sala. Professores e líderes podem organizar trabalhos, pedir revisões e publicar no mural. A administração pode alterar papéis e planos; essas ações ficam registradas em histórico.</p>

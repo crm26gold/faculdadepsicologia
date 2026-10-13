@@ -1,18 +1,22 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeft, BarChart3, Copy, ExternalLink, Link2, LogOut, Megaphone, Pin, Plus, Settings2, Trash2, UserPlus, Users, Video } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, BarChart3, Check, Copy, ExternalLink, Link2, LogOut, Megaphone, Pin, Plus, Settings2, Trash2, UserPlus, Users, Video, X } from 'lucide-react';
 import { Modal } from '../modal';
 import { api, formatDay } from './client';
 import { AssignmentForm } from './assignment-view';
 import { InviteQr } from './invite-qr';
-import { kindLabels, postKindLabels, roleLabels, spaceColors, type Role, type SpaceOverview } from '@/lib/community';
+import { PersonAvatar } from './avatar';
+import { GroupRules } from './group-form';
+import { kindLabels, postKindLabels, roleLabels, spaceColors, templateLabels, type GroupTool, type Role, type SpaceOverview } from '@/lib/community';
+import type { Workspace } from '@/lib/workspace';
 
 type Tab = 'board' | 'works' | 'groups' | 'people';
 const colorNames: Record<string, string> = { sage: 'Azul claro', lavender: 'Lavanda', sand: 'Areia', blue: 'Azul', rose: 'Rosa' };
 const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
-export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }: {
-  id: string; me: string; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
+export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, onChanged, onCreateGroup }: {
+  id: string; me: string; workspace: Workspace; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
+  onCreateGroup: (parent: { id: string; name: string }) => void;
 }) {
   const [data, setData] = useState<SpaceOverview | null>(null);
   const [error, setError] = useState('');
@@ -42,8 +46,17 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
   const nameOf = (userId: string | null) => userId ? names.get(userId) ?? 'Equipe' : 'Ex-membro';
   const direct = data.people.filter(person => person.is_direct);
   const guides = data.people.filter(person => !person.is_direct && person.role !== 'master');
-  const tabs: [Tab, string, number | null][] = [['board', 'Mural', data.posts.length + data.polls.length], ['works', 'Trabalhos', data.assignments.length],
-    ...(space.kind === 'class' ? [['groups', 'Grupos', data.groups.length] as [Tab, string, number]] : []), ['people', 'Pessoas', direct.length]];
+  const requests = data.requests ?? [];
+  // Num grupo, o dono escolhe as ferramentas; sala e instituição continuam com tudo.
+  const has = (tool: GroupTool) => space.kind !== 'group' || !space.tools || space.tools.includes(tool);
+  const freeGroup = space.kind === 'group' && !space.parent_id;
+  const roleOf = (role: Role | 'master') => freeGroup && role === 'student' ? 'Membro' : roleLabels[role];
+  const avatar = (person: { user_id: string; display_name: string }) => <PersonAvatar name={person.display_name || '?'} avatar={data.avatars?.[person.user_id]} />;
+  const tabs: [Tab, string, number | null][] = [
+    ...(has('mural') || has('enquetes') ? [['board', 'Mural', data.posts.length + data.polls.length] as [Tab, string, number]] : []),
+    ...(has('partes') ? [['works', 'Trabalhos', data.assignments.length] as [Tab, string, number]] : []),
+    ...(space.kind === 'class' ? [['groups', 'Grupos', data.groups.length] as [Tab, string, number]] : []), ['people', 'Pessoas', direct.length + requests.length]];
+  const current = tabs.some(([value]) => value === tab) ? tab : tabs[0][0];
 
   return <section className="cm-page">
     <div className="cm-crumbs"><button className="text-button" onClick={onBack}><ArrowLeft size={14} aria-hidden="true" /> Voltar</button>
@@ -52,15 +65,17 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
         : <span key={item.id}>{item.name}</span>).reduce<React.ReactNode[]>((all, node, index) => index ? [...all, ' › ', node] : [node], [])}</span></div>
     <header className={`cm-hero ${space.color}`}>
       <div>
-        <span className="eyebrow">{kindLabels[space.kind]}{data.my_role ? ` · você é ${roleLabels[data.my_role].toLowerCase()}` : access.is_master ? ' · administração' : ''}{space.archived_at ? ' · arquivado' : ''}</span>
-        <h2>{space.name}</h2>
+        <span className="eyebrow">{space.kind === 'group' && space.template && space.template !== 'livre' ? `Grupo de ${templateLabels[space.template].toLowerCase()}` : kindLabels[space.kind]}{data.my_role ? ` · você é ${roleOf(data.my_role).toLowerCase()}` : access.is_master ? ' · administração' : ''}{space.archived_at ? ' · arquivado' : ''}</span>
+        <h2>{space.name}{space.official_at && <span className="nw-official"><BadgeCheck size={16} aria-hidden="true" />Oficial</span>}</h2>
         {space.description && <p>{space.description}</p>}
+        {(space.origin || !!space.topics?.length) && <p className="cm-call">{[space.origin, ...(space.topics ?? []).map(topic => `#${topic}`)].filter(Boolean).join(' · ')}</p>}
         {space.call_url && <p className="cm-call">Chamada em <strong>{hostOf(space.call_url)}</strong>{space.call_set_by ? ` · colocada por ${nameOf(space.call_set_by)}` : ''}</p>}
       </div>
       <div className="button-row">
-        {space.call_url && <a className="button primary" href={space.call_url} target="_blank" rel="noopener noreferrer"><Video size={16} aria-hidden="true" />Entrar na chamada</a>}
-        {access.can_set_call && <button className="button outline" onClick={() => setModal('call')}><Video size={16} aria-hidden="true" />{space.call_url ? 'Mudar a chamada' : 'Link da chamada'}</button>}
+        {has('encontros') && space.call_url && <a className="button primary" href={space.call_url} target="_blank" rel="noopener noreferrer"><Video size={16} aria-hidden="true" />Entrar na chamada</a>}
+        {has('encontros') && access.can_set_call && <button className="button outline" onClick={() => setModal('call')}><Video size={16} aria-hidden="true" />{space.call_url ? 'Mudar a chamada' : 'Link da chamada'}</button>}
         {access.can_manage && <button className="button outline" onClick={() => setModal('settings')}><Settings2 size={16} aria-hidden="true" />Configurar</button>}
+        {access.is_staff && space.kind === 'group' && <button className="button outline" disabled={busy} onClick={() => run({ action: 'set_official', space: space.id, official: !space.official_at }, space.official_at ? 'Selo retirado.' : 'Grupo agora é oficial.')}><BadgeCheck size={16} aria-hidden="true" />{space.official_at ? 'Tirar o selo' : 'Assumir como oficial'}</button>}
         {data.my_role && data.my_role !== 'owner' && <button className="button outline" disabled={busy} onClick={async () => {
           if (!window.confirm(`Sair de ${space.name}? Você deixa de ver o conteúdo, mas o que já entregou continua com o grupo.`)) return;
           if (await run({ action: 'remove_member', space: space.id, member: me }, 'Você saiu.')) onBack();
@@ -68,13 +83,14 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
       </div>
     </header>
     {message && <p className="cm-message" role="status">{message}</p>}
+    {requests.length > 0 && current !== 'people' && <button type="button" className="nw-request-banner" onClick={() => setTab('people')}>{requests.length} {requests.length === 1 ? 'pessoa pediu' : 'pessoas pediram'} para entrar · responder</button>}
 
     <div className="planning-nav-bar" role="tablist" aria-label={`Seções de ${space.name}`}>
-      {tabs.map(([value, label, count]) => <button key={value} type="button" role="tab" aria-selected={tab === value} className={`planning-tab ${tab === value ? 'active' : ''}`} onClick={() => setTab(value)}>{label}{count !== null && <span className="count-pill">{count}</span>}</button>)}
+      {tabs.map(([value, label, count]) => <button key={value} type="button" role="tab" aria-selected={current === value} className={`planning-tab ${current === value ? 'active' : ''}`} onClick={() => setTab(value)}>{label}{count !== null && <span className="count-pill">{count}</span>}</button>)}
     </div>
 
-    {tab === 'board' && <div className="cm-stack">
-      {access.can_lead && <div className="button-row"><button className="button primary" onClick={() => setModal('post')}><Megaphone size={16} aria-hidden="true" />Publicar no mural</button><button className="button outline" onClick={() => setModal('poll')}><BarChart3 size={16} aria-hidden="true" />Nova enquete</button></div>}
+    {current === 'board' && <div className="cm-stack">
+      {access.can_lead && <div className="button-row">{has('mural') && <button className="button primary" onClick={() => setModal('post')}><Megaphone size={16} aria-hidden="true" />Publicar no mural</button>}{has('enquetes') && <button className="button outline" onClick={() => setModal('poll')}><BarChart3 size={16} aria-hidden="true" />Nova enquete</button>}</div>}
       {data.polls.map(poll => {
         const total = poll.results.reduce((sum, item) => sum + item.votes, 0);
         const closed = !!poll.closes_at && new Date(poll.closes_at) <= new Date();
@@ -103,7 +119,7 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
       {!data.posts.length && !data.polls.length && <div className="empty-inline"><Megaphone size={22} aria-hidden="true" /><p>Nada no mural ainda.{access.can_lead ? ' Publique avisos, datas, vídeos e materiais para todos.' : ' Avisos e materiais aparecem aqui.'}</p></div>}
     </div>}
 
-    {tab === 'works' && <div className="cm-stack">
+    {current === 'works' && <div className="cm-stack">
       {access.can_lead && <div className="button-row"><button className="button primary" onClick={() => setModal('work')}><Plus size={16} aria-hidden="true" />Novo trabalho em grupo</button></div>}
       <div className="cm-card-grid">{data.assignments.map(work => <button key={work.id} className="cm-work-card" onClick={() => onOpenWork(work.id)}>
         <span className="eyebrow">{work.subject_name || 'Trabalho'}{work.space_id !== space.id ? ` · ${work.space_name}` : ''}</span>
@@ -115,31 +131,40 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
       {!data.assignments.length && <div className="empty-inline"><Users size={22} aria-hidden="true" /><p>Nenhum trabalho ainda.{access.can_lead ? ' Crie um trabalho, divida em partes e cada pessoa entrega a sua.' : ''}</p></div>}
     </div>}
 
-    {tab === 'groups' && <div className="cm-stack">
-      {access.can_manage && <div className="button-row"><button className="button primary" onClick={() => setModal('group')}><Plus size={16} aria-hidden="true" />Novo grupo</button></div>}
+    {current === 'groups' && <div className="cm-stack">
+      <div className="button-row">{access.can_manage
+        ? <button className="button primary" onClick={() => setModal('group')}><Plus size={16} aria-hidden="true" />Novo grupo da sala</button>
+        : <button className="button primary" onClick={() => onCreateGroup({ id: space.id, name: space.name })}><Plus size={16} aria-hidden="true" />Criar grupo nesta sala</button>}</div>
       <div className="cm-card-grid">{data.groups.map(group => <button key={group.id} className={`cm-space-card ${group.color}`} onClick={() => onOpenSpace(group.id)}>
-        <strong>{group.name}</strong><small>{group.members} {group.members === 1 ? 'pessoa' : 'pessoas'}{group.archived_at ? ' · arquivado' : ''}</small>{group.description && <span>{group.description}</span>}
+        <strong>{group.name}{group.official && <BadgeCheck className="nw-seal" size={16} aria-label="Oficial" />}</strong><small>{group.members} {group.members === 1 ? 'pessoa' : 'pessoas'}{group.archived_at ? ' · arquivado' : ''}</small>{group.description && <span>{group.description}</span>}
       </button>)}</div>
       {!data.groups.length && <div className="empty-inline"><Users size={22} aria-hidden="true" /><p>{access.can_manage ? 'Crie grupos de trabalho. Cada grupo só vê o próprio conteúdo.' : 'Você verá aqui o seu grupo quando for incluído(a).'}</p></div>}
     </div>}
 
-    {tab === 'people' && <div className="cm-stack">
+    {current === 'people' && <div className="cm-stack">
+      {requests.length > 0 && <><h3 className="small-heading">Pedidos para entrar</h3><ul className="cm-people">{requests.map(request => <li key={request.user_id}>
+        {avatar(request)}
+        <span className="cm-person"><strong>{request.display_name || 'Sem nome'}</strong><small>{request.email ? `${request.email} · ` : ''}pediu em {formatDay(request.created_at)}</small></span>
+        <span className="cm-person-tools">
+          <button className="button primary" disabled={busy} onClick={() => run({ action: 'decide_request', space: space.id, member: request.user_id, approve: true }, `${request.display_name} entrou.`)}><Check size={15} aria-hidden="true" />Aceitar</button>
+          <button className="button outline" disabled={busy} onClick={() => run({ action: 'decide_request', space: space.id, member: request.user_id, approve: false }, 'Pedido recusado.')}><X size={15} aria-hidden="true" />Recusar</button>
+        </span></li>)}</ul></>}
       {access.can_lead && <div className="button-row">
-        {access.can_manage && <button className="button primary" onClick={() => setModal('member')}><UserPlus size={16} aria-hidden="true" />Adicionar por e-mail</button>}
+        {access.is_staff && <button className="button primary" onClick={() => setModal('member')}><UserPlus size={16} aria-hidden="true" />Adicionar por e-mail</button>}
         <button className="button outline" onClick={() => { setLink(''); setModal('invite'); }}><Link2 size={16} aria-hidden="true" />Link de convite</button>
       </div>}
       <ul className="cm-people">{direct.map(person => <li key={person.user_id}>
-        <span className="cm-avatar" aria-hidden="true">{(person.display_name || '?').slice(0, 1).toUpperCase()}</span>
-        <span className="cm-person"><strong>{person.display_name || 'Sem nome'}{person.user_id === me ? ' (você)' : ''}</strong><small>{roleLabels[person.role]}{person.email ? ` · ${person.email}` : ''}</small></span>
+        {avatar(person)}
+        <span className="cm-person"><strong>{person.display_name || 'Sem nome'}{person.user_id === me ? ' (você)' : ''}</strong><small>{roleOf(person.role)}{person.email ? ` · ${person.email}` : ''}</small></span>
         {access.can_manage && person.user_id !== me && person.role !== 'master' && <span className="cm-person-tools">
           <label className="sr-only" htmlFor={`role-${person.user_id}`}>Papel de {person.display_name}</label>
           <select id={`role-${person.user_id}`} value={person.role} disabled={busy || ((person.role === 'teacher' || person.role === 'owner') && !access.is_master)} onChange={event => run({ action: 'set_role', space: space.id, member: person.user_id, role: event.target.value }, 'Papel atualizado.')}>
-            {(['student', 'leader', 'assistant', ...(access.is_master ? ['teacher', 'owner'] : person.role === 'teacher' || person.role === 'owner' ? [person.role] : [])] as Role[]).map(role => <option key={role} value={role}>{roleLabels[role]}</option>)}
+            {(['student', 'leader', 'assistant', ...(access.is_master ? ['teacher', 'owner'] : person.role === 'teacher' || person.role === 'owner' ? [person.role] : [])] as Role[]).map(role => <option key={role} value={role}>{roleOf(role)}</option>)}
           </select>
           <button className="icon-button" aria-label={`Remover ${person.display_name}`} disabled={busy || ((person.role === 'teacher' || person.role === 'owner') && !access.is_master)} onClick={() => window.confirm(`Remover ${person.display_name}${space.kind === 'class' ? ' da sala e dos grupos dela' : ''}?`) && run({ action: 'remove_member', space: space.id, member: person.user_id }, 'Pessoa removida.')}><Trash2 size={15} /></button>
         </span>}
       </li>)}</ul>
-      {guides.length > 0 && <><h3 className="small-heading">Quem acompanha</h3><ul className="cm-people">{guides.map(person => <li key={person.user_id}><span className="cm-avatar" aria-hidden="true">{(person.display_name || '?').slice(0, 1).toUpperCase()}</span><span className="cm-person"><strong>{person.display_name}</strong><small>{roleLabels[person.role]}</small></span></li>)}</ul></>}
+      {guides.length > 0 && <><h3 className="small-heading">Quem acompanha</h3><ul className="cm-people">{guides.map(person => <li key={person.user_id}>{avatar(person)}<span className="cm-person"><strong>{person.display_name}</strong><small>{roleLabels[person.role]}</small></span></li>)}</ul></>}
       {access.can_lead && data.invitations.length > 0 && <><h3 className="small-heading">Convites</h3><ul className="cm-people">{data.invitations.map(invite => {
         const active = !invite.revoked_at && new Date(invite.expires_at) > new Date() && invite.uses < invite.max_uses;
         return <li key={invite.id}><span className="cm-person"><strong>Convite de {roleLabels[invite.role].toLowerCase()} · {invite.uses}/{invite.max_uses} usos</strong><small>{active ? `Válido até ${formatDay(invite.expires_at)}` : invite.revoked_at ? 'Cancelado' : 'Encerrado'}</small></span>
@@ -195,7 +220,7 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
     </form></Modal>}
 
     {modal === 'invite' && <Modal title="Link de convite" onClose={() => setModal(null)}>
-      {link ? <div className="entry-form"><p>Envie este link no grupo da turma. Quem entrar pelo link cai direto em <strong>{space.name}</strong>{space.kind === 'group' ? ' (e na sala)' : ''}.</p>
+      {link ? <div className="entry-form"><p>Envie este link no grupo da turma. Quem entrar pelo link cai direto em <strong>{space.name}</strong>{space.kind === 'group' && space.parent_id && access.is_staff ? ' (e na sala)' : ''}.</p>
         <label htmlFor="invite-link">Link</label><input id="invite-link" readOnly value={link} onFocus={event => event.currentTarget.select()} />
         <div className="form-footer"><button className="button primary" onClick={() => navigator.clipboard.writeText(link).then(() => setMessage('Link copiado.'), () => setMessage('Copie o link manualmente.'))}><Copy size={16} aria-hidden="true" />Copiar link</button></div>
         <p className="muted small">Ou mostre o QR Code: quem estiver por perto aponta a câmera do celular e entra.</p>
@@ -205,7 +230,7 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
           const result = await run({ action: 'create_invitation', space: space.id, role: f.get('role') ?? 'student', days: Number(f.get('days')), uses: Number(f.get('uses')) }, 'Convite criado.');
           if (result && typeof result === 'object' && 'link' in result) setLink(String((result as { link: string }).link));
         }}>
-          <label htmlFor="invite-role">Quem entra vira</label><select id="invite-role" name="role"><option value="student">Aluno(a)</option>{access.can_manage && <option value="leader">Líder</option>}</select>
+          <label htmlFor="invite-role">Quem entra vira</label><select id="invite-role" name="role"><option value="student">{roleOf('student')}</option>{access.can_manage && <option value="leader">Líder</option>}</select>
           <div className="form-grid"><div><label htmlFor="invite-days">Válido por (dias)</label><input id="invite-days" name="days" type="number" min={1} max={60} defaultValue={7} /></div>
             <div><label htmlFor="invite-uses">Máximo de pessoas</label><input id="invite-uses" name="uses" type="number" min={1} max={500} defaultValue={60} /></div></div>
           <div className="form-footer"><button className="button primary" disabled={busy}>Gerar link</button></div>
@@ -236,7 +261,10 @@ export function SpaceView({ id, me, onBack, onOpenSpace, onOpenWork, onChanged }
         <button type="button" className="button outline" disabled={busy} onClick={async () => { if (await run({ action: 'archive_space', space: space.id, archived: !space.archived_at }, space.archived_at ? 'Reaberto.' : 'Arquivado.')) setModal(null); }}>{space.archived_at ? 'Reabrir' : 'Arquivar'}</button>
         <button className="button primary" disabled={busy}>Salvar</button>
       </div>
-    </form></Modal>}
+    </form>
+    {space.kind === 'group' && <><h3 className="small-heading">Regras do grupo</h3>
+      <GroupRules overview={data} data={workspace} busy={busy} onSave={async body => { if (await run(body, 'Regras salvas.')) setModal(null); }} /></>}
+    </Modal>}
   </section>;
 }
 

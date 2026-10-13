@@ -24,8 +24,10 @@ const TERMS = '2026-09-30';
 const EMPTY_SPACE ={ version: 1, subjects: [], tasks: [], notes: [], sessions: [], classes: [], term: {} };
 const text = (value: string) => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: value }] }] });
 
-function homeFixture(options: { master?: boolean; consents?: boolean; openAccess?: boolean } = {}) {
+function homeFixture(options: { master?: boolean; consents?: boolean; openAccess?: boolean; profile?: boolean } = {}) {
   return {
+    profile: options.profile === false ? null as null | { kind: string; value: string; photo: string | null; bio: string } : { kind: 'initials', value: '', photo: null, bio: '' },
+    join_requests: 0,
     account: { user_id: ME, email: 'eu@example.invalid', display_name: 'Pessoa Teste', is_master: !!options.master, plan: 'academic', plan_source: 'free', pro_until: null, ai_credits: 0, features: [], created_at: '2026-09-30T10:00:00Z' },
     settings: { open_access: options.openAccess ?? true },
     consents: options.consents === false ? [] : [{ document: 'terms', version: TERMS }, { document: 'privacy', version: TERMS }],
@@ -51,6 +53,12 @@ const groupOverview = {
   assignments: [{ id: WORK, title: 'Direitos Humanos', subject_name: 'Ética', due_date: '2026-10-20', status: 'open', space_id: G1, space_name: 'Ética · Grupo 1', batch_id: null, parts_total: 3, parts_submitted: 2, parts_approved: 1 }],
   invitations: [],
 };
+const discoverCards = [
+  { id: 'aaaaaaaa-0000-4000-8000-0000000000d1', name: 'Treino 30 dias', description: 'Bora correr juntos', color: 'sand', template: 'desafio', topics: ['corrida', 'saúde'], origin: 'Saúde',
+    official: false, class_name: null, members: 12, join_approval: false, join_asks_email: false, has_password: true, is_member: false, requested: false },
+  { id: 'aaaaaaaa-0000-4000-8000-0000000000d2', name: 'Neuro na prática', description: '', color: 'lavender', template: 'estudo', topics: ['neurociência'], origin: 'UNIP › Psicologia',
+    official: true, class_name: null, members: 30, join_approval: true, join_asks_email: true, has_password: false, is_member: false, requested: false },
+];
 const detail = {
   assignment: { id: WORK, space_id: G1, batch_id: null, title: 'Direitos Humanos', subject_name: 'Ética', instructions: 'Seguir o modelo da professora.\nCada parte com uma página.', format_rules: 'ABNT', doc_style: { font: 'Times New Roman', size: 12, spacing: 1.5, align: 'justify' }, due_date: '2026-10-20', status: 'open', created_by: ME, created_at: '2026-09-30T10:00:00Z', updated_at: '2026-09-30T10:00:00Z' },
   space: { id: G1, kind: 'group', name: 'Ética · Grupo 1', color: 'lavender', parent_id: SALA },
@@ -115,6 +123,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
       const body = request.postDataJSON() as Record<string, unknown>;
       posted.push({ url: url.pathname, body });
       if (body.action === 'accept_terms') home = { ...home, consents: [{ document: 'terms', version: TERMS }, { document: 'privacy', version: TERMS }] };
+      if (body.action === 'save_profile') home = { ...home, account: { ...home.account, display_name: String(body.name) }, profile: { kind: String(body.kind), value: String(body.value), photo: (body.photo as string | null) ?? null, bio: String(body.bio) } };
       const custom = options.onPost?.({ url: url.pathname, body });
       return json(route, { ok: true, data: custom ?? null });
     }
@@ -124,6 +133,7 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
     }
     if (url.pathname === '/api/me') return json(route, { ok: true, data: home });
     if (url.pathname === '/api/contacts') return json(route, { ok: true, data: [{ id: 'c1', name: 'Amiga da turma', email: '', phone: '', birthdate: `2000-${spDay().slice(5, 10)}`, notes: '', created_at: '' }] });
+    if (url.pathname === '/api/spaces' && url.searchParams.has('discover')) return json(route, { ok: true, data: discoverCards.filter(card => !url.searchParams.get('discover') || card.topics.includes(url.searchParams.get('discover')!.replace('#', ''))) });
     if (url.pathname === '/api/spaces') return json(route, { ok: true, data: groupOverview });
     if (url.pathname === '/api/work') return json(route, { ok: true, data: detail });
     if (url.pathname === '/api/admin') return json(route, { ok: true, data: admin });
@@ -189,7 +199,7 @@ test('meu dia mostra trabalhos em grupo e aniversários; salas levam ao mural e 
   await expect(page.getByRole('heading', { name: 'Trabalhos em grupo' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Aniversários da semana' })).toBeVisible();
   await expect(page.getByText('Amiga da turma')).toBeVisible();
-  await nav(page).getByRole('button', { name: /^Salas e grupos/ }).click();
+  await nav(page).getByRole('button', { name: /^Networking/ }).click();
   await expect(page.getByRole('heading', { name: 'Minhas partes' })).toBeVisible();
   await page.getByRole('button', { name: /Ética · Grupo 1/ }).first().click();
   await expect(page.getByRole('heading', { name: 'Ética · Grupo 1', level: 2 })).toBeVisible();
@@ -213,7 +223,7 @@ test('grupo: o link da chamada vira o botão Entrar na chamada e o convite traz 
   await page.route(/\/api\/spaces\?id=/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
     ...groupOverview, space: { ...groupOverview.space, call_url: call, call_set_by: call ? ME : null }, access: { ...groupOverview.access, can_set_call: true } } }) }));
   await page.goto('/');
-  await nav(page).getByRole('button', { name: /^Salas e grupos/ }).click();
+  await nav(page).getByRole('button', { name: /^Networking/ }).click();
   await page.getByRole('button', { name: /Ética · Grupo 1/ }).first().click();
   await expect(page.getByRole('link', { name: 'Entrar na chamada' })).toHaveCount(0);
   await page.getByRole('button', { name: 'Link da chamada' }).click();
@@ -234,6 +244,66 @@ test('grupo: o link da chamada vira o botão Entrar na chamada e o convite traz 
   const qr = page.getByRole('img', { name: 'QR Code do convite para Ética · Grupo 1' });
   await expect(qr).toBeVisible();
   expect((await qr.boundingBox())!.width).toBeGreaterThan(150);
+});
+
+test('Networking: perfil primeiro, criar grupo do jeito da pessoa e entrar pela busca', async ({ page }) => {
+  const created = 'aaaaaaaa-0000-4000-8000-0000000000c1';
+  const [treino, neuro] = discoverCards;
+  const posted = await mockApi(page, { home: homeFixture({ profile: false }), onPost: ({ body }) => body.action === 'create_group' ? created
+    : body.action === 'join_group' ? body.space === neuro.id ? 'requested' : body.password === 'chave123' ? 'joined' : 'wrong_password' : null });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#community');
+  const tabbar = page.getByRole('navigation', { name: 'Atalhos mobile' });
+  await expect(tabbar.getByRole('button', { name: 'Ir para Networking' })).toBeVisible();
+  await expect(tabbar.getByRole('button', { name: 'Ir para Agenda' })).toHaveCount(0);
+
+  const editor = page.getByRole('region', { name: 'Antes de começar: como as pessoas veem você' });
+  await expect(editor).toBeVisible();
+  await editor.getByRole('button', { name: 'Bichinho' }).click();
+  await editor.getByRole('button', { name: '🦉' }).click();
+  await editor.getByLabel('Sobre você · opcional').fill('Psicologia e corrida');
+  await editor.getByRole('button', { name: 'Continuar' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'save_profile')?.body).toEqual({ action: 'save_profile', name: 'Pessoa Teste', kind: 'animal', value: '🦉', photo: null, bio: 'Psicologia e corrida' });
+
+  await page.getByRole('button', { name: 'Criar grupo' }).first().click();
+  const form = page.getByRole('region', { name: 'Criar grupo' });
+  await form.getByLabel('Nome do grupo').fill('Corrida da turma');
+  await form.getByRole('button', { name: 'Desafio' }).click();
+  await expect(form.getByLabel(/Check-in diário/)).toBeChecked();
+  await form.getByLabel('#Temas · opcional, até 5').fill('#Corrida, saúde #corrida');
+  await form.getByLabel(/Todos do Networking/).check();
+  await form.getByLabel('Pedido com aprovação').check();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  const audit = await new AxeBuilder({ page }).include('.nw-form').withTags(['wcag2a', 'wcag2aa']).analyze();
+  expect(audit.violations.map(item => ({ id: item.id, nodes: item.nodes.map(node => node.target) }))).toEqual([]);
+  await form.getByRole('button', { name: 'Criar grupo' }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'create_group')?.body).toEqual({
+    action: 'create_group', name: 'Corrida da turma', parent: null, description: '', color: 'sage', template: 'desafio', tools: ['conversa', 'checkin', 'placar'],
+    topics: ['corrida', 'saúde'], origin: '', visibility: 'public', approval: true, asks_email: false, password: '' });
+  await expect(page.getByRole('heading', { name: 'Ética · Grupo 1', level: 2 })).toBeVisible();
+
+  await page.locator('.cm-crumbs').getByRole('button', { name: 'Voltar' }).click();
+  await page.getByRole('tab', { name: 'Descobrir' }).click();
+  await expect(page.getByText('Treino 30 dias')).toBeVisible();
+  await expect(page.getByRole('img', { name: 'Oficial' })).toBeVisible();
+  await page.getByRole('button', { name: '#neurociência' }).click();
+  await expect(page.getByText('Treino 30 dias')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Pedir para entrar' }).click();
+  const ask = page.getByRole('dialog', { name: `Entrar em ${neuro.name}` });
+  await ask.getByLabel(/Aceito mostrar meu nome e meu e-mail \(eu@example.invalid\)/).check();
+  await ask.getByRole('button', { name: 'Pedir para entrar' }).click();
+  await expect(page.getByText('Pedido enviado. Você entra quando quem cuida do grupo aceitar.')).toBeVisible();
+  expect(posted.find(item => item.body.action === 'join_group')?.body).toEqual({ action: 'join_group', space: neuro.id, password: null, share_email: true });
+
+  await page.getByLabel('Buscar grupos').fill('');
+  await page.locator('.nw-card', { hasText: treino.name }).getByRole('button', { name: 'Entrar' }).click();
+  const enter = page.getByRole('dialog', { name: `Entrar em ${treino.name}` });
+  await enter.getByLabel('Senha do grupo').fill('errada');
+  await enter.getByRole('button', { name: 'Entrar' }).click();
+  await expect(enter.getByText('Senha errada. Confira com quem te passou.')).toBeVisible();
+  await enter.getByLabel('Senha do grupo').fill('chave123');
+  await enter.getByRole('button', { name: 'Entrar' }).click();
+  await expect(page.getByRole('heading', { name: 'Ética · Grupo 1', level: 2 })).toBeVisible();
 });
 
 test('foto do perfil grande fica leve sozinha, em vez de ser recusada', async ({ page }) => {
@@ -540,7 +610,7 @@ test('conectado no celular, a barra tem o Registrar no centro e o primeiro curso
   page.on('request', request => { if (request.method() === 'PUT' && new URL(request.url()).pathname === '/api/workspace') saves.take(request.postDataJSON()); });
   await page.goto('/');
   const bar = page.getByRole('navigation', { name: 'Atalhos mobile' });
-  await expect(bar.getByRole('button')).toHaveText(['Hoje', 'Agenda', 'Registrar', 'Estudos', 'Mais']);
+  await expect(bar.getByRole('button')).toHaveText(['Hoje', 'Networking', 'Registrar', 'Estudos', 'Mais']);
   for (const button of await bar.getByRole('button').all()) {
     const box = (await button.boundingBox())!;
     expect(box.width).toBeGreaterThanOrEqual(44);
