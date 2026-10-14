@@ -1040,6 +1040,22 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .ch-today-name { display: flex; flex-direction: column; padding: 0; border: 0; background: none; color: var(--ink); text-align: start; }
 .ch-today-name small { color: var(--muted); font-size: .78rem; }
 
+/* Caixa de ferramentas. */
+.tb { display: flex; flex-direction: column; gap: 18px; }
+.tb-section { display: flex; flex-direction: column; gap: 10px; }
+.tb-section h2 { margin: 0; }
+.tb-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 10px; }
+.tb-tool { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; min-block-size: 132px; padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); color: var(--ink); text-align: start; font: inherit; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+.tb-tool:hover { border-color: var(--accent-text); box-shadow: var(--ui-shadow-hover); }
+.tb-tool strong { font-size: 1rem; }
+.tb-icon { display: grid; place-items: center; inline-size: 38px; block-size: 38px; border-radius: 12px; background: var(--blue); color: var(--accent-text); }
+.tb-text { color: var(--muted); font-size: .84rem; line-height: 1.4; }
+.tb-where { margin-block-start: auto; color: var(--accent-text); font-size: .76rem; font-weight: 600; }
+.tb-places { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tb-places button { inline-size: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-block-size: 56px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); text-align: start; font: inherit; }
+.tb-places span { display: flex; flex-direction: column; }
+.tb-places small { color: var(--muted); font-size: .78rem; }
+
 /* Conquistas no perfil. */
 .ach { display: flex; flex-direction: column; gap: 12px; }
 .ach-owner { display: flex; flex-direction: column; gap: 4px; }

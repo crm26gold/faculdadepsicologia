@@ -16,7 +16,7 @@ import type { AgendaAssignment, AgendaLink } from '@/lib/assignment-agenda';
 import type { Workspace } from '@/lib/workspace';
 
 export type CommunityTab = 'feed' | 'mine' | 'discover';
-export type CommunityRoute = { kind: 'list'; tab?: CommunityTab } | { kind: 'space'; id: string; tab?: SpaceTab } | { kind: 'work'; id: string; from?: string }
+export type CommunityRoute = { kind: 'list'; tab?: CommunityTab } | { kind: 'space'; id: string; tab?: SpaceTab; start?: 'challenge' | 'poll' } | { kind: 'work'; id: string; from?: string }
   | { kind: 'create'; parent?: { id: string; name: string } } | { kind: 'profile' } | ({ kind: 'person'; id: string } & ProfileView)
   | { kind: 'updates' } | { kind: 'compose'; space?: { id: string; name: string }; story?: boolean };
 
@@ -36,7 +36,7 @@ export function CommunityPanel({ home, workspace, route, onRoute, onBack, onOpen
     onSaved={() => { refreshHome(); onBack(); }} onCancel={onBack} />;
   if (route.kind === 'create') return <CreateGroup data={workspace} parent={route.parent} onCancel={onBack}
     onCreated={id => { refreshHome(); onRoute({ kind: 'space', id }, true); }} />;
-  if (route.kind === 'space') return <SpaceView key={route.id} id={route.id} tab={route.tab} me={me} workspace={workspace} onBack={onBack} onChanged={refreshHome}
+  if (route.kind === 'space') return <SpaceView key={route.id} id={route.id} tab={route.tab} start={route.start} me={me} workspace={workspace} onBack={onBack} onChanged={refreshHome}
     onOpenSpace={id => onRoute({ kind: 'space', id })} onOpenWork={id => onRoute({ kind: 'work', id, from: route.id })}
     onCreateGroup={parent => onRoute({ kind: 'create', parent })} onCompose={space => onRoute({ kind: 'compose', space })}
     onOpenPerson={id => onRoute({ kind: 'person', id })} />;

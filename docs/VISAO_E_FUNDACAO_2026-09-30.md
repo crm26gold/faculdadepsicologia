@@ -277,6 +277,15 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - **Quem muda:** quem criou ou quem modera o grupo muda a descrição e pode encerrar até o último dia; o nome só muda antes de começar (é o que vai para a medalha); a meta, as datas e o descanso ficam como estão.
   - **Quem sai do grupo** sai dos desafios dele, com os dias marcados; a medalha já ganha fica. Grupo arquivado fica só para leitura.
   - **Desenho da medalha:** gerado no aparelho a partir do nome do desafio (metal, fita e estrela), sem IA e sem custo; a mesma medalha sai sempre igual.
+- **Caixa de ferramentas antes do lançamento (14/10, proprietário):** entra a lista toda do protótipo antes de lançar, e a Caixa mostra só o que já funciona (sem "Em breve"). Ordem das entregas:
+  1. A Caixa no menu (no lugar de Flashcards, que mora dentro dela), com Flashcards, Desafio, Enquete e Card de texto; as de grupo abrem direto no grupo escolhido.
+  2. Sortear grupos e partes; Achar horário em comum.
+  3. Referência ABNT e APA; PDF e foto leves.
+  4. Estudar junto (conta no Foco de cada um).
+  5. Lista compartilhada; Rachar a conta (lança nas Finanças).
+  6. Desafio pessoal: só para mim, ou pessoal que o grupo acompanha.
+  7. Quiz do material, com IA.
+  8. Slides do trabalho; Apresentação ao vivo.
 - **Bloquear e denunciar antes de crescer:** bloquear corta tudo nos dois sentidos, sem avisar a outra pessoa; a denúncia vai só para a administração, com motivo, e cada decisão fica no histórico.
 - **Sem nada antigo e confuso:** a barra de cima mostra só o nome da tela (saiu o "Meu espaço ›"), a busca virou "Buscar na Jornada" e os textos apontam para os nomes atuais do Meu espaço (Assistentes e IA, Telegram e WhatsApp).
 - **Entrega 2 (feita):** Salvos (aba no perfil, só a pessoa vê), Destaques (story guardado no perfil com título), descrição da foto, "Ver como visitante", avatar de 256 px só no perfil aberto e os limites em `platform_settings`. Para subir um limite no plano pago: `update public.platform_settings set posts_per_day = 60, photo_mb_per_person = 100, photo_mb_total = 5000;` no SQL do Supabase.

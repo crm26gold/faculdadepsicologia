@@ -24,10 +24,12 @@ const stateText = (challenge: Challenge) => challenge.state === 'soon' ? `Começ
   : challenge.state === 'ended' ? 'Encerrado' : challenge.state === 'cancelled' ? 'Cancelado' : `Até ${formatDay(challenge.ends_on)}`;
 
 /** A aba Desafios do grupo: os em andamento primeiro; quem está no grupo cria, participa e marca o dia. */
-export function ChallengesTab({ space, archived, onOpenPerson }: { space: string; archived: boolean; onOpenPerson: (id: string) => void }) {
+export function ChallengesTab({ space, archived, creating: startCreating = false, onOpenPerson }: {
+  space: string; archived: boolean; creating?: boolean; onOpenPerson: (id: string) => void;
+}) {
   const [list, setList] = useState<Challenge[] | null>(null);
   const [error, setError] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(startCreating && !archived);
   const load = useCallback(async () => {
     try { setList(await api<Challenge[]>(`/api/network?challenges=${space}`) ?? []); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível abrir.'); }

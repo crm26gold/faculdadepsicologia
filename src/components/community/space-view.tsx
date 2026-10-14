@@ -18,8 +18,9 @@ type Tab = SpaceTab;
 const colorNames: Record<string, string> = { sage: 'Azul claro', lavender: 'Lavanda', sand: 'Areia', blue: 'Azul', rose: 'Rosa' };
 const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
-export function SpaceView({ id, tab: firstTab, me, workspace, onBack, onOpenSpace, onOpenWork, onChanged, onCreateGroup, onCompose, onOpenPerson }: {
-  id: string; tab?: SpaceTab; me: string; workspace: Workspace; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
+export function SpaceView({ id, tab: firstTab, start, me, workspace, onBack, onOpenSpace, onOpenWork, onChanged, onCreateGroup, onCompose, onOpenPerson }: {
+  /** Vindo da Caixa de ferramentas: abre na aba certa, já com o formulário de criar. */
+  id: string; tab?: SpaceTab; start?: 'challenge' | 'poll'; me: string; workspace: Workspace; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
   onCreateGroup: (parent: { id: string; name: string }) => void; onCompose: (space: { id: string; name: string }) => void;
   onOpenPerson: (id: string) => void;
 }) {
@@ -32,11 +33,18 @@ export function SpaceView({ id, tab: firstTab, me, workspace, onBack, onOpenSpac
   const [modal, setModal] = useState<'post' | 'poll' | 'work' | 'group' | 'member' | 'invite' | 'settings' | 'call' | null>(null);
   const [link, setLink] = useState('');
 
+  const [started, setStarted] = useState(false);
   const load = useCallback(async () => {
     try { setData(await api<SpaceOverview>(`/api/spaces?id=${id}`)); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível abrir.'); }
   }, [id]);
   useEffect(() => { setTab(firstTab ?? null); void load(); }, [load, firstTab]);
+  // O formulário da Caixa abre uma vez só, quando o grupo chega (a enquete, se a pessoa pode criar).
+  useEffect(() => {
+    if (!start || started || !data) return;
+    setStarted(true);
+    if (start === 'poll' && data.access.can_lead) setModal('poll');
+  }, [start, started, data]);
 
   async function run(body: Record<string, unknown>, done: string) {
     setBusy(true); setMessage('');
@@ -100,7 +108,7 @@ export function SpaceView({ id, tab: firstTab, me, workspace, onBack, onOpenSpac
 
     {current === 'chat' && <GroupChat space={space.id} name={space.name} me={me} onOpenPerson={onOpenPerson} onRead={onChanged} />}
 
-    {current === 'challenges' && <ChallengesTab space={space.id} archived={!!space.archived_at} onOpenPerson={onOpenPerson} />}
+    {current === 'challenges' && <ChallengesTab space={space.id} archived={!!space.archived_at} creating={start === 'challenge' && !started} onOpenPerson={onOpenPerson} />}
 
     {current === 'board' && <div className="cm-stack">
       {access.can_lead && <div className="button-row">{has('mural') && <button className="button primary" onClick={() => setModal('post')}><Megaphone size={16} aria-hidden="true" />Publicar no mural</button>}{has('enquetes') && <button className="button outline" onClick={() => setModal('poll')}><BarChart3 size={16} aria-hidden="true" />Nova enquete</button>}</div>}
