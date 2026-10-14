@@ -1,10 +1,11 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Bookmark, Globe2, Heart, LockKeyhole, MoreHorizontal, ThumbsUp, Trash2, Users } from 'lucide-react';
+import { BicepsFlexed, Bookmark, Flame, Globe2, Heart, LockKeyhole, MoreHorizontal, ThumbsUp, Trash2, Users } from 'lucide-react';
 import { SafetyMenu } from './safety';
 import { api, formatDay } from './client';
 import { PersonAvatar } from './avatar';
-import { audienceLabels, type NetworkPost, type Photo, type Reaction } from '@/lib/network';
+import { Medal } from './medal';
+import { audienceLabels, type Milestone, type NetworkPost, type Photo, type Reaction } from '@/lib/network';
 
 export type FeedSource = { feed: 'following' | 'groups' } | { feed: 'space'; id: string } | { topic: string };
 const query = (source: FeedSource) => 'topic' in source ? `topic=${encodeURIComponent(source.topic)}`
@@ -21,7 +22,19 @@ export function PostPhotos({ photos, author }: { photos: Photo[]; author: string
   return <div className="nw-photos" role="group" aria-label={`${photos.length} fotos, deslize para ver`} tabIndex={0}>{photos.map(image)}</div>;
 }
 
-/** Uma publicação: texto, card ou fotos, Gostei, Útil e Salvar. Quem escreveu (ou quem cuida do grupo) pode apagar. */
+/** Marco de desafio, publicado pelo app: dias seguidos (🔥) ou desafio concluído (medalha). */
+function MilestoneCard({ milestone }: { milestone: Milestone }) {
+  const done = milestone.days === 0;
+  return <div className={`nw-milestone ${done ? 'done' : ''}`}>
+    {done ? <Medal title={milestone.title} size={56} /> : <Flame size={40} aria-hidden="true" />}
+    <div><strong>{done ? 'Concluiu o desafio' : `${milestone.days} dias seguidos`}</strong>
+      <span>{milestone.title}</span>
+      {done && milestone.of ? <small>cumpriu {milestone.done} de {milestone.of} dias</small> : null}</div>
+  </div>;
+}
+
+/** Uma publicação: texto, card ou fotos, Gostei, Útil e Salvar. Nos marcos de desafio, "Dar força" no lugar de "Útil".
+ * Quem escreveu (ou quem cuida do grupo) pode apagar. */
 export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
   post: NetworkPost; me: string; canManage?: boolean; onOpenPerson: (id: string) => void; onRemoved: (id: string) => void;
 }) {
@@ -34,7 +47,7 @@ export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
   async function react(kind: Reaction) {
     const had = mine.includes(kind);
     setMine(list => had ? list.filter(item => item !== kind) : [...list, kind]);
-    setCounts(value => ({ ...value, [kind]: value[kind] + (had ? -1 : 1) }));
+    setCounts(value => ({ ...value, [kind]: (value[kind] ?? 0) + (had ? -1 : 1) }));
     try { await api('/api/network', { action: 'react', post: post.id, kind }); }
     catch (reason) {
       setMine(post.mine); setCounts(post.counts);
@@ -63,10 +76,13 @@ export function PostCard({ post, me, canManage, onOpenPerson, onRemoved }: {
     </header>
     {options && <SafetyMenu person={post.author} post={post.id} onClose={() => setOptions(false)} onBlocked={blocking => { if (blocking) onRemoved(post.id); }} />}
     {post.photos.length > 0 && <PostPhotos photos={post.photos} author={post.author.name} />}
-    {post.body && (post.style === 'text' ? <p className="nw-post-text">{post.body}</p> : <div className={`nw-card-text ${post.style}`}><p>{post.body}</p></div>)}
+    {post.style === 'milestone' && post.milestone ? <MilestoneCard milestone={post.milestone} />
+      : post.body && (post.style === 'text' ? <p className="nw-post-text">{post.body}</p> : <div className={`nw-card-text ${post.style}`}><p>{post.body}</p></div>)}
     <div className="nw-post-actions">
       <button type="button" className="nw-react" aria-pressed={mine.includes('gostei')} onClick={() => react('gostei')}><Heart size={17} aria-hidden="true" />Gostei{counts.gostei ? ` · ${counts.gostei}` : ''}</button>
-      <button type="button" className="nw-react util" aria-pressed={mine.includes('util')} onClick={() => react('util')}><ThumbsUp size={17} aria-hidden="true" />Útil{counts.util ? ` · ${counts.util}` : ''}</button>
+      {post.style === 'milestone'
+        ? <button type="button" className="nw-react forca" aria-pressed={mine.includes('forca')} onClick={() => react('forca')}><BicepsFlexed size={17} aria-hidden="true" />Dar força{counts.forca ? ` · ${counts.forca}` : ''}</button>
+        : <button type="button" className="nw-react util" aria-pressed={mine.includes('util')} onClick={() => react('util')}><ThumbsUp size={17} aria-hidden="true" />Útil{counts.util ? ` · ${counts.util}` : ''}</button>}
       <button type="button" className="nw-react save" aria-pressed={saved} onClick={save}><Bookmark size={17} aria-hidden="true" />{saved ? 'Salvo' : 'Salvar'}</button>
     </div>
     {message && <p className="cm-message" role="alert">{message}</p>}

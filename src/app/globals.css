@@ -20,6 +20,7 @@
   --rose: #f6e9e9;
   --serif: 'Cormorant Garamond', Georgia, serif;
   --accent-text: #245d86; --ok-text: #047857; --ok-bg: #ecfdf5; --danger-text: #b91c1c; --danger-bg: #fef2f2; --soft-bg: #f7f9fc;
+  --flame: #c2410c;
   color-scheme: light;
   font-family: 'DM Sans', 'Segoe UI', sans-serif;
   font-synthesis: none;
@@ -787,6 +788,7 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
   /* Tons dos cards e das cores de grupo: escuros no modo escuro, para o texto claro continuar legível. */
   --lavender: #2a2742; --sand: #33291b; --rose: #3a2329;
   --accent-text: #a4d2f2; --ok-text: #7fd1a4; --ok-bg: #173528; --danger-text: #f2a59d; --danger-bg: #3a1d1d; --soft-bg: #0b2338;
+  --flame: #fdba74;
   color-scheme: dark;
 }
 [data-theme='dark'] .cm-hero { background: linear-gradient(135deg, #142334, #1c2a3a); }
@@ -983,6 +985,69 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .nw-react.util[aria-pressed="true"] { border-color: var(--ok-text); color: var(--ok-text); background: var(--ok-bg); }
 .nw-react.save { margin-inline-start: auto; }
 .nw-react.save[aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); background: var(--blue); }
+.nw-react.forca[aria-pressed="true"] { border-color: var(--flame); color: var(--flame); background: var(--sand); }
+/* Marco de desafio no feed: dias seguidos (chama) ou desafio concluído (medalha). */
+.nw-milestone { display: flex; align-items: center; gap: 16px; padding: 20px; border-radius: 14px; background: var(--sand); color: var(--ink); }
+.nw-milestone > svg:not(.medal) { flex: none; color: var(--flame); }
+.nw-milestone > div { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
+.nw-milestone strong { font-family: var(--serif); font-size: clamp(1.2rem, 4vw, 1.5rem); line-height: 1.2; }
+.nw-milestone span { font-weight: 600; overflow-wrap: anywhere; }
+.nw-milestone small { color: var(--muted); }
+.nw-tile.milestone { background: var(--sand); }
+.nw-events .nw-event-icon { flex: none; display: grid; place-items: center; inline-size: 40px; block-size: 40px; border-radius: 50%; background: var(--sand); color: var(--flame); }
+
+/* Desafios do grupo: o card, o dia, a semana, Meu dia e a medalha. */
+.medal { flex: none; display: block; }
+.ch-card { display: flex; flex-direction: column; gap: 12px; }
+.ch-head { display: flex; align-items: flex-start; gap: 12px; }
+.ch-head > div { flex: 1; min-inline-size: 0; display: flex; flex-direction: column; gap: 2px; }
+.ch-head h3 { margin: 0; font-size: 1.05rem; overflow-wrap: anywhere; }
+.ch-head small { color: var(--muted); font-size: .8rem; }
+.ch-icon { flex: none; display: grid; place-items: center; inline-size: 40px; block-size: 40px; border-radius: 12px; background: var(--sand); color: var(--flame); }
+.ch-state { align-self: flex-start; margin-block-start: 4px; padding: 2px 8px; border-radius: 999px; background: var(--blue); color: var(--accent-text); font-size: .74rem; font-weight: 700; }
+.ch-state.ended, .ch-state.cancelled { background: var(--soft-bg); color: var(--muted); }
+.ch-description { margin: 0; }
+.ch-me { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 12px; background: var(--soft-bg); }
+.ch-streak { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin: 0; }
+.ch-streak svg { color: var(--flame); }
+.ch-week { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.ch-week li { display: flex; flex-direction: column; align-items: center; gap: 4px; color: var(--muted); font-size: .72rem; }
+.ch-week i { display: grid; place-items: center; inline-size: 30px; block-size: 30px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--surface); font-style: normal; }
+.ch-week li.done i { border-color: var(--ok-text); background: var(--ok-bg); color: var(--ok-text); }
+.ch-week li.today i { border-color: var(--accent-text); border-style: dashed; }
+.ch-done { align-self: flex-start; border: 1.5px solid var(--ok-text); background: var(--surface); color: var(--ok-text); font-weight: 600; }
+.ch-done[aria-pressed="true"] { background: var(--ok-text); color: var(--surface); }
+.ch-amount { display: flex; flex-direction: column; gap: 6px; margin: 0; }
+.ch-amount label { font-size: .88rem; font-weight: 600; }
+.ch-amount-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.ch-amount-row input { inline-size: 7em; min-block-size: 44px; }
+.ch-amount-row > span { color: var(--muted); font-size: .85rem; }
+.ch-amount > small { font-size: .8rem; }
+.ch-hit { color: var(--ok-text); font-weight: 600; }
+.ch-yesterday summary { cursor: pointer; padding-block: 10px; color: var(--accent-text); font-size: .86rem; font-weight: 600; }
+.ch-yesterday[open] { display: flex; flex-direction: column; gap: 8px; }
+.ch-medal { display: flex; align-items: center; gap: 12px; margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--sand); color: var(--ink); font-weight: 600; }
+.ch-group { display: flex; flex-direction: column; gap: 4px; }
+.ch-group > small, .ch-today > small { color: var(--muted); font-size: .8rem; }
+.ch-group .cm-progress { max-inline-size: none; }
+.ch-today { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-block-start: 4px; }
+.ch-faces { display: flex; }
+.ch-faces > * + * { margin-inline-start: -8px; }
+.ch-faces .nw-avatar { box-shadow: 0 0 0 2px var(--surface); }
+.ch-today-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.ch-today-list li { display: flex; flex-direction: column; gap: 8px; padding-block-end: 12px; border-block-end: 1px solid var(--line); }
+.ch-today-list li:last-child { padding-block-end: 0; border-block-end: 0; }
+.ch-today-name { display: flex; flex-direction: column; padding: 0; border: 0; background: none; color: var(--ink); text-align: start; }
+.ch-today-name small { color: var(--muted); font-size: .78rem; }
+
+/* Conquistas no perfil. */
+.ach { display: flex; flex-direction: column; gap: 12px; }
+.ach-owner { display: flex; flex-direction: column; gap: 4px; }
+.ach-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.ach-item { display: flex; align-items: center; gap: 14px; }
+.ach-item > div { display: flex; flex-direction: column; gap: 6px; min-inline-size: 0; }
+.ach-item strong { overflow-wrap: anywhere; }
+.ach-item small { color: var(--muted); font-size: .8rem; }
 .nw-person { display: flex; flex-direction: column; gap: 8px; }
 .nw-person h2 { margin: 4px 0 0; font-size: 1.2rem; display: flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
 .nw-person p { margin: 0; }

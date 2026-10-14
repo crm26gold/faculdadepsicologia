@@ -1,13 +1,15 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { Ban, Bookmark, Check, Copy, Eye, Grid3x3, LockKeyhole, Menu, MoreHorizontal, Plus, X } from 'lucide-react';
+import { Ban, Bookmark, Check, Copy, Eye, Grid3x3, LockKeyhole, Menu, MoreHorizontal, Plus, Trophy, X } from 'lucide-react';
 import { SafetyMenu } from './safety';
 import { Modal } from '../modal';
 import { api, formatDay } from './client';
 import { PersonAvatar } from './avatar';
 import { PostCard } from './feed';
 import { StoryViewer, markSeen, readSeen } from './stories';
-import { eventText, type NetworkPost, type Person, type PersonProfile, type StoryGroup, type Updates as UpdatesData } from '@/lib/network';
+import { AchievementList } from './achievements';
+import { Medal } from './medal';
+import { eventText, type Achievements, type NetworkPost, type Person, type PersonProfile, type StoryGroup, type Updates as UpdatesData } from '@/lib/network';
 
 /** Um quadrado da grade: a primeira foto, o card ou o começo do texto. */
 function PostTile({ post, onOpen }: { post: NetworkPost; onOpen: () => void }) {
@@ -26,11 +28,12 @@ function HighlightCover({ story }: { story: NetworkPost }) {
     : <span className={`nw-highlight-cover ${story.style === 'text' ? 'card_blue' : story.style}`} aria-hidden="true">{story.body.slice(0, 1).toUpperCase()}</span>;
 }
 
-export type ProfileView = { post?: string; tab?: 'saved'; as?: 'visitor' | 'follower' };
+export type ProfileView = { post?: string; tab?: 'saved' | 'conquistas'; as?: 'visitor' | 'follower' };
 
 /** Perfil no jeito do Instagram: avatar com o anel do story, números, ações, destaques e as publicações em grade.
  * Tocar num quadrado abre a lista a partir dele; o Voltar volta para a grade. No seu perfil, a aba Salvos (só você vê)
- * e o "Ver como visitante", que mostra o que quem não segue ou quem segue enxerga. */
+ * e o "Ver como visitante", que mostra o que quem não segue ou quem segue enxerga. A aba Conquistas aparece com a
+ * primeira medalha que a pessoa pode ver. */
 export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, onOpenPerson, onEditProfile, onNewStory, onOpenSettings, onChanged }: ProfileView & {
   id: string; me: string; onView: (next: ProfileView, replace?: boolean) => void; onBack: () => void; onOpenPerson: (id: string) => void;
   onEditProfile: () => void; onNewStory: () => void; onOpenSettings: () => void; onChanged: () => void;
@@ -46,13 +49,16 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
   const [saved, setSaved] = useState<NetworkPost[] | null>(null);
   const [more, setMore] = useState(false);
   const [options, setOptions] = useState(false);
+  const [achievements, setAchievements] = useState<Achievements | null>(null);
   const load = useCallback(async () => {
     try { setPerson(await api<PersonProfile>(`/api/network?person=${id}`)); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível abrir este perfil.'); }
   }, [id]);
   const loadStories = useCallback(() => api<StoryGroup[]>('/api/network?stories=following')
     .then(groups => setStories((groups ?? []).find(group => group.author.id === id) ?? null), () => setStories(null)), [id]);
-  useEffect(() => { void load(); void loadStories(); setSeen(readSeen()); }, [load, loadStories]);
+  // Sem conquistas para ver (ou sem acesso), a aba simplesmente não aparece.
+  const loadAchievements = useCallback(() => api<Achievements>(`/api/network?achievements=${id}`).then(setAchievements, () => setAchievements(null)), [id]);
+  useEffect(() => { void load(); void loadStories(); void loadAchievements(); setSeen(readSeen()); }, [load, loadStories, loadAchievements]);
   const seenNow = useCallback((story: string) => { markSeen(story); setSeen(readSeen()); }, []);
   const loadSaved = useCallback(async (before?: string) => {
     try {
@@ -102,6 +108,10 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
   const lists = (person.is_me && !viewer) || person.show_follows;
   const avatar = person.photo_large && person.avatar?.kind === 'photo' ? { ...person.avatar, photo: person.photo_large } : person.avatar;
   const showSaved = person.is_me && !viewer && tab === 'saved';
+  // Ver como visitante repete a regra do banco também para as medalhas.
+  const medals = (achievements?.items ?? []).filter(item => !viewer || (achievements?.shown && ((item.audience === 'public' && (viewer === 'follower' || !person.closed))
+    || (viewer === 'follower' && item.audience === 'followers'))));
+  const showMedals = tab === 'conquistas' && medals.length > 0;
   const removed = (postId: string) => {
     setPerson(value => value && { ...value, posts: value.posts.filter(item => item.id !== postId) });
     setSaved(value => value && value.filter(item => item.id !== postId));
@@ -164,11 +174,14 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
         <span className="nw-story-ring seen"><HighlightCover story={item.stories[0]} /></span>
         <span className="nw-story-name">{item.title}</span></button></li>)}
     </ul>}
-    {person.is_me && !viewer ? <div className="nw-profile-tabs" role="group" aria-label="O que mostrar">
-      <button type="button" aria-pressed={tab !== 'saved'} onClick={() => onView({}, true)}><Grid3x3 size={16} aria-hidden="true" />Publicações</button>
-      <button type="button" aria-pressed={tab === 'saved'} onClick={() => onView({ tab: 'saved' }, true)}><Bookmark size={16} aria-hidden="true" />Salvos</button>
+    {(person.is_me && !viewer) || medals.length ? <div className="nw-profile-tabs" role="group" aria-label="O que mostrar">
+      <button type="button" aria-pressed={!showSaved && !showMedals} onClick={() => onView({ as }, true)}><Grid3x3 size={16} aria-hidden="true" />Publicações</button>
+      {person.is_me && !viewer && <button type="button" aria-pressed={showSaved} onClick={() => onView({ tab: 'saved' }, true)}><Bookmark size={16} aria-hidden="true" />Salvos</button>}
+      {medals.length > 0 && <button type="button" aria-pressed={showMedals} onClick={() => onView({ as, tab: 'conquistas' }, true)}><Trophy size={16} aria-hidden="true" />Conquistas</button>}
     </div> : <h3 className="nw-profile-tab">Publicações</h3>}
-    {showSaved ? saved === null ? <p role="status" className="loading-panel">Abrindo…</p>
+    {showMedals && achievements ? <AchievementList data={viewer ? { ...achievements, items: medals } : achievements} owner={person.is_me && !viewer}
+      onChange={setAchievements} />
+    : showSaved ? saved === null ? <p role="status" className="loading-panel">Abrindo…</p>
       : saved.length ? <>
         <p className="muted small nw-saved-note"><LockKeyhole size={12} aria-hidden="true" />Só você vê seus salvos. Quem publicou não fica sabendo.</p>
         <div className="nw-grid">{saved.map(item => <PostTile key={item.id} post={item} onOpen={() => onView({ tab: 'saved', post: item.id })} />)}</div>
@@ -190,6 +203,12 @@ export function PersonView({ id, me, post: openPost, tab, as, onView, onBack, on
   </section>;
 }
 
+// A medalha do aviso é a mesma da aba Conquistas: o desenho sai do nome do desafio, que está entre aspas no marco.
+function MedalOf({ body }: { body?: string }) {
+  const title = body?.match(/“(.+)”/)?.[1];
+  return title ? <Medal title={title} size={40} /> : <span className="nw-event-icon" aria-hidden="true"><Trophy size={20} /></span>;
+}
+
 // Como no Instagram: o que chegou hoje, nesta semana e antes.
 const when = (value: string) => {
   const days = (Date.now() - Date.parse(value)) / 86_400_000;
@@ -197,8 +216,8 @@ const when = (value: string) => {
 };
 
 /** Novidades: pedidos para seguir e o que aconteceu com você na rede. Abrir marca tudo como lido. */
-export function UpdatesView({ onOpenPerson, onOpenSpace, onChanged }: {
-  onOpenPerson: (id: string) => void; onOpenSpace: (id: string) => void; onChanged: () => void;
+export function UpdatesView({ onOpenPerson, onOpenSpace, onOpenAchievements, onChanged }: {
+  onOpenPerson: (id: string) => void; onOpenSpace: (id: string) => void; onOpenAchievements: () => void; onChanged: () => void;
 }) {
   const [data, setData] = useState<UpdatesData | null>(null);
   const [error, setError] = useState('');
@@ -229,10 +248,13 @@ export function UpdatesView({ onOpenPerson, onOpenSpace, onChanged }: {
         <button className="button outline" disabled={busy} onClick={() => answer(person.id, false)}><X size={15} aria-hidden="true" />Recusar</button></span></li>)}</ul></>}
     {sections.map(section => <div key={section.title}><h3 className="small-heading">{section.title}</h3>
       <ul className="nw-events">{section.items.map(event => <li key={event.id} className={event.read ? '' : 'unread'}>
-        <button type="button" onClick={() => event.space ? onOpenSpace(event.space.id) : event.actor && onOpenPerson(event.actor.id)}>
+        {event.kind === 'medal' ? <button type="button" onClick={onOpenAchievements}>
+          <MedalOf body={event.post?.body} />
+          <span><strong>Você</strong> concluiu um desafio{event.space ? ` em ${event.space.name}` : ''} e ganhou uma medalha. Toque para ver em Conquistas.<small>{formatDay(event.created_at)}</small></span>
+        </button> : <button type="button" onClick={() => event.space ? onOpenSpace(event.space.id) : event.actor && onOpenPerson(event.actor.id)}>
           <PersonAvatar name={event.actor?.name ?? '?'} avatar={event.actor?.avatar} />
           <span><strong>{event.actor?.name ?? 'Alguém'}</strong> {eventText[event.kind]}{event.space ? ` ${event.space.name}` : ''}{event.post?.body ? `: “${event.post.body}”` : ''}<small>{formatDay(event.created_at)}</small></span>
-        </button></li>)}</ul></div>)}
+        </button>}</li>)}</ul></div>)}
     {data && !data.requests.length && !events.length && <div className="empty-inline"><Check size={22} aria-hidden="true" /><p>Nada novo por aqui.</p></div>}
   </section>;
 }

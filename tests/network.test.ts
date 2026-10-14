@@ -125,3 +125,52 @@ test('rede: a notificação da conversa diz o grupo, quem escreveu e quantas che
   const long = 'Pessoal, a prova de amanhã vai cobrir os capítulos três, quatro e cinco do livro';
   assert.equal(chatPush({ space: 's', group: 'Ética', count: 1, author: 'Bia', excerpt: long, photo: false }).body, 'Bia: Pessoal, a prova de amanhã vai cobrir os capítulos três,…');
 });
+
+test('rede: desafios vão ao banco só com o permitido', () => {
+  const space = '22222222-2222-4222-8222-222222222222', challenge = '44444444-4444-4444-8444-444444444444';
+  const create = (extra: Record<string, unknown>) => networkAction.safeParse({ action: 'challenge_create', space, title: ' Ler ', kind: 'feito', start: '2026-10-14', days: 30, ...extra });
+  const made = create({ rest: [0, 6, 0] });
+  assert.ok(made.success);
+  assert.deepEqual(networkCall(made.data), { fn: 'challenge_create', args: { target: space, challenge_title: 'Ler', challenge_details: '', challenge_kind: 'feito',
+    unit_name: '', goal: null, start_day: '2026-10-14', duration: 30, rest: [0, 6] } }, 'sem meta no "feito" e descanso sem repetir');
+  const amount = create({ kind: 'quantidade', goal: 10, unit: ' páginas ' });
+  assert.ok(amount.success);
+  assert.deepEqual(networkCall(amount.data).args, { target: space, challenge_title: 'Ler', challenge_details: '', challenge_kind: 'quantidade',
+    unit_name: 'páginas', goal: 10, start_day: '2026-10-14', duration: 30, rest: [] });
+  assert.equal(create({ kind: 'quantidade', goal: 10 }).success, false, 'quantidade sem unidade');
+  assert.equal(create({ kind: 'quantidade', unit: 'km' }).success, false, 'quantidade sem meta');
+  assert.equal(create({ days: 2 }).success, false, 'curto demais');
+  assert.equal(create({ days: 366 }).success, false, 'longo demais');
+  assert.equal(create({ rest: [1, 2, 3, 4] }).success, false, 'descanso demais');
+  assert.equal(create({ rest: [7] }).success, false, 'dia da semana inválido');
+  assert.equal(create({ start: '14/10/2026' }).success, false, 'data fora do formato');
+  assert.equal(create({ start: '2026-02-30' }).success, false, 'data que não existe');
+  assert.equal(create({ kind: 'quantidade', unit: 'km', goal: 0.001 }).success, false, 'meta que vira zero no banco');
+  assert.equal(create({ title: '  ' }).success, false, 'sem nome');
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'challenge_checkin', challenge, day: '2026-10-14', done: true, amount: 12.5 })),
+    { fn: 'challenge_checkin', args: { target: challenge, which_day: '2026-10-14', done: true, how_much: 12.5 } });
+  assert.equal(networkAction.safeParse({ action: 'challenge_checkin', challenge, day: '2026-10-14', done: true, amount: -1 }).success, false, 'quantidade negativa');
+  assert.equal(networkAction.safeParse({ action: 'challenge_checkin', challenge, day: '2026-10-14', done: true, amount: 0.004 }).success, false, 'quantidade que vira zero');
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'challenge_join', challenge, joining: false })), { fn: 'challenge_join', args: { target: challenge, joining: false } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'challenge_manage', challenge, cancel: true })),
+    { fn: 'challenge_manage', args: { target: challenge, challenge_title: '', challenge_details: '', cancel: true } });
+  assert.equal(networkAction.safeParse({ action: 'challenge_manage', challenge, title: ' ' }).success, false, 'renomear sem nome');
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'achievement_audience', achievement: challenge, audience: 'followers' })),
+    { fn: 'achievement_audience', args: { target: challenge, next_audience: 'followers' } });
+  assert.equal(networkAction.safeParse({ action: 'achievement_audience', achievement: challenge, audience: 'group' }).success, false, 'medalha não vai para grupo');
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'show_achievements', shown: false })), { fn: 'show_achievements', args: { shown: false } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'react', post: challenge, kind: 'forca' })).args, { target: challenge, reaction: 'forca' });
+  const read = (query: string) => networkRead(new URLSearchParams(query));
+  assert.deepEqual(read(`challenges=${space}`), { fn: 'space_challenges', args: { target: space } });
+  assert.deepEqual(read('challenges=today'), { fn: 'my_challenges_today', args: {} });
+  assert.deepEqual(read(`achievements=${person}`), { fn: 'person_achievements', args: { target: person } });
+  assert.equal(read('challenges=x'), null);
+  assert.equal(read('achievements=x'), null);
+});
+
+test('rede: a medalha avisa a própria pessoa; "Dar força" diz quem foi', () => {
+  assert.deepEqual(networkPush([{ kind: 'medal', actor: 'Caio', post: 'Concluí o desafio “Ler” 🏅', space: 'Treino' }]),
+    { title: 'Networking', body: '🏅 Você concluiu um desafio em Treino e ganhou uma medalha' });
+  assert.equal(networkPush([{ kind: 'forca', actor: 'Bia', post: '7 dias seguidos em “Ler” 🔥', space: null }]).body,
+    'Bia deu força na sua conquista: “7 dias seguidos em “Ler” 🔥”');
+});
