@@ -45,7 +45,8 @@ const people = [
   { user_id: PROF, display_name: 'Professora Bia', email: null, role: 'teacher', is_direct: false, is_master: false },
 ];
 const groupOverview = {
-  space: { id: G1, kind: 'group', name: 'Ética · Grupo 1', description: '', color: 'lavender', parent_id: SALA, archived_at: null, created_at: '2026-09-30T10:00:00Z' },
+  space: { id: G1, kind: 'group', name: 'Ética · Grupo 1', description: '', color: 'lavender', parent_id: SALA, archived_at: null, created_at: '2026-09-30T10:00:00Z',
+    tools: ['mural', 'enquetes', 'partes', 'encontros'] },
   path: [{ id: UNIP, kind: 'institution', name: 'UNIP' }, { id: SALA, kind: 'class', name: 'Psicologia 1º semestre' }, { id: G1, kind: 'group', name: 'Ética · Grupo 1' }],
   access: { can_lead: true, can_manage: false, is_master: false }, my_role: 'leader', people, groups: [],
   posts: [{ id: 'eeeeeeee-0000-4000-8000-000000000001', kind: 'event', title: 'Entrega do trabalho', body: 'Formato ABNT.', link_url: 'https://example.invalid/modelo', event_date: '2026-10-20', pinned: true, author_id: PROF, created_at: '2026-09-30T10:00:00Z' }],
@@ -133,7 +134,8 @@ async function mockApi(page: Page, options: { home?: ReturnType<typeof homeFixtu
     }
     if (url.pathname === '/api/me') return json(route, { ok: true, data: home });
     if (url.pathname === '/api/contacts') return json(route, { ok: true, data: [{ id: 'c1', name: 'Amiga da turma', email: '', phone: '', birthdate: `2000-${spDay().slice(5, 10)}`, notes: '', created_at: '' }] });
-    if (url.pathname === '/api/network') return json(route, { ok: true, data: options.network?.(url) ?? (url.searchParams.get('updates') ? { requests: [], events: [] } : []) });
+    if (url.pathname === '/api/network') return json(route, { ok: true, data: options.network?.(url) ?? (url.searchParams.get('updates') ? { requests: [], events: [] }
+      : url.searchParams.has('chat') ? { messages: [], people: {}, read_at: null, moderator: false, open: true, muted: false, photo_days: 90 } : []) });
     if (url.pathname === '/api/spaces' && url.searchParams.has('discover')) return json(route, { ok: true, data: discoverCards.filter(card => !url.searchParams.get('discover') || card.topics.includes(url.searchParams.get('discover')!.replace('#', ''))) });
     if (url.pathname === '/api/spaces') return json(route, { ok: true, data: groupOverview });
     if (url.pathname === '/api/work') return json(route, { ok: true, data: detail });
@@ -864,7 +866,7 @@ test('segurança: denunciar uma publicação, bloquear uma pessoa e a administra
   await page.screenshot({ path: 'test-results/denunciar-mobile.png' });
   await report.getByRole('button', { name: 'Enviar denúncia' }).click();
   await expect(page.getByRole('dialog', { name: 'Denúncia enviada' })).toBeVisible();
-  expect(posted.find(item => item.body.action === 'report')?.body).toEqual({ action: 'report', person: COLEGA, post: POST, reason: 'spam', note: 'Vende seguidores' });
+  expect(posted.find(item => item.body.action === 'report')?.body).toEqual({ action: 'report', person: COLEGA, post: POST, message: null, reason: 'spam', note: 'Vende seguidores' });
   await page.getByRole('dialog', { name: 'Denúncia enviada' }).getByRole('button', { name: 'Fechar', exact: true }).click();
 
   // Bloquear pelo perfil: confirma o que acontece; o perfil vira o cartão para desbloquear.
@@ -1365,18 +1367,20 @@ test('avisos: a notificação do app é o principal; Networking com silêncio e 
   await expect(result).toContainText('WhatsApp: ponte desligada');
   expect(posts).toEqual([{ action: 'test', level: 'insistente' }]);
 
-  // Networking: silêncio das 22h às 7h por padrão, que dá para mudar ou tirar; grupos silenciados.
+  // Networking: o silêncio guardado dá para mudar ou tirar; grupos silenciados; a conversa dos grupos liga e desliga à parte.
   const network = card.getByRole('group', { name: 'Networking' });
-  await expect(network.getByLabel('das')).toHaveValue('22:00');
-  await network.getByLabel('às').fill('06:30');
-  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, quiet_from: '22:00', quiet_to: '06:30', muted: [] });
+  await expect(network.getByLabel('das', { exact: true })).toHaveValue('22:00');
+  await network.getByLabel('às', { exact: true }).fill('06:30');
+  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, chat: true, quiet_from: '22:00', quiet_to: '06:30', muted: [] });
   await network.getByText('Silenciar grupos').click();
   await network.getByRole('checkbox', { name: 'Estudo de Ética' }).check();
-  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, quiet_from: '22:00', quiet_to: '06:30', muted: [GROUP] });
+  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, chat: true, quiet_from: '22:00', quiet_to: '06:30', muted: [GROUP] });
   await expect(network).toContainText('Silenciar grupos (1)');
   await network.getByRole('checkbox', { name: 'Horário de silêncio' }).uncheck();
-  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, quiet_from: null, quiet_to: null, muted: [GROUP] });
-  await expect(network.getByLabel('das')).toHaveCount(0);
+  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, chat: true, quiet_from: null, quiet_to: null, muted: [GROUP] });
+  await expect(network.getByLabel('das', { exact: true })).toHaveCount(0);
+  await network.getByRole('checkbox', { name: 'Avisar das mensagens na conversa dos seus grupos' }).uncheck();
+  await expect.poll(() => posts.at(-1)).toEqual({ action: 'alerts', network: true, chat: false, quiet_from: null, quiet_to: null, muted: [GROUP] });
   expect((await new AxeBuilder({ page }).include('.reminders-panel').analyze()).violations).toEqual([]);
   await page.setViewportSize({ width: 390, height: 844 }); await settleAnimations(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -1761,4 +1765,112 @@ test('material do curso: o link do assistente abre o quadro da matéria certa', 
   expect(new URL(page.url()).search).toBe('');
   await page.goto(`/?material=psicologia~neuro&ate=${Date.now() - 60_000}`);
   await expect(page.getByText('Este link de envio expirou. Peça outro ao assistente.')).toBeVisible();
+});
+
+test('conversa do grupo: mensagens novas, responder, foto, apagar, denunciar e silenciar', async ({ page }) => {
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const M1 = 'abababab-0000-4000-8000-000000000001', M2 = 'abababab-0000-4000-8000-000000000002', M3 = 'abababab-0000-4000-8000-000000000003';
+  const minutes = (value: number) => new Date(Date.now() - value * 60_000).toISOString();
+  const message = (id: string, author: string, body: string, at: string, extra: Record<string, unknown> = {}) =>
+    ({ id, author, body, created_at: at, changed_at: at, deleted: null, reply: null, photo: null, blocked: false, ...extra });
+  const page1 = [message('abababab-0000-4000-8000-000000000009', COLEGA, '', minutes(40), { kind: 'joined' }),
+    message(M1, COLEGA, 'Prova na sexta. Material em https://example.invalid/aula', minutes(30)),
+    message(M2, COLEGA, 'Foto do quadro', minutes(20), { photo: { width: 640, height: 480, alt: 'Quadro com o resumo', stored: true } })];
+  const home = { ...homeFixture(), chat: { [G1]: 2 } };
+  let sent = 0, polls = 0;
+  const posted = await mockApi(page, { home, onPost: ({ body }) => {
+    if (body.action !== 'send_message') return null;
+    sent++;
+    return message(`abababab-0000-4000-8000-00000000010${sent}`, ME, String(body.body), new Date().toISOString(), {
+      reply: body.reply ? { id: body.reply, author: COLEGA, excerpt: 'Prova na sexta.', photo: false, deleted: false } : null,
+      photo: body.photo ? { width: 64, height: 48, alt: (body.photo as { alt: string }).alt, stored: true } : null });
+  }, network: url => {
+    if (!url.searchParams.has('chat')) return [];
+    const after = url.searchParams.get('after');
+    if (after) polls++;
+    return { messages: after ? [message(M3, COLEGA, 'Chegou agora', new Date().toISOString())] : page1,
+      people: { [COLEGA]: ana }, read_at: minutes(25), moderator: false, open: true, muted: false, photo_days: 90 };
+  } });
+  await page.route(/\/api\/spaces\?id=/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+    ...groupOverview, space: { ...groupOverview.space, tools: ['conversa', 'mural', 'partes'] } } }) }));
+  await page.route('**/api/network/chat-photo/**', route => route.fulfill({ contentType: 'image/png',
+    body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64') }));
+  page.on('dialog', dialog => void dialog.accept());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#community');
+
+  // As mensagens novas aparecem no número da aba e em Meus grupos, e levam direto à conversa.
+  await expect(page.getByRole('button', { name: /Ir para Networking \(\d+ novidades\)/ })).toBeVisible();
+  await page.getByRole('tab', { name: /Meus grupos/ }).click();
+  const chats = page.getByRole('region', { name: 'Conversas com mensagens novas' });
+  await expect(chats).toContainText('2 mensagens novas');
+  await chats.getByRole('button', { name: /Ética · Grupo 1/ }).click();
+  await expect(page.getByRole('tab', { name: 'Conversa' })).toHaveAttribute('aria-selected', 'true');
+  const log = page.getByRole('log', { name: 'Mensagens de Ética · Grupo 1' });
+  await expect(log).toContainText('Mensagens novas');
+  await expect(log).toContainText('Colega Ana entrou no grupo');
+  // Ao abrir no celular, o campo de escrever já fica à vista, acima da barra de baixo.
+  await expect(page.getByLabel('Mensagem para Ética · Grupo 1')).toBeInViewport({ ratio: 1 });
+  await page.screenshot({ path: 'test-results/conversa-aberta-mobile.png' });
+  await expect(log.getByRole('link', { name: 'https://example.invalid/aula' })).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(page.getByText('Só quem está no grupo vê esta conversa. As fotos ficam 90 dias no servidor')).toBeVisible();
+
+  // A foto amplia; a resposta leva o trecho da mensagem.
+  await log.getByRole('button', { name: 'Ampliar a foto: Quadro com o resumo' }).click();
+  await expect(page.getByRole('dialog', { name: 'Foto de Colega' }).getByRole('img', { name: 'Quadro com o resumo' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Foto de Colega' }).getByRole('button', { name: 'Fechar janela' }).click();
+  await log.getByRole('button', { name: 'Opções da mensagem de Colega Ana' }).first().click();
+  await page.getByRole('dialog', { name: 'Mensagem de Colega' }).getByRole('button', { name: 'Responder' }).click();
+  await expect(page.locator('.chat-replying')).toContainText('Respondendo a Colega');
+  await page.getByLabel('Mensagem para Ética · Grupo 1').fill('Combinado, levo o resumo');
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await expect(log).toContainText('Combinado, levo o resumo');
+  expect(posted.find(item => item.body.action === 'send_message')?.body).toEqual({ action: 'send_message', space: G1, body: 'Combinado, levo o resumo', reply: M1, photo: null });
+
+  // Foto: o aparelho reduz antes de enviar e a descrição vai junto.
+  const png = await page.evaluate(async () => { const canvas = document.createElement('canvas'); canvas.width = 64; canvas.height = 48;
+    const context = canvas.getContext('2d')!; context.fillStyle = '#3a7'; context.fillRect(0, 0, 64, 48); return canvas.toDataURL('image/png').split(',')[1]; });
+  await page.locator('.chat-input input[type=file]').setInputFiles({ name: 'quadro.png', mimeType: 'image/png', buffer: Buffer.from(png, 'base64') });
+  await page.getByLabel('Descrição da foto').fill('Mapa mental');
+  await page.getByRole('button', { name: 'Enviar', exact: true }).click();
+  await expect.poll(() => posted.filter(item => item.body.action === 'send_message').length).toBe(2);
+  const photoSent = posted.filter(item => item.body.action === 'send_message')[1].body as { photo: { mime: string; width: number; alt: string } };
+  expect(photoSent.photo).toMatchObject({ width: 64, alt: 'Mapa mental' });
+  expect(['image/webp', 'image/jpeg']).toContain(photoSent.photo.mime);
+
+  // A conversa confere sozinha o que chegou.
+  await expect(log).toContainText('Chegou agora', { timeout: 10_000 });
+  expect(polls).toBeGreaterThan(0);
+
+  // Apagar a própria mensagem deixa o lugar marcado.
+  await log.getByRole('button', { name: 'Opções da sua mensagem' }).first().click();
+  await page.getByRole('dialog', { name: 'Sua mensagem' }).getByRole('button', { name: 'Apagar para todos' }).click();
+  await expect(log).toContainText('Mensagem apagada');
+  expect(posted.find(item => item.body.action === 'delete_message')?.body).toEqual({ action: 'delete_message', message: 'abababab-0000-4000-8000-000000000101' });
+
+  // Denunciar uma mensagem e silenciar a conversa.
+  await log.getByRole('button', { name: 'Opções da mensagem de Colega Ana' }).first().click();
+  await page.getByRole('dialog', { name: 'Mensagem de Colega' }).getByRole('button', { name: 'Denunciar ou bloquear' }).click();
+  await page.getByRole('dialog', { name: 'Opções sobre Colega' }).getByRole('button', { name: 'Denunciar mensagem' }).click();
+  const report = page.getByRole('dialog', { name: 'Denunciar mensagem' });
+  await report.getByLabel('Assédio ou ameaça').check();
+  await report.getByRole('button', { name: 'Enviar denúncia' }).click();
+  await expect(page.getByRole('dialog', { name: 'Denúncia enviada' })).toBeVisible();
+  expect(posted.find(item => item.body.action === 'report')?.body).toEqual({ action: 'report', person: COLEGA, post: null, message: M1, reason: 'assedio', note: '' });
+  await page.getByRole('dialog', { name: 'Denúncia enviada' }).getByRole('button', { name: 'Fechar', exact: true }).click();
+  await page.getByRole('button', { name: 'Silenciar' }).click();
+  await expect(page.getByRole('button', { name: 'Silenciada' })).toHaveAttribute('aria-pressed', 'true');
+  expect(posted.find(item => item.body.action === 'mute_group')?.body).toEqual({ action: 'mute_group', space: G1, muted: true });
+
+  expect((await new AxeBuilder({ page }).include('.chat').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/conversa-mobile.png' });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await settleAnimations(page);
+  expect((await new AxeBuilder({ page }).include('.chat').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/conversa-mobile-escuro.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  await page.setViewportSize({ width: 1280, height: 900 }); await settleAnimations(page);
+  await log.evaluate(element => { element.scrollTop = element.scrollHeight; });
+  await page.screenshot({ path: 'test-results/conversa-desktop.png' });
 });

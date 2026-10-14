@@ -239,7 +239,7 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - Sem vídeo por enquanto.
   - O card de texto é gerado a partir do texto e não ocupa espaço.
   - Na etapa 3a, a foto (até 4 por publicação, 1 por story) é reduzida no aparelho para até 300 KB e fica no banco presa à publicação: apagar a publicação ou o story vencer apaga a foto junto. No plano grátis, cada pessoa guarda até 25 MB de fotos, e o app inteiro até 300 MB.
-  - Fotos da conversa ficam 90 dias.
+  - Fotos da conversa ficam 90 dias no servidor (ajustável) e continuam no aparelho de quem viu.
   - Mensagem direta entre duas pessoas vem depois dos grupos.
 - **Caixa de ferramentas:**
   - A ferramenta mora na Caixa e pode ser usada em qualquer lugar do sistema, inclusive dentro de um grupo.
@@ -262,6 +262,12 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
 - **Protótipo aprovado:** https://claude.ai/artifact/NXnz7nXAGvdoGpHjfYYUCm
 - **Notificações (13/10, proprietário):** a notificação do app é o aviso principal, a mais nativa: no celular e no tablet, com o app instalado; no computador, pelo navegador. Telegram, WhatsApp e Google Agenda são complementos, e muita gente não vai usar. Tudo do jeito mais simples possível: o Meu dia convida a instalar (no celular e no tablet, com o passo a passo do iPhone) e a ligar as notificações, e dá para fechar ("Agora não", por 14 dias). O Networking avisa só pela notificação, com horário de silêncio (desligado por padrão) e grupos silenciados; os lembretes que a pessoa pediu tocam sempre.
 - **Silêncio desligado por padrão (13/10, proprietário):** muita gente estuda à noite; a opção fica em Avisos para quem quiser.
+- **Conversa do grupo (13/10, proprietário):** mensagens dentro de cada grupo, com resposta e foto. Decisões:
+  - **Quem lê:** só quem está no próprio grupo, e a partir de quando entrou, como no WhatsApp. Cada entrada aparece na conversa ("Fulano entrou no grupo"), então ninguém, nem a equipe da sala nem a administração, entra escondido para ler. A administração vê só o trecho de uma mensagem denunciada.
+  - **Fotos:** ficam no servidor pelo prazo de `platform_settings.chat_photo_days` (90 dias no plano grátis; vazio = para sempre, no Pro) e continuam no aparelho de quem já viu (o aparelho guarda a foto por um ano). Contam no mesmo espaço de fotos das publicações. O texto fica.
+  - **Avisos:** uma notificação por conversa, que resume o que chegou e abre direto nela; não toca para quem está lendo, no silêncio, no grupo silenciado (dá para silenciar pela própria conversa) nem para mensagem de quem foi bloqueado. Liga e desliga em Avisos.
+  - **Moderação:** quem escreveu apaga a própria; dono e líderes do grupo apagam qualquer uma ("apagada pela moderação"); a denúncia vai para a administração.
+  - **Atualização:** com a conversa aberta, o app confere a cada 4 segundos (12 quando está calma) e para quando a tela some. O tempo real por conexão aberta (Supabase Realtime) fica para quando o uso crescer.
 - **Bloquear e denunciar antes de crescer:** bloquear corta tudo nos dois sentidos, sem avisar a outra pessoa; a denúncia vai só para a administração, com motivo, e cada decisão fica no histórico.
 - **Sem nada antigo e confuso:** a barra de cima mostra só o nome da tela (saiu o "Meu espaço ›"), a busca virou "Buscar na Jornada" e os textos apontam para os nomes atuais do Meu espaço (Assistentes e IA, Telegram e WhatsApp).
 - **Entrega 2 (feita):** Salvos (aba no perfil, só a pessoa vê), Destaques (story guardado no perfil com título), descrição da foto, "Ver como visitante", avatar de 256 px só no perfil aberto e os limites em `platform_settings`. Para subir um limite no plano pago: `update public.platform_settings set posts_per_day = 60, photo_mb_per_person = 100, photo_mb_total = 5000;` no SQL do Supabase.

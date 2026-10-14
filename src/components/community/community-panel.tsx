@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
-import { ArrowRight, BadgeCheck, ClipboardCheck, GraduationCap, Link2, PenLine, Plus, Send, Users } from 'lucide-react';
+import { ArrowRight, BadgeCheck, ClipboardCheck, GraduationCap, Link2, MessageCircle, PenLine, Plus, Send, Users } from 'lucide-react';
 import { api, formatDay, PENDING_INVITE_KEY } from './client';
 import { SpaceView } from './space-view';
 import { AssignmentView } from './assignment-view';
@@ -53,6 +53,8 @@ export function CommunityPanel({ home, workspace, route, onRoute, onBack, onOpen
   return <NetworkingHome home={home} tab={tab} onRoute={onRoute} refreshHome={refreshHome} />;
 }
 
+const unreadText = (count: number) => `${count >= 100 ? '99+' : count} ${count === 1 ? 'mensagem nova' : 'mensagens novas'}`;
+
 function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: CommunityTab; onRoute: (route: CommunityRoute, replace?: boolean) => void; refreshHome: () => void }) {
   const me = home.account.user_id;
   const openPerson = (id: string) => onRoute({ kind: 'person', id });
@@ -67,6 +69,8 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
   const otherGroups = active.filter(space => space.kind === 'group' && !classes.some(item => item.id === space.parent_id));
   const institutions = active.filter(space => space.kind === 'institution');
   const teaching = active.filter(space => space.my_role === 'teacher' || (space.my_role === 'owner' && space.kind !== 'group') || space.my_role === 'assistant');
+  const chats = active.filter(space => home.chat?.[space.id]);
+  const chatTotal = chats.reduce((sum, space) => sum + (home.chat?.[space.id] ?? 0), 0);
 
   async function join(raw: string) {
     const token = raw.trim().split('/convite/').pop()?.split(/[?#]/)[0] ?? '';
@@ -85,6 +89,7 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
     <strong>{space.name}{space.official && <BadgeCheck className="nw-seal" size={16} aria-label="Oficial" />}</strong>
     {space.origin ? <span>{space.origin}</span> : space.description && <span>{space.description}</span>}
     {!!space.requests && <span className="nw-badge">{space.requests} {space.requests === 1 ? 'pedido para entrar' : 'pedidos para entrar'}</span>}
+    {!!home.chat?.[space.id] && <span className="nw-badge chat">{unreadText(home.chat[space.id])}</span>}
     <small className="cm-open">Abrir <ArrowRight size={13} aria-hidden="true" /></small>
   </button>;
 
@@ -95,7 +100,7 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
     </div>
     <div className="planning-nav-bar" role="tablist" aria-label="Networking">
       {([['feed', 'Seguindo'], ['mine', 'Meus grupos'], ['discover', 'Descobrir']] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={tab === value}
-        className={`planning-tab ${tab === value ? 'active' : ''}`} onClick={() => onRoute({ kind: 'list', tab: value }, true)}>{label}{value === 'mine' && !!home.join_requests && <span className="count-pill">{home.join_requests}</span>}</button>)}
+        className={`planning-tab ${tab === value ? 'active' : ''}`} onClick={() => onRoute({ kind: 'list', tab: value }, true)}>{label}{value === 'mine' && !!(home.join_requests || chatTotal) && <span className="count-pill">{(home.join_requests ?? 0) + chatTotal}</span>}</button>)}
     </div>
 
     {tab === 'feed' && stories('following')}
@@ -111,6 +116,10 @@ function NetworkingHome({ home, tab, onRoute, refreshHome }: { home: Home; tab: 
           <ul className="cm-todo">{home.to_review.map(part => <li key={part.id}><button onClick={() => onRoute({ kind: 'work', id: part.assignment_id })}>
             <span className="cm-status submitted">Entregue</span><strong>{part.title}</strong><small>{part.assignment_title} · {formatDay(part.submitted_at)}</small></button></li>)}</ul></section>}
       </div>}
+
+      {chats.length > 0 && <section className="panel nw-chats" aria-labelledby="nw-chats-title"><h2 id="nw-chats-title"><MessageCircle size={16} aria-hidden="true" /> Conversas com mensagens novas</h2>
+        <ul>{chats.map(space => <li key={space.id}><button type="button" onClick={() => onRoute({ kind: 'space', id: space.id })}>
+          <strong>{space.name}</strong><span className="nw-badge chat">{unreadText(home.chat![space.id])}</span></button></li>)}</ul></section>}
 
       {active.length > 0 && stories('groups')}
       {active.length > 0 && <section aria-labelledby="nw-group-posts"><div className="section-heading"><h2 id="nw-group-posts"><Send size={16} aria-hidden="true" /> Publicações dos seus grupos</h2></div>

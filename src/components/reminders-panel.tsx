@@ -5,7 +5,7 @@ import { api } from './community/client';
 import { currentSubscription, deviceLabel, disablePush, enablePush, iosOutsideApp, pushSupported } from './push-client';
 import { channelLabels, levelLabels, reminderLevels, type Delivery, type ReminderLevel } from '@/lib/reminders';
 
-type Network = { enabled: boolean; quiet_from: string | null; quiet_to: string | null; muted: string[] };
+type Network = { enabled: boolean; chat?: boolean; quiet_from: string | null; quiet_to: string | null; muted: string[] };
 type State = {
   devices: { label: string; created_at: string }[]; telegram: boolean; whatsapp: boolean; bridge_online: boolean;
   upcoming: { id: string; title: string; event_at: string | null; next_at: string; level: ReminderLevel; status: string }[];
@@ -64,7 +64,7 @@ export function RemindersPanel() {
     if (next.quiet_from && next.quiet_from === next.quiet_to) { setMessage('O começo e o fim do silêncio precisam ser diferentes.'); return; }
     const before = state!.network!;
     setState(value => value && { ...value, network: next }); setMessage('');
-    try { await api('/api/reminders', { action: 'alerts', network: next.enabled, quiet_from: next.quiet_from, quiet_to: next.quiet_to, muted: next.muted }); }
+    try { await api('/api/reminders', { action: 'alerts', network: next.enabled, chat: next.chat ?? true, quiet_from: next.quiet_from, quiet_to: next.quiet_to, muted: next.muted }); }
     catch (error) { setState(value => value && { ...value, network: before }); setMessage(error instanceof Error ? error.message : 'Não foi possível salvar.'); }
   }
 
@@ -96,14 +96,16 @@ export function RemindersPanel() {
       <legend>Networking</legend>
       <label className="cm-check"><input type="checkbox" checked={network.enabled} onChange={event => void saveNetwork({ ...network, enabled: event.target.checked })} />
         Avisar quando alguém seguir você, pedir para seguir, gostar ou achar útil, e nos pedidos dos seus grupos</label>
-      <label className="cm-check"><input type="checkbox" checked={!!network.quiet_from} disabled={!network.enabled}
+      <label className="cm-check"><input type="checkbox" checked={network.chat ?? true} onChange={event => void saveNetwork({ ...network, chat: event.target.checked })} />
+        Avisar das mensagens na conversa dos seus grupos</label>
+      <label className="cm-check"><input type="checkbox" checked={!!network.quiet_from} disabled={!network.enabled && !(network.chat ?? true)}
         onChange={event => void saveNetwork({ ...network, quiet_from: event.target.checked ? '22:00' : null, quiet_to: event.target.checked ? '07:00' : null })} /> Horário de silêncio</label>
-      {network.quiet_from && network.enabled && <div className="reminder-quiet">
+      {network.quiet_from && (network.enabled || (network.chat ?? true)) && <div className="reminder-quiet">
         <label>das <input type="time" value={network.quiet_from} onChange={event => event.target.value && void saveNetwork({ ...network, quiet_from: event.target.value })} /></label>
         <label>às <input type="time" value={network.quiet_to ?? ''} onChange={event => event.target.value && void saveNetwork({ ...network, quiet_to: event.target.value })} /></label>
       </div>}
-      <small className="muted">No silêncio, o Networking não toca e tudo fica nas Novidades. Os lembretes que você pediu tocam sempre.</small>
-      {groups.length > 0 && network.enabled && <details className="reminder-groups">
+      <small className="muted">No silêncio, o Networking e a conversa não tocam, e tudo fica no app. Os lembretes que você pediu tocam sempre.</small>
+      {groups.length > 0 && (network.enabled || (network.chat ?? true)) && <details className="reminder-groups">
         <summary>Silenciar grupos{network.muted.length ? ` (${network.muted.length})` : ''}</summary>
         <ul>{groups.map(group => <li key={group.id}><label className="cm-check"><input type="checkbox" checked={network.muted.includes(group.id)}
           onChange={event => void saveNetwork({ ...network, muted: event.target.checked ? [...network.muted, group.id] : network.muted.filter(id => id !== group.id) })} /> {group.name}</label></li>)}</ul>

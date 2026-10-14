@@ -84,13 +84,15 @@ export function AdminPanel({ me, onOpenSpace }: { me: string; onOpenSpace: (id: 
     <section className="panel" aria-labelledby="admin-reports-title">
       <div className="section-heading"><h2 id="admin-reports-title"><Flag size={16} aria-hidden="true" /> Denúncias abertas ({data.reports?.length ?? 0})</h2></div>
       {data.reports?.length ? <ul className="cm-reports">{data.reports.map(report => <li key={report.id}>
-        <p><strong>{reasonLabels[report.reason]}</strong> · sobre {report.target?.name ?? 'conta removida'} · por {report.reporter ?? 'conta removida'}
+        <p><strong>{reasonLabels[report.reason]}</strong> · sobre {report.target?.name ?? 'conta removida'}{report.message ? ` · mensagem na conversa de ${report.space ?? 'um grupo'}` : ''} · por {report.reporter ?? 'conta removida'}
           <small> · {formatDay(report.created_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</small></p>
         {report.excerpt && <blockquote>{report.excerpt}</blockquote>}
         {report.note && <p className="muted small">“{report.note}”</p>}
         <div className="button-row">
           {report.post && report.post_exists && <button type="button" className="button primary cm-danger" disabled={busy}
             onClick={() => window.confirm('Apagar esta publicação para todo mundo?') && void run('/api/admin', { action: 'resolve_report', report: report.id, outcome: 'apagar' }, 'Publicação apagada.')}>Apagar publicação</button>}
+          {report.message && report.message_exists && <button type="button" className="button primary cm-danger" disabled={busy}
+            onClick={() => window.confirm('Apagar esta mensagem da conversa do grupo?') && void run('/api/admin', { action: 'resolve_report', report: report.id, outcome: 'apagar' }, 'Mensagem apagada.')}>Apagar mensagem</button>}
           <button type="button" className="button outline" disabled={busy} onClick={() => void run('/api/admin', { action: 'resolve_report', report: report.id, outcome: 'resolvida' }, 'Denúncia resolvida.')}>Resolvida</button>
           <button type="button" className="button outline" disabled={busy} onClick={() => void run('/api/admin', { action: 'resolve_report', report: report.id, outcome: 'descartada' }, 'Denúncia descartada.')}>Descartar</button>
         </div>

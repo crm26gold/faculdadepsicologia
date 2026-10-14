@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { networkAction, networkCall, networkPush, networkRead, photoOk, topicsIn } from '../src/lib/network';
+import { chatPush, networkAction, networkCall, networkPush, networkRead, photoOk, topicsIn } from '../src/lib/network';
 
 const person = '11111111-1111-4111-8111-111111111111';
 
@@ -95,4 +95,33 @@ test('rede: bloquear e denunciar vão ao banco só com o permitido', () => {
   assert.equal(networkAction.safeParse({ action: 'report', person, reason: 'outro', note: 'a'.repeat(501) }).success, false, 'observação longa');
   assert.equal(networkAction.safeParse({ action: 'block', person: 'x', blocking: true }).success, false);
   assert.deepEqual(networkRead(new URLSearchParams('blocked=1')), { fn: 'my_blocks', args: {} });
+});
+
+test('rede: a conversa do grupo vai ao banco só com o permitido', () => {
+  const space = '22222222-2222-4222-8222-222222222222', message = '33333333-3333-4333-8333-333333333333';
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'send_message', space, body: '  Oi, turma ' })),
+    { fn: 'send_message', args: { target: space, message_body: 'Oi, turma', reply: null, photo: null } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'send_message', space, body: '', reply: message, photo: photo() })).args,
+    { target: space, message_body: '', reply: message, photo: { ...photo(), alt: '' } }, 'só a foto, respondendo');
+  assert.equal(networkAction.safeParse({ action: 'send_message', space, body: '   ' }).success, false, 'vazia');
+  assert.equal(networkAction.safeParse({ action: 'send_message', space, body: 'a'.repeat(4001) }).success, false, 'longa demais');
+  assert.equal(networkAction.safeParse({ action: 'send_message', space, body: 'x', photo: { ...photo(), mime: 'image/png' } }).success, false, 'PNG chega convertido');
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'delete_message', message })), { fn: 'delete_message', args: { target: message } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'mute_group', space, muted: true })), { fn: 'mute_space', args: { target: space, muted: true } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'report', person, message, reason: 'assedio' })),
+    { fn: 'report_message', args: { target: message, why: 'assedio', details: '' } }, 'denúncia da mensagem');
+  const read = (query: string) => networkRead(new URLSearchParams(query));
+  assert.deepEqual(read(`chat=${space}&seen=1`), { fn: 'chat_messages', args: { target: space, after: null, before: null, seen: true } });
+  assert.deepEqual(read(`chat=${space}&after=2026-10-13T20:49:24.959889%2B00:00`)?.args,
+    { target: space, after: '2026-10-13T20:49:24.959889+00:00', before: null, seen: false });
+  assert.equal(read('chat=x'), null);
+  assert.equal(read(`chat=${space}&after=ontem`), null, 'cursor inválido');
+});
+
+test('rede: a notificação da conversa diz o grupo, quem escreveu e quantas chegaram', () => {
+  assert.deepEqual(chatPush({ space: 's', group: 'Ética', count: 1, author: 'Bia', excerpt: 'Prova na sexta', photo: false }), { title: 'Ética', body: 'Bia: Prova na sexta' });
+  assert.equal(chatPush({ space: 's', group: 'Ética', count: 3, author: 'Bia', excerpt: '', photo: true }).body, '3 mensagens novas · Bia: 📷 Foto');
+  assert.equal(chatPush({ space: 's', group: 'Ética', count: 1, author: null, excerpt: 'Olha o quadro', photo: true }).body, 'Alguém: 📷 Olha o quadro');
+  const long = 'Pessoal, a prova de amanhã vai cobrir os capítulos três, quatro e cinco do livro';
+  assert.equal(chatPush({ space: 's', group: 'Ética', count: 1, author: 'Bia', excerpt: long, photo: false }).body, 'Bia: Pessoal, a prova de amanhã vai cobrir os capítulos três,…');
 });

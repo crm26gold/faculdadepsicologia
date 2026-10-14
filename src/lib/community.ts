@@ -37,7 +37,7 @@ export const toolLabels: Record<GroupTool, string> = {
   conversa: 'Conversa', material: 'Material do grupo', checkin: 'Check-in diário', placar: 'Placar',
 };
 /** Ferramentas que ainda não existem ficam guardadas e aparecem quando chegarem. */
-export const readyTools: readonly GroupTool[] = ['mural', 'enquetes', 'partes', 'encontros'];
+export const readyTools: readonly GroupTool[] = ['conversa', 'mural', 'enquetes', 'partes', 'encontros'];
 export const templateTools: Record<GroupTemplate, GroupTool[]> = {
   estudo: ['mural', 'enquetes', 'conversa', 'material'], trabalho: ['partes', 'encontros', 'conversa'],
   desafio: ['conversa', 'checkin', 'placar'], saude: ['mural', 'conversa', 'checkin'], livre: ['conversa'],
@@ -69,6 +69,8 @@ export type Home = {
   account: Account; settings: { open_access: boolean };
   consents: { document: 'terms' | 'privacy'; version: string }[];
   profile?: MyProfile | null; join_requests?: number; updates?: number;
+  /** Mensagens novas na conversa de cada grupo (id do grupo → quantas, até 100). */
+  chat?: Record<string, number>;
   spaces: SpaceSummary[];
   my_parts: { id: string; title: string; status: PartStatus; assignment_id: string; assignment_title: string; due_date: string | null; space_id: string }[];
   to_review: { id: string; title: string; assignment_id: string; assignment_title: string; space_id: string; submitted_at: string }[];
@@ -114,7 +116,8 @@ export type AdminOverview = {
   spaces: { id: string; kind: SpaceKind; name: string; parent_id: string | null; color: SpaceColor; archived_at: string | null; members: number }[];
   audit: { id: number; actor_id: string | null; target_user_id: string | null; target_space_id: string | null; action: string; details: Record<string, unknown>; created_at: string }[];
   reports?: { id: string; reason: 'spam' | 'ofensa' | 'assedio' | 'improprio' | 'outro'; note: string; created_at: string; reporter: string | null;
-    target: { id: string; name: string; avatar: Avatar | null } | null; post: string | null; excerpt: string; post_exists: boolean }[];
+    target: { id: string; name: string; avatar: Avatar | null } | null; post: string | null; excerpt: string; post_exists: boolean;
+    message?: string | null; message_exists?: boolean; space?: string | null }[];
 };
 export type Contact = { id: string; name: string; email: string; phone: string; birthdate: string | null; notes: string; created_at: string };
 
