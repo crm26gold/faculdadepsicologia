@@ -129,7 +129,7 @@ test('todas as áreas cabem em telas pequenas sem rolagem horizontal', async ({ 
   await page.goto('/');
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 844 });
-    for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Foco', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Flashcards', 'Assistente', 'Meu espaço']) {
+    for (const label of ['Meu dia', 'Estudos', 'Caderno', 'Agenda', 'Foco', 'Metas e projetos', 'Finanças', 'Minha rotina', 'Caixa de ferramentas', 'Assistente', 'Meu espaço']) {
       const menu = page.getByRole('button', { name: 'Abrir navegação', exact: true });
       const usesDrawer = await menu.isVisible();
       if (usesDrawer) await menu.click();

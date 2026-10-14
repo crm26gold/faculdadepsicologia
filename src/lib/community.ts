@@ -64,6 +64,8 @@ export type SpaceSummary = {
   id: string; kind: SpaceKind; name: string; description: string; color: SpaceColor;
   parent_id: string | null; archived_at: string | null; my_role: Role | null;
   template?: GroupTemplate; visibility?: Visibility; official?: boolean; topics?: string[]; origin?: string; requests?: number;
+  /** Ferramentas ligadas (grupo) e se a pessoa conduz: a Caixa lista só onde a ferramenta funciona. */
+  tools?: GroupTool[] | null; can_lead?: boolean;
 };
 export type Home = {
   account: Account; settings: { open_access: boolean };

@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import { motion, useReducedMotion, type Variants } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { AlertCircle, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Bell, BookOpen, Heart, Cake, CalendarDays, Check, CheckCheck, ChevronRight, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, Layers, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Upload, UserRound, Users, Wallet, X } from 'lucide-react';
+import { AlertCircle, ArrowDownToLine, ArrowLeft, ArrowRight, ArrowUpRight, Bell, BookOpen, Heart, Cake, CalendarDays, Check, CheckCheck, ChevronRight, Clock3, CloudOff, Compass, Contact, FileText, GraduationCap, LayoutDashboard, LockKeyhole, Menu, MoreHorizontal, PenLine, Plus, Search, Settings2, ShieldCheck, Sparkles, Sprout, Target, Toolbox as ToolboxIcon, Upload, UserRound, Users, Wallet, X } from 'lucide-react';
 import { addDays, colors, taskKinds, dateKey, formatDate, parseWorkspace, priorityTasks, type Course, type Note, type Subject, type Task, type Workspace } from '@/lib/workspace';
 import { activeCourses, capitalize, courseKindLabels, courseOf, courseStatusLabels, courseUnits, ensureCourses, subjectsOfCourse, unitCount, unitPresets } from '@/lib/courses';
 import { calendarEntries, weekdays } from '@/lib/academic';
@@ -39,6 +39,7 @@ import { OAUTH_RETURN_KEY } from './oauth-consent';
 import type { Place } from '@/lib/notebooks';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
 import { PersonAvatar } from './community/avatar';
+import { Toolbox } from './toolbox';
 import { TodayChallenges } from './community/challenges';
 import { AppInvite } from './app-invite';
 import { SettingsIndex, settingsAvailable, settingsSections, settingsTitle, type SettingsSection } from './settings-index';
@@ -67,7 +68,7 @@ const TelegramAdmin = dynamic(() => import('./messenger-settings').then(module =
 const TelegramLink = dynamic(() => import('./messenger-settings').then(module => module.TelegramLink), { loading: panelLoading });
 const RemindersPanel = dynamic(() => import('./reminders-panel').then(module => module.RemindersPanel), { loading: panelLoading });
 const WhatsAppAdmin = dynamic(() => import('./whatsapp-settings').then(module => module.WhatsAppAdmin), { loading: panelLoading });
-type View = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'focus' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
+type View = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'focus' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'toolbox' | 'assistant' | 'contacts' | 'admin' | 'settings';
 type FormKind = 'subject' | 'task' | 'note' | 'course';
 type FormState = { kind: FormKind; task?: Task; subject?: Subject; course?: Course; courseId?: string };
 type StudiesRoute = { kind: 'list' } | { kind: 'course'; id: string };
@@ -81,19 +82,20 @@ const navigation = [
   { id: 'planning', label: 'Metas e projetos', Icon: Target },
   { id: 'finances', label: 'Finanças', Icon: Wallet },
   { id: 'routine', label: 'Minha rotina', Icon: Compass },
-  { id: 'flashcards', label: 'Flashcards', Icon: Layers },
+  // Flashcards mora na Caixa de ferramentas.
+  { id: 'toolbox', label: 'Caixa de ferramentas', Icon: ToolboxIcon },
   { id: 'assistant', label: 'Assistente', Icon: Sparkles },
   { id: 'contacts', label: 'Contatos', Icon: Contact },
   { id: 'admin', label: 'Administração', Icon: ShieldCheck },
 ] as const;
 const proViews = new Set<View>(['planning', 'finances', 'routine']);
 const serverViews = new Set<View>(['community', 'contacts', 'admin']);
-const names: Record<View, string> = { today: 'Meu dia', community: 'Networking', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', assistant: 'Assistente', settings: 'Meu espaço' };
+const names: Record<View, string> = { today: 'Meu dia', community: 'Networking', contacts: 'Meus contatos', admin: 'Administração', studies: 'Meus estudos', notes: 'Meu caderno', agenda: 'Minha agenda', focus: 'Meu foco', planning: 'Metas e projetos', finances: 'Finanças', routine: 'Minha rotina', flashcards: 'Flashcards', toolbox: 'Caixa de ferramentas', assistant: 'Assistente', settings: 'Meu espaço' };
 const subtitles: Record<View, string> = {
   today: '', studies: 'Graduação, pós, cursos livres e extensões, cada um no seu lugar.', community: 'Seus grupos, salas e pessoas, com a privacidade que você escolher.',
   notes: 'Ideias, aulas e reflexões, organizadas do seu jeito.', agenda: 'Compromissos, aulas e prazos de todas as áreas da vida.', focus: 'Para onde vai o seu tempo, dia após dia.',
   planning: 'Metas apontam a direção; projetos organizam os passos.', finances: 'O que entra, o que sai e o que está por vir.', routine: 'Seus hábitos, por período do dia.',
-  flashcards: 'Cartões de pergunta e resposta para fixar o que você aprende.', assistant: 'Converse por voz ou escreva para cuidar da sua jornada.', contacts: 'Sua agenda de pessoas. Só você vê.',
+  flashcards: 'Cartões de pergunta e resposta para fixar o que você aprende.', toolbox: 'Ferramentas para usar na sua vida e nos seus grupos.', assistant: 'Converse por voz ou escreva para cuidar da sua jornada.', contacts: 'Sua agenda de pessoas. Só você vê.',
   admin: 'Pessoas, papéis e planos, com histórico de tudo.', settings: 'O que é só seu e muda pouco: conta, contato, avisos, conexões e dados.',
 };
 const viewOf = (value: string) => { const first = value.split('/')[0]; return (first === 'subjects' ? 'studies' : first) as View; }; // old links to "Matérias"; #settings/avisos
@@ -494,6 +496,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     if (view === 'community' && (communityRoute.kind !== 'list' || (Number(window.history.state?.depth) || 0) > 0)) communityBack();
     else if (view === 'settings' && settingsSection) window.history.back();
     else if (studyCourse && view === 'studies') showStudies();
+    else if (view === 'flashcards') navigate('toolbox');
     else if (view !== 'today') {
       navigate('today');
     }
@@ -597,7 +600,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
   const navContent = (mobile = false) => <WorkspaceNavigation
     items={visibleNavigation.map((item) => ({ ...item, badge: proViews.has(item.id) && !pro ? 'Pro' : item.id === 'community' && networkCount ? networkCount : undefined }))}
-    view={view} onNavigate={navigate} collapsed={!mobile && sidebarCollapsed} onToggle={toggleSidebar} mobile={mobile}
+    view={view === 'flashcards' ? 'toolbox' : view} onNavigate={navigate} collapsed={!mobile && sidebarCollapsed} onToggle={toggleSidebar} mobile={mobile}
     name={myName || 'Meu espaço'} email={home?.account.email || userProfile.email || ''} photo={userProfile.photoUrl}
     avatar={identity ? <PersonAvatar name={identity.name} avatar={identity.avatar} size={32} /> : undefined} onProfile={cloud && home ? openMyProfile : undefined}
     status={status} modeLabel={demo ? 'Demonstração' : cloud ? 'Espaço pessoal' : previewLabel}
@@ -684,7 +687,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             <button
               type="button"
               className="topbar-back-button"
-              aria-label={view === 'studies' && studyCourse ? 'Voltar para Estudos' : 'Voltar'}
+              aria-label={view === 'studies' && studyCourse ? 'Voltar para Estudos' : view === 'flashcards' ? 'Voltar para a Caixa de ferramentas' : 'Voltar'}
               onClick={handleGoBack}
             >
               <ArrowLeft size={16} aria-hidden="true" />
@@ -692,6 +695,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
             </button>
           )}
           {view === 'studies' && studyCourse && <><span><button type="button" className="cm-crumb" onClick={showStudies}>Estudos</button></span><ChevronRight aria-hidden="true" size={14} /></>}
+          {view === 'flashcards' && <><span><button type="button" className="cm-crumb" onClick={() => navigate('toolbox')}>Caixa de ferramentas</button></span><ChevronRight aria-hidden="true" size={14} /></>}
           {view === 'today' && ready ? <span className="topbar-today"><strong>{greeting(new Date().getHours())}{firstName ? `, ${firstName}` : ''}</strong><span className="topbar-cycle"><span className="sr-only">{`${cycles.month}: semana ${cycles.cycle} de 4, dia ${cycles.day} de ${cycles.last}`}</span><span className="cycle-bars" aria-hidden="true">{cycles.cycles.map((cycle) => <i key={cycle.index} className={cycle.current ? 'on' : cycle.end < cycles.day ? 'past' : ''} />)}</span><span aria-hidden="true"><span className="cycle-month">{cycles.month} · </span>semana {cycles.cycle}/4<span className="cycle-day"> · dia {cycles.day}/{cycles.last}</span></span></span></span> : <strong>{pageName}</strong>}
         </div>
         <div className="topbar-actions">
@@ -892,6 +896,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'focus' && <FocusHistory data={data} blocked={blocked} update={update} />}
           {view === 'flashcards' && <FlashcardsDeck data={data} blocked={blocked} update={update} />}
+          {view === 'toolbox' && <Toolbox home={cloud ? home : null} onOpenFlashcards={() => navigate('flashcards')} onCompose={() => routeCommunity({ kind: 'compose' })}
+            onCreateGroup={() => routeCommunity({ kind: 'create' })} onOpenSpace={(id, tab, start) => routeCommunity({ kind: 'space', id, tab, start })} />}
 
           {view === 'assistant' && <>
             <section className="assistant-inline" aria-label="Conversa com o assistente">

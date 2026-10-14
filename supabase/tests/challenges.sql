@@ -84,6 +84,11 @@ select expect((space_challenges(group_id('Treino'))->0->'done_today'->>'count'):
 select expect((space_challenges(group_id('Treino'))->0->'done_today'->'people'->0->>'name') = 'Caio', 'e quem');
 select act_as('00000000-0000-4000-8000-000000000005');
 select expect(jsonb_array_length(my_challenges_today()) = 2, 'Meu dia mostra os dois desafios de hoje');
+select expect(s->'tools' ? 'checkin' and not (s->>'can_lead')::boolean, 'o início da conta diz as ferramentas do grupo e se a pessoa conduz')
+  from jsonb_array_elements(app_home()->'spaces') s where s->>'name' = 'Treino';
+select act_as('00000000-0000-4000-8000-000000000004');
+select expect((s->>'can_lead')::boolean, 'quem criou o grupo conduz') from jsonb_array_elements(app_home()->'spaces') s where s->>'name' = 'Treino';
+select act_as('00000000-0000-4000-8000-000000000005');
 
 -- Sequência: 7 dias seguidos viram um marco no grupo, uma vez só; o dia de descanso não quebra.
 reset role;

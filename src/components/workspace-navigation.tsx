@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'framer-motion';
 import { ChevronDown, ChevronRight, PanelLeftClose, PanelLeftOpen, Settings2, Sparkles, type LucideIcon } from 'lucide-react';
 
-export type WorkspaceView = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'focus' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'assistant' | 'contacts' | 'admin' | 'settings';
+export type WorkspaceView = 'today' | 'community' | 'studies' | 'notes' | 'agenda' | 'focus' | 'planning' | 'finances' | 'routine' | 'flashcards' | 'toolbox' | 'assistant' | 'contacts' | 'admin' | 'settings';
 export type WorkspaceNavItem = { id: WorkspaceView; label: string; Icon: LucideIcon; badge?: string | number };
 type NavigationProps = {
   items: readonly WorkspaceNavItem[];
@@ -26,7 +26,7 @@ type NavigationProps = {
 
 const groups: { label: string; ids: WorkspaceView[] }[] = [
   { label: 'Sua jornada', ids: ['today', 'agenda', 'focus', 'routine', 'planning', 'finances'] },
-  { label: 'Aprender e criar', ids: ['studies', 'notes', 'flashcards'] },
+  { label: 'Aprender e criar', ids: ['studies', 'notes', 'toolbox'] },
   { label: 'Conectar', ids: ['assistant', 'community', 'contacts', 'admin'] },
 ];
 

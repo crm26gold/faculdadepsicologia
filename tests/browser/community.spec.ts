@@ -2014,3 +2014,57 @@ test('desafios: Meu dia marca o dia, o grupo cria e acompanha, o feed dá força
   await page.screenshot({ path: 'test-results/conquistas-mobile-escuro.png' });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('Caixa de ferramentas: só o que funciona, e cada ferramenta de grupo abre no grupo escolhido', async ({ page }) => {
+  const G2 = 'aaaaaaaa-0000-4000-8000-000000000009';
+  const base = homeFixture();
+  const home = { ...base, spaces: [
+    { ...base.spaces[0], can_lead: false },
+    { ...base.spaces[1], tools: ['conversa', 'checkin', 'enquetes'], can_lead: true },
+    { id: G2, kind: 'group', name: 'Corrida', description: '', color: 'sand', parent_id: null, archived_at: null, my_role: 'student', tools: ['conversa', 'checkin'], can_lead: false },
+  ] } as unknown as ReturnType<typeof homeFixture>;
+  await mockApi(page, { home });
+  await page.route(/\/api\/spaces\?id=/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+    ...groupOverview, space: { ...groupOverview.space, tools: ['conversa', 'checkin', 'enquetes'] } } }) }));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  // No menu, Flashcards deu lugar à Caixa.
+  await page.getByRole('button', { name: 'Ver todas as áreas' }).click();
+  const menu = page.getByRole('dialog', { name: 'Seu espaço' });
+  await expect(menu.getByRole('button', { name: 'Flashcards', exact: true })).toHaveCount(0);
+  await menu.getByRole('button', { name: 'Caixa de ferramentas', exact: true }).click();
+  const box = page.getByRole('region', { name: 'Ferramentas' });
+  for (const name of ['Flashcards', 'Desafio', 'Enquete', 'Card de texto']) await expect(box.getByRole('button', { name: new RegExp(`^${name}`) })).toBeVisible();
+  await expect(box).not.toContainText('Em breve');
+  expect((await new AxeBuilder({ page }).include('.tb').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/caixa-mobile.png', fullPage: true });
+
+  // Desafio: dois grupos com Desafios ligado; a escolha leva ao formulário de criar.
+  await box.getByRole('button', { name: /^Desafio/ }).click();
+  const pick = page.getByRole('dialog', { name: 'Desafio em qual grupo?' });
+  await expect(pick.getByRole('button', { name: /Corrida/ })).toBeVisible();
+  await pick.getByRole('button', { name: /Ética · Grupo 1/ }).click();
+  await expect(page.getByRole('tab', { name: 'Desafios' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('dialog', { name: 'Novo desafio' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Novo desafio' }).getByRole('button', { name: 'Fechar janela' }).click();
+
+  // Enquete: só um grupo onde a pessoa conduz, então abre direto, já com a enquete.
+  await page.goto('/#toolbox');
+  await page.getByRole('region', { name: 'Ferramentas' }).getByRole('button', { name: /^Enquete/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Nova enquete' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Nova enquete' }).getByRole('button', { name: 'Fechar janela' }).click();
+
+  // Flashcards continua igual; o Voltar leva de novo à Caixa.
+  await page.goto('/#toolbox');
+  await page.getByRole('region', { name: 'Ferramentas' }).getByRole('button', { name: /^Flashcards/ }).click();
+  await expect(page.getByRole('heading', { name: 'Flashcards', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Voltar para a Caixa de ferramentas' }).click();
+  await expect(page.getByRole('region', { name: 'Ferramentas' })).toBeVisible();
+
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await settleAnimations(page);
+  expect((await new AxeBuilder({ page }).include('.tb').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/caixa-mobile-escuro.png', fullPage: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});
