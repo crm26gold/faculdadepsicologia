@@ -286,6 +286,10 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   6. Desafio pessoal: só para mim, ou pessoal que o grupo acompanha.
   7. Quiz do material, com IA.
   8. Slides do trabalho; Apresentação ao vivo.
+- **Caixa, entrega 2 (14/10): escolhas feitas na construção, para o proprietário revisar:**
+  - **Achar horário em comum** mora no Mural do grupo que tem Encontros ligado. Qualquer pessoa do grupo propõe (até 10 por dia), com até 7 dias nos próximos 60 e horas cheias; quem propôs ou quem modera marca o horário escolhido. A grade mostra os nomes de quem pode, só para o grupo. Ir para a agenda pessoal é um toque de cada um, nunca automático.
+  - **Sortear** roda no aparelho e não guarda nada. Cada resultado diz quem sorteou e quando, e pode ir para a conversa do grupo.
+  - **Sortear quem faz cada parte** só entra nas partes sem responsável, e quem já tem parte recebe menos. Quem conduz confere antes de confirmar.
 - **Bloquear e denunciar antes de crescer:** bloquear corta tudo nos dois sentidos, sem avisar a outra pessoa; a denúncia vai só para a administração, com motivo, e cada decisão fica no histórico.
 - **Sem nada antigo e confuso:** a barra de cima mostra só o nome da tela (saiu o "Meu espaço ›"), a busca virou "Buscar na Jornada" e os textos apontam para os nomes atuais do Meu espaço (Assistentes e IA, Telegram e WhatsApp).
 - **Entrega 2 (feita):** Salvos (aba no perfil, só a pessoa vê), Destaques (story guardado no perfil com título), descrição da foto, "Ver como visitante", avatar de 256 px só no perfil aberto e os limites em `platform_settings`. Para subir um limite no plano pago: `update public.platform_settings set posts_per_day = 60, photo_mb_per_person = 100, photo_mb_total = 5000;` no SQL do Supabase.

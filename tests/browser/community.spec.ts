@@ -2068,3 +2068,103 @@ test('Caixa de ferramentas: só o que funciona, e cada ferramenta de grupo abre 
   await page.screenshot({ path: 'test-results/caixa-mobile-escuro.png', fullPage: true });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test('Caixa: sortear grupos e partes de forma justa, e achar um horário em comum no grupo', async ({ page }) => {
+  const FINDER = 'efefefef-0000-4000-8000-000000000001', P4 = 'cccccccc-0000-4000-8000-000000000004', P5 = 'cccccccc-0000-4000-8000-000000000005';
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const day1 = spDay(1), day2 = spDay(2);
+  const base = homeFixture();
+  const home = { ...base, spaces: [{ ...base.spaces[0], can_lead: false }, { ...base.spaces[1], tools: ['conversa', 'encontros', 'partes'], can_lead: true }] } as unknown as ReturnType<typeof homeFixture>;
+  let title = 'Reunião do trabalho';
+  const finder = (extra: Record<string, unknown> = {}) => ({ id: FINDER, title, days: [day1, day2], from_hour: 18, to_hour: 22, chosen: null,
+    creator: { id: ME, name: 'Pessoa Teste', avatar: null }, can_manage: true, created_at: new Date().toISOString(), mine: [], marks: [{ person: ana, slots: [19, 43] }], ...extra });
+  const posted = await mockApi(page, { home, onPost: ({ body }) => {
+    if (body.action === 'finder_create') { title = String(body.title); return finder({ days: body.days, from_hour: body.from, to_hour: body.to, marks: [] }); }
+    if (body.action === 'finder_mark') return finder({ mine: body.slots, marks: [{ person: ana, slots: [19, 43] }, { person: { id: ME, name: 'Pessoa Teste', avatar: null }, slots: body.slots }] });
+    if (body.action === 'finder_manage') return finder({ chosen: { day: body.day, hour: body.hour }, mine: [19], marks: [{ person: ana, slots: [19, 43] }] });
+    return null;
+  }, network: url => url.searchParams.has('finders') ? [finder()] : [] });
+  await page.route(/\/api\/spaces\?id=/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+    ...groupOverview, space: { ...groupOverview.space, tools: ['conversa', 'encontros', 'partes'] } } }) }));
+  await page.route(/\/api\/work\?id=/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { ...detail, parts: [...detail.parts,
+    { ...detail.parts[0], id: P4, position: 3, title: 'Método', assignee_id: null, assignee_label: '', status: 'pending' },
+    { ...detail.parts[0], id: P5, position: 4, title: 'Resultados', assignee_id: null, assignee_label: '', status: 'pending' }] } }) }));
+  page.on('dialog', dialog => void dialog.accept());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#toolbox');
+
+  // Sortear com nomes escritos: grupos equilibrados.
+  await page.getByRole('region', { name: 'Ferramentas' }).getByRole('button', { name: /^Sortear/ }).click();
+  const draw = page.getByRole('dialog', { name: 'Sortear' });
+  await draw.getByRole('button', { name: 'Escrever os nomes' }).click();
+  await draw.getByLabel('Nomes, um por linha').fill('Ana\nBia\nCaio\nDuda\nEva');
+  await draw.getByRole('button', { name: 'Sortear', exact: true }).click();
+  const result = draw.getByRole('region', { name: 'Resultado do sorteio' });
+  await expect(result).toContainText('2 grupos');
+  await expect(result.getByRole('listitem')).toHaveCount(2);
+  await draw.getByRole('button', { name: 'Ordem' }).click();
+  await draw.getByRole('button', { name: 'Sortear', exact: true }).click();
+  await expect(result.getByRole('listitem')).toHaveCount(5);
+
+  // Com as pessoas do grupo: o resultado vai para a conversa.
+  await draw.getByRole('button', { name: 'Pessoas de um grupo' }).click();
+  await draw.getByLabel('Grupo ou sala').selectOption({ label: 'Ética · Grupo 1' });
+  await expect(draw).toContainText('2 pessoas: Pessoa Teste, Colega Ana');
+  await draw.getByRole('button', { name: 'Uma pessoa' }).click();
+  await draw.getByRole('button', { name: 'Sortear', exact: true }).click();
+  await expect(result).toContainText('Pessoa sorteada');
+  expect((await new AxeBuilder({ page }).include('.modal').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/sortear-mobile.png' });
+  await draw.getByRole('button', { name: 'Mandar na conversa' }).click();
+  await expect(draw).toContainText('Resultado enviado na conversa do grupo.');
+  const sent = posted.find(item => item.body.action === 'send_message')?.body as { space: string; body: string };
+  expect(sent.space).toBe(G1);
+  expect(sent.body).toMatch(/^🎲 Sorteio · Pessoa sorteada\n(Pessoa Teste|Colega Ana)\nFeito por Pessoa Teste em /);
+  await draw.getByRole('button', { name: 'Fechar janela' }).click();
+
+  // Achar horário: só um grupo com Encontros, então abre direto, no formulário.
+  await page.getByRole('region', { name: 'Ferramentas' }).getByRole('button', { name: /^Achar horário/ }).click();
+  const form = page.getByRole('dialog', { name: 'Achar horário em comum' });
+  await form.getByLabel('Para quê?').fill('Ensaio da apresentação');
+  await form.getByRole('button', { name: 'Amanhã' }).click();
+  await form.getByLabel('Das').selectOption('19');
+  await form.getByLabel('Até').selectOption('21');
+  await expect(form.getByLabel('Avisar na conversa do grupo')).toBeChecked();
+  await form.getByRole('button', { name: 'Criar' }).click();
+  expect(posted.find(item => item.body.action === 'finder_create')?.body).toEqual({ action: 'finder_create', space: G1, title: 'Ensaio da apresentação', days: [day1], from: 19, to: 21 });
+  await expect.poll(() => (posted.filter(item => item.body.action === 'send_message').at(-1)?.body as { body: string }).body).toContain('📅 Ensaio da apresentação');
+
+  // A grade: marcar duas horas e salvar; o melhor horário aparece e quem propôs marca.
+  const grid = page.getByRole('dialog', { name: 'Ensaio da apresentação' });
+  await grid.getByRole('button', { name: /19h: ninguém marcou/ }).first().click();
+  await grid.getByRole('button', { name: /20h: ninguém marcou/ }).first().click();
+  await grid.getByRole('button', { name: 'Salvar minhas horas' }).click();
+  expect(posted.find(item => item.body.action === 'finder_mark')?.body).toEqual({ action: 'finder_mark', finder: FINDER, slots: [19, 20] });
+  await expect(grid.getByRole('list').first()).toContainText('2 pessoas podem: Colega Ana, Pessoa Teste');
+  expect((await new AxeBuilder({ page }).include('.tf-modal').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/achar-horario-mobile.png' });
+  await grid.getByRole('button', { name: 'Marcar este' }).first().click();
+  expect(posted.find(item => item.body.action === 'finder_manage')?.body).toEqual({ action: 'finder_manage', finder: FINDER, day: day1, hour: 19 });
+  await expect(grid).toContainText('Marcado:');
+  await grid.getByRole('button', { name: 'Pôr na minha agenda' }).click();
+  await expect(grid).toContainText('Está na sua agenda.');
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await settleAnimations(page);
+  expect((await new AxeBuilder({ page }).include('.tf-modal').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/achar-horario-mobile-escuro.png' });
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  await grid.getByRole('button', { name: 'Fechar janela' }).click();
+
+  // No trabalho em partes: as duas partes sem responsável vão uma para cada pessoa.
+  await page.getByRole('tab', { name: /Trabalhos/ }).click();
+  await page.getByRole('button', { name: /Direitos Humanos/ }).click();
+  await page.getByRole('button', { name: /Sortear quem faz \(2 sem responsável\)/ }).click();
+  const parts = page.getByRole('dialog', { name: 'Sortear quem faz cada parte' });
+  await expect(parts.getByRole('listitem')).toHaveCount(2);
+  await parts.getByRole('button', { name: 'Confirmar' }).click();
+  await expect.poll(() => posted.filter(item => item.body.action === 'update_part').length).toBe(2);
+  const assigned = posted.filter(item => item.body.action === 'update_part').map(item => item.body);
+  expect(assigned.map(item => item.part).toSorted()).toEqual([P4, P5].toSorted());
+  expect(new Set(assigned.map(item => item.assignee))).toEqual(new Set([ME, COLEGA]));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+});

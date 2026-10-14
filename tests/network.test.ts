@@ -174,3 +174,23 @@ test('rede: a medalha avisa a própria pessoa; "Dar força" diz quem foi', () =>
   assert.equal(networkPush([{ kind: 'forca', actor: 'Bia', post: '7 dias seguidos em “Ler” 🔥', space: null }]).body,
     'Bia deu força na sua conquista: “7 dias seguidos em “Ler” 🔥”');
 });
+
+test('rede: achar horário vai ao banco só com o permitido', () => {
+  const space = '22222222-2222-4222-8222-222222222222', finder = '55555555-5555-4555-8555-555555555555';
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'finder_create', space, title: ' Reunião ', days: ['2026-10-15', '2026-10-16'], from: 18, to: 22 })),
+    { fn: 'finder_create', args: { target: space, finder_title: 'Reunião', finder_days: ['2026-10-15', '2026-10-16'], first_hour: 18, last_hour: 22 } });
+  const bad = (extra: Record<string, unknown>) => networkAction.safeParse({ action: 'finder_create', space, title: 'x', days: ['2026-10-15'], from: 18, to: 22, ...extra }).success;
+  assert.equal(bad({ days: [] }), false, 'sem dia');
+  assert.equal(bad({ days: Array.from({ length: 8 }, (_, index) => `2026-10-${10 + index}`) }), false, '8 dias');
+  assert.equal(bad({ days: ['2026-02-30'] }), false, 'dia que não existe');
+  assert.equal(bad({ from: 20, to: 20 }), false, 'faixa vazia');
+  assert.equal(bad({ to: 25 }), false, 'hora que não existe');
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'finder_mark', finder, slots: [19, 43] })), { fn: 'finder_mark', args: { target: finder, marked: [19, 43] } });
+  assert.equal(networkAction.safeParse({ action: 'finder_mark', finder, slots: [168] }).success, false, 'fora da semana');
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'finder_manage', finder, day: '2026-10-15', hour: 19 })),
+    { fn: 'finder_manage', args: { target: finder, pick_day: '2026-10-15', pick_hour: 19, remove: false } });
+  assert.deepEqual(networkCall(networkAction.parse({ action: 'finder_manage', finder, remove: true })).args, { target: finder, pick_day: null, pick_hour: null, remove: true });
+  assert.equal(networkAction.safeParse({ action: 'finder_manage', finder }).success, false, 'escolher sem dia e hora');
+  assert.deepEqual(networkRead(new URLSearchParams(`finders=${space}`)), { fn: 'space_finders', args: { target: space } });
+  assert.equal(networkRead(new URLSearchParams('finders=x')), null);
+});

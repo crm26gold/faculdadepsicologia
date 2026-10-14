@@ -1,13 +1,14 @@
 'use client';
 import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowDown, ArrowLeft, ArrowUp, CalendarPlus, Check, ClipboardCopy, FileText, MessageSquare, Pencil, Plus, Printer, RotateCcw, Send, Trash2, UserRound } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, CalendarPlus, Check, ClipboardCopy, Dices, FileText, MessageSquare, Pencil, Plus, Printer, RotateCcw, Send, Trash2, UserRound } from 'lucide-react';
 import { Modal } from '../modal';
 import { api, formatDay } from './client';
 import { DocView } from './doc-view';
 import { docFonts, statusLabels, type AssignmentDetail, type DocStyle, type Part } from '@/lib/community';
 import { docIsEmpty, docToHtml, escapeHtml, sanitizeDoc, wordCount, type PartDoc } from '@/lib/doc';
 import type { AgendaAssignment, AgendaLink } from '@/lib/assignment-agenda';
+import { distribute } from '@/lib/draw';
 
 const PartEditor = dynamic(() => import('./part-editor'), { ssr: false, loading: () => <p className="muted">Abrindo editor…</p> });
 
@@ -30,6 +31,7 @@ export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda, onMov
   const [draft, setDraft] = useState<PartDoc | null>(null);
   const [dirty, setDirty] = useState(false);
   const [editing, setEditing] = useState<'assignment' | 'new-part' | Part | null>(null);
+  const [draw, setDraw] = useState<{ part: Part; person: string }[] | null>(null);
 
   const load = useCallback(async () => {
     try { setDetail(await api<AssignmentDetail>(`/api/work?id=${id}`)); setError(''); }
@@ -84,6 +86,32 @@ export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda, onMov
     const a = Math.min(1000, index + step), b = Math.min(1000, index);
     await run({ action: 'update_part', part: item.id, title: item.title, assignee: item.assignee_id, label: item.assignee_label, position: a }, 'Ordem atualizada.');
     await run({ action: 'update_part', part: other.id, title: other.title, assignee: other.assignee_id, label: other.assignee_label, position: b }, 'Ordem atualizada.');
+  }
+
+  // Sortear quem faz: só as partes sem ninguém, entre quem é do grupo (sem professores); quem já tem parte conta.
+  const openParts = (detail?.parts ?? []).filter(item => !item.assignee_id && !item.assignee_label && item.status !== 'approved');
+  const drawPeople = members.filter(person => person.role !== 'teacher' && person.role !== 'assistant').map(person => person.user_id);
+  function drawParts() {
+    const load = new Map(drawPeople.map(person => [person, (detail?.parts ?? []).filter(item => item.assignee_id === person).length]));
+    setDraw(distribute(openParts, drawPeople, undefined, load).map(item => ({ part: item.task, person: item.person })));
+  }
+  // Antes de salvar, confere de novo: a parte que outra pessoa mudou nesse meio-tempo fica como está.
+  async function confirmDraw() {
+    if (!draw) return;
+    setBusy(true); setMessage('');
+    let saved = 0, skipped = 0;
+    try {
+      const fresh = await api<AssignmentDetail>(`/api/work?id=${id}`);
+      for (const item of draw) {
+        const now = fresh.parts.find(other => other.id === item.part.id);
+        if (!now || now.assignee_id || now.assignee_label || now.status === 'approved' || now.title !== item.part.title || now.position !== item.part.position) { skipped++; continue; }
+        await api('/api/work', { action: 'update_part', part: now.id, title: now.title, assignee: item.person, label: '', position: now.position });
+        saved++;
+      }
+      setDraw(null);
+      setMessage(skipped ? `${saved} ${saved === 1 ? 'parte sorteada' : 'partes sorteadas'}. ${skipped} mudou nesse meio-tempo e ficou como estava.` : 'Partes sorteadas. Cada pessoa já vê a sua.');
+    } catch (reason) { setMessage(`${reason instanceof Error ? reason.message : 'Não foi possível salvar o sorteio.'}${saved ? ` ${saved} já ${saved === 1 ? 'foi salva' : 'foram salvas'}.` : ''}`); }
+    finally { await load(); onChanged(); setBusy(false); }
   }
 
   if (error) return <section className="cm-page"><button className="text-button" onClick={onBack}><ArrowLeft size={14} /> Voltar</button><div className="error-banner" role="alert">{error}</div></section>;
@@ -154,6 +182,8 @@ export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda, onMov
         </div>)}
         {!detail.parts.length && <p className="muted">Nenhuma parte ainda.{canLead ? ' Divida o trabalho em partes e escolha quem faz cada uma.' : ''}</p>}
         {canLead && <button className="button outline full-width" onClick={() => setEditing('new-part')}><Plus size={16} aria-hidden="true" />Nova parte</button>}
+        {canLead && openParts.length > 0 && drawPeople.length > 0 && <button className="button outline full-width" disabled={busy} onClick={drawParts}>
+          <Dices size={16} aria-hidden="true" />Sortear quem faz ({openParts.length} sem responsável)</button>}
       </aside>
 
       <div className="cm-part-panel">
@@ -195,6 +225,14 @@ export function AssignmentView({ id, me, onBack, onChanged, onAddToAgenda, onMov
 
     {tab === 'final' && <FinalDocument detail={detail} assigneeName={assigneeName} />}
 
+    {draw && <Modal title="Sortear quem faz cada parte" onClose={() => setDraw(null)}><div className="entry-form">
+      <p className="muted small">Só as partes sem responsável entram. Quem já tem parte recebe menos, para ficar justo. Confira e confirme.</p>
+      <ul className="cm-draw">{draw.map(item => <li key={item.part.id}><strong>{item.part.title}</strong><span>{nameOf(item.person)}</span></li>)}</ul>
+      <div className="form-footer">
+        <button type="button" className="button outline" disabled={busy} onClick={drawParts}><Dices size={16} aria-hidden="true" />Sortear de novo</button>
+        <button type="button" className="button primary" disabled={busy} onClick={() => void confirmDraw()}><Check size={16} aria-hidden="true" />Confirmar</button>
+      </div>
+    </div></Modal>}
     {editing === 'assignment' && <AssignmentForm title="Editar trabalho" initial={assignment} busy={busy} onClose={() => setEditing(null)} onDelete={async () => {
       if (!window.confirm('Excluir este trabalho, todas as partes e comentários? Isso não pode ser desfeito.')) return;
       if (await run({ action: 'delete_assignment', assignment: assignment.id }, 'Trabalho excluído.')) { setEditing(null); onBack(); }

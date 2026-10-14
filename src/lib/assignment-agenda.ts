@@ -29,3 +29,13 @@ export function linkAssignment(data: Workspace, assignment: AgendaAssignment, ne
 
 export const moveAgendaTask = (data: Workspace, taskId: string, due: string): Workspace =>
   ({ ...data, tasks: data.tasks.map(task => task.id === taskId ? { ...task, date: due } : task) });
+
+// Um horário marcado no grupo, na agenda de quem quiser: um compromisso só por título, dia e hora.
+export type AgendaMeeting = { title: string; date: string; time: string };
+export function addMeeting(data: Workspace, meeting: AgendaMeeting, newId: string): { data: Workspace; added: boolean; task: Task } {
+  const title = meeting.title.slice(0, 160);
+  const found = data.tasks.find(task => task.title === title && task.date === meeting.date && task.time === meeting.time);
+  if (found) return { data, added: false, task: found };
+  const task: Task = { id: newId, title, subjectId: '', date: meeting.date, time: meeting.time, kind: 'Compromisso', done: false, minutes: 60 };
+  return { data: { ...data, tasks: [...data.tasks, task] }, added: true, task };
+}

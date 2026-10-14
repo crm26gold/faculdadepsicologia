@@ -1056,6 +1056,41 @@ input.note-title-input { font-size: clamp(1.4rem, 2vw, 2rem); letter-spacing: -.
 .tb-places span { display: flex; flex-direction: column; }
 .tb-places small { color: var(--muted); font-size: .78rem; }
 
+/* Achar horário em comum: a grade (dias × horas) com a cor de quantos podem. */
+.tf { display: flex; flex-direction: column; gap: 10px; }
+.tf .section-heading { margin: 0; }
+.tf .small-heading { display: inline-flex; align-items: center; gap: 6px; margin: 0; }
+.tf-card { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.tf-card > div { display: flex; flex-direction: column; gap: 2px; min-inline-size: 0; }
+.tf-card strong { overflow-wrap: anywhere; }
+.tf-card small { color: var(--muted); font-size: .8rem; }
+.tf-chosen { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0 0; color: var(--ok-text); font-weight: 600; }
+.tf-chosen.big { padding: 12px; border-radius: 12px; background: var(--ok-bg); }
+.tf-body { display: flex; flex-direction: column; gap: 12px; }
+.tf-grid { display: grid; gap: 3px; overflow-x: auto; }
+.tf-day { display: grid; place-items: center; min-block-size: 40px; padding: 0 2px; border: 1px solid transparent; border-radius: 8px; background: none; color: var(--ink); font: inherit; font-size: .74rem; font-weight: 700; text-align: center; }
+button.tf-day[aria-pressed="true"] { border-color: var(--accent-text); color: var(--accent-text); }
+.tf-hour { display: grid; place-items: center end; padding-inline-end: 6px; color: var(--muted); font-size: .74rem; }
+.tf-cell { display: grid; place-items: center; min-block-size: 40px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--surface); }
+.tf-cell.lv1 { background: color-mix(in srgb, var(--green) 22%, var(--surface)); color: var(--ink); }
+.tf-cell.lv2 { background: color-mix(in srgb, var(--green) 45%, var(--surface)); color: var(--ink); }
+.tf-cell.lv3 { background: color-mix(in srgb, var(--green) 70%, var(--surface)); }
+.tf-cell.lv4 { background: var(--green); }
+.tf-cell.lv0 { color: var(--ink); }
+.tf-cell[aria-pressed="true"] { outline: 2px solid var(--accent-text); outline-offset: -3px; }
+.tf-cell.chosen { outline: 3px solid var(--ok-text); outline-offset: -3px; }
+.tf-best { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.tf-best li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.tf-best span { display: flex; flex-direction: column; min-inline-size: 0; }
+.tf-best small { color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
+
+/* Sortear. */
+.draw-result { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 14px; background: var(--soft-bg); }
+.draw-result ul { margin: 0; padding-inline-start: 18px; display: flex; flex-direction: column; gap: 4px; }
+.cm-draw { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.cm-draw li { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-radius: 10px; background: var(--soft-bg); }
+.cm-draw span { color: var(--accent-text); font-weight: 600; }
+
 /* Conquistas no perfil. */
 .ach { display: flex; flex-direction: column; gap: 12px; }
 .ach-owner { display: flex; flex-direction: column; gap: 4px; }
