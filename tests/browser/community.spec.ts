@@ -272,7 +272,7 @@ test('Networking: perfil primeiro, criar grupo do jeito da pessoa e entrar pela 
   const form = page.getByRole('region', { name: 'Criar grupo' });
   await form.getByLabel('Nome do grupo').fill('Corrida da turma');
   await form.getByRole('button', { name: 'Desafio' }).click();
-  await expect(form.getByLabel(/Check-in diário/)).toBeChecked();
+  await expect(form.getByLabel(/^Desafios/)).toBeChecked();
   await form.getByLabel('#Temas · opcional, até 5').fill('#Corrida, saúde #corrida');
   await form.getByLabel(/Todos do Networking/).check();
   await form.getByLabel('Pedido com aprovação').check();
@@ -1873,4 +1873,144 @@ test('conversa do grupo: mensagens novas, responder, foto, apagar, denunciar e s
   await page.setViewportSize({ width: 1280, height: 900 }); await settleAnimations(page);
   await log.evaluate(element => { element.scrollTop = element.scrollHeight; });
   await page.screenshot({ path: 'test-results/conversa-desktop.png' });
+});
+
+test('desafios: Meu dia marca o dia, o grupo cria e acompanha, o feed dá força e a medalha vai para Conquistas', async ({ page }) => {
+  const CH1 = 'cdcdcdcd-0000-4000-8000-000000000001', CH2 = 'cdcdcdcd-0000-4000-8000-000000000002', CH3 = 'cdcdcdcd-0000-4000-8000-000000000003';
+  const MS = 'eeeeeeee-0000-4000-8000-0000000000b1', MEDAL = 'cdcdcdcd-0000-4000-8000-0000000000aa';
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const me = { id: ME, name: 'Pessoa Teste', avatar: { kind: 'initials', value: '', photo: null } };
+  const today = spDay(), recent = [-6, -5, -4, -3, -2, -1, 0].map(offset => ({ day: spDay(offset), done: offset > -6 && offset < 0, rest: false }));
+  const card = (extra: Record<string, unknown>) => ({ id: CH1, title: 'Ler todo dia', description: 'Qualquer livro vale.', kind: 'feito', unit: '', goal: null,
+    starts_on: spDay(-10), ends_on: spDay(19), rest_days: [], today, state: 'active', creator: ana, can_manage: false, people: 4,
+    done_today: { count: 1, people: [ana] }, progress: 0.72,
+    me: { streak: 5, done_days: 9, required: 11, today: null, yesterday: { amount: null, done: true }, recent, medal: false }, ...extra });
+  const water = card({ id: CH2, title: 'Beber água', description: '', kind: 'quantidade', unit: 'copos', goal: 8, can_manage: true, creator: me,
+    me: { streak: 2, done_days: 2, required: 3, today: { amount: 3, done: false }, yesterday: { amount: 8, done: true }, recent: recent.slice(4), medal: false } });
+  const ended = card({ id: CH3, title: 'Caminhar 3 km', state: 'ended', starts_on: spDay(-40), ends_on: spDay(-11), done_today: { count: 0, people: [] }, progress: 0.8,
+    me: { streak: 0, done_days: 27, required: 30, today: null, yesterday: null, recent: [], medal: true } });
+  const milestone = { id: MS, author: ana, body: '7 dias seguidos em “Ler todo dia” 🔥', style: 'milestone', audience: 'group', topics: [], created_at: new Date().toISOString(),
+    space: { id: G1, name: 'Ética · Grupo 1' }, counts: { gostei: 0, util: 0, forca: 2 }, mine: [], photos: [], expires_at: null,
+    milestone: { challenge: CH1, title: 'Ler todo dia', days: 7 } };
+  const medal = { id: MEDAL, kind: 'medal', title: 'Caminhar 3 km', created_at: new Date().toISOString(), audience: 'private',
+    detail: { kind: 'feito', days: 30, done: 27, space: 'Ética · Grupo 1', starts_on: spDay(-40), ends_on: spDay(-11) } };
+  const profile = { ...me, bio: '', closed: false, is_me: true, discoverable: true, show_follows: true, status: 'none', follows_me: false, requested_me: false, followers: 4, following: 2, posts: [] };
+  const posted = await mockApi(page, {
+    onPost: ({ body }) => {
+      if (body.action === 'challenge_checkin') return body.challenge === CH2 ? { ...water, me: { ...water.me, today: { amount: body.amount, done: Number(body.amount) >= 8 } } }
+        : card({ me: { ...card({}).me, streak: 6, today: { amount: null, done: !!body.done } }, done_today: { count: 2, people: [ana, me] } });
+      if (body.action === 'challenge_create') return card({ id: 'cdcdcdcd-0000-4000-8000-000000000009', title: String(body.title), state: 'soon', starts_on: String(body.start),
+        rest_days: body.rest, people: 1, progress: 0, done_today: { count: 0, people: [] }, can_manage: true,
+        me: { streak: 0, done_days: 0, required: 0, today: null, yesterday: null, recent: [], medal: false } });
+      if (body.action === 'challenge_manage') return { ...water, state: 'cancelled' };
+      if (body.action === 'react') return true;
+      return null;
+    },
+    network: url => {
+      const query = url.searchParams;
+      if (query.get('challenges') === 'today') return [
+        { id: CH1, title: 'Ler todo dia', kind: 'feito', unit: '', goal: null, space: { id: G1, name: 'Ética · Grupo 1' }, rest: false, amount: null, done: false, streak: 5 },
+        { id: CH2, title: 'Beber água', kind: 'quantidade', unit: 'copos', goal: 8, space: { id: G1, name: 'Ética · Grupo 1' }, rest: false, amount: 3, done: false, streak: 2 }];
+      if (query.get('challenges') === G1) return [card({}), water, ended];
+      if (query.get('feed') === 'space') return [milestone];
+      if (query.get('achievements') === ME) return { shown: true, items: [medal] };
+      if (query.get('person') === ME) return profile;
+      return [];
+    } });
+  await page.route(/\/api\/spaces\?id=/, route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: {
+    ...groupOverview, space: { ...groupOverview.space, tools: ['conversa', 'checkin', 'mural'] } } }) }));
+  page.on('dialog', dialog => void dialog.accept());
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+
+  // Meu dia: "Fiz hoje" num toque; a quantidade vai com o número.
+  const today1 = page.getByRole('region', { name: 'Desafios de hoje' });
+  await expect(today1).toContainText('Ler todo dia');
+  await expect(today1).toContainText('🔥 5 dias');
+  await today1.getByRole('button', { name: 'Fiz hoje' }).click();
+  await expect(today1.getByRole('button', { name: 'Fiz hoje' })).toHaveAttribute('aria-pressed', 'true');
+  expect(posted.find(item => item.body.action === 'challenge_checkin')?.body).toEqual({ action: 'challenge_checkin', challenge: CH1, day: today, done: true, amount: null });
+  await expect(today1).toContainText('🔥 6 dias');
+  await today1.getByLabel(/Quanto você fez hoje/).fill('8');
+  await today1.getByRole('button', { name: 'Salvar' }).click();
+  await expect(today1).toContainText('Meta do dia cumprida.');
+  expect(posted.filter(item => item.body.action === 'challenge_checkin')[1].body).toEqual({ action: 'challenge_checkin', challenge: CH2, day: today, done: true, amount: 8 });
+  await page.screenshot({ path: 'test-results/desafios-meu-dia-mobile.png' });
+
+  // Do Meu dia, o nome leva direto à aba Desafios do grupo.
+  await today1.getByRole('button', { name: /Ler todo dia/ }).click();
+  await expect(page.getByRole('tab', { name: 'Desafios' })).toHaveAttribute('aria-selected', 'true');
+  const reading = page.getByRole('article', { name: 'Desafio Ler todo dia' });
+  await expect(reading).toContainText('5 dias seguidos');
+  await expect(reading).toContainText('9 de 11 dias');
+  await expect(reading).toContainText('Colega Ana já fez hoje');
+  await expect(reading.getByRole('progressbar', { name: 'Dias cumpridos pelo grupo' })).toHaveAttribute('aria-valuenow', '72');
+  await expect(page.getByRole('article', { name: 'Desafio Caminhar 3 km' })).toContainText('Você ganhou a medalha deste desafio');
+  await page.screenshot({ path: 'test-results/desafios-grupo-mobile.png', fullPage: true });
+
+  // Encerrar pede confirmação e acaba sem medalha.
+  const waterCard = page.getByRole('article', { name: 'Desafio Beber água' });
+  await waterCard.getByRole('button', { name: 'Encerrar' }).click();
+  await expect(waterCard).toContainText('Cancelado');
+  expect(posted.find(item => item.body.action === 'challenge_manage')?.body).toEqual({ action: 'challenge_manage', challenge: CH2, cancel: true });
+
+  // Criar: quantidade com meta, começo, duração e dias de descanso.
+  await page.getByRole('button', { name: 'Novo desafio' }).click();
+  const form = page.getByRole('dialog', { name: 'Novo desafio' });
+  await form.getByLabel('Nome do desafio').fill('Correr junto');
+  await form.getByRole('button', { name: 'Quantidade' }).click();
+  await form.getByLabel('Meta por dia').fill('3,5');
+  await form.getByLabel('Unidade').fill('km');
+  await form.getByRole('button', { name: '21 dias' }).click();
+  await form.getByRole('button', { name: 'Dom' }).click();
+  await form.getByRole('button', { name: 'Sáb' }).click();
+  await expect(form).toContainText('Você já entra participando');
+  expect((await new AxeBuilder({ page }).include('.modal').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/desafios-criar-mobile.png' });
+  await form.getByRole('button', { name: 'Criar desafio' }).click();
+  await expect(page.getByRole('article', { name: 'Desafio Correr junto' })).toBeVisible();
+  expect(posted.find(item => item.body.action === 'challenge_create')?.body).toEqual({ action: 'challenge_create', space: G1, title: 'Correr junto', description: '',
+    kind: 'quantidade', unit: 'km', goal: 3.5, start: today, days: 21, rest: [0, 6] });
+
+  expect((await new AxeBuilder({ page }).include('.cm-stack').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await settleAnimations(page);
+  expect((await new AxeBuilder({ page }).include('.cm-stack').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/desafios-grupo-mobile-escuro.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'));
+  await settleAnimations(page);
+
+  // No mural, o marco dos 7 dias leva "Dar força" no lugar de "Útil".
+  await page.getByRole('tab', { name: /Mural/ }).click();
+  const post = page.getByRole('article', { name: 'Publicação de Colega Ana' });
+  await expect(post).toContainText('7 dias seguidos');
+  await expect(post.getByRole('button', { name: /Útil/ })).toHaveCount(0);
+  await post.getByRole('button', { name: /Dar força/ }).click();
+  await expect(post.getByRole('button', { name: 'Dar força · 3' })).toHaveAttribute('aria-pressed', 'true');
+  expect(posted.find(item => item.body.action === 'react')?.body).toEqual({ action: 'react', post: MS, kind: 'forca' });
+  expect((await new AxeBuilder({ page }).include('.nw-post').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/desafios-marco-mobile.png' });
+
+  // Conquistas: a aba aparece com a medalha; cada medalha escolhe quem vê; como visitante, "Só eu" some.
+  await page.getByRole('button', { name: 'Meu perfil' }).first().click();
+  await page.getByRole('button', { name: 'Conquistas' }).click();
+  await expect(page.getByText('Caminhar 3 km')).toBeVisible();
+  await expect(page.getByText(/27 de 30 dias · Ética · Grupo 1/)).toBeVisible();
+  const audience = page.getByRole('group', { name: 'Quem vê a medalha Caminhar 3 km' });
+  await expect(audience.getByRole('button', { name: 'Só eu' })).toHaveAttribute('aria-pressed', 'true');
+  await page.screenshot({ path: 'test-results/conquistas-mobile.png' });
+  await page.getByRole('button', { name: 'Ver como visitante' }).click();
+  await expect(page.getByRole('button', { name: 'Conquistas' })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Sair da visualização' }).click();
+  await page.getByRole('button', { name: 'Conquistas' }).click();
+  await page.getByRole('group', { name: 'Quem vê a medalha Caminhar 3 km' }).getByRole('button', { name: 'Público' }).click();
+  await expect(page.getByRole('group', { name: 'Quem vê a medalha Caminhar 3 km' }).getByRole('button', { name: 'Público' })).toHaveAttribute('aria-pressed', 'true');
+  expect(posted.find(item => item.body.action === 'achievement_audience')?.body).toEqual({ action: 'achievement_audience', achievement: MEDAL, audience: 'public' });
+  expect((await new AxeBuilder({ page }).include('.ach').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'));
+  await settleAnimations(page);
+  expect((await new AxeBuilder({ page }).include('.ach').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/conquistas-mobile-escuro.png' });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

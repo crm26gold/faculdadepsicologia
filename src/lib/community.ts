@@ -34,10 +34,10 @@ export const groupTools = ['mural', 'enquetes', 'partes', 'encontros', 'conversa
 export type GroupTool = typeof groupTools[number];
 export const toolLabels: Record<GroupTool, string> = {
   mural: 'Mural', enquetes: 'Enquetes', partes: 'Trabalho dividido em partes', encontros: 'Encontros e chamada',
-  conversa: 'Conversa', material: 'Material do grupo', checkin: 'Check-in diário', placar: 'Placar',
+  conversa: 'Conversa', material: 'Material do grupo', checkin: 'Desafios', placar: 'Placar',
 };
 /** Ferramentas que ainda não existem ficam guardadas e aparecem quando chegarem. */
-export const readyTools: readonly GroupTool[] = ['conversa', 'mural', 'enquetes', 'partes', 'encontros'];
+export const readyTools: readonly GroupTool[] = ['conversa', 'checkin', 'mural', 'enquetes', 'partes', 'encontros'];
 export const templateTools: Record<GroupTemplate, GroupTool[]> = {
   estudo: ['mural', 'enquetes', 'conversa', 'material'], trabalho: ['partes', 'encontros', 'conversa'],
   desafio: ['conversa', 'checkin', 'placar'], saude: ['mural', 'conversa', 'checkin'], livre: ['conversa'],

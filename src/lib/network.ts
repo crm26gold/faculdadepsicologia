@@ -11,13 +11,17 @@ export const styleLabels: Record<PostStyle, string> = {
 export const audiences = ['followers', 'public', 'group', 'private'] as const;
 export type Audience = typeof audiences[number];
 export const audienceLabels: Record<Audience, string> = { followers: 'Seguidores', public: 'Todos', group: 'Um grupo', private: 'Só eu' };
-export type Reaction = 'gostei' | 'util';
+/** "Dar força" (forca) só nos marcos dos desafios; "Útil" só nas publicações comuns; "Gostei" em tudo. */
+export type Reaction = 'gostei' | 'util' | 'forca';
 
 export type Person = { id: string; name: string; avatar: Avatar | null; bio?: string };
 export type Photo = { id: string; w: number; h: number; alt?: string };
+/** Marco de desafio publicado pelo app no grupo: dias seguidos (7, 15, 30) ou 0, quando concluiu. */
+export type Milestone = { challenge: string; title: string; days: number; done?: number; of?: number };
 export type NetworkPost = {
-  id: string; author: Person; body: string; style: PostStyle; audience: Audience; topics: string[]; created_at: string;
-  space: { id: string; name: string } | null; counts: Record<Reaction, number>; mine: Reaction[];
+  id: string; author: Person; body: string; style: PostStyle | 'milestone'; audience: Audience; topics: string[]; created_at: string;
+  space: { id: string; name: string } | null; counts: Record<'gostei' | 'util', number> & { forca?: number }; mine: Reaction[];
+  milestone?: Milestone | null;
   photos: Photo[]; expires_at: string | null; highlight?: string | null; saved?: boolean; saved_at?: string;
 };
 export type Highlight = { title: string; stories: NetworkPost[] };
@@ -30,7 +34,7 @@ export type PersonProfile = Person & {
   blocked?: boolean;
 };
 export type NetworkEvent = {
-  id: number; kind: 'follow' | 'follow_request' | 'follow_accepted' | Reaction | 'join_request' | 'join_approved';
+  id: number; kind: 'follow' | 'follow_request' | 'follow_accepted' | Reaction | 'join_request' | 'join_approved' | 'medal';
   created_at: string; read: boolean; actor: Person | null; post: { id: string; body: string } | null; space: { id: string; name: string } | null;
 };
 export type Updates = { requests: Person[]; events: NetworkEvent[] };
@@ -41,6 +45,7 @@ export const reasonLabels: Record<typeof reportReasons[number], string> = {
 export const eventText: Record<NetworkEvent['kind'], string> = {
   follow: 'começou a seguir você', follow_request: 'pediu para seguir você', follow_accepted: 'aceitou seu pedido para seguir',
   gostei: 'gostou da sua publicação', util: 'achou útil sua publicação', join_request: 'pediu para entrar no grupo', join_approved: 'aceitou você no grupo',
+  forca: 'deu força na sua conquista', medal: 'concluiu um desafio e ganhou uma medalha',
 };
 
 /** Conversa do grupo: a mensagem como a tela mostra, e uma página da conversa. */
@@ -62,6 +67,31 @@ export type ChatPage = {
   moderator: boolean; open: boolean; muted: boolean; photo_days: number | null;
 };
 
+/** Desafios do grupo e conquistas. Os dias são datas de São Paulo (AAAA-MM-DD); domingo = 0. */
+export type ChallengeKind = 'feito' | 'quantidade';
+export type ChallengeDay = { amount: number | null; done: boolean };
+export type Challenge = {
+  id: string; title: string; description: string; kind: ChallengeKind; unit: string; goal: number | null;
+  starts_on: string; ends_on: string; rest_days: number[]; today: string;
+  state: 'active' | 'soon' | 'ended' | 'cancelled'; creator: Person | null; can_manage: boolean;
+  people: number; done_today: { count: number; people: Person[] }; progress: number;
+  me: null | { streak: number; done_days: number; required: number; today: ChallengeDay | null; yesterday: ChallengeDay | null;
+    recent: { day: string; done: boolean; rest: boolean }[]; medal: boolean };
+};
+export type TodayChallenge = {
+  id: string; title: string; kind: ChallengeKind; unit: string; goal: number | null; space: { id: string; name: string };
+  rest: boolean; amount: number | null; done: boolean; streak: number;
+};
+export const achievementAudiences = ['private', 'followers', 'public'] as const;
+export type AchievementAudience = typeof achievementAudiences[number];
+export const achievementAudienceLabels: Record<AchievementAudience, string> = { private: 'Só eu', followers: 'Seguidores', public: 'Público' };
+export type Achievement = {
+  id: string; kind: 'medal'; title: string; created_at: string; audience?: AchievementAudience | null;
+  detail: { kind?: ChallengeKind; unit?: string; goal?: number | null; days?: number; done?: number; space?: string; starts_on?: string; ends_on?: string };
+};
+export type Achievements = { shown: boolean; items: Achievement[] };
+export const weekdayShort = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
+
 /** Uma notificação por conversa: quem escreveu por último, o trecho e quantas chegaram. */
 export type ChatPush = { space: string; group: string; count: number; author: string | null; excerpt: string; photo: boolean };
 export function chatPush(item: ChatPush) {
@@ -78,7 +108,9 @@ export function networkPush(events: PushEvent[]) {
   const cut = first.post?.slice(0, 60) ?? '', end = cut.lastIndexOf(' ');
   // O trecho para numa palavra inteira.
   const post = !first.post ? '' : first.post.length <= 60 ? first.post : `${(end > 40 ? cut.slice(0, end) : cut).trimEnd()}…`;
-  const line = `${first.actor || 'Alguém'} ${eventText[first.kind]}${first.space ? ` ${first.space}` : ''}${post ? `: “${post}”` : ''}`;
+  // A medalha é da própria pessoa: o texto fala com ela.
+  const line = first.kind === 'medal' ? `🏅 Você concluiu um desafio${first.space ? ` em ${first.space}` : ''} e ganhou uma medalha`
+    : `${first.actor || 'Alguém'} ${eventText[first.kind]}${first.space ? ` ${first.space}` : ''}${post ? `: “${post}”` : ''}`;
   const more = events.length - 1;
   return { title: 'Networking', body: more ? `${line} e mais ${more} ${more === 1 ? 'novidade' : 'novidades'}` : line };
 }
@@ -102,6 +134,7 @@ const photo = z.object({ data: z.string().max(PHOTO_LIMIT / 3 * 4 + 4), mime: z.
   .refine(value => photoOk(value.data, value.mime), 'Use uma foto JPG ou WebP de até 300 KB.');
 
 const id = z.uuid();
+const dayText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida.');
 export const networkAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('create_post'), body: z.string().trim().max(2200), style: z.enum(postStyles).default('text'),
     audience: z.enum(audiences).default('followers'), space: id.nullable().default(null),
@@ -110,7 +143,7 @@ export const networkAction = z.discriminatedUnion('action', [
     .refine(value => value.body || value.photos.length, 'Escreva alguma coisa ou escolha uma foto.')
     .refine(value => !value.story || (value.photos.length <= 1 && value.audience !== 'private'), 'O story leva uma foto e não pode ser só para você.'),
   z.object({ action: z.literal('delete_post'), post: id }),
-  z.object({ action: z.literal('react'), post: id, kind: z.enum(['gostei', 'util']) }),
+  z.object({ action: z.literal('react'), post: id, kind: z.enum(['gostei', 'util', 'forca']) }),
   z.object({ action: z.literal('save'), post: id }),
   z.object({ action: z.literal('block'), person: id, blocking: z.boolean() }),
   z.object({ action: z.literal('report'), person: id, post: id.nullable().default(null), message: id.nullable().default(null), reason: z.enum(reportReasons),
@@ -120,6 +153,20 @@ export const networkAction = z.discriminatedUnion('action', [
     .refine(value => value.body || value.photo, 'Escreva alguma coisa ou escolha uma foto.'),
   z.object({ action: z.literal('delete_message'), message: id }),
   z.object({ action: z.literal('mute_group'), space: id, muted: z.boolean() }),
+  z.object({ action: z.literal('challenge_create'), space: id, title: z.string().trim().min(1, 'Dê um nome ao desafio.').max(120, 'O nome vai até 120 letras.'),
+    description: z.string().trim().max(1000, 'A descrição vai até 1.000 letras.').default(''), kind: z.enum(['feito', 'quantidade']),
+    unit: z.string().trim().max(20, 'A unidade vai até 20 letras.').default(''), goal: z.number().positive().max(100000).nullable().default(null),
+    start: dayText, days: z.number().int().min(3, 'O desafio dura pelo menos 3 dias.').max(365, 'O desafio dura até 365 dias.'),
+    rest: z.array(z.number().int().min(0).max(6)).max(3, 'Até 3 dias de descanso por semana.').transform(value => [...new Set(value)]).default([]) })
+    .refine(value => value.kind === 'feito' || (value.goal && value.unit), 'Diga a meta do dia e a unidade (páginas, km, copos…).'),
+  z.object({ action: z.literal('challenge_manage'), challenge: id, title: z.string().trim().max(120, 'O nome vai até 120 letras.').default(''),
+    description: z.string().trim().max(1000, 'A descrição vai até 1.000 letras.').default(''), cancel: z.boolean().default(false) })
+    .refine(value => value.cancel || value.title, 'Dê um nome ao desafio.'),
+  z.object({ action: z.literal('challenge_join'), challenge: id, joining: z.boolean() }),
+  z.object({ action: z.literal('challenge_checkin'), challenge: id, day: dayText, done: z.boolean(),
+    amount: z.number().positive('Diga quanto fez.').max(100000).nullable().default(null) }),
+  z.object({ action: z.literal('achievement_audience'), achievement: id, audience: z.enum(achievementAudiences) }),
+  z.object({ action: z.literal('show_achievements'), shown: z.boolean() }),
   z.object({ action: z.literal('keep_story'), post: id, title: z.string().trim().max(30, 'O título do destaque vai até 30 letras.') }),
   z.object({ action: z.literal('follow'), person: id }),
   z.object({ action: z.literal('unfollow'), person: id }),
@@ -144,6 +191,14 @@ export function networkCall(body: NetworkAction): DbCall {
     case 'send_message': return { fn: 'send_message', args: { target: body.space, message_body: body.body, reply: body.reply, photo: body.photo } };
     case 'delete_message': return { fn: 'delete_message', args: { target: body.message } };
     case 'mute_group': return { fn: 'mute_space', args: { target: body.space, muted: body.muted } };
+    case 'challenge_create': return { fn: 'challenge_create', args: { target: body.space, challenge_title: body.title, challenge_details: body.description,
+      challenge_kind: body.kind, unit_name: body.kind === 'quantidade' ? body.unit : '', goal: body.kind === 'quantidade' ? body.goal : null,
+      start_day: body.start, duration: body.days, rest: body.rest } };
+    case 'challenge_manage': return { fn: 'challenge_manage', args: { target: body.challenge, challenge_title: body.title, challenge_details: body.description, cancel: body.cancel } };
+    case 'challenge_join': return { fn: 'challenge_join', args: { target: body.challenge, joining: body.joining } };
+    case 'challenge_checkin': return { fn: 'challenge_checkin', args: { target: body.challenge, which_day: body.day, done: body.done, how_much: body.amount } };
+    case 'achievement_audience': return { fn: 'achievement_audience', args: { target: body.achievement, next_audience: body.audience } };
+    case 'show_achievements': return { fn: 'show_achievements', args: { shown: body.shown } };
     case 'keep_story': return { fn: 'keep_story', args: { target: body.post, title: body.title } };
     case 'follow': return { fn: 'follow_person', args: { target: body.person } };
     case 'unfollow': return { fn: 'unfollow_person', args: { target: body.person } };
@@ -153,7 +208,8 @@ export function networkCall(body: NetworkAction): DbCall {
   }
 }
 
-/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos, bloqueados, listas e conversa do grupo. Null quando o pedido não faz sentido. */
+/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos, bloqueados, listas, conversa do grupo,
+ * desafios e conquistas. Null quando o pedido não faz sentido. */
 export function networkRead(params: URLSearchParams): DbCall | null {
   const uuid = (value: string | null) => id.safeParse(value).success ? value : null;
   const raw = params.get('before');
@@ -169,6 +225,12 @@ export function networkRead(params: URLSearchParams): DbCall | null {
   if (params.get('updates') === '1') return { fn: 'network_updates', args: {} };
   if (params.get('saved') === '1') return { fn: 'saved_feed', args: { before } };
   if (params.get('blocked') === '1') return { fn: 'my_blocks', args: {} };
+  if (params.has('challenges')) {
+    const which = params.get('challenges');
+    if (which === 'today') return { fn: 'my_challenges_today', args: {} };
+    const target = uuid(which); return target ? { fn: 'space_challenges', args: { target } } : null;
+  }
+  if (params.has('achievements')) { const target = uuid(params.get('achievements')); return target ? { fn: 'person_achievements', args: { target } } : null; }
   if (params.has('chat')) {
     const target = uuid(params.get('chat')), rawAfter = params.get('after');
     const after = rawAfter && !Number.isNaN(Date.parse(rawAfter)) && rawAfter.length <= 40 ? rawAfter : null;

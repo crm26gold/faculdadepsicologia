@@ -39,6 +39,7 @@ import { OAUTH_RETURN_KEY } from './oauth-consent';
 import type { Place } from '@/lib/notebooks';
 import { CommunityPanel, usePendingInvite, type CommunityRoute } from './community/community-panel';
 import { PersonAvatar } from './community/avatar';
+import { TodayChallenges } from './community/challenges';
 import { AppInvite } from './app-invite';
 import { SettingsIndex, settingsAvailable, settingsSections, settingsTitle, type SettingsSection } from './settings-index';
 import type { Updates } from '@/lib/network';
@@ -820,6 +821,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
                     {home.to_review.slice(0, 3).map(part => <li key={part.id}><button onClick={() => routeCommunity({ kind: 'work', id: part.assignment_id })}><span className="cm-status submitted">Revisar</span><strong>{part.title}</strong><small>{part.assignment_title}</small></button></li>)}
                   </ul>
                 </section>}
+                {cloud && home && <TodayChallenges onOpenSpace={id => routeCommunity({ kind: 'space', id, tab: 'challenges' })} />}
                 {cloud && upcomingBirthdays(contacts, today, 7).length > 0 && <section className="panel cm-today">
                   <div className="section-heading"><h2><Cake size={16} aria-hidden="true" /> Aniversários da semana</h2></div>
                   <ul className="cm-todo">{upcomingBirthdays(contacts, today, 7).map(({ contact, inDays }) => <li key={contact.id}><button onClick={() => navigate('contacts')}><span className="cm-status approved">{inDays === 0 ? 'Hoje!' : inDays === 1 ? 'Amanhã' : `em ${inDays} dias`}</span><strong>{contact.name}</strong><small>Mande um parabéns 🎉</small></button></li>)}</ul>
