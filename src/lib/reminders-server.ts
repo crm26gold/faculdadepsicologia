@@ -4,7 +4,7 @@ import { openKey } from '@/lib/ai/crypto';
 import { botServerSecret, vapidKeys } from '@/lib/bot/secrets';
 import { sendMessage } from '@/lib/bot/telegram';
 import { botDatabase } from '@/lib/supabase/bot';
-import { networkPush, type PushEvent } from './network';
+import { chatPush, networkPush, type ChatPush, type PushEvent } from './network';
 import { channelsFor, focusStopLink, reminderLink, reminderText, type ClaimedReminder, type Delivery, type ReminderChannel } from './reminders';
 
 type Env = Record<string, string | undefined>;
@@ -89,30 +89,46 @@ type Device = { endpoint: string; p256dh: string; auth: string };
 /** Networking pelo aviso principal: a notificação do app. Uma por pessoa a cada batida do relógio, que substitui a
  * anterior na bandeja (mesma etiqueta) e abre as Novidades. Silêncio, grupos silenciados e aviso desligado já vêm
  * filtrados pelo banco; Telegram e WhatsApp ficam só para os lembretes. */
+// Envia cada notificação para os aparelhos da pessoa; o aparelho que recusou (404/410) sai da lista.
+async function sendSoft(items: { devices: Device[] | null; payload: string }[], db: NonNullable<ReturnType<typeof botDatabase>>, secret: string, env: Env) {
+  const { publicKey, privateKey } = vapidKeys();
+  let sent = 0;
+  await Promise.all(items.flatMap(item => (item.devices ?? []).map(async device => {
+    try {
+      await webpush.sendNotification({ endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } }, item.payload,
+        { vapidDetails: { subject: appOrigin(env), publicKey, privateKey }, TTL: 3600, urgency: 'normal', timeout: TIMEOUT });
+      sent++;
+    } catch (error) {
+      const status = (error as { statusCode?: number }).statusCode;
+      if (status === 404 || status === 410) await db.rpc('push_drop', { server_secret: secret, old_endpoint: device.endpoint });
+    }
+  })));
+  return sent;
+}
+
 export async function dispatchNetwork(env: Env = process.env) {
   const db = botDatabase();
   if (!db) return 0;
   const secret = botServerSecret();
   // As chaves antes de marcar as novidades como avisadas: sem elas, nada se perde.
-  const { publicKey, privateKey } = vapidKeys();
+  vapidKeys();
   const claimed = await db.rpc('network_push_claim', { server_secret: secret, batch: 200 });
   if (claimed.error) throw new Error('Não consegui ler as novidades.');
   const people = (claimed.data ?? []) as { user: string; devices: Device[] | null; events: PushEvent[] }[];
-  if (!people.length) return 0;
   const url = `${appOrigin(env)}/?abrir=novidades`;
-  let sent = 0;
-  await Promise.all(people.map(async person => {
-    const payload = JSON.stringify({ ...networkPush(person.events), url, tag: 'jornada-rede', soft: true });
-    await Promise.all((person.devices ?? []).map(async device => {
-      try {
-        await webpush.sendNotification({ endpoint: device.endpoint, keys: { p256dh: device.p256dh, auth: device.auth } }, payload,
-          { vapidDetails: { subject: appOrigin(env), publicKey, privateKey }, TTL: 3600, urgency: 'normal', timeout: TIMEOUT });
-        sent++;
-      } catch (error) {
-        const status = (error as { statusCode?: number }).statusCode;
-        if (status === 404 || status === 410) await db.rpc('push_drop', { server_secret: secret, old_endpoint: device.endpoint });
-      }
-    }));
-  }));
-  return sent;
+  return sendSoft(people.map(person => ({ devices: person.devices,
+    payload: JSON.stringify({ ...networkPush(person.events), url, tag: 'jornada-rede', soft: true }) })), db, secret, env);
+}
+
+/** Conversa dos grupos: uma notificação por conversa, que substitui a anterior da mesma conversa e abre direto nela. */
+export async function dispatchChat(env: Env = process.env) {
+  const db = botDatabase();
+  if (!db) return 0;
+  const secret = botServerSecret();
+  vapidKeys();
+  const claimed = await db.rpc('chat_push_claim', { server_secret: secret, batch: 200 });
+  if (claimed.error) throw new Error('Não consegui ler as conversas.');
+  const chats = (claimed.data ?? []) as (ChatPush & { devices: Device[] | null })[];
+  return sendSoft(chats.map(chat => ({ devices: chat.devices, payload: JSON.stringify({ ...chatPush(chat),
+    url: `${appOrigin(env)}/?abrir=conversa&grupo=${chat.space}`, tag: `jornada-conversa-${chat.space}`, soft: true }) })), db, secret, env);
 }

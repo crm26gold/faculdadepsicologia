@@ -218,7 +218,8 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
   // Com conta, o Networking fica na barra de baixo no lugar da Agenda, que passa a poder ser o atalho.
   const secondTab: View = cloud ? 'community' : 'agenda';
   // Trabalhos para revisar, pedidos para entrar e atualizações da rede: o mesmo número no menu e na barra de baixo.
-  const networkCount = home ? home.to_review.length + (home.join_requests ?? 0) + (home.updates ?? 0) : 0;
+  const networkCount = home ? home.to_review.length + (home.join_requests ?? 0) + (home.updates ?? 0)
+    + Object.values(home.chat ?? {}).reduce((sum, count) => sum + count, 0) : 0;
   const shortcutOptions = navigation.filter(item => !['today', secondTab, 'admin'].includes(item.id) && (cloud || !serverViews.has(item.id)));
   const tabShortcut = shortcutOptions.find(item => item.id === shortcut) ?? shortcutOptions[0];
   const conversations = useConversations(mode, home?.account.user_id);
@@ -364,13 +365,16 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     window.setTimeout(() => document.querySelector('.course-material')?.scrollIntoView({ block: 'start' }), 500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, initialSearch]);
-  // A notificação do Networking abre as Novidades (/?abrir=novidades), uma vez, depois que a conta carrega.
-  const newsLink = useRef(new URLSearchParams(initialSearch).get('abrir') === 'novidades');
+  // A notificação do Networking abre as Novidades (/?abrir=novidades) e a da conversa abre o grupo
+  // (/?abrir=conversa&grupo=<id>), uma vez, depois que a conta carrega.
+  const newsLink = useRef(new URLSearchParams(initialSearch));
   useEffect(() => {
-    if (!ready || !newsLink.current || !cloud || !home) return;
-    newsLink.current = false;
+    const link = newsLink.current, target = link.get('abrir'), group = link.get('grupo') ?? '';
+    if (!ready || !cloud || !home || (target !== 'novidades' && target !== 'conversa')) return;
+    link.delete('abrir');
     window.history.replaceState(window.history.state, '', window.location.pathname + window.location.hash);
-    routeCommunity({ kind: 'updates' }, true);
+    if (target === 'conversa' && /^[0-9a-f-]{36}$/i.test(group)) routeCommunity({ kind: 'space', id: group }, true);
+    else routeCommunity({ kind: 'updates' }, true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, cloud, home]);
   // "Pausar" or "Encerrar" on a focus reminder (notification, Telegram or WhatsApp): once the account is loaded, the

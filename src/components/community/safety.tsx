@@ -7,9 +7,10 @@ import { reasonLabels, reportReasons, type Person } from '@/lib/network';
 
 type Reason = typeof reportReasons[number];
 
-/** Menu "⋯" de uma pessoa ou de uma publicação dela: denunciar e bloquear. Quem é denunciado ou bloqueado não fica sabendo. */
-export function SafetyMenu({ person, post, blocked, onClose, onBlocked }: {
-  person: Person; post?: string; blocked?: boolean; onClose: () => void; onBlocked: (blocking: boolean) => void;
+/** Menu "⋯" de uma pessoa, de uma publicação ou de uma mensagem dela: denunciar e bloquear. Quem é denunciado ou
+ * bloqueado não fica sabendo. */
+export function SafetyMenu({ person, post, message: chat, blocked, onClose, onBlocked }: {
+  person: Person; post?: string; message?: string; blocked?: boolean; onClose: () => void; onBlocked: (blocking: boolean) => void;
 }) {
   const [step, setStep] = useState<'menu' | 'report' | 'block' | 'done'>('menu');
   const [reason, setReason] = useState<Reason>('spam');
@@ -18,6 +19,7 @@ export function SafetyMenu({ person, post, blocked, onClose, onBlocked }: {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const first = person.name.split(' ')[0];
+  const what = post ? 'Denunciar publicação' : chat ? 'Denunciar mensagem' : `Denunciar ${first}`;
 
   async function block(blocking: boolean) {
     setBusy(true); setMessage('');
@@ -28,16 +30,16 @@ export function SafetyMenu({ person, post, blocked, onClose, onBlocked }: {
   async function report() {
     setBusy(true); setMessage('');
     try {
-      await api('/api/network', { action: 'report', person: person.id, post: post ?? null, reason, note: note.trim() });
+      await api('/api/network', { action: 'report', person: person.id, post: post ?? null, message: chat ?? null, reason, note: note.trim() });
       if (alsoBlock) { await api('/api/network', { action: 'block', person: person.id, blocking: true }); onBlocked(true); }
       setStep('done');
     } catch (reason) { setMessage(reason instanceof Error ? reason.message : 'Não foi possível enviar.'); }
     finally { setBusy(false); }
   }
 
-  return <Modal title={step === 'report' ? (post ? 'Denunciar publicação' : `Denunciar ${first}`) : step === 'block' ? `Bloquear ${first}?` : step === 'done' ? 'Denúncia enviada' : `Opções sobre ${first}`} onClose={onClose}>
+  return <Modal title={step === 'report' ? what : step === 'block' ? `Bloquear ${first}?` : step === 'done' ? 'Denúncia enviada' : `Opções sobre ${first}`} onClose={onClose}>
     {step === 'menu' && <div className="nw-safety-menu">
-      <button type="button" className="nw-safety-option" onClick={() => setStep('report')}><Flag size={18} aria-hidden="true" />{post ? 'Denunciar publicação' : `Denunciar ${first}`}</button>
+      <button type="button" className="nw-safety-option" onClick={() => setStep('report')}><Flag size={18} aria-hidden="true" />{what}</button>
       {blocked ? <button type="button" className="nw-safety-option" disabled={busy} onClick={() => void block(false)}><Ban size={18} aria-hidden="true" />Desbloquear {first}</button>
         : <button type="button" className="nw-safety-option danger" onClick={() => setStep('block')}><Ban size={18} aria-hidden="true" />Bloquear {first}</button>}
     </div>}

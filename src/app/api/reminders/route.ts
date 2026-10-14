@@ -15,8 +15,8 @@ const action = z.discriminatedUnion('action', [
   z.object({ action: z.literal('test'), level: z.enum(reminderLevels) }).strict(),
   z.object({ action: z.literal('ack'), id: z.uuid(), choice: z.enum(['feito', 'adiar']) }).strict(),
   z.object({ action: z.literal('get'), id: z.uuid() }).strict(),
-  // Networking: avisar ou não, horário de silêncio (os dois horários ou nenhum) e grupos silenciados.
-  z.object({ action: z.literal('alerts'), network: z.boolean(), quiet_from: clock.nullable(), quiet_to: clock.nullable(),
+  // Networking: avisar ou não, conversa dos grupos, horário de silêncio (os dois horários ou nenhum) e grupos silenciados.
+  z.object({ action: z.literal('alerts'), network: z.boolean(), chat: z.boolean().default(true), quiet_from: clock.nullable(), quiet_to: clock.nullable(),
     muted: z.array(z.uuid()).max(200) }).strict()
     .refine(value => (value.quiet_from === null) === (value.quiet_to === null) && (!value.quiet_from || value.quiet_from !== value.quiet_to),
       'Escolha o começo e o fim do silêncio, diferentes.'),
@@ -59,7 +59,7 @@ export async function POST(request: Request) {
       return error ? dbError(error) : reply({ ok: true, data });
     }
     case 'alerts': {
-      const { error } = await call('save_alerts', { network: body.network, from_time: body.quiet_from, to_time: body.quiet_to, muted: body.muted });
+      const { error } = await call('save_alerts', { network: body.network, from_time: body.quiet_from, to_time: body.quiet_to, muted: body.muted, chat: body.chat });
       return error ? dbError(error) : reply({ ok: true, data: null });
     }
     case 'get': {

@@ -8,10 +8,11 @@ import { InviteQr } from './invite-qr';
 import { PersonAvatar } from './avatar';
 import { GroupRules } from './group-form';
 import { Feed } from './feed';
+import { GroupChat } from './group-chat';
 import { kindLabels, postKindLabels, roleLabels, spaceColors, templateLabels, type GroupTool, type Role, type SpaceOverview } from '@/lib/community';
 import type { Workspace } from '@/lib/workspace';
 
-type Tab = 'board' | 'works' | 'groups' | 'people';
+type Tab = 'chat' | 'board' | 'works' | 'groups' | 'people';
 const colorNames: Record<string, string> = { sage: 'Azul claro', lavender: 'Lavanda', sand: 'Areia', blue: 'Azul', rose: 'Rosa' };
 const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
@@ -24,7 +25,8 @@ export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, 
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
-  const [tab, setTab] = useState<Tab>('board');
+  // Sem escolha, abre na primeira aba: a Conversa, quando o grupo tem.
+  const [tab, setTab] = useState<Tab | null>(null);
   const [modal, setModal] = useState<'post' | 'poll' | 'work' | 'group' | 'member' | 'invite' | 'settings' | 'call' | null>(null);
   const [link, setLink] = useState('');
 
@@ -32,7 +34,7 @@ export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, 
     try { setData(await api<SpaceOverview>(`/api/spaces?id=${id}`)); setError(''); }
     catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível abrir.'); }
   }, [id]);
-  useEffect(() => { setTab('board'); void load(); }, [load]);
+  useEffect(() => { setTab(null); void load(); }, [load]);
 
   async function run(body: Record<string, unknown>, done: string) {
     setBusy(true); setMessage('');
@@ -55,10 +57,11 @@ export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, 
   const roleOf = (role: Role | 'master') => freeGroup && role === 'student' ? 'Membro' : roleLabels[role];
   const avatar = (person: { user_id: string; display_name: string }) => <PersonAvatar name={person.display_name || '?'} avatar={data.avatars?.[person.user_id]} />;
   const tabs: [Tab, string, number | null][] = [
+    ...(space.kind === 'group' && has('conversa') && data.my_role ? [['chat', 'Conversa', null] as [Tab, string, null]] : []),
     ['board', 'Mural', data.posts.length + data.polls.length],
     ...(has('partes') ? [['works', 'Trabalhos', data.assignments.length] as [Tab, string, number]] : []),
     ...(space.kind === 'class' ? [['groups', 'Grupos', data.groups.length] as [Tab, string, number]] : []), ['people', 'Pessoas', direct.length + requests.length]];
-  const current = tabs.some(([value]) => value === tab) ? tab : tabs[0][0];
+  const current = tab && tabs.some(([value]) => value === tab) ? tab : tabs[0][0];
 
   return <section className="cm-page">
     <div className="cm-crumbs"><button className="text-button" onClick={onBack}><ArrowLeft size={14} aria-hidden="true" /> Voltar</button>
@@ -90,6 +93,8 @@ export function SpaceView({ id, me, workspace, onBack, onOpenSpace, onOpenWork, 
     <div className="planning-nav-bar" role="tablist" aria-label={`Seções de ${space.name}`}>
       {tabs.map(([value, label, count]) => <button key={value} type="button" role="tab" aria-selected={current === value} className={`planning-tab ${current === value ? 'active' : ''}`} onClick={() => setTab(value)}>{label}{count !== null && <span className="count-pill">{count}</span>}</button>)}
     </div>
+
+    {current === 'chat' && <GroupChat space={space.id} name={space.name} me={me} onOpenPerson={onOpenPerson} onRead={onChanged} />}
 
     {current === 'board' && <div className="cm-stack">
       {access.can_lead && <div className="button-row">{has('mural') && <button className="button primary" onClick={() => setModal('post')}><Megaphone size={16} aria-hidden="true" />Publicar no mural</button>}{has('enquetes') && <button className="button outline" onClick={() => setModal('poll')}><BarChart3 size={16} aria-hidden="true" />Nova enquete</button>}</div>}

@@ -43,6 +43,34 @@ export const eventText: Record<NetworkEvent['kind'], string> = {
   gostei: 'gostou da sua publicação', util: 'achou útil sua publicação', join_request: 'pediu para entrar no grupo', join_approved: 'aceitou você no grupo',
 };
 
+/** Conversa do grupo: a mensagem como a tela mostra, e uma página da conversa. */
+export type ChatMessage = {
+  id: string; author: string | null; body: string; created_at: string; changed_at: string;
+  /** joined: a linha "Fulano entrou no grupo", escrita pelo banco. */
+  kind?: 'text' | 'joined';
+  /** Quem apagou: a própria pessoa ou a moderação (dono ou líder do grupo, ou a administração por denúncia). */
+  deleted: 'author' | 'moderation' | null;
+  reply: { id: string; author: string | null; excerpt: string; photo: boolean; deleted: boolean; blocked?: boolean } | null;
+  /** stored false: a foto já saiu do servidor; pode continuar no aparelho de quem viu. */
+  photo: { width: number; height: number; alt: string; stored: boolean } | null;
+  blocked: boolean;
+  /** Só no aparelho: enviando ou não enviada. */
+  pending?: 'sending' | 'failed';
+};
+export type ChatPage = {
+  messages: ChatMessage[]; people: Record<string, Person | null>; read_at: string | null;
+  moderator: boolean; open: boolean; muted: boolean; photo_days: number | null;
+};
+
+/** Uma notificação por conversa: quem escreveu por último, o trecho e quantas chegaram. */
+export type ChatPush = { space: string; group: string; count: number; author: string | null; excerpt: string; photo: boolean };
+export function chatPush(item: ChatPush) {
+  const cut = item.excerpt.slice(0, 60), end = cut.lastIndexOf(' ');
+  const said = item.excerpt.length <= 60 ? item.excerpt : `${(end > 40 ? cut.slice(0, end) : cut).trimEnd()}…`;
+  const line = `${item.author || 'Alguém'}: ${item.photo ? `📷 ${said || 'Foto'}` : said || 'Mensagem'}`;
+  return { title: item.group, body: item.count > 1 ? `${item.count} mensagens novas · ${line}` : line };
+}
+
 /** Uma notificação por pessoa a cada minuto do relógio: a primeira novidade escrita e quantas mais chegaram. */
 export type PushEvent = { kind: NetworkEvent['kind']; actor: string | null; post: string | null; space: string | null };
 export function networkPush(events: PushEvent[]) {
@@ -85,8 +113,13 @@ export const networkAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('react'), post: id, kind: z.enum(['gostei', 'util']) }),
   z.object({ action: z.literal('save'), post: id }),
   z.object({ action: z.literal('block'), person: id, blocking: z.boolean() }),
-  z.object({ action: z.literal('report'), person: id, post: id.nullable().default(null), reason: z.enum(reportReasons),
+  z.object({ action: z.literal('report'), person: id, post: id.nullable().default(null), message: id.nullable().default(null), reason: z.enum(reportReasons),
     note: z.string().trim().max(500, 'A observação vai até 500 letras.').default('') }),
+  z.object({ action: z.literal('send_message'), space: id, body: z.string().trim().max(4000, 'A mensagem vai até 4.000 letras.'),
+    reply: id.nullable().default(null), photo: photo.nullable().default(null) })
+    .refine(value => value.body || value.photo, 'Escreva alguma coisa ou escolha uma foto.'),
+  z.object({ action: z.literal('delete_message'), message: id }),
+  z.object({ action: z.literal('mute_group'), space: id, muted: z.boolean() }),
   z.object({ action: z.literal('keep_story'), post: id, title: z.string().trim().max(30, 'O título do destaque vai até 30 letras.') }),
   z.object({ action: z.literal('follow'), person: id }),
   z.object({ action: z.literal('unfollow'), person: id }),
@@ -106,7 +139,11 @@ export function networkCall(body: NetworkAction): DbCall {
     case 'react': return { fn: 'toggle_reaction', args: { target: body.post, reaction: body.kind } };
     case 'save': return { fn: 'toggle_save', args: { target: body.post } };
     case 'block': return { fn: 'block_person', args: { target: body.person, blocking: body.blocking } };
-    case 'report': return { fn: 'report_content', args: { target: body.person, post: body.post, why: body.reason, details: body.note } };
+    case 'report': return body.message ? { fn: 'report_message', args: { target: body.message, why: body.reason, details: body.note } }
+      : { fn: 'report_content', args: { target: body.person, post: body.post, why: body.reason, details: body.note } };
+    case 'send_message': return { fn: 'send_message', args: { target: body.space, message_body: body.body, reply: body.reply, photo: body.photo } };
+    case 'delete_message': return { fn: 'delete_message', args: { target: body.message } };
+    case 'mute_group': return { fn: 'mute_space', args: { target: body.space, muted: body.muted } };
     case 'keep_story': return { fn: 'keep_story', args: { target: body.post, title: body.title } };
     case 'follow': return { fn: 'follow_person', args: { target: body.person } };
     case 'unfollow': return { fn: 'unfollow_person', args: { target: body.person } };
@@ -116,7 +153,7 @@ export function networkCall(body: NetworkAction): DbCall {
   }
 }
 
-/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos, bloqueados e listas. Null quando o pedido não faz sentido. */
+/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos, bloqueados, listas e conversa do grupo. Null quando o pedido não faz sentido. */
 export function networkRead(params: URLSearchParams): DbCall | null {
   const uuid = (value: string | null) => id.safeParse(value).success ? value : null;
   const raw = params.get('before');
@@ -132,6 +169,11 @@ export function networkRead(params: URLSearchParams): DbCall | null {
   if (params.get('updates') === '1') return { fn: 'network_updates', args: {} };
   if (params.get('saved') === '1') return { fn: 'saved_feed', args: { before } };
   if (params.get('blocked') === '1') return { fn: 'my_blocks', args: {} };
+  if (params.has('chat')) {
+    const target = uuid(params.get('chat')), rawAfter = params.get('after');
+    const after = rawAfter && !Number.isNaN(Date.parse(rawAfter)) && rawAfter.length <= 40 ? rawAfter : null;
+    return target && (!rawAfter || after) ? { fn: 'chat_messages', args: { target, after, before, seen: params.get('seen') === '1' } } : null;
+  }
   if (params.has('follows')) {
     const target = uuid(params.get('follows')), which = params.get('list');
     return target && (which === 'followers' || which === 'following') ? { fn: 'follow_list', args: { target, which } } : null;
