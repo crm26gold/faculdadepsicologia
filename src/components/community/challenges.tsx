@@ -40,26 +40,32 @@ export function ChallengesTab({ space, archived, onOpenPerson }: { space: string
   const finished = list.filter(item => item.state === 'ended' || item.state === 'cancelled');
   return <div className="cm-stack">
     {!archived && <div className="button-row"><button type="button" className="button primary" onClick={() => setCreating(true)}><Plus size={16} aria-hidden="true" />Novo desafio</button></div>}
-    {open.map(item => <ChallengeCard key={item.id} challenge={item} onChange={replace} onOpenPerson={onOpenPerson} />)}
+    {open.map(item => <ChallengeCard key={item.id} challenge={item} readOnly={archived} onChange={replace} onOpenPerson={onOpenPerson} />)}
     {!open.length && <div className="empty-inline"><Trophy size={22} aria-hidden="true" /><p>Nenhum desafio em andamento.{archived ? '' : ' Crie um: ler 10 páginas, caminhar 3 km, beber 8 copos de água… Cada um marca o seu dia e o grupo acompanha.'}</p></div>}
     {finished.length > 0 && <><h3 className="small-heading">Encerrados</h3>
-      {finished.map(item => <ChallengeCard key={item.id} challenge={item} onChange={replace} onOpenPerson={onOpenPerson} />)}</>}
+      {finished.map(item => <ChallengeCard key={item.id} challenge={item} readOnly={archived} onChange={replace} onOpenPerson={onOpenPerson} />)}</>}
     {creating && <ChallengeForm space={space} onClose={() => setCreating(false)} onCreated={created => { setCreating(false); setList(items => [created, ...(items ?? [])]); }} />}
   </div>;
 }
 
-/** Um desafio: o grupo (quem fez hoje e o progresso) e, para quem participa, a sequência, os últimos 7 dias e o botão do dia. */
-export function ChallengeCard({ challenge, onChange, onOpenPerson }: { challenge: Challenge; onChange: (next: Challenge) => void; onOpenPerson: (id: string) => void }) {
+/** Um desafio: o grupo (quem fez hoje e o progresso) e, para quem participa, a sequência, os últimos 7 dias e o botão do dia.
+ * No grupo arquivado (`readOnly`), só a leitura. */
+export function ChallengeCard({ challenge, readOnly = false, onChange, onOpenPerson }: {
+  challenge: Challenge; readOnly?: boolean; onChange: (next: Challenge) => void; onOpenPerson: (id: string) => void;
+}) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [editing, setEditing] = useState(false);
   const { me } = challenge;
   const running = challenge.state === 'active';
   const open = running || challenge.state === 'soon';
+  const writable = !readOnly;
+  // Depois que começa, o nome fica: é o que vai para a medalha.
+  const started = challenge.state !== 'soon';
   const yesterday = shift(challenge.today, -1);
   // No dia seguinte ao fim ainda dá para marcar o último dia; a medalha sai na manhã depois disso.
   const grace = challenge.state === 'ended' && challenge.ends_on === yesterday;
-  const missedYesterday = (running || grace) && !!me && !me.yesterday?.done && yesterday >= challenge.starts_on && !challenge.rest_days.includes(weekday(yesterday));
+  const missedYesterday = writable && (running || grace) && !!me && !me.yesterday?.done && yesterday >= challenge.starts_on && !challenge.rest_days.includes(weekday(yesterday));
   async function send(body: Record<string, unknown>, done = '') {
     setBusy(true); setMessage('');
     try { onChange(await api<Challenge>('/api/network', body)); setMessage(done); return true; }
@@ -85,8 +91,8 @@ export function ChallengeCard({ challenge, onChange, onOpenPerson }: { challenge
         <span className="sr-only">{formatDay(day.day, { weekday: 'long', day: 'numeric' })}: {day.done ? 'feito' : day.rest ? 'descanso' : day.day === challenge.today ? 'em aberto' : 'não feito'}</span>
         <i aria-hidden="true">{day.done ? <Check size={14} /> : day.rest ? '–' : ''}</i>
       </li>)}</ol>}
-      {running && challenge.rest_days.includes(weekday(challenge.today)) && <p className="muted small">Hoje é dia de descanso: não marcar não quebra a sua sequência. Se fizer mesmo assim, conta.</p>}
-      {running && <DayCheck challenge={challenge} day={challenge.today} value={me.today} busy={busy} label="hoje"
+      {running && writable && challenge.rest_days.includes(weekday(challenge.today)) && <p className="muted small">Hoje é dia de descanso: não marcar não quebra a sua sequência. Se fizer mesmo assim, conta.</p>}
+      {running && writable && <DayCheck challenge={challenge} day={challenge.today} value={me.today} busy={busy} label="hoje"
         onSave={(done, amount) => send({ action: 'challenge_checkin', challenge: challenge.id, day: challenge.today, done, amount }, done ? 'Dia marcado.' : 'Dia desmarcado.')} />}
       {missedYesterday && <details className="ch-yesterday"><summary>Esqueceu de marcar ontem?</summary>
         <DayCheck challenge={challenge} day={yesterday} value={me.yesterday} busy={busy} label="ontem"
@@ -110,7 +116,7 @@ export function ChallengeCard({ challenge, onChange, onOpenPerson }: { challenge
       </div>}
     </div>
 
-    {open && <div className="button-row">
+    {open && writable && <div className="button-row">
       {!me && <button type="button" className="button primary" disabled={busy} onClick={() => send({ action: 'challenge_join', challenge: challenge.id, joining: true }, 'Você entrou no desafio.')}><Users size={16} aria-hidden="true" />Participar</button>}
       {me && <button type="button" className="text-button" disabled={busy} onClick={() => {
         if (window.confirm(`Sair de “${challenge.title}”? Os dias que você marcou aqui serão apagados.`)) void send({ action: 'challenge_join', challenge: challenge.id, joining: false }, 'Você saiu do desafio.');
@@ -123,11 +129,12 @@ export function ChallengeCard({ challenge, onChange, onOpenPerson }: { challenge
     {message && <p className="cm-message" role="status">{message}</p>}
     {editing && <Modal title="Editar desafio" onClose={() => setEditing(false)}><form className="entry-form" onSubmit={async event => {
       event.preventDefault(); const f = new FormData(event.currentTarget);
-      if (await send({ action: 'challenge_manage', challenge: challenge.id, title: f.get('title'), description: f.get('description') ?? '' }, 'Desafio atualizado.')) setEditing(false);
+      if (await send({ action: 'challenge_manage', challenge: challenge.id, title: started ? challenge.title : f.get('title'), description: f.get('description') ?? '' }, 'Desafio atualizado.')) setEditing(false);
     }}>
-      <label htmlFor={`ch-title-${challenge.id}`}>Nome</label><input id={`ch-title-${challenge.id}`} name="title" required maxLength={120} defaultValue={challenge.title} />
+      <label htmlFor={`ch-title-${challenge.id}`}>Nome</label><input id={`ch-title-${challenge.id}`} name="title" required maxLength={120} defaultValue={challenge.title} disabled={started} aria-describedby={`ch-rules-${challenge.id}`} />
       <label htmlFor={`ch-details-${challenge.id}`}>Descrição</label><textarea id={`ch-details-${challenge.id}`} name="description" rows={3} maxLength={1000} defaultValue={challenge.description} />
-      <p className="muted small">A meta, as datas e os dias de descanso ficam como estão, para não mudar a regra no meio do caminho.</p>
+      <p id={`ch-rules-${challenge.id}`} className="muted small">{started ? 'O desafio já começou: o nome, a meta, as datas e os dias de descanso ficam como estão, para não mudar a regra no meio do caminho.'
+        : 'Dá para mudar o nome até o desafio começar. A meta, as datas e os dias de descanso ficam como estão.'}</p>
       <div className="form-footer"><button className="button primary" disabled={busy}>Salvar</button></div>
     </form></Modal>}
   </article>;

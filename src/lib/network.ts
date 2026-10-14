@@ -134,7 +134,9 @@ const photo = z.object({ data: z.string().max(PHOTO_LIMIT / 3 * 4 + 4), mime: z.
   .refine(value => photoOk(value.data, value.mime), 'Use uma foto JPG ou WebP de até 300 KB.');
 
 const id = z.uuid();
-const dayText = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Data inválida.');
+const dayText = z.iso.date('Data inválida.');
+// O banco guarda duas casas decimais: 0,001 viraria zero.
+const amountOf = (message: string) => z.number().min(0.01, message).max(100000, 'Até 100.000.');
 export const networkAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('create_post'), body: z.string().trim().max(2200), style: z.enum(postStyles).default('text'),
     audience: z.enum(audiences).default('followers'), space: id.nullable().default(null),
@@ -155,7 +157,7 @@ export const networkAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('mute_group'), space: id, muted: z.boolean() }),
   z.object({ action: z.literal('challenge_create'), space: id, title: z.string().trim().min(1, 'Dê um nome ao desafio.').max(120, 'O nome vai até 120 letras.'),
     description: z.string().trim().max(1000, 'A descrição vai até 1.000 letras.').default(''), kind: z.enum(['feito', 'quantidade']),
-    unit: z.string().trim().max(20, 'A unidade vai até 20 letras.').default(''), goal: z.number().positive().max(100000).nullable().default(null),
+    unit: z.string().trim().max(20, 'A unidade vai até 20 letras.').default(''), goal: amountOf('A meta do dia vai de 0,01 a 100.000.').nullable().default(null),
     start: dayText, days: z.number().int().min(3, 'O desafio dura pelo menos 3 dias.').max(365, 'O desafio dura até 365 dias.'),
     rest: z.array(z.number().int().min(0).max(6)).max(3, 'Até 3 dias de descanso por semana.').transform(value => [...new Set(value)]).default([]) })
     .refine(value => value.kind === 'feito' || (value.goal && value.unit), 'Diga a meta do dia e a unidade (páginas, km, copos…).'),
@@ -164,7 +166,7 @@ export const networkAction = z.discriminatedUnion('action', [
     .refine(value => value.cancel || value.title, 'Dê um nome ao desafio.'),
   z.object({ action: z.literal('challenge_join'), challenge: id, joining: z.boolean() }),
   z.object({ action: z.literal('challenge_checkin'), challenge: id, day: dayText, done: z.boolean(),
-    amount: z.number().positive('Diga quanto fez.').max(100000).nullable().default(null) }),
+    amount: amountOf('Diga quanto fez.').nullable().default(null) }),
   z.object({ action: z.literal('achievement_audience'), achievement: id, audience: z.enum(achievementAudiences) }),
   z.object({ action: z.literal('show_achievements'), shown: z.boolean() }),
   z.object({ action: z.literal('keep_story'), post: id, title: z.string().trim().max(30, 'O título do destaque vai até 30 letras.') }),

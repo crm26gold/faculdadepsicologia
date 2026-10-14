@@ -274,7 +274,8 @@ Cada integração é um conector que liga, desliga e pode ser trocado.
   - **Quem vê a medalha:** começa "Só eu". O nome do grupo fica só para a pessoa: um grupo pode dizer mais do que ela quer mostrar.
   - **Marcar o dia:** hoje, ou ontem para quem esqueceu. O desafio fecha às 9h17 do dia depois desse dia de tolerância, para o aviso da medalha não chegar de madrugada.
   - **Quem participa:** só quem está no próprio grupo (a equipe da sala e a administração não veem). Qualquer pessoa do grupo cria, até 10 por dia, e já entra participando.
-  - **Quem muda:** quem criou ou quem modera o grupo muda o nome e a descrição e pode encerrar; a meta, as datas e o descanso ficam como estão.
+  - **Quem muda:** quem criou ou quem modera o grupo muda a descrição e pode encerrar até o último dia; o nome só muda antes de começar (é o que vai para a medalha); a meta, as datas e o descanso ficam como estão.
+  - **Quem sai do grupo** sai dos desafios dele, com os dias marcados; a medalha já ganha fica. Grupo arquivado fica só para leitura.
   - **Desenho da medalha:** gerado no aparelho a partir do nome do desafio (metal, fita e estrela), sem IA e sem custo; a mesma medalha sai sempre igual.
 - **Bloquear e denunciar antes de crescer:** bloquear corta tudo nos dois sentidos, sem avisar a outra pessoa; a denúncia vai só para a administração, com motivo, e cada decisão fica no histórico.
 - **Sem nada antigo e confuso:** a barra de cima mostra só o nome da tela (saiu o "Meu espaço ›"), a busca virou "Buscar na Jornada" e os textos apontam para os nomes atuais do Meu espaço (Assistentes e IA, Telegram e WhatsApp).

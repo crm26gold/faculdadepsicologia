@@ -109,6 +109,20 @@ grant select on marco to authenticated;
 set role authenticated;
 select expect(toggle_reaction((select id from marco), 'forca'), 'Bia deu força');
 reset role;
+select expect(not private.can_see_post(p, '00000000-0000-4000-8000-000000000007') and private.can_see_post(p, '00000000-0000-4000-8000-000000000004'),
+  'o marco é só do grupo: a administração não vê') from public.network_posts p where p.id = (select id from marco);
+-- Marcar ontem por último pula de 6 para 8 dias: o marco de 7 sai do mesmo jeito.
+select public.past_challenge('Pular corda', today() - 9, today() + 20, '{}', array['00000000-0000-4000-8000-000000000005'::uuid]);
+select public.mark(challenge_id('Pular corda'), '00000000-0000-4000-8000-000000000005', array(select (today() - n)::date from generate_series(2, 7) n) || today());
+set role authenticated;
+select act_as('00000000-0000-4000-8000-000000000005');
+select expect((challenge_checkin(challenge_id('Pular corda'), today() - 1, true, null)->'me'->>'streak')::int = 8, '8 dias seguidos');
+reset role;
+select expect(exists (select 1 from public.network_posts p join public.challenge_milestones m on m.post_id = p.id
+  where m.challenge_id = public.challenge_id('Pular corda') and m.days = 7 and p.milestone->>'days' = '7'), 'o marco de 7 saiu mesmo pulando');
+set role authenticated;
+select act_as('00000000-0000-4000-8000-000000000004');
+reset role;
 select expect(exists (select 1 from public.network_events where kind = 'forca' and user_id = '00000000-0000-4000-8000-000000000005'), 'Caio recebe a novidade');
 set role authenticated;
 do $$ begin perform toggle_reaction((select id from marco), 'util'); raise exception 'FALHA: Útil num marco';
@@ -128,10 +142,13 @@ set role authenticated;
 do $$ begin perform challenge_manage(challenge_id('Beber água'), 'outro', '', true); raise exception 'FALHA: membro encerrou';
 exception when insufficient_privilege then null; end $$;
 select act_as('00000000-0000-4000-8000-000000000004');
-select expect(challenge_manage(challenge_id('Beber água'), 'Beber 2 litros de água', 'Todo dia', false)->>'title' = 'Beber 2 litros de água', 'renomeou');
-select expect(challenge_manage(challenge_id('Beber 2 litros de água'), '', '', true)->>'state' = 'cancelled', 'encerrou');
+select expect(challenge_manage(challenge_id('Beber água'), 'Beber 2 litros', 'Todo dia', false) @> '{"title": "Beber água", "description": "Todo dia"}',
+  'já começou: muda a descrição, o nome fica');
+select challenge_create(group_id('Treino'), 'Nadar', '', 'feito', '', null, today() + 3, 7, '{}');
+select expect(challenge_manage(challenge_id('Nadar'), 'Nadar 1 km', '', false)->>'title' = 'Nadar 1 km', 'antes de começar, o nome muda');
+select expect(challenge_manage(challenge_id('Beber água'), '', '', true)->>'state' = 'cancelled', 'encerrou');
 select act_as('00000000-0000-4000-8000-000000000005');
-do $$ begin perform challenge_checkin(challenge_id('Beber 2 litros de água'), today(), false, null); raise exception 'FALHA: marcou no encerrado';
+do $$ begin perform challenge_checkin(challenge_id('Beber água'), today(), false, null); raise exception 'FALHA: marcou no encerrado';
 exception when invalid_parameter_value then null; end $$;
 
 -- Último dia ontem: ainda dá para marcar ontem; o desafio só fecha depois desse dia de tolerância.
@@ -139,6 +156,10 @@ reset role;
 select public.past_challenge('Respirar', today() - 3, today() - 1, '{}', array['00000000-0000-4000-8000-000000000005'::uuid]);
 set role authenticated;
 select expect(challenge_checkin(challenge_id('Respirar'), today() - 1, true, null)->>'state' = 'ended', 'marcou o último dia no dia seguinte');
+do $$ begin perform challenge_manage(challenge_id('Respirar'), '', '', true); raise exception 'FALHA: cancelou depois do último dia';
+exception when insufficient_privilege then null; end $$;
+do $$ begin perform challenge_manage(challenge_id('Respirar'), 'Outro nome', '', false); raise exception 'FALHA: renomeou depois do último dia';
+exception when insufficient_privilege then null; end $$;
 reset role;
 
 -- Fim: 9 de 10 dias ganha a medalha (começa "Só eu"); 5 de 10 não. Roda uma vez só.
@@ -185,6 +206,32 @@ select expect(jsonb_array_length(person_achievements('00000000-0000-4000-8000-00
 select act_as('00000000-0000-4000-8000-000000000005');
 select expect(jsonb_array_length(export_my_data()->'challenges'->'achievements') = 1 and jsonb_array_length(export_my_data()->'challenges'->'joined') >= 3,
   'exportação traz desafios e medalha');
+
+-- Bloqueio: quem bloqueou não vê o rosto de quem fez hoje nem de quem criou; o número continua.
+select act_as('00000000-0000-4000-8000-000000000004'); select block_person('00000000-0000-4000-8000-000000000005', true);
+select expect((c->'done_today'->>'count')::int = 1 and jsonb_array_length(c->'done_today'->'people') = 0 and c->'creator' = 'null'::jsonb, 'bloqueado não aparece')
+  from jsonb_array_elements(space_challenges(group_id('Treino'))) c where c->>'title' = 'Correr';
+select block_person('00000000-0000-4000-8000-000000000005', false);
+
+-- Grupo arquivado: só leitura.
+reset role;
+update public.spaces set archived_at = now() where name = 'Treino';
+set role authenticated;
+select expect(jsonb_array_length(space_challenges(group_id('Treino'))) > 0, 'arquivado ainda se lê');
+do $$ begin perform challenge_checkin(challenge_id('Correr'), today(), true, null); raise exception 'FALHA: marcou no arquivado';
+exception when invalid_parameter_value then null; end $$;
+do $$ begin perform challenge_manage(challenge_id('Correr'), 'Correr', 'x', false); raise exception 'FALHA: mudou no arquivado';
+exception when insufficient_privilege then null; end $$;
+reset role;
+update public.spaces set archived_at = null where name = 'Treino';
+
+-- Quem sai do grupo sai dos desafios dele, com os dias; a medalha fica.
+delete from public.space_members where space_id = public.group_id('Treino') and user_id = '00000000-0000-4000-8000-000000000005';
+select expect(not exists (select 1 from public.challenge_members m join public.challenges c on c.id = m.challenge_id
+  where c.space_id = public.group_id('Treino') and m.user_id = '00000000-0000-4000-8000-000000000005'), 'saiu do grupo, saiu dos desafios');
+select expect(not exists (select 1 from public.challenge_checkins where user_id = '00000000-0000-4000-8000-000000000005'), 'e os dias foram junto');
+select expect(exists (select 1 from public.achievements where user_id = '00000000-0000-4000-8000-000000000005'), 'a medalha continua');
+set role authenticated;
 
 -- Ferramenta desligada: os desafios somem do grupo.
 reset role;

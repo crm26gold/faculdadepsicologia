@@ -146,7 +146,8 @@ language sql stable set search_path = ''
 as $$ select count(*)::integer from generate_series(c.starts_on, least(c.ends_on, until), interval '1 day') d
   where not private.is_rest(c, d::date) $$;
 
--- O desafio como a tela mostra: o grupo de hoje (quem fez), o progresso do grupo e o de quem olha.
+-- O desafio como a tela mostra: o grupo de hoje (quem fez), o progresso do grupo e o de quem olha. Quem bloqueou ou foi
+-- bloqueado conta no número, mas não aparece no rosto.
 create function private.challenge_card(c public.challenges, viewer uuid, role text) returns jsonb
 language plpgsql stable security definer set search_path = ''
 as $$
@@ -161,16 +162,17 @@ declare
 begin
   select count(*) into group_done from public.challenge_checkins k
    where k.challenge_id = c.id and k.day <= today and (c.kind = 'feito' or k.amount >= c.daily_goal) and not private.is_rest(c, k.day);
-  select jsonb_build_object('count', count(*), 'people', coalesce(jsonb_agg(private.avatar_of(x.user_id)) filter (where x.n <= 12), '[]'))
+  select jsonb_build_object('count', count(*), 'people', coalesce(jsonb_agg(private.avatar_of(x.user_id)) filter (where x.n <= 12 and not x.hidden), '[]'))
     into done_today
-    from (select k.user_id, row_number() over (order by k.created_at) as n from public.challenge_checkins k
+    from (select k.user_id, private.blocked_between(viewer, k.user_id) as hidden, row_number() over (order by k.created_at) as n
+            from public.challenge_checkins k
            where k.challenge_id = c.id and k.day = today and (c.kind = 'feito' or k.amount >= c.daily_goal)) x;
   return jsonb_build_object('id', c.id, 'title', c.title, 'description', c.description, 'kind', c.kind, 'unit', c.unit, 'goal', c.daily_goal,
     'starts_on', c.starts_on, 'ends_on', c.ends_on, 'rest_days', to_jsonb(c.rest_days), 'today', today,
     'state', case when c.cancelled then 'cancelled' when c.closed_at is not null or c.ends_on < today then 'ended'
       when c.starts_on > today then 'soon' else 'active' end,
-    'creator', private.avatar_of(c.created_by), 'can_manage', c.created_by = viewer or role = 'moderator',
-    'people', people, 'done_today', done_today,
+    'creator', case when not private.blocked_between(viewer, c.created_by) then private.avatar_of(c.created_by) end,
+    'can_manage', c.created_by = viewer or role = 'moderator', 'people', people, 'done_today', done_today,
     'progress', case when required * people > 0 then round(least(1, group_done::numeric / (required * people)), 3) else 0 end,
     'me', case when joined then jsonb_build_object(
       'streak', private.challenge_streak(c, done),

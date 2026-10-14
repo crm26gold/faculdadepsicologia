@@ -1,6 +1,8 @@
 -- Networking: desafios, parte 3 de 3. Depende das partes 1 e 2.
 -- A aba Conquistas do perfil: a pessoa vê todas as suas; os outros, só as que ela abriu (Público ou Seguidores), e só se
--- ela não escondeu a aba. O nome do grupo fica só para a dona da medalha: um grupo pode dizer mais do que ela quer mostrar. "Baixar meus dados" traz os desafios, os dias marcados e as medalhas.
+-- ela não escondeu a aba. O nome do grupo fica só para quem ganhou: um grupo pode dizer mais do que a pessoa quer mostrar.
+-- "Baixar meus dados" traz os desafios, os dias marcados e as medalhas. Os marcos no feed seguem a regra dos desafios, e
+-- quem sai do grupo sai dos desafios dele.
 
 -- 1. Ler as conquistas de alguém. Público segue a regra das publicações: perfil aberto, ou quem segue.
 create function private.person_achievements(target uuid) returns jsonb
@@ -110,7 +112,37 @@ begin
 end;
 $$;
 
--- 4. Invólucros e permissões.
+-- 4. O marco de desafio segue a regra dos desafios: só quem está no próprio grupo com a ferramenta ligada vê. A equipe da
+-- sala e a administração, que veem as outras publicações do grupo, não veem marcos (hábitos e saúde são da pessoa).
+create or replace function private.can_see_post(post public.network_posts, viewer uuid) returns boolean
+language sql stable security definer set search_path = ''
+as $$
+  select (post.expires_at is null or post.expires_at > now() or post.highlight is not null) and not private.blocked_between(post.author_id, viewer)
+    and (post.author_id = viewer or case
+    when post.style = 'milestone' then private.tool_role(post.space_id, viewer, 'checkin') is not null
+    when post.audience = 'private' then false
+    when post.audience = 'group' then exists (select 1 from public.space_members m where m.space_id = post.space_id and m.user_id = viewer)
+      or private.staff_of(post.space_id, viewer)
+    when post.audience = 'followers' then private.follows_accepted(viewer, post.author_id)
+    when post.audience = 'public' then not coalesce((select p.closed from public.profiles p where p.user_id = post.author_id), true)
+      or private.follows_accepted(viewer, post.author_id)
+    else false end)
+$$;
+
+-- Quem sai do grupo (ou é removido) sai dos desafios dele, com os dias marcados. A medalha que já ganhou continua.
+create function private.challenge_left() returns trigger
+language plpgsql security definer set search_path = ''
+as $$
+begin
+  delete from public.challenge_members m using public.challenges c
+   where c.id = m.challenge_id and c.space_id = old.space_id and m.user_id = old.user_id;
+  return old;
+end;
+$$;
+create trigger space_members_challenge_left after delete on public.space_members for each row execute function private.challenge_left();
+revoke all on function private.challenge_left() from public, anon, authenticated;
+
+-- 5. Invólucros e permissões.
 create function public.person_achievements(target uuid) returns jsonb
 language sql stable security invoker set search_path = '' as $$ select private.person_achievements(target) $$;
 create function public.achievement_audience(target uuid, next_audience text) returns void

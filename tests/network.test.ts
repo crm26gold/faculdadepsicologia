@@ -144,10 +144,13 @@ test('rede: desafios vão ao banco só com o permitido', () => {
   assert.equal(create({ rest: [1, 2, 3, 4] }).success, false, 'descanso demais');
   assert.equal(create({ rest: [7] }).success, false, 'dia da semana inválido');
   assert.equal(create({ start: '14/10/2026' }).success, false, 'data fora do formato');
+  assert.equal(create({ start: '2026-02-30' }).success, false, 'data que não existe');
+  assert.equal(create({ kind: 'quantidade', unit: 'km', goal: 0.001 }).success, false, 'meta que vira zero no banco');
   assert.equal(create({ title: '  ' }).success, false, 'sem nome');
   assert.deepEqual(networkCall(networkAction.parse({ action: 'challenge_checkin', challenge, day: '2026-10-14', done: true, amount: 12.5 })),
     { fn: 'challenge_checkin', args: { target: challenge, which_day: '2026-10-14', done: true, how_much: 12.5 } });
   assert.equal(networkAction.safeParse({ action: 'challenge_checkin', challenge, day: '2026-10-14', done: true, amount: -1 }).success, false, 'quantidade negativa');
+  assert.equal(networkAction.safeParse({ action: 'challenge_checkin', challenge, day: '2026-10-14', done: true, amount: 0.004 }).success, false, 'quantidade que vira zero');
   assert.deepEqual(networkCall(networkAction.parse({ action: 'challenge_join', challenge, joining: false })), { fn: 'challenge_join', args: { target: challenge, joining: false } });
   assert.deepEqual(networkCall(networkAction.parse({ action: 'challenge_manage', challenge, cancel: true })),
     { fn: 'challenge_manage', args: { target: challenge, challenge_title: '', challenge_details: '', cancel: true } });

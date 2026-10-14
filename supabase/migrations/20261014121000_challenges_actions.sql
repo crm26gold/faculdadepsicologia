@@ -2,6 +2,11 @@
 -- Criar, mudar e encerrar; participar e sair; marcar o dia (com os marcos de 7, 15 e 30 dias no feed do grupo);
 -- "Dar força" nos marcos; e o fim do desafio, que dá a medalha a quem cumpriu pelo menos 80% dos dias.
 
+-- Grupo arquivado fica só para leitura: ninguém cria, entra, marca nem muda desafio.
+create function private.space_archived(target uuid) returns boolean
+language sql stable security definer set search_path = ''
+as $$ select exists (select 1 from public.spaces s where s.id = target and s.archived_at is not null) $$;
+
 -- 1. Criar: qualquer pessoa do grupo, até 10 por dia. Quem cria já participa.
 create function private.challenge_create(target uuid, challenge_title text, challenge_details text, challenge_kind text,
   unit_name text, goal numeric, start_day date, duration integer, rest smallint[]) returns jsonb
@@ -12,7 +17,7 @@ declare
   role text := private.tool_role(target, me, 'checkin');
   created public.challenges;
 begin
-  if me is null or role is null or exists (select 1 from public.spaces s where s.id = target and s.archived_at is not null) then
+  if me is null or role is null or private.space_archived(target) then
     raise exception 'Not authorized' using errcode = '42501';
   end if;
   if challenge_kind is null or challenge_kind not in ('feito', 'quantidade') or start_day is null or duration is null
@@ -34,7 +39,8 @@ begin
 end;
 $$;
 
--- Mudar o nome e a descrição, ou encerrar antes do fim (sem medalha): quem criou ou quem modera o grupo.
+-- Mudar a descrição (e o nome, antes de começar), ou encerrar antes do fim (sem medalha): quem criou ou quem modera o
+-- grupo. Depois do último dia nada muda: a medalha leva o nome e o resultado como ficaram.
 create function private.challenge_manage(target uuid, challenge_title text, challenge_details text, cancel boolean) returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -48,13 +54,15 @@ begin
     raise exception 'Not authorized' using errcode = '42501';
   end if;
   role := private.tool_role(c.space_id, me, 'checkin');
-  if role is null or not coalesce(c.created_by = me or role = 'moderator', false) or c.closed_at is not null then
+  if role is null or not coalesce(c.created_by = me or role = 'moderator', false) or c.closed_at is not null
+     or c.ends_on < private.sp_today() or private.space_archived(c.space_id) then
     raise exception 'Not authorized' using errcode = '42501';
   end if;
   if coalesce(cancel, false) then
     update public.challenges set cancelled = true, closed_at = now() where id = target returning * into c;
   else
-    update public.challenges set title = btrim(challenge_title), description = btrim(coalesce(challenge_details, '')) where id = target returning * into c;
+    update public.challenges set title = case when c.starts_on > private.sp_today() then btrim(challenge_title) else c.title end,
+      description = btrim(coalesce(challenge_details, '')) where id = target returning * into c;
   end if;
   return private.challenge_card(c, me, role);
 end;
@@ -74,7 +82,7 @@ begin
     raise exception 'Not authorized' using errcode = '42501';
   end if;
   role := private.tool_role(c.space_id, me, 'checkin');
-  if role is null or c.closed_at is not null or c.cancelled or c.ends_on < private.sp_today() then
+  if role is null or c.closed_at is not null or c.cancelled or c.ends_on < private.sp_today() or private.space_archived(c.space_id) then
     raise exception 'Not authorized' using errcode = '42501';
   end if;
   if coalesce(joining, false) then
@@ -87,7 +95,8 @@ end;
 $$;
 
 -- 3. Marcar o dia (hoje ou ontem, para quem esqueceu). Os marcos de 7, 15 e 30 dias seguidos viram uma publicação no
--- feed do grupo, uma vez só.
+-- feed do grupo, uma vez só. Marcar ontem pode pular um marco (de 6 para 8): vale o maior alcançado, e os menores ficam
+-- anotados sem publicação.
 create function private.challenge_checkin(target uuid, which_day date, done boolean, how_much numeric) returns jsonb
 language plpgsql security definer set search_path = ''
 as $$
@@ -97,6 +106,7 @@ declare
   role text;
   today date := private.sp_today();
   streak integer;
+  mark smallint;
   post uuid;
 begin
   select * into c from public.challenges where id = target;
@@ -107,7 +117,7 @@ begin
   if role is null or not exists (select 1 from public.challenge_members m where m.challenge_id = target and m.user_id = me) then
     raise exception 'Not authorized' using errcode = '42501';
   end if;
-  if c.closed_at is not null or c.cancelled or which_day is null or which_day not in (today, today - 1)
+  if c.closed_at is not null or c.cancelled or private.space_archived(c.space_id) or which_day is null or which_day not in (today, today - 1)
      or which_day < c.starts_on or which_day > c.ends_on
      or (coalesce(done, false) and c.kind = 'quantidade' and (how_much is null or how_much <= 0 or how_much > 100000)) then
     raise exception 'Invalid check-in' using errcode = '22023';
@@ -120,12 +130,17 @@ begin
   values (target, me, which_day, case when c.kind = 'quantidade' then how_much end)
   on conflict (challenge_id, user_id, day) do update set amount = excluded.amount;
   streak := private.challenge_streak(c, private.challenge_done_days(c, me));
-  if streak in (7, 15, 30) and not exists (select 1 from public.challenge_milestones m where m.challenge_id = target and m.user_id = me and m.days = streak) then
+  with reached as (
+    insert into public.challenge_milestones(challenge_id, user_id, days)
+    select target, me, t from unnest(array[7, 15, 30]::smallint[]) t where t <= streak
+    on conflict do nothing returning days)
+  select max(days) into mark from reached;
+  if mark is not null then
     insert into public.network_posts(author_id, body, style, audience, space_id, milestone)
-    values (me, format('%s dias seguidos em “%s” 🔥', streak, c.title), 'milestone', 'group', c.space_id,
-      jsonb_build_object('challenge', c.id, 'title', c.title, 'days', streak))
+    values (me, format('%s dias seguidos em “%s” 🔥', mark, c.title), 'milestone', 'group', c.space_id,
+      jsonb_build_object('challenge', c.id, 'title', c.title, 'days', mark))
     returning id into post;
-    insert into public.challenge_milestones(challenge_id, user_id, days, post_id) values (target, me, streak, post);
+    update public.challenge_milestones set post_id = post where challenge_id = target and user_id = me and days = mark;
   end if;
   return private.challenge_card(c, me, role);
 end;
@@ -200,7 +215,7 @@ begin
       continue when not found;
       medals := medals + 1;
       post := null;
-      if private.tool_role(c.space_id, person.user_id, 'checkin') is not null then
+      if private.tool_role(c.space_id, person.user_id, 'checkin') is not null and not private.space_archived(c.space_id) then
         insert into public.network_posts(author_id, body, style, audience, space_id, milestone)
         values (person.user_id, format('Concluí o desafio “%s” 🏅', c.title), 'milestone', 'group', c.space_id,
           jsonb_build_object('challenge', c.id, 'title', c.title, 'days', 0, 'done', achieved, 'of', required))
@@ -227,7 +242,7 @@ language sql security invoker set search_path = '' as $$ select private.challeng
 create function public.challenge_checkin(target uuid, which_day date, done boolean, how_much numeric) returns jsonb
 language sql security invoker set search_path = '' as $$ select private.challenge_checkin(target, which_day, done, how_much) $$;
 
-revoke all on function private.challenge_create(uuid, text, text, text, text, numeric, date, integer, smallint[]),
+revoke all on function private.space_archived(uuid), private.challenge_create(uuid, text, text, text, text, numeric, date, integer, smallint[]),
   private.challenge_manage(uuid, text, text, boolean), private.challenge_join(uuid, boolean),
   private.challenge_checkin(uuid, date, boolean, numeric), private.close_challenges(),
   public.challenge_create(uuid, text, text, text, text, numeric, date, integer, smallint[]),
