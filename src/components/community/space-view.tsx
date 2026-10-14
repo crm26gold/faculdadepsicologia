@@ -10,6 +10,7 @@ import { GroupRules } from './group-form';
 import { Feed } from './feed';
 import { GroupChat } from './group-chat';
 import { ChallengesTab } from './challenges';
+import { TimeFinders, type Meeting } from './time-finder';
 import { kindLabels, postKindLabels, roleLabels, spaceColors, templateLabels, type GroupTool, type Role, type SpaceOverview } from '@/lib/community';
 import type { Workspace } from '@/lib/workspace';
 
@@ -18,9 +19,10 @@ type Tab = SpaceTab;
 const colorNames: Record<string, string> = { sage: 'Azul claro', lavender: 'Lavanda', sand: 'Areia', blue: 'Azul', rose: 'Rosa' };
 const hostOf = (url: string) => { try { return new URL(url).host; } catch { return url; } };
 
-export function SpaceView({ id, tab: firstTab, start, me, workspace, onBack, onOpenSpace, onOpenWork, onChanged, onCreateGroup, onCompose, onOpenPerson }: {
+export function SpaceView({ id, tab: firstTab, start, me, workspace, onBack, onOpenSpace, onOpenWork, onChanged, onCreateGroup, onCompose, onOpenPerson, onAddMeeting }: {
   /** Vindo da Caixa de ferramentas: abre na aba certa, já com o formulário de criar. */
-  id: string; tab?: SpaceTab; start?: 'challenge' | 'poll'; me: string; workspace: Workspace; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
+  id: string; tab?: SpaceTab; start?: 'challenge' | 'poll' | 'finder'; me: string; workspace: Workspace;
+  onAddMeeting?: (meeting: Meeting) => boolean | null; onBack: () => void; onOpenSpace: (id: string) => void; onOpenWork: (id: string) => void; onChanged: () => void;
   onCreateGroup: (parent: { id: string; name: string }) => void; onCompose: (space: { id: string; name: string }) => void;
   onOpenPerson: (id: string) => void;
 }) {
@@ -112,6 +114,8 @@ export function SpaceView({ id, tab: firstTab, start, me, workspace, onBack, onO
 
     {current === 'board' && <div className="cm-stack">
       {access.can_lead && <div className="button-row">{has('mural') && <button className="button primary" onClick={() => setModal('post')}><Megaphone size={16} aria-hidden="true" />Publicar no mural</button>}{has('enquetes') && <button className="button outline" onClick={() => setModal('poll')}><BarChart3 size={16} aria-hidden="true" />Nova enquete</button>}</div>}
+      {space.kind === 'group' && space.tools?.includes('encontros') && data.my_role && <TimeFinders space={space.id} groupName={space.name} archived={!!space.archived_at}
+        chat={has('conversa')} creating={start === 'finder' && !started} onAddMeeting={onAddMeeting} />}
       {data.polls.map(poll => {
         const total = poll.results.reduce((sum, item) => sum + item.votes, 0);
         const closed = !!poll.closes_at && new Date(poll.closes_at) <= new Date();

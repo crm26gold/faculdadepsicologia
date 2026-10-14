@@ -91,6 +91,11 @@ export type Achievement = {
 };
 export type Achievements = { shown: boolean; items: Achievement[] };
 export const weekdayShort = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'] as const;
+/** "Achar horário em comum": cada hora marcada é um índice (posição do dia × 24 + hora). */
+export type TimeFinder = {
+  id: string; title: string; days: string[]; from_hour: number; to_hour: number; chosen: { day: string; hour: number } | null;
+  creator: Person | null; can_manage: boolean; created_at: string; mine: number[]; marks: { person: Person | null; slots: number[] }[];
+};
 
 /** Uma notificação por conversa: quem escreveu por último, o trecho e quantas chegaram. */
 export type ChatPush = { space: string; group: string; count: number; author: string | null; excerpt: string; photo: boolean };
@@ -169,6 +174,12 @@ export const networkAction = z.discriminatedUnion('action', [
     amount: amountOf('Diga quanto fez.').nullable().default(null) }),
   z.object({ action: z.literal('achievement_audience'), achievement: id, audience: z.enum(achievementAudiences) }),
   z.object({ action: z.literal('show_achievements'), shown: z.boolean() }),
+  z.object({ action: z.literal('finder_create'), space: id, title: z.string().trim().min(1, 'Dê um nome, como “Reunião do trabalho”.').max(120, 'O nome vai até 120 letras.'),
+    days: z.array(dayText).min(1, 'Escolha pelo menos um dia.').max(7, 'Até 7 dias.'), from: z.number().int().min(0).max(23), to: z.number().int().min(1).max(24) })
+    .refine(value => value.to > value.from, 'A hora final vem depois da inicial.'),
+  z.object({ action: z.literal('finder_mark'), finder: id, slots: z.array(z.number().int().min(0).max(167)).max(168) }),
+  z.object({ action: z.literal('finder_manage'), finder: id, day: dayText.nullable().default(null), hour: z.number().int().min(0).max(23).nullable().default(null),
+    remove: z.boolean().default(false) }).refine(value => value.remove || (value.day && value.hour !== null), 'Escolha o dia e a hora.'),
   z.object({ action: z.literal('keep_story'), post: id, title: z.string().trim().max(30, 'O título do destaque vai até 30 letras.') }),
   z.object({ action: z.literal('follow'), person: id }),
   z.object({ action: z.literal('unfollow'), person: id }),
@@ -201,6 +212,9 @@ export function networkCall(body: NetworkAction): DbCall {
     case 'challenge_checkin': return { fn: 'challenge_checkin', args: { target: body.challenge, which_day: body.day, done: body.done, how_much: body.amount } };
     case 'achievement_audience': return { fn: 'achievement_audience', args: { target: body.achievement, next_audience: body.audience } };
     case 'show_achievements': return { fn: 'show_achievements', args: { shown: body.shown } };
+    case 'finder_create': return { fn: 'finder_create', args: { target: body.space, finder_title: body.title, finder_days: body.days, first_hour: body.from, last_hour: body.to } };
+    case 'finder_mark': return { fn: 'finder_mark', args: { target: body.finder, marked: body.slots } };
+    case 'finder_manage': return { fn: 'finder_manage', args: { target: body.finder, pick_day: body.day, pick_hour: body.hour, remove: body.remove } };
     case 'keep_story': return { fn: 'keep_story', args: { target: body.post, title: body.title } };
     case 'follow': return { fn: 'follow_person', args: { target: body.person } };
     case 'unfollow': return { fn: 'unfollow_person', args: { target: body.person } };
@@ -211,7 +225,7 @@ export function networkCall(body: NetworkAction): DbCall {
 }
 
 /** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos, bloqueados, listas, conversa do grupo,
- * desafios e conquistas. Null quando o pedido não faz sentido. */
+ * desafios, conquistas e horários em comum. Null quando o pedido não faz sentido. */
 export function networkRead(params: URLSearchParams): DbCall | null {
   const uuid = (value: string | null) => id.safeParse(value).success ? value : null;
   const raw = params.get('before');
@@ -232,6 +246,7 @@ export function networkRead(params: URLSearchParams): DbCall | null {
     if (which === 'today') return { fn: 'my_challenges_today', args: {} };
     const target = uuid(which); return target ? { fn: 'space_challenges', args: { target } } : null;
   }
+  if (params.has('finders')) { const target = uuid(params.get('finders')); return target ? { fn: 'space_finders', args: { target } } : null; }
   if (params.has('achievements')) { const target = uuid(params.get('achievements')); return target ? { fn: 'person_achievements', args: { target } } : null; }
   if (params.has('chat')) {
     const target = uuid(params.get('chat')), rawAfter = params.get('after');

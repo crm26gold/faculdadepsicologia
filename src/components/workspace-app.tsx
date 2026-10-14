@@ -10,7 +10,7 @@ import { calendarEntries, weekdays } from '@/lib/academic';
 import { greeting, monthCycles, todayAgenda, todayAlerts, waitingSince, type TodayAlert } from '@/lib/today';
 import type { WaitingRequest } from '@/lib/assistant-jobs';
 import { isUnorganized } from '@/lib/capture';
-import { linkAssignment, moveAgendaTask, type AgendaAssignment, type AgendaLink } from '@/lib/assignment-agenda';
+import { addMeeting, linkAssignment, moveAgendaTask, type AgendaAssignment, type AgendaLink, type AgendaMeeting } from '@/lib/assignment-agenda';
 import { useWorkspace } from './use-workspace';
 import { Modal } from './modal';
 import { levelLabels, minutesLabel, reminderLevels, remindMinutes, type Remind, type ReminderLevel } from '@/lib/reminders';
@@ -586,6 +586,12 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
     return saved ? outcome.link ?? null : null;
   }
   function moveToDeadline(taskId: string, due: string) { return update((previous) => moveAgendaTask(previous, taskId, due)); }
+  // Horário marcado no grupo: entra na agenda pessoal só quando a pessoa pede. Null quando não deu para salvar.
+  function addMeetingToAgenda(meeting: AgendaMeeting) {
+    const probe = addMeeting(data, meeting, '');
+    if (!probe.added) return false;
+    return update((previous) => addMeeting(previous, meeting, crypto.randomUUID()).data) ? true : null;
+  }
   function toggleTask(task: Task) { update((previous) => ({ ...previous, tasks: previous.tasks.map((item) => item.id === task.id ? { ...item, done: !item.done } : item) })); }
   function openSubject(item: Subject) { navigate('notes'); setNotesPlace({ kind: 'subject', id: item.id }); }
   function deleteCourse(course: Course) {
@@ -882,7 +888,7 @@ export function WorkspaceApp({ mode, hostedPreview = false, authenticated = fals
 
           {view === 'notes' && <NotesLibrary data={data} blocked={blocked} demo={demo} cloud={mode === 'cloud'} status={status} update={update} place={notesPlace} noteId={selectedNote} onPlace={setNotesPlace} onNote={setSelectedNote} onManage={() => openSettingsSection('areas')} />}
 
-          {view === 'community' && (cloud && home ? <CommunityPanel home={home} workspace={data} route={communityRoute} onRoute={routeCommunity} onBack={communityBack} onOpenSettings={() => navigate('settings')} refreshHome={refreshHome} onAddToAgenda={addToAgenda} onMoveAgendaTask={moveToDeadline} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
+          {view === 'community' && (cloud && home ? <CommunityPanel home={home} workspace={data} route={communityRoute} onRoute={routeCommunity} onBack={communityBack} onOpenSettings={() => navigate('settings')} refreshHome={refreshHome} onAddToAgenda={addToAgenda} onMoveAgendaTask={moveToDeadline} onAddMeeting={addMeetingToAgenda} /> : <ServerOnly view="community" cloud={cloud} error={homeError} />)}
           {view === 'contacts' && (cloud && home ? <ContactsPanel /> : <ServerOnly view="contacts" cloud={cloud} error={homeError} />)}
           {view === 'admin' && (cloud && home?.account.is_master ? <><AiSettings /><WhatsAppAdmin /><TelegramAdmin /><AdminPanel me={home.account.user_id} onOpenSpace={id => routeCommunity({ kind: 'space', id })} /></> : <ServerOnly view="admin" cloud={cloud} error={homeError} />)}
 

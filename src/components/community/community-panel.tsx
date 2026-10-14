@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, BadgeCheck, ClipboardCheck, GraduationCap, Link2, MessageCircle, PenLine, Plus, Send, Users } from 'lucide-react';
 import { api, formatDay, PENDING_INVITE_KEY } from './client';
 import { SpaceView, type SpaceTab } from './space-view';
+import type { Meeting } from './time-finder';
 import { AssignmentView } from './assignment-view';
 import { ProfileEditor } from './profile-editor';
 import { CreateGroup } from './group-form';
@@ -16,17 +17,18 @@ import type { AgendaAssignment, AgendaLink } from '@/lib/assignment-agenda';
 import type { Workspace } from '@/lib/workspace';
 
 export type CommunityTab = 'feed' | 'mine' | 'discover';
-export type CommunityRoute = { kind: 'list'; tab?: CommunityTab } | { kind: 'space'; id: string; tab?: SpaceTab; start?: 'challenge' | 'poll' } | { kind: 'work'; id: string; from?: string }
+export type CommunityRoute = { kind: 'list'; tab?: CommunityTab } | { kind: 'space'; id: string; tab?: SpaceTab; start?: 'challenge' | 'poll' | 'finder' } | { kind: 'work'; id: string; from?: string }
   | { kind: 'create'; parent?: { id: string; name: string } } | { kind: 'profile' } | ({ kind: 'person'; id: string } & ProfileView)
   | { kind: 'updates' } | { kind: 'compose'; space?: { id: string; name: string }; story?: boolean };
 
 /** Cada passo dentro do Networking vira uma entrada do histórico: o Voltar (do app ou do celular) desfaz um passo.
  * `replace` troca a entrada atual (aba, ou a tela que acabou de cumprir seu papel); `onBack` volta um passo. */
-export function CommunityPanel({ home, workspace, route, onRoute, onBack, onOpenSettings, refreshHome, onAddToAgenda, onMoveAgendaTask }: {
+export function CommunityPanel({ home, workspace, route, onRoute, onBack, onOpenSettings, refreshHome, onAddToAgenda, onMoveAgendaTask, onAddMeeting }: {
   home: Home; workspace: Workspace; route: CommunityRoute; onRoute: (route: CommunityRoute, replace?: boolean) => void; onBack: () => void;
   onOpenSettings: () => void; refreshHome: () => void;
   onAddToAgenda?: (assignment: AgendaAssignment) => AgendaLink | null;
   onMoveAgendaTask?: (taskId: string, due: string) => boolean;
+  onAddMeeting?: (meeting: Meeting) => boolean | null;
 }) {
   const me = home.account.user_id;
   const personalPhoto = workspace.profile?.photoUrl || undefined;
@@ -36,7 +38,7 @@ export function CommunityPanel({ home, workspace, route, onRoute, onBack, onOpen
     onSaved={() => { refreshHome(); onBack(); }} onCancel={onBack} />;
   if (route.kind === 'create') return <CreateGroup data={workspace} parent={route.parent} onCancel={onBack}
     onCreated={id => { refreshHome(); onRoute({ kind: 'space', id }, true); }} />;
-  if (route.kind === 'space') return <SpaceView key={route.id} id={route.id} tab={route.tab} start={route.start} me={me} workspace={workspace} onBack={onBack} onChanged={refreshHome}
+  if (route.kind === 'space') return <SpaceView key={route.id} id={route.id} tab={route.tab} start={route.start} onAddMeeting={onAddMeeting} me={me} workspace={workspace} onBack={onBack} onChanged={refreshHome}
     onOpenSpace={id => onRoute({ kind: 'space', id })} onOpenWork={id => onRoute({ kind: 'work', id, from: route.id })}
     onCreateGroup={parent => onRoute({ kind: 'create', parent })} onCompose={space => onRoute({ kind: 'compose', space })}
     onOpenPerson={id => onRoute({ kind: 'person', id })} />;

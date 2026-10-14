@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { linkAssignment, moveAgendaTask } from '../src/lib/assignment-agenda';
+import { addMeeting, linkAssignment, moveAgendaTask } from '../src/lib/assignment-agenda';
 import { emptyWorkspace, parseWorkspace, type Workspace } from '../src/lib/workspace';
 
 const work = { id: '00000000-0000-4000-8000-0000000000d1', title: 'Direitos Humanos', due: '2026-10-15' };
@@ -27,4 +27,15 @@ test('tarefa antiga com o mesmo título ganha o vínculo em vez de outra cópia;
   const updated = moveAgendaTask(moved.data, moved.link.task.id, '2026-10-22');
   assert.equal(updated.tasks[0].date, '2026-10-22');
   assert.equal(linkAssignment(updated, { ...work, due: '2026-10-22' }, 'never-used').link.status, 'exists');
+});
+
+test('horário marcado no grupo entra na agenda uma vez só, como compromisso com hora', () => {
+  const base = { ...emptyWorkspace(), tasks: [] };
+  const meeting = { title: 'Reunião do trabalho · Ética', date: '2026-10-15', time: '19:00' };
+  const first = addMeeting(base, meeting, 'm1');
+  assert.equal(first.added, true);
+  assert.deepEqual(first.data.tasks[0], { id: 'm1', title: meeting.title, subjectId: '', date: '2026-10-15', time: '19:00', kind: 'Compromisso', done: false, minutes: 60 });
+  const again = addMeeting(first.data, meeting, 'm2');
+  assert.equal(again.added, false);
+  assert.equal(again.data, first.data, 'nada muda');
 });
