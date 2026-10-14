@@ -836,6 +836,68 @@ test('painel master: abertura da plataforma, estrutura e gestão de contas com h
   await page.screenshot({ path: `test-results/admin-${info.project.name}.png`, fullPage: true });
 });
 
+test('segurança: denunciar uma publicação, bloquear uma pessoa e a administração resolver a denúncia', async ({ page }) => {
+  const ana = { id: COLEGA, name: 'Colega Ana', avatar: { kind: 'animal', value: '🦉', photo: null } };
+  const POST = 'eeeeeeee-0000-4000-8000-0000000000a9';
+  const post = { author: ana, audience: 'public', topics: [], space: null, counts: { gostei: 0, util: 0 }, mine: [], expires_at: null, photos: [], style: 'text',
+    id: POST, body: 'Compre seguidores aqui', created_at: '2026-10-13T10:00:00Z' };
+  let blocked = false;
+  const profile = () => blocked ? { ...ana, blocked: true, is_me: false, posts: [], highlights: [] }
+    : { ...ana, bio: '', closed: false, is_me: false, discoverable: true, show_follows: false, status: 'none', follows_me: false, requested_me: false, followers: 3, following: 1, posts: [post] };
+  const posted = await mockApi(page, { home: homeFixture({ master: true }),
+    onPost: ({ body }) => { if (body.action === 'block') blocked = !!body.blocking; return null; },
+    network: url => url.searchParams.get('feed') === 'following' ? [post] : url.searchParams.get('person') === COLEGA ? profile()
+      : url.searchParams.get('blocked') ? (blocked ? [ana] : []) : [] });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/#community');
+  await page.getByRole('tab', { name: 'Seguindo' }).click();
+
+  // Denunciar a publicação: motivo, observação; quem publicou não fica sabendo.
+  await page.getByRole('article', { name: 'Publicação de Colega Ana' }).getByRole('button', { name: 'Mais opções da publicação' }).click();
+  const menu = page.getByRole('dialog', { name: 'Opções sobre Colega' });
+  await menu.getByRole('button', { name: 'Denunciar publicação' }).click();
+  const report = page.getByRole('dialog', { name: 'Denunciar publicação' });
+  await expect(report).toContainText('Colega não fica sabendo quem denunciou');
+  await report.getByLabel('Spam, golpe ou propaganda').check();
+  await report.getByLabel(/Quer contar mais/).fill('Vende seguidores');
+  expect((await new AxeBuilder({ page }).include('.modal').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: 'test-results/denunciar-mobile.png' });
+  await report.getByRole('button', { name: 'Enviar denúncia' }).click();
+  await expect(page.getByRole('dialog', { name: 'Denúncia enviada' })).toBeVisible();
+  expect(posted.find(item => item.body.action === 'report')?.body).toEqual({ action: 'report', person: COLEGA, post: POST, reason: 'spam', note: 'Vende seguidores' });
+  await page.getByRole('dialog', { name: 'Denúncia enviada' }).getByRole('button', { name: 'Fechar', exact: true }).click();
+
+  // Bloquear pelo perfil: confirma o que acontece; o perfil vira o cartão para desbloquear.
+  await page.getByRole('article', { name: 'Publicação de Colega Ana' }).getByRole('button', { name: 'Colega Ana' }).click();
+  await page.locator('.nw-profile-head').getByRole('button', { name: 'Mais opções' }).click();
+  await page.getByRole('dialog', { name: 'Opções sobre Colega' }).getByRole('button', { name: 'Bloquear Colega' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Bloquear Colega?' });
+  await expect(confirm).toContainText('Quem segue quem, dos dois lados, é desfeito.');
+  await confirm.getByRole('button', { name: 'Bloquear', exact: true }).click();
+  await expect.poll(() => posted.find(item => item.body.action === 'block')?.body).toEqual({ action: 'block', person: COLEGA, blocking: true });
+  await expect(page.locator('.nw-blocked-card')).toContainText('Você bloqueou Colega.');
+  await page.locator('.nw-blocked-card').getByRole('button', { name: 'Desbloquear' }).click();
+  await expect.poll(() => posted.filter(item => item.body.action === 'block').at(-1)?.body).toEqual({ action: 'block', person: COLEGA, blocking: false });
+  await expect(page.locator('.nw-profile-head')).toContainText('Colega Ana');
+
+  // A administração vê a denúncia com o trecho e decide; cada decisão fica no histórico.
+  await page.route('**/api/admin', route => route.request().method() === 'POST'
+    ? route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: null }) })
+    : route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: { ...admin, reports: [{ id: 'f1c2b0e6-1d2a-4c3b-9e8f-0a1b2c3d4e51', reason: 'spam', note: 'Vende seguidores',
+      created_at: '2026-10-13T12:00:00Z', reporter: 'Pessoa Teste', target: ana, post: POST, excerpt: 'Compre seguidores aqui', post_exists: true }] } }) }));
+  const resolved: Record<string, unknown>[] = [];
+  page.on('request', request => { if (request.url().endsWith('/api/admin') && request.method() === 'POST') resolved.push(request.postDataJSON()); });
+  page.on('dialog', dialog => void dialog.accept());
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await nav(page).getByRole('button', { name: 'Administração', exact: true }).click();
+  const reports = page.getByRole('region', { name: 'Denúncias abertas (1)' });
+  await expect(reports).toContainText('Spam, golpe ou propaganda · sobre Colega Ana · por Pessoa Teste');
+  await expect(reports).toContainText('Compre seguidores aqui');
+  await reports.getByRole('button', { name: 'Apagar publicação' }).click();
+  await expect.poll(() => resolved.at(-1)).toEqual({ action: 'resolve_report', report: 'f1c2b0e6-1d2a-4c3b-9e8f-0a1b2c3d4e51', outcome: 'apagar' });
+  expect((await new AxeBuilder({ page }).include('.cm-reports').withTags(['wcag2a', 'wcag2aa']).analyze()).violations).toEqual([]);
+});
+
 test('sem acesso Pro, finanças mostram o convite ao Pro e o menu sinaliza', async ({ page }) => {
   await mockApi(page, { home: homeFixture({ openAccess: false }) });
   await page.goto('/');

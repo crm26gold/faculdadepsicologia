@@ -1081,6 +1081,17 @@ button.nw-story-ring { background: transparent; cursor: pointer; }
 .app-invite-tip { margin: 0; padding: 10px 12px; border-radius: 12px; background: var(--soft-bg); font-size: .92rem; }
 .app-invite-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .app-invite-actions .button { flex: 1 1 160px; min-block-size: 44px; }
+/* Bloquear e denunciar. */
+.cm-reports { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.cm-reports li { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; }
+.cm-reports p { margin: 0; overflow-wrap: anywhere; }
+.cm-reports blockquote { margin: 0; padding: 8px 12px; border-inline-start: 3px solid var(--line); background: var(--soft-bg); overflow-wrap: anywhere; white-space: pre-wrap; }
+.nw-safety-menu { display: grid; gap: 8px; min-inline-size: min(360px, 80vw); }
+.nw-safety-option { display: flex; align-items: center; gap: 12px; inline-size: 100%; min-block-size: 52px; padding: 0 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font-weight: 600; text-align: start; }
+.nw-safety-option.danger { color: var(--danger-text); }
+.nw-safety-confirm { display: grid; gap: 10px; max-inline-size: 480px; }
+.nw-safety-confirm ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 6px; }
+.nw-blocked-card { display: grid; gap: 10px; justify-items: start; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
 /* Entrega 2: destaques, Salvos e ver como visitante. */
 .nw-highlights { padding-inline: 4px; }
 .nw-highlight-cover { display: grid; place-items: center; inline-size: 56px; block-size: 56px; border-radius: 50%; object-fit: cover; font-family: var(--serif); font-size: 1.3rem; font-weight: 700; background: var(--sage); color: var(--ink); }

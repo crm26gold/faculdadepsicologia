@@ -26,9 +26,11 @@ select push_subscribe('https://push.example.invalid/bia', repeat('a', 87), repea
 select act_as('00000000-0000-4000-8000-000000000005'); select save_my_profile('initials', '', null, '');
 select act_as('00000000-0000-4000-8000-000000000006'); select save_my_profile('initials', '', null, '');
 
--- O padrão: aviso ligado e silêncio das 22h às 7h. A Bia tira o silêncio para o teste.
+-- O padrão: aviso ligado e silêncio desligado (quem estuda à noite liga se quiser).
 select act_as('00000000-0000-4000-8000-000000000004');
-select expect(reminders_state()->'network'->>'quiet_from' = '22:00' and (reminders_state()->'network'->>'enabled')::boolean, 'padrão: ligado, silêncio às 22h');
+select expect(reminders_state()->'network'->>'quiet_from' is null and (reminders_state()->'network'->>'enabled')::boolean, 'padrão: ligado, sem silêncio');
+select save_alerts(true, '22:00', '07:00', '{}');
+select expect(reminders_state()->'network'->>'quiet_from' = '22:00', 'silêncio ligado');
 select save_alerts(true, null, null, '{}');
 select expect(reminders_state()->'network'->>'quiet_from' is null, 'silêncio desligado');
 do $$ begin perform save_alerts(true, '10:00', null, '{}'); raise exception 'FALHA: silêncio pela metade';

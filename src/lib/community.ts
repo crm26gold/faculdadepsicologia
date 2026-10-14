@@ -113,6 +113,8 @@ export type AdminOverview = {
   accounts: (Account & { spaces: number })[];
   spaces: { id: string; kind: SpaceKind; name: string; parent_id: string | null; color: SpaceColor; archived_at: string | null; members: number }[];
   audit: { id: number; actor_id: string | null; target_user_id: string | null; target_space_id: string | null; action: string; details: Record<string, unknown>; created_at: string }[];
+  reports?: { id: string; reason: 'spam' | 'ofensa' | 'assedio' | 'improprio' | 'outro'; note: string; created_at: string; reporter: string | null;
+    target: { id: string; name: string; avatar: Avatar | null } | null; post: string | null; excerpt: string; post_exists: boolean }[];
 };
 export type Contact = { id: string; name: string; email: string; phone: string; birthdate: string | null; notes: string; created_at: string };
 
@@ -206,6 +208,7 @@ export const adminAction = z.discriminatedUnion('action', [
     pro_until: day.default(null), credits: z.number().int().min(0).max(1_000_000), features: z.array(z.enum(['create_classes', 'ai'])).max(20), master: z.boolean(),
   }),
   z.object({ action: z.literal('set_open_access'), value: z.boolean() }),
+  z.object({ action: z.literal('resolve_report'), report: id, outcome: z.enum(['apagar', 'resolvida', 'descartada']) }),
 ]);
 
 export const contactAction = z.discriminatedUnion('action', [

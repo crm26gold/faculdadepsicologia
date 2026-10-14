@@ -26,12 +26,18 @@ export type PersonProfile = Person & {
   bio: string; closed: boolean; is_me: boolean; discoverable: boolean | null; show_follows: boolean;
   status: 'none' | 'requested' | 'following'; follows_me: boolean; requested_me: boolean;
   followers: number; following: number; posts: NetworkPost[]; highlights?: Highlight[]; photo_large?: string | null;
+  /** Você bloqueou esta pessoa: o perfil vira um cartão para desbloquear. */
+  blocked?: boolean;
 };
 export type NetworkEvent = {
   id: number; kind: 'follow' | 'follow_request' | 'follow_accepted' | Reaction | 'join_request' | 'join_approved';
   created_at: string; read: boolean; actor: Person | null; post: { id: string; body: string } | null; space: { id: string; name: string } | null;
 };
 export type Updates = { requests: Person[]; events: NetworkEvent[] };
+export const reportReasons = ['spam', 'ofensa', 'assedio', 'improprio', 'outro'] as const;
+export const reasonLabels: Record<typeof reportReasons[number], string> = {
+  spam: 'Spam, golpe ou propaganda', ofensa: 'Ofensa ou discurso de ódio', assedio: 'Assédio ou ameaça', improprio: 'Conteúdo impróprio', outro: 'Outro motivo',
+};
 export const eventText: Record<NetworkEvent['kind'], string> = {
   follow: 'começou a seguir você', follow_request: 'pediu para seguir você', follow_accepted: 'aceitou seu pedido para seguir',
   gostei: 'gostou da sua publicação', util: 'achou útil sua publicação', join_request: 'pediu para entrar no grupo', join_approved: 'aceitou você no grupo',
@@ -78,6 +84,9 @@ export const networkAction = z.discriminatedUnion('action', [
   z.object({ action: z.literal('delete_post'), post: id }),
   z.object({ action: z.literal('react'), post: id, kind: z.enum(['gostei', 'util']) }),
   z.object({ action: z.literal('save'), post: id }),
+  z.object({ action: z.literal('block'), person: id, blocking: z.boolean() }),
+  z.object({ action: z.literal('report'), person: id, post: id.nullable().default(null), reason: z.enum(reportReasons),
+    note: z.string().trim().max(500, 'A observação vai até 500 letras.').default('') }),
   z.object({ action: z.literal('keep_story'), post: id, title: z.string().trim().max(30, 'O título do destaque vai até 30 letras.') }),
   z.object({ action: z.literal('follow'), person: id }),
   z.object({ action: z.literal('unfollow'), person: id }),
@@ -96,6 +105,8 @@ export function networkCall(body: NetworkAction): DbCall {
     case 'delete_post': return { fn: 'delete_network_post', args: { target: body.post } };
     case 'react': return { fn: 'toggle_reaction', args: { target: body.post, reaction: body.kind } };
     case 'save': return { fn: 'toggle_save', args: { target: body.post } };
+    case 'block': return { fn: 'block_person', args: { target: body.person, blocking: body.blocking } };
+    case 'report': return { fn: 'report_content', args: { target: body.person, post: body.post, why: body.reason, details: body.note } };
     case 'keep_story': return { fn: 'keep_story', args: { target: body.post, title: body.title } };
     case 'follow': return { fn: 'follow_person', args: { target: body.person } };
     case 'unfollow': return { fn: 'unfollow_person', args: { target: body.person } };
@@ -105,7 +116,7 @@ export function networkCall(body: NetworkAction): DbCall {
   }
 }
 
-/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos e listas. Null quando o pedido não faz sentido. */
+/** Leituras pela URL: feed, stories, perfil, busca de pessoas, tema, atualizações, salvos, bloqueados e listas. Null quando o pedido não faz sentido. */
 export function networkRead(params: URLSearchParams): DbCall | null {
   const uuid = (value: string | null) => id.safeParse(value).success ? value : null;
   const raw = params.get('before');
@@ -120,6 +131,7 @@ export function networkRead(params: URLSearchParams): DbCall | null {
   if (params.has('topic')) { const tag = normalizeTopics(params.get('topic') ?? '')[0]; return tag ? { fn: 'topic_posts', args: { tag, before } } : null; }
   if (params.get('updates') === '1') return { fn: 'network_updates', args: {} };
   if (params.get('saved') === '1') return { fn: 'saved_feed', args: { before } };
+  if (params.get('blocked') === '1') return { fn: 'my_blocks', args: {} };
   if (params.has('follows')) {
     const target = uuid(params.get('follows')), which = params.get('list');
     return target && (which === 'followers' || which === 'following') ? { fn: 'follow_list', args: { target, which } } : null;
